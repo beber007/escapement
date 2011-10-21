@@ -27,7 +27,7 @@
 
 #ifdef ZOTTAOS_VERSION_HARD
 
-#include "ZottaOS.h"  /* Needed for the definitions of OSUINT16_LL and OSUINT16_SC */
+#include "../ZottaOS.h"  /* Needed for the definitions of OSUINT16_LL and OSUINT16_SC */
 #include "ZottaOSHard_Timer.h"
 
 

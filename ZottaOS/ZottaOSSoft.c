@@ -24,7 +24,7 @@
 ** Authors: MIS-TIC
 */
 
-#include "ZottaOS_msp430.h"
+#include "msp430/ZottaOS_msp430.h"
 
 #ifdef ZOTTAOS_VERSION_SOFT
 

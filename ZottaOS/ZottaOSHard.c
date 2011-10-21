@@ -22,12 +22,12 @@
 ** Compiler and linker: CCEV4 Build: 4.1.3.00034 (www.ti.com)
 ** Authors: MIS-TIC
 */
-#include "ZottaOS_msp430.h"
+#include "msp430/ZottaOS_msp430.h"
 
 #ifdef ZOTTAOS_VERSION_HARD
 
 #include "ZottaOSHard.h"
-#include "ZottaOSHard_Timer.h"
+#include "msp430/ZottaOSHard_Timer.h"
 
 /* COMMON DATA TYPES AND DEFINES THAT ARE ARCHITECTURE SPECIFIC */
 /* MSP430 processors have 16-bit RAM addresses where data may be stored. */

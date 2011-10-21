@@ -170,10 +170,10 @@
 **           valent to (1,1);
 **        3. All task deadlines are equal to their period unless indicated. */
 
-#include "ZottaOS/ZottaOS.h"
-#include "ZottaOS/UART/UART.h"
+#include "../../../ZottaOS.h"
+#include "../../UART.h"
 #include <string.h>
-#include "ZottaOS/LCD_EXP430F5438/hal_lcd_ZottaOS.h"
+#include "LCD_EXP430F5438/hal_lcd_ZottaOS.h"
 
 /* Sanity Test */
 #if !defined(ZOTTAOS_VERSION_HARD) && !defined(ZOTTAOS_VERSION_SOFT)
