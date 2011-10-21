@@ -88,10 +88,10 @@
 ** Balls_Demo_EXP430F5438.zot contient la configuration
 */
 
-#include "ZottaOS/ZottaOS.h"
-#include "ZottaOS/UART/UART.h"
+#include "../../../ZottaOS.h"
+#include "../../UART.h"
 #include <string.h>
-#include "ZottaOS/LCD_EXP430F5438/hal_lcd_ZottaOS.h"
+#include "LCD_EXP430F5438/hal_lcd_ZottaOS.h"
 
 // claude à contrôler
 /* The application is based on modified LCD HAL files supplied by TI */

@@ -68,8 +68,8 @@
 ** Authors: MIS-TIC */
 
 
-#include "ZottaOS/ZottaOS.h"
-#include "ZottaOS/UART/UART.h"
+#include "../../ZottaOS.h"
+#include "../UART.h"
 
 /* The following parameters must be modified to accommodate the specific msp430 that is
 ** used and correspond to the pins of USART0.

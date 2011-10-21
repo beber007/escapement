@@ -36,8 +36,8 @@
 ** Version identifier: July 2010
 ** Authors: MIS-TIC */
 
-#include "ZottaOS/ZottaOS.h"
-#include "ZottaOS/UART/UART.h"
+#include "../../ZottaOS.h"
+#include "../UART.h"
 
 /* UART transmit FIFO buffer size definitions */
 #define UART_TRANSMIT_FIFO_NB_NODE    1

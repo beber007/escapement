@@ -20,7 +20,7 @@
 #define ZOTTAOS_H_
 
 #include "msp430.h"
-#include "ZottaOS_msp430.h"
+#include "msp430/ZottaOS_msp430.h"
 
 #if defined(ZOTTAOS_VERSION_HARD)
    #include "ZottaOSHard.h"

@@ -97,10 +97,10 @@
 ** (1) Main C stack size: 0x400
 */
 
-#include "ZottaOS/ZottaOS.h"
-#include "ZottaOS/UART/UART.h"
+#include "../../../ZottaOS.h"
+#include "../../UART.h"
 #include "string.h"
-#include "ZottaOS/LCD_EXP430F5438/hal_lcd.h"
+#include "LCD_EXP430F5438/hal_lcd_ZottaOS.h"
 
 // claude
 /* The application is based on modified LCD HAL files supplied by TI */
