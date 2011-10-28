@@ -20,7 +20,7 @@
 **   (2) Select MSP430 Compiler -> Predefined Symbols;
 **   (3) Define the microcontroller symbol you are using as "__MSP430xxx__", for example
 **       "__MSP430F2471__". 
-** Version date: May 2011
+** Version date: October 2011
 ** Authors: MIS-TIC
 */
 
