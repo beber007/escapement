@@ -30,7 +30,7 @@
 #elif defined (__MSP430C1111__) || defined (__MSP430C1101__)
 #include "ZottaOS_msp430x11x1.h"
 
-#elif defined (__MSP430C112__)
+#elif defined (__MSP430C112__) || defined (__MSP430P112__)
 #include "ZottaOS_msp430x11x.h"
 
 #elif defined (__MSP430C1121__)
@@ -225,6 +225,12 @@
 #elif defined (__MSP430FG477__) || defined (__MSP430FG478__) || defined (__MSP430FG479__)
 #include "ZottaOS_msp430xG47x.h"
 
+#elif defined (__MSP430F5131__) || defined (__MSP430F5151__) || defined (__MSP430F5171__)
+#include "ZottaOS_msp430f51x1.h"
+
+#elif defined (__MSP430F5132__) || defined (__MSP430F5152__) || defined (__MSP430F5172__)
+#include "ZottaOS_msp430f51x2.h"
+
 #elif defined (__CC430F5133__) || defined (__CC430F5135__) || defined (__CC430F5137__)
 #include "ZottaOS_cc430x513x.h"
 
@@ -237,13 +243,28 @@
 #elif defined (__MSP430F5308__) || defined (__MSP430F5309__) || defined (__MSP430F5310__)
 #include "ZottaOS_msp430f5308-10.h"
 
+#elif defined (__MSP430F5324__) || defined (__MSP430F5326__) || defined (__MSP430F5328__)
+#include "ZottaOS_msp430f5324_26_28.h"
+
+#elif defined (__MSP430F5325__) || defined (__MSP430F5327__) || defined (__MSP430F5329__)
+#include "ZottaOS_msp430f5325_27_29.h"
+
+#elif defined (__MSP430F5333__) || defined (__MSP430F5335__)
+#include "ZottaOS_msp430f5333_35.h"
+
+#elif defined (__MSP430F5336__) || defined (__MSP430F5338__)
+#include "ZottaOS_msp430f5336_38.h"
+
+#elif defined (__MSP430F5340__) || defined (__MSP430F5341__) || defined (__MSP430F5342__)
+#include "ZottaOS_msp430f534x.h"
+
 #elif defined (__MSP430F5418__) || defined (__MSP430F5435__) || defined (__MSP430F5437__)
 #include "ZottaOS_msp430f5418_35_37.h"
 
 #elif defined (__MSP430F5418A__) || defined (__MSP430F5435A__) || defined (__MSP430F5437A__)
 #include "ZottaOS_msp430f5418A_35A_37A.h"
 
-#elif defined (__XMS430F5438__) || defined (__MSP430F5419__) || defined (__MSP430F5436__) || defined (__MSP430F5438__)
+#elif defined (__MSP430F5419__) || defined (__MSP430F5436__) || defined (__MSP430F5438__) || defined (__XMS430F5438__)
 #include "ZottaOS_msp430f5419_36_38.h"
 
 #elif defined (__MSP430F5419A__) || defined (__MSP430F5436A__) || defined (__MSP430F5438A__)
@@ -257,9 +278,6 @@
 
 #elif defined (__MSP430F5521__) || defined (__MSP430F5522__) || defined (__MSP430F5524__) || defined (__MSP430F5525__) || defined (__MSP430F5526__) || defined (__MSP430F5527__) || defined (__MSP430F5528__) || defined (__MSP430F5529__)
 #include "ZottaOS_msp430x552x.h"
-
-#elif defined (__MSP430P112__)
-#include "ZottaOS_msp430x11x.h"
 
 #elif defined (__MSP430F5500__) || defined (__MSP430F5501__) || defined (__MSP430F5502__) || defined (__MSP430F5503__)
 #include "ZottaOS_msp430f5500-03.h"
@@ -279,35 +297,41 @@
 #elif defined (__MSP430F5636__) || defined (__MSP430F5637__) || defined (__MSP430F5638__)
 #include "ZottaOS_msp430f5636-38.h"
 
-#elif defined (__MSP430FR5720__)
-#include "ZottaOS_msp430fr5720.h"
+#elif defined (__MSP430FR5720__) || defined (__MSP430FR5724__) || defined (__MSP430FR5728__)
+#include "ZottaOS_msp430fr5720_24_28.h"
 
-#elif defined (__MSP430FR5725__)
-#include "ZottaOS_msp430fr5725.h"
+#elif defined (__MSP430FR5721__) || defined (__MSP430FR5725__) || defined (__MSP430FR5729__)
+#include "ZottaOS_msp430fr5721_25_29.h"
 
-#elif defined (__MSP430FR5728__)
-#include "ZottaOS_msp430fr5728.h"
+#elif defined (__MSP430FR5722__) || defined (__MSP430FR5726__)
+#include "ZottaOS_msp430fr5722_26.h"
 
-#elif defined (__MSP430FR5729__)
-#include "ZottaOS_msp430fr5729.h"
+#elif defined (__MSP430FR5723__) || defined (__MSP430FR5727__)
+#include "ZottaOS_msp430fr5723_27.h"
 
-#elif defined (__MSP430FR5730__)
-#include "ZottaOS_msp430fr5730.h"
+#elif defined (__MSP430FR5730__) || defined (__MSP430FR5734__) || defined (__MSP430FR5738__)
+#include "ZottaOS_msp430fr5730_34_38.h"
 
-#elif defined (__MSP430FR5735__)
-#include "ZottaOS_msp430fr5735.h"
+#elif defined (__MSP430FR5731__) || defined (__MSP430FR5735__) || defined (__MSP430FR5739__)
+#include "ZottaOS_msp430fr5731_35_39.h"
 
-#elif defined (__MSP430FR5738__)
-#include "ZottaOS_msp430fr5738.h"
+#elif defined (__MSP430FR5732__) || defined (__MSP430FR5736__)
+#include "ZottaOS_msp430fr5732_36.h"
 
-#elif defined (__MSP430FR5739__)
-#include "ZottaOS_msp430fr5739.h"
+#elif defined (__MSP430FR5733__) || defined (__MSP430FR5737__)
+#include "ZottaOS_msp430fr5733_37.h"
 
 #elif defined (__CC430F6125__) || defined (__CC430F6126__) || defined (__CC430F6127__)
 #include "ZottaOS_cc430x612x.h"
 
 #elif defined (__CC430F6135__) || defined (__CC430F6137__)
 #include "ZottaOS_cc430x613x.h"
+
+#elif defined (__MSP430F6433__) || defined (__MSP430F6435__)
+#include "ZottaOS_msp430f6433_35.h"
+
+#elif defined (__MSP430F6436__) || defined (__MSP430F6438__)
+#include "ZottaOS_msp430f6436_38.h"
 
 #elif defined (__MSP430F6630__) || defined (__MSP430F6631__) || defined (__MSP430F6632__)
 #include "ZottaOS_msp430f6630-32.h"
@@ -317,7 +341,6 @@
 
 #elif defined (__MSP430F6636__) || defined (__MSP430F6637__) || defined (__MSP430F6638__)
 #include "ZottaOS_msp430f6636-38.h"
-
 
 #elif defined (__MSP430GENERIC__)
 #error "msp430 generic device does not have a default include file"
