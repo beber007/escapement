@@ -27,7 +27,7 @@
 
 #ifdef ZOTTAOS_VERSION_SOFT
 
-#include "ZottaOS.h"  /* Needed for the definitions of OSUINT16_LL and OSUINT16_SC */
+#include "../ZottaOS.h"  /* Needed for the definitions of OSUINT16_LL and OSUINT16_SC */
 #include "ZottaOSSoft_Timer.h"
 
 

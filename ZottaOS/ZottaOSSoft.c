@@ -29,7 +29,7 @@
 #ifdef ZOTTAOS_VERSION_SOFT
 
 #include "ZottaOSSoft.h"
-#include "ZottaOSSoft_Timer.h"
+#include "msp430/ZottaOSSoft_Timer.h"
 
 /* COMMON DATA TYPES AND DEFINES THAT ARE ARCHITECTURE SPECIFIC */
 /* MSP430 processors have 16-bit RAM addresses where data may be stored. */
@@ -185,7 +185,7 @@ typedef struct ETCB {
 #define BLOCKQ    ARRIVALQ
 
 TCB *_OSQueueHead = NULL;
-static TCB_TAIL *OSQueueTail = NULL;
+TCB_TAIL *_OSQueueTail = NULL;
 
 #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
   /* EVENT-DRIVEN TASKING UNDER DEADLINE MONOTONIC SCHEDULING
@@ -409,20 +409,20 @@ BOOL Initialize(void)
   ** queues. */
   if ((_OSQueueHead = (TCB *)OSMalloc(sizeof(TCB_HEAD))) == NULL)
      return FALSE;
-  if ((OSQueueTail = (TCB_TAIL *)OSMalloc(sizeof(TCB_TAIL))) == NULL)
+  if ((_OSQueueTail = (TCB_TAIL *)OSMalloc(sizeof(TCB_TAIL))) == NULL)
      return FALSE;
-  _OSQueueHead->Next[READYQ] = (TCB *)OSQueueTail;
-  OSQueueTail->Next[READYQ] = NULL;
+  _OSQueueHead->Next[READYQ] = (TCB *)_OSQueueTail;
+  _OSQueueTail->Next[READYQ] = NULL;
   /* Create the idle task as the tail of the ready queue. */
-  OSQueueTail->TaskCodePtr = IdleTask;
+  _OSQueueTail->TaskCodePtr = IdleTask;
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-     OSQueueTail->StaticPriority = 0;
+     _OSQueueTail->StaticPriority = 0;
   #endif
   /* Make an empty arrival queue. */
-  _OSQueueHead->Next[ARRIVALQ] = (TCB *)OSQueueTail;
-  OSQueueTail->Next[ARRIVALQ] = NULL;
-  OSQueueTail->TaskState = STATE_INIT | TASKTYPE_BLOCKING;
-  OSQueueTail->NextArrivalTimeLow = INT32_MAX;
+  _OSQueueHead->Next[ARRIVALQ] = (TCB *)_OSQueueTail;
+  _OSQueueTail->Next[ARRIVALQ] = NULL;
+  _OSQueueTail->TaskState = STATE_INIT | TASKTYPE_BLOCKING;
+  _OSQueueTail->NextArrivalTimeLow = INT32_MAX;
   return TRUE;
 } /* end of Initialize */
 
@@ -432,7 +432,7 @@ BOOL Initialize(void)
 ** The argument parameter to the idle task is undefined. */
 void IdleTask(void *argument)
 {
-  if (_OSQueueHead->Next[ARRIVALQ] != (TCB *)OSQueueTail || SynchronousTaskList != NULL)
+  if (_OSQueueHead->Next[ARRIVALQ] != (TCB *)_OSQueueTail || SynchronousTaskList != NULL)
      _OSStartTimer();   // Start the interval timer
   /* set bits CPUOFF, SCG0 and SCG1 into the SR register to enter in LPM3 sleep mode */
   __asm("\tbis.w #0xD0,sr");
@@ -512,7 +512,7 @@ UINT8 GetTaskPriority(INT32 deadline)
   ** serted in the ready queue; the priority of these tasks can be found by traversing
   ** this queue. Note that the tasks are transferred to the arrival queue when starting
   ** ZottaOS, and it is only at that time that the initial arrival time if the task is
-  ** known. Also note that after creating the last task, OSQueueTail->StaticPriority
+  ** known. Also note that after creating the last task, _OSQueueTail->StaticPriority
   ** holds the number of tasks in the application. */
   do {
      nextTCB = nextTCB->Next[READYQ];
@@ -520,7 +520,7 @@ UINT8 GetTaskPriority(INT32 deadline)
         nextTCB->StaticPriority++;
      else
         nbTasks++;
-  } while (nextTCB != (TCB *)OSQueueTail);
+  } while (nextTCB != (TCB *)_OSQueueTail);
   /* There may also be event-driven tasks that may have higher priority. Because these
   ** are not sorted, the whole list must be traversed. */
   for (nextETCB = SynchronousTaskList; nextETCB != NULL; nextETCB = nextETCB->NextETCB)
@@ -565,9 +565,9 @@ void ScheduleNextTask(void)
 {
   _OSActiveTask = _OSQueueHead->Next[READYQ];
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-     while (_OSActiveTask != (TCB *)OSQueueTail && _OSActiveTask->TaskState == STATE_INIT) {
+     while (_OSActiveTask != (TCB *)_OSQueueTail && _OSActiveTask->TaskState == STATE_INIT) {
         /* Only periodic tasks are considered. */
-        if (_OSActiveTask->Priority < OSQueueTail->StaticPriority) // Is task mandatory?
+        if (_OSActiveTask->Priority < _OSQueueTail->StaticPriority) // Is task mandatory?
            break; // Yes, schedule it
         /* For optional tasks, we need to check if the instance can finish its work once
         ** it begins its execution. And then if it can, promote the instance to its base
@@ -583,26 +583,26 @@ void ScheduleNextTask(void)
         _OSActiveTask = _OSQueueHead->Next[READYQ];
      }
   #else
-     if (_OSActiveTask == (TCB *)OSQueueTail)
+     if (_OSActiveTask == (TCB *)_OSQueueTail)
         /* No mandatory instance to execute: Check out optional tasks that are after the
-        ** sentinel marked by OSQueueTail. */
-        while (OSQueueTail->Next[READYQ] != NULL) {
-           _OSActiveTask = OSQueueTail->Next[READYQ];
+        ** sentinel marked by _OSQueueTail. */
+        while (_OSQueueTail->Next[READYQ] != NULL) {
+           _OSActiveTask = _OSQueueTail->Next[READYQ];
            if ((_OSActiveTask->TaskState & STATE_DROP) == 0) {
               if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > _OSTime +
                                            _OSGetTimerCounter() && IsTaskSchedulable()) {
                  /* Move the optional to the head of the ready queue */
                  _OSActiveTask->TaskState |= STATE_ACTIVATE;
                  _OSQueueHead->Next[READYQ] = _OSActiveTask;
-                 OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];
-                 _OSActiveTask->Next[READYQ] = (TCB *)OSQueueTail;
+                 _OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];
+                 _OSActiveTask->Next[READYQ] = (TCB *)_OSQueueTail;
                  _OSActiveTask->TaskState = STATE_INIT;
                  break;
               }
               /* Remove instance from ready queue. */
               _OSActiveTask->TaskState |= STATE_DROP;
            }
-           OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];
+           _OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];
            _OSActiveTask->TaskState |= STATE_ZOMBIE;
         }
   #endif
@@ -758,15 +758,15 @@ void _OSTimerInterruptHandler(void)
            for (tmp = _OSQueueHead; tmp->Next[READYQ] != arrival; tmp = tmp->Next[READYQ]);
            tmp->Next[READYQ] = arrival->Next[READYQ];
         #else
-           /* Optional EDF instances are always after OSQueueTail. However in case of an
+           /* Optional EDF instances are always after _OSQueueTail. However in case of an
            ** overload, the non-zombie instance may also be mandatory and should be de-
            ** tectable while testing the application. */
            #ifdef DEBUG_MODE
-              for (tmp = _OSQueueHead; tmp != (TCB *)OSQueueTail; tmp = tmp->Next[READYQ])
+              for (tmp = _OSQueueHead; tmp != (TCB *)_OSQueueTail; tmp = tmp->Next[READYQ])
                  if (tmp == arrival)
                     while (TRUE); // If we get here, the processor utilization > 100%.
            #endif
-           for (tmp = (TCB *)OSQueueTail; tmp->Next[READYQ] != NULL; tmp = tmp->Next[READYQ])
+           for (tmp = (TCB *)_OSQueueTail; tmp->Next[READYQ] != NULL; tmp = tmp->Next[READYQ])
               if (tmp->Next[READYQ] == arrival) {
                  tmp->Next[READYQ] = arrival->Next[READYQ];
                  break;
@@ -784,7 +784,7 @@ void _OSTimerInterruptHandler(void)
         ** having the lowest priority */
         arrival->Priority = arrival->StaticPriority;
         if (!(arrival->TaskState & TASKTYPE_BLOCKING) && !arrival->NextInstanceMandatory)
-           arrival->Priority += OSQueueTail->StaticPriority;
+           arrival->Priority += _OSQueueTail->StaticPriority;
         ReadyQueueInsert(arrival);
      #else
         /* All tasks are also inserted into the ready queue under EDF, but optional tasks
@@ -850,12 +850,12 @@ void _OSTimerInterruptHandler(void)
   ** served. */
   if (_OSTime >= ShiftTimeLimit) {
      /* Time shift all deadlines of periodic tasks in the ready queue. */
-     for (arrival = _OSQueueHead; (arrival = arrival->Next[READYQ]) != (TCB *)OSQueueTail; )
+     for (arrival = _OSQueueHead; (arrival = arrival->Next[READYQ]) != (TCB *)_OSQueueTail; )
         if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0)
            arrival->NextDeadline -= ShiftTimeLimit;
      /* Time shift all arrival times of tasks in the arrival queue. */
      arrival = _OSQueueHead;
-     while ((arrival = arrival->Next[ARRIVALQ]) != (TCB *)OSQueueTail) {
+     while ((arrival = arrival->Next[ARRIVALQ]) != (TCB *)_OSQueueTail) {
         if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0) {
            if (arrival->NextArrivalTimeHigh > 0)
               arrival->NextArrivalTimeHigh--;
@@ -898,7 +898,7 @@ void _OSTimerInterruptHandler(void)
   ** this interrupt restarts from the beginning. */
   /* Set arrival timer to the next arrival time. */
   arrival = _OSQueueHead->Next[ARRIVALQ];
-  if (arrival != (TCB *)OSQueueTail &&
+  if (arrival != (TCB *)_OSQueueTail &&
          ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0))
      /* Set the timer comparator to the next periodic task arrival time. */
      _OSSetTimer(arrival->NextArrivalTimeLow - _OSTime);
@@ -921,7 +921,7 @@ void InsertQueue(SEARCHFUNCTION TestKey, UINT8 offsetNext, TCB *newNode)
   /* Get left and right TCB neighbors */
   left = _OSQueueHead;
   /* Always insert before the tail */
-  while ((right = left->Next[offsetNext]) != (TCB *)OSQueueTail)
+  while ((right = left->Next[offsetNext]) != (TCB *)_OSQueueTail)
      if (TestKey(newNode,right))  // Insert the selection function succeeds.
         break;
      else
@@ -966,13 +966,13 @@ BOOL ArrivalQueueInsertTestKey(const TCB *insert, const TCB *next)
 
 #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
 /* OptionalReadyQueueInsert: Inserts an optional instance TCB into the 2nd level of the
-** ready queue, i.e. after OSQueueTail.
+** ready queue, i.e. after _OSQueueTail.
 ** Parameter: (TCB *) the node to insert. */
 void OptionalReadyQueueInsert(TCB *newNode)
 {
   TCB *right, *left;
   /* Get left and right TCB neighbors */
-  for (left = (TCB *)OSQueueTail; (right = left->Next[READYQ]) != NULL; left = right)
+  for (left = (TCB *)_OSQueueTail; (right = left->Next[READYQ]) != NULL; left = right)
      if (ReadyQueueInsertTestKey(newNode,right))
         break;
   newNode->Next[READYQ] = right;
@@ -1245,16 +1245,16 @@ BOOL OSStartMultitasking(void)
      ** priorities N..2N-1 are for the optional ones. Hence, the idle task priority is
      ** simply 2N. Note that at task creation time, the StaticPriority field holds the
      ** base priority and for the idle task, this value is N when we get here. */
-     OSQueueTail->Priority = OSQueueTail->StaticPriority << 1;
+     _OSQueueTail->Priority = _OSQueueTail->StaticPriority << 1;
      /* Transfert the tasks from the ready queue into the arrival queue. The first in-
      ** stance of each task to arrive corresponds the first mandatory task. */
-     for (tcb = _OSQueueHead->Next[READYQ]; tcb != (TCB *)OSQueueTail; tcb = tcb->Next[READYQ]) {
+     for (tcb = _OSQueueHead->Next[READYQ]; tcb != (TCB *)_OSQueueTail; tcb = tcb->Next[READYQ]) {
         tcb->NextArrivalTimeHigh = (UINT16)tcb->NextMandatoryArrivalTimeHigh;
         tcb->NextArrivalTimeLow = tcb->NextMandatoryArrivalTimeLow;
         ArrivalQueueInsert(tcb);
      }
      /* The only task that is now ready is the idle task. */
-     _OSQueueHead->Next[READYQ] = (TCB *)OSQueueTail;
+     _OSQueueHead->Next[READYQ] = (TCB *)_OSQueueTail;
   #endif
   /* Create the FIFO array of tasks for all created event descriptors. */
   for (etcb = SynchronousTaskList; etcb != NULL; etcb = etcb->NextETCB) {
@@ -1270,7 +1270,7 @@ BOOL OSStartMultitasking(void)
   }
   /* There are periodic tasks in the system when the arrival queue is not empty. Note
   ** that periodic tasks are initially inserted in this queue before starting ZottaOS. */
-  if (_OSQueueHead->Next[ARRIVALQ] != (TCB *)OSQueueTail || SynchronousTaskList != NULL)
+  if (_OSQueueHead->Next[ARRIVALQ] != (TCB *)_OSQueueTail || SynchronousTaskList != NULL)
      /* Initialize the timer which starts counting as soon as the idle task begins. At
      ** this point, the timer's input divider is selected but it is halted. */
      _OSInitializeTimer();
