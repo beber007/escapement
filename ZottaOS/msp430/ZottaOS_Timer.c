@@ -1,4 +1,4 @@
-/* Copyright (c) 2006-2011 MIS Institute of the HEIG affiliated to the University of
+/* Copyright (c) 2006-201 MIS Institute of the HEIG affiliated to the University of
 ** Applied Sciences of Western Switzerland. All rights reserved.
 ** Permission to use, copy, modify, and distribute this software and its documentation
 ** for any purpose, without fee, and without written agreement is hereby granted, pro-
@@ -16,20 +16,18 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOSSoft_Timer.c: Hardware abstract timer layer. This file holds all timer
-**          related functions needed by ZottaOS-Soft so that these can easily be ported
+/* File ZottaOS_Timer.c: Hardware abstract timer layer. This file holds all timer
+**          related functions needed by ZottaOS so that these can easily be ported
 **          from one MSP to another and also to other microcontrollers.
-** Version identifier: June 2011
+** Version identifier: March 201
 ** Authors: MIS-TIC
 */
+#include "msp430.h"
+#include "ZottaOS_Types.h"
+#include "ZottaOS_Timer.h"
+#include "ZottaOS.h"  /* Needed for the definitions of OSUINT16_LL and OSUINT16_SC */
 
-#include "ZottaOS_msp430.h"
-
-#ifdef ZOTTAOS_VERSION_SOFT
-
-#include "../ZottaOS.h"  /* Needed for the definitions of OSUINT16_LL and OSUINT16_SC */
-#include "ZottaOSSoft_Timer.h"
-
+INT32 _OSTime = 0;
 
 /* Although the MSP430 and CC430 provides several 16-bit timers/counters with multiple
 ** modes and features, only one timer is used to keep track of the task arrivals. This
@@ -138,10 +136,15 @@ void _OSGenerateSoftTimerInterrupt(void)
 } /* end of _OSGenerateSoftTimerInterrupt */
 
 
-/* _OSGetTimerCounter: Return the current value of the timer. */
-UINT16 _OSGetTimerCounter(void)
+/* _OSGetActualTime: . */
+INT32 OSGetActualTime(void)
 {
-  return OSTimerCounter;
-}
+  return _OSTime + OSTimerCounter;
+} /* end of OSGetActualTime */
 
-#endif /* ZOTTAOS_VERSION_SOFT */ 
+
+/* _OSTimerShift: Shifts the global Time variable. This is a value greater than 2^16. */
+void _OSTimerShift(INT32 shiftTimeLimit)
+{
+  _OSTime -= shiftTimeLimit;
+} /* end of _OSTimerShift */

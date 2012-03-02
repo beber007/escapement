@@ -25,10 +25,7 @@
 #ifndef _ZOTTAOS_CORTEXM3_H_
 #define _ZOTTAOS_CORTEXM3_H_
 
-
 #include "ZottaOS_Types.h"
-
-
 
 #define _OSUINTPTR_LL OSUINT32_LL
 #define _OSUINTPTR_SC OSUINT32_SC

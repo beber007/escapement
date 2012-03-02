@@ -21,8 +21,9 @@
 ** Version identifier: July 2010
 ** Authors: MIS-TIC */
 
-#include "../ZottaOS.h"
+#include "ZottaOS.h"
 #include "UART.h"
+#include "msp430.h"
 
 typedef struct UART_TRANSMIT_INTERRUPT_DESCRIPTOR { // Interrupt handler opaque descriptor
   void (*InterruptHandler)(struct UART_TRANSMIT_INTERRUPT_DESCRIPTOR *);

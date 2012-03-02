@@ -12,7 +12,7 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOS_Types.h: .
+/* File ZottaOS_Types.h: Contains common data types that are compiler specific.
 ** Version identifier: January 2012
 ** Compiler and linker:
 ** Authors: MIS-TIC
@@ -20,7 +20,6 @@
 #ifndef _ZOTTAOS_TYPES_H_
 #define _ZOTTAOS_TYPES_H_
 
-/* COMMON DATA TYPES THAT ARE COMPILER SPECIFIC -------------------------------------- */
 typedef unsigned char BOOL;
 typedef unsigned char UINT8;
 typedef signed char INT8;

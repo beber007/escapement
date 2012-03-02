@@ -85,7 +85,7 @@ void (* const STM32VectorTable[])(void) =
                                                       Interrupt */
   _OSIOHandler,    /* OS_IO_TIM8_UP_TIM13      44  TIM8 Update Interrupt and TIM13 global
                                                       Interrupt */
-  _OSIOHandler,    /* OS_IO_TIM8_TRG_COM_TIM14 45  TIM8 Trigger and Commutation Interrupt
+  _OSIOHandler,    /* OS_IO_TIM8_TRG_COM_TIM14 45  TIM8 Trigger and commutation Interrupt
                                                       and TIM14 global interrupt */
   _OSIOHandler,    /* OS_IO_TIM8_CC            46  TIM8 Capture Compare Interrupt */
   _OSIOHandler,    /* OS_IO_ADC3               47  ADC3 global Interrupt */
@@ -103,7 +103,7 @@ void (* const STM32VectorTable[])(void) =
   _OSIOHandler,    /* OS_IO_DMA2_Channel4      59  DMA2 Channel 4 global Interrupt */
   _OSIOHandler,    /* OS_IO_DMA2_Channel5      60  DMA2 Channel 5 global Interrupt */
   _OSIOHandler,    /* OS_IO_ETH                61  Ethernet global Interrupt */
-  _OSIOHandler,    /* OS_IO_ETH_WKUP           62  Ethernet Wakeup through EXTI line
+  _OSIOHandler,    /* OS_IO_ETH_WKUP           62  Ethernet wake-up through EXTI line
                                                       Interrupt */
   _OSIOHandler,    /* OS_IO_CAN2_TX            63  CAN2 TX Interrupt */
   _OSIOHandler,    /* OS_IO_CAN2_RX0           64  CAN2 RX0 Interrupt */

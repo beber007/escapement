@@ -1,4 +1,4 @@
-/* Copyright (c) 2006-2011 MIS Institute of the HEIG affiliated to the University of
+/* Copyright (c) 2006-2012 MIS Institute of the HEIG affiliated to the University of
 ** Applied Sciences of Western Switzerland. All rights reserved.
 ** IN NO EVENT SHALL THE MIS INSTITUTE NOR THE HEIG NOR THE UNIVERSITY OF APPLIED
 ** SCIENCES OF WESTERN SWITZERLAND BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL,
@@ -12,14 +12,15 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOSHard_Timer.h: Defines the interface between the hardware timer and
-**                           ZottaOS-Hard.
-** Version identifier: May 2011
+/* File ZottaOS_Timer.h: Defines the interface between the hardware timer and ZottaOS.
+** Version identifier: March 2012
 ** Authors: MIS-TIC
 */
 
 #ifndef ZOTTAOS_TIMER_H
 #define ZOTTAOS_TIMER_H
+
+#define NESTED_TIMER_INTERRUPT
 
 /* Keeping track of time and performing all its related events is a tricky business. In
 ** ZottaOS we divide these 2 actions in two. The first only keeps track of the time (the
@@ -53,5 +54,11 @@ void _OSGenerateSoftTimerInterrupt(void);
 ** Parameter: (INT32) nextTimeInterval: time duration until the next hardware timer in-
 **                    terrupt, i.e. the time of the next event minus the current time. */
 void _OSSetTimer(INT32 nextTimeInterval);
+
+/* OSGetActualTime: . */
+INT32 OSGetActualTime(void);
+
+/* _OSTimerShift: . */
+void _OSTimerShift(INT32 shiftTimeLimit);
 
 #endif /* ZOTTAOS_TIMER_H */
