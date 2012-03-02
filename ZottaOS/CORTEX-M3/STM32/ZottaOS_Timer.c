@@ -142,8 +142,8 @@ void _OSTimerShift(INT32 shiftTimeLimit)
 } /* end of _OSTimerShift */
 
 
-/* _OSGetActualTime: Retrieve the current time. Combines the 16 bits of the timer counter with
-** the global variable Time to yield the current time.
+/* OSGetActualTime: Retrieve the current time. Combines the 16 bits of the timer counter
+** with the global variable Time to yield the current time.
 ** Returned value: (INT32) current time. */
 INT32 OSGetActualTime(void)
 {
@@ -154,7 +154,7 @@ INT32 OSGetActualTime(void)
      tmp = currentTime | TIM_COUNTER;
   } while (currentTime != Time);
   return tmp;
-} /* end of _OSGetActualTime */
+} /* end of OSGetActualTime */
 
 
 /* _OSTimerHandler: Catches a STM-32 Timer 2 interrupt and generates a software timer inter-
@@ -164,7 +164,7 @@ INT32 OSGetActualTime(void)
 void _OSTimerHandler(void)
 {
   /* Disable timer comparator*/
-    TIM_COMPARATOR = 0;
+  TIM_COMPARATOR = 0;
   /* Test interrupt source */
   if (TIM_STATUS & 2)    // Is comparator interrupt pending?
      TIM_STATUS &= ~2;   // Clear interrupt flag

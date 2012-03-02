@@ -42,7 +42,8 @@
 ** Version identifier: July 2010
 ** Authors: MIS-TIC */
 
-#include "../../ZottaOS.h"
+#include "ZottaOS.h"
+#include "msp430.h"
 
 
 typedef struct TaskParametersDef {
@@ -86,12 +87,12 @@ int main(void)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x2;
      TaskParameters->Delay = 50;
-     OSCreateSynchronousTask(FixedDelayTaskB,7,Event,TaskParameters);
+     //OSCreateSynchronousTask(FixedDelayTaskB,7,Event,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x4;
      TaskParameters->Delay = 2500;
-     OSCreateTask(VariableDelayTask,0,90,90,TaskParameters);
+     //OSCreateTask(VariableDelayTask,0,90,90,TaskParameters);
   #elif defined(ZOTTAOS_VERSION_SOFT)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x1;
@@ -127,9 +128,9 @@ void FixedDelayTaskA(void *argument)
   UINT32 i;
   TaskParametersDef *TaskParameters = (TaskParametersDef *)argument;
   ToggleBit(TaskParameters->GPIO_Pin);
-  for (i = 0; i < TaskParameters->Delay; i += 1);
+  //for (i = 0; i < TaskParameters->Delay; i += 1);
   ToggleBit(TaskParameters->GPIO_Pin);
-  OSScheduleSuspendedTask(TaskParameters->Event);
+  //OSScheduleSuspendedTask(TaskParameters->Event);
   OSEndTask();
 } /* end of FixedDelayTask */
 

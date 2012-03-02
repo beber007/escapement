@@ -1,4 +1,4 @@
-/* Copyright (c) 2006-2011 MIS Institute of the HEIG affiliated to the University of
+/* Copyright (c) 2006-2012 MIS Institute of the HEIG affiliated to the University of
 ** Applied Sciences of Western Switzerland. All rights reserved.
 ** IN NO EVENT SHALL THE MIS INSTITUTE NOR THE HEIG NOR THE UNIVERSITY OF APPLIED
 ** SCIENCES OF WESTERN SWITZERLAND BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL,
@@ -16,22 +16,25 @@
 ** Version date: July 2011
 ** Authors: MIS-TIC
 */
-#ifndef ZOTTAOS_H_
-#define ZOTTAOS_H_
 
-#include "msp430.h"
-#include "msp430/ZottaOS_msp430.h"
+#ifndef _ZOTTAOS_H_
+#define _ZOTTAOS_H_
+
+#define ZOTTAOS_VERSION_HARD
+
+#ifndef _ASM_
+
+#include "ZottaOS_Types.h"
+#include "ZottaOS_Interrupts.h"
+
+#endif /* _ASM_ */
 
 #if defined(ZOTTAOS_VERSION_HARD)
    #include "ZottaOSHard.h"
 #elif defined(ZOTTAOS_VERSION_SOFT)
    #include "ZottaOSSoft.h"
-#elif defined(ZOTTAOS_VERSION_HARD_PA)
-   #include "ZottaOSHardPA.h"
-#elif defined(ZOTTAOS_VERSION_SOFT_PA)
-   #include "ZottaOSSoftPA.h"
 #else
    #error ZOTTAOS_VERSION undefined!
 #endif
 
-#endif /*ZOTTAOS_H_*/
+#endif /* _ZOTTAOS_H_ */

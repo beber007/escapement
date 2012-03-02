@@ -50,6 +50,7 @@ void _OSSleep(void)
 
 void _OSTimerInterruptHandler(void);
 
+/* _OSSoftTimerInterrupt: .*/
 void _OSSoftTimerInterrupt(void)
 {
   /* We need to assert that an application task is not in the middle of preparing to do a
@@ -67,8 +68,7 @@ void _OSSoftTimerInterrupt(void)
      _OSNoSaveContext = TRUE;
   }
   _OSTimerInterruptHandler();
-}
-/* end of _OSSoftTimerInterrupt */
+} /* end of _OSSoftTimerInterrupt */
 
 
 /* Cortex registers setting the number interrupt priority levels. */

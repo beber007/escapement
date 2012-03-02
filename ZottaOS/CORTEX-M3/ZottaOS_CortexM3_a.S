@@ -20,7 +20,7 @@
 
 #define _ASM_
 
-#include "ZottaOS.h"
+#include "ZottaOS_CortexM3.h"
 
 .syntax unified
 

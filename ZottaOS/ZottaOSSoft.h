@@ -1,4 +1,4 @@
-/* Copyright (c) 2006-2011 MIS Institute of the HEIG affiliated to the University of
+/* Copyright (c) 2006-2012 MIS Institute of the HEIG affiliated to the University of
 ** Applied Sciences of Western Switzerland. All rights reserved.
 ** Permission to use, copy, modify, and distribute this software and its documentation
 ** for any purpose, without fee, and without written agreement is hereby granted, pro-
@@ -16,11 +16,13 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOSSoft.h: Defines the user interface with ZottaOSSoft.c for all TI MSP430
-**                     and CC430 families of ultralow-power microcontrollers.
-** Version identifier: June 2011
+/* File ZottaOSHard.h: Defines the user interface with ZottaOSHard.c.
+** Version identifier: February 2012
 ** Authors: MIS-TIC
 */
+
+/* TODO: Les commentaires doivent pour supprimer les references au msp430 */
+
 /* Building an application typically involves 5 steps:
 ** (1) Initialize processor specifics.
 ** (2) Perform application specific initializations.
@@ -124,7 +126,6 @@
 #ifndef ZOTTAOS_H
 #define ZOTTAOS_H
 
-
 /* DEBUGGING HELP -------------------------------------------------------------------- */
 /* There are 3 error sources that are not trivial to locate when developing an applica-
 ** tion. The first is detecting when an application runs out of memory with function
@@ -151,26 +152,10 @@
 /* The following define sets the scheduling algorithm to use. */
 #define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
 
+
 #ifndef _ASM_
 
-/* COMMON DATA TYPES THAT ARE COMPILER SPECIFIC -------------------------------------- */
-typedef unsigned char BOOL;
-typedef unsigned char UINT8;
-typedef signed char INT8;
-typedef unsigned int UINT16;
-typedef signed int INT16;
-typedef unsigned long UINT32;
-typedef signed long INT32;
-#ifndef NULL
-  #define NULL 0
-#endif
-#ifndef TRUE
-  #define TRUE 1
-#endif
-#ifndef FALSE
-  #define FALSE 0
-#endif
-
+#include "ZottaOS_Types.h"
 
 /* MISCELLANEOUS FUNCTIONS: LAUNCHING OF ZOTTAOS, MEMORY MANAGEMENT ------------------ */
 /* OSStartMultitasking: This is the last function to call in main and it gives control of
@@ -261,9 +246,9 @@ void *OSCreateEventDescriptor(void);
 **   (4) (UINT8) Total processor utilization of all aperiodic tasks * 256; this parameter
 **       is only used for EDF and can be set to 0 under Deadline Monotonic Scheduling.
 **       For maximum reactivity of event-driven task, the best setting is given by:
-**           1.   sum = 1.0
+**           1.   sum = 0.0
 **           2.   for all periodic task i do
-**           2.1     sum -= m_i * wcet_i / k_i / period_i
+**           2.1     sum += m_i * wcet_i / k_i / period_i
 **           2.2  end for
 **           3.   set aperiodicUtilization to (UINT8)(256.0 * sum) for all event-driven
 **                tasks
@@ -573,30 +558,34 @@ UINT8 OSGetReferenceBuffer(void *descriptor, UINT8 readMode, UINT8 **data);
 
 
 /* ATOMIC INSTRUCTIONS --------------------------------------------------------------- */
-/* OSUINT8_LL and OSUINT16_LL: The LL functions are used in conjunction with their cor-
-** responding SC functions call to provide synchronization support for ZottaOS. The LL/SC
-** pair of functions works very much like simple a get and a set function.
-** The LL functions, in addition of returning the contents of a memory location, have the
-** effect of setting a user transparent reservation bit. If this bit is still set when an
-** SC function is executed, the store of SC occurs; otherwise the store fails and the
-** specified memory location is left unchanged (see OSUINT8_SC and OSUINT16_SC).
+/* OSUINT8_LL, OSUINT16_LL, OSINT16_LL, OSUINT32_LL and OSUINT32_LL: The LL functions are
+** used in conjunction with their corresponding SC functions call to provide
+** synchronization support for ZottaOS. The LL/SC pair of functions works very much like
+** simple a get and a set function. The LL functions, in addition of returning the
+** contents of a memory location, have the effect of setting a user transparent
+** reservation bit. If this bit is still set when an SC function is executed, the store of
+** SC occurs; otherwise the store fails and the specified memory location is left
+** unchanged (see OSUINT8_SC, OSUINT16_SC, OSINT16_SC, OSUINT32_SC and OSINT32_SC).
 ** The LL function is semantically equivalent to the atomic execution of the following
 ** code:
 **    TYPE OSTYPE_LL(TYPE *memAddr) {
 **       reserveBit = TRUE;
 **       return *memAddr;
 **    }
-** where TYPE can be one of UINT8 or UINT16.
+** where TYPE can be one of UINT8, UINT16, INT16, UINT32 or INT32.
 ** Parameter: (TYPE *) Address to a memory location that holds the value to read, where
-** TYPE can be one of UINT8 or UINT16.
+** TYPE can be one of UINT8, UINT16, INT16, UINT32 or INT32.
 ** Returned value: (TYPE) The contents stored in the memory location specified by the pa-
 **    rameter. */
 UINT8 OSUINT8_LL(UINT8 *memAddr);
 UINT16 OSUINT16_LL(UINT16 *memAddr);
+UINT16 OSINT16_LL(INT16 *memAddr);
+UINT32 OSUINT32_LL(UINT32 *memAddr);
+UINT32 OSINT32_LL(INT32 *memAddr);
 
-/* OSUINT8_SC and OSUINT16_SC: Store Memory Location if Reserved. If the reservation bit
-** is set by a previous call to an LL function, the second parameter is written into the
-** memory location specified by the first parameter.
+/* OSUINT8_SC, OSUINT16_SC, OSINT16_SC, OSUINT32_SC and OSUINT32_SC: Store Memory Location
+** if Reserved. If the reservation bit is set by a previous call to an LL function, the
+** second parameter is written into the memory location specified by the first parameter.
 ** SC functions are semantically equivalent to the atomic execution of the following code
 **    BOOL OStype_SC(TYPE *memAddr, TYPE newValue) {
 **       if (reserveBit) {
@@ -607,15 +596,22 @@ UINT16 OSUINT16_LL(UINT16 *memAddr);
 **       else
 **          return FALSE;
 **     }
-** where TYPE is one of UINT8 or UINT16.
+** where TYPE can be one of UINT8, UINT16, INT16, UINT32 or INT32.
 ** Parameters:
 **   (1) (TYPE *) Address to a memory location that holds the value to modify, where TYPE
-**                can be one of UINT8 or UINT16.
+**                can be one of UINT8, UINT16, INT16, UINT32 or INT32.
 **   (2) (TYPE) Value to insert into the memory location specified by the above parameter
 **              if and only if the reservation bit is still set.
 ** Returned value: (BOOL) TRUE if the store took place and FALSE otherwise. */
 BOOL OSUINT8_SC(UINT8 *memAddr, UINT8 newValue);
 BOOL OSUINT16_SC(UINT16 *memAddr, UINT16 newValue);
+BOOL OSINT16_SC(INT16 *memAddr, INT16 newValue);
+BOOL OSUINT32_SC(UINT32 *memAddr, UINT32 newValue);
+BOOL OSINT32_SC(INT32 *memAddr, INT32 newValue);
+
+/* OSGetActualTime:
+** Returned value: (INT32) . */
+INT32 OSGetActualTime(void);
 
 #endif /* _ASM_ */
 #endif /* ZOTTAOS_H */
