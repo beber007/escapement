@@ -26,6 +26,8 @@
 
 #include "msp430/ZottaOS_msp430.h"
 
+#include "msp430.h" // beber  pour debug
+
 #ifdef ZOTTAOS_VERSION_SOFT
 
 #include "ZottaOSSoft.h"
@@ -583,11 +585,10 @@ void ScheduleNextTask(void)
         _OSActiveTask = _OSQueueHead->Next[READYQ];
      }
   #else
-     if (_OSActiveTask == (TCB *)_OSQueueTail)
+     if (_OSActiveTask == (TCB *)_OSQueueTail) {
         /* No mandatory instance to execute: Check out optional tasks that are after the
         ** sentinel marked by _OSQueueTail. */
-        while (_OSQueueTail->Next[READYQ] != NULL) {
-           _OSActiveTask = _OSQueueTail->Next[READYQ];
+        while ((_OSActiveTask = _OSQueueTail->Next[READYQ]) != NULL) {
            if ((_OSActiveTask->TaskState & STATE_DROP) == 0) {
               if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > _OSTime +
                                            _OSGetTimerCounter() && IsTaskSchedulable()) {
@@ -605,6 +606,9 @@ void ScheduleNextTask(void)
            _OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];
            _OSActiveTask->TaskState |= STATE_ZOMBIE;
         }
+        if (_OSActiveTask == NULL)
+           _OSActiveTask = _OSQueueHead->Next[READYQ];
+     }
   #endif
   if (_OSActiveTask->TaskState == TASKTYPE_BLOCKING)
      _OSActiveTask->NextArrivalTimeLow =
@@ -629,7 +633,7 @@ BOOL IsTaskSchedulable(void)
   /* Because _OSActiveTask->NextDeadline - _OSTime is <= 0x3FFFFFFF, the amount of work
   ** that can be done in this interval is also <= 0x3FFFFFFF. */
   totalWork = _OSActiveTask->WCET;
-  for (tcb = _OSQueueHead; tcb = tcb->Next[ARRIVALQ]; ) {
+  for (tcb = _OSQueueHead; tcb != NULL; tcb = tcb->Next[ARRIVALQ]) {
      if (tcb->TaskState & TASKTYPE_BLOCKING)
         continue;
      if (tcb->NextArrivalTimeHigh > deadlineHigh ||
@@ -640,6 +644,11 @@ BOOL IsTaskSchedulable(void)
         if (tcb->NextMandatoryArrivalTimeHigh)
            tmp -= 0x3FFFFFFF;
         if (tmp > 0) { // Is this task released after the deadline?
+
+           if (tcb->WCET == 80)
+           while(1);
+
+
            /* At this point, tmp is <= 0x3FFFFFFF */
            /* If tcb->PeriodHigh > 0, there can at most be one task instance that inter-
            ** fers since the interval <= 0x3FFFFFFF. */
@@ -668,7 +677,7 @@ BOOL IsTaskSchedulable(void)
      for (etcb = SynchronousTaskList; etcb != NULL; etcb = etcb->NextETCB)
         if (etcb->StaticPriority < _OSActiveTask->StaticPriority) {
            if (etcb->NextArrivalTimeLow > partial)
-              tmp = etcb->NextArrivalTimeLow; // Instance is scheduled in the futur
+              tmp = etcb->NextArrivalTimeLow; // Instance is scheduled in the future
            else
               tmp = partial;                  // Assume instance is scheduled now
            if ((tmp = _OSActiveTask->NextDeadline - tmp) > 0) {
@@ -719,6 +728,8 @@ UINT8 OSGetTaskInstance(void)
 ** function is defined in the generated assembler file. */
 void _OSEnableSoftTimerInterrupt(void);
 
+static UINT32 beber = 0;
+
 /* _OSTimerInterruptHandler: Software interrupt handler for the timer that manages task
 ** instance arrivals. Because the timer is a bit counter with a predefined number of bits,
 ** when a timer event occurs, it can be that there are no arrivals. In this case, we only
@@ -728,7 +739,13 @@ void _OSTimerInterruptHandler(void)
   ETCB *etcb;
   TCB *arrival, *tmp;
   UINT16 nextMandatoryInstance;
- /* At this point there can only be one current timer interrupt under way. */
+
+  beber++;
+P1OUT ^= 0x08;
+  if (beber == 8555)
+     beber = 8555;
+
+  /* At this point there can only be one current timer interrupt under way. */
   #ifdef DEBUG_MODE
      static UINT8 nesting = 0;
      if (++nesting > 1) {
@@ -739,11 +756,11 @@ void _OSTimerInterruptHandler(void)
   /* Mark that a software timer interrupt is under way so that new interrupts will not be
   ** generated (see EnqueueRescheduleQueue). */
   while (!_OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,
-       GetMarkedReference(_OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList))));
+          GetMarkedReference(_OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList))));
   /* Transfer all new arrivals to the ready queue. */
   arrival = _OSQueueHead->Next[ARRIVALQ];
   while (arrival->NextArrivalTimeLow <= _OSTime &&
-         ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {
+        ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {
      _OSQueueHead->Next[ARRIVALQ] = arrival->Next[ARRIVALQ];
      /* The previous task instance may still be in ready queue if it is an optional one
      ** and did not get a chance to run. */
@@ -903,6 +920,7 @@ void _OSTimerInterruptHandler(void)
      /* Set the timer comparator to the next periodic task arrival time. */
      _OSSetTimer(arrival->NextArrivalTimeLow - _OSTime);
   /* Return to the task with highest priority or start a new instance. */
+P1OUT ^= 0x08;
   ScheduleNextTask();
 } /* end of _OSTimerInterruptHandler */
 
@@ -1294,7 +1312,7 @@ extern void *_OSTabDevice[];
 ** Returned value: none. */
 void OSSetISRDescriptor(UINT8 entry, void *descriptor)
 {
-  _OSTabDevice[entry >> 1] = descriptor;
+  _OSTabDevice[entry] = descriptor;
 } /* end of OSSetISRDescriptor */
 
 
@@ -1305,7 +1323,7 @@ void OSSetISRDescriptor(UINT8 entry, void *descriptor)
 **    is undefined. */
 void *OSGetISRDescriptor(UINT8 entry)
 {
-  return _OSTabDevice[entry >> 1];
+  return _OSTabDevice[entry];
 } /* end of OSGetISRDescriptor */
 
 

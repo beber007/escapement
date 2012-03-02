@@ -979,7 +979,7 @@ extern void *_OSTabDevice[];
 ** Returned value: none. */
 void OSSetISRDescriptor(UINT8 entry, void *descriptor)
 {
-  _OSTabDevice[entry >> 1] = descriptor;
+  _OSTabDevice[entry] = descriptor;
 } /* end of OSSetISRDescriptor */
 
 
@@ -990,7 +990,7 @@ void OSSetISRDescriptor(UINT8 entry, void *descriptor)
 **    is undefined. */
 void *OSGetISRDescriptor(UINT8 entry)
 {
-  return _OSTabDevice[entry >> 1];
+  return _OSTabDevice[entry];
 } /* end of OSGetISRDescriptor */
 
 
