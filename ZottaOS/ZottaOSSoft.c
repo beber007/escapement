@@ -26,8 +26,6 @@
 
 #include "msp430/ZottaOS_msp430.h"
 
-#include "msp430.h" // beber  pour debug
-
 #ifdef ZOTTAOS_VERSION_SOFT
 
 #include "ZottaOSSoft.h"
@@ -728,8 +726,6 @@ UINT8 OSGetTaskInstance(void)
 ** function is defined in the generated assembler file. */
 void _OSEnableSoftTimerInterrupt(void);
 
-static UINT32 beber = 0;
-
 /* _OSTimerInterruptHandler: Software interrupt handler for the timer that manages task
 ** instance arrivals. Because the timer is a bit counter with a predefined number of bits,
 ** when a timer event occurs, it can be that there are no arrivals. In this case, we only
@@ -739,12 +735,6 @@ void _OSTimerInterruptHandler(void)
   ETCB *etcb;
   TCB *arrival, *tmp;
   UINT16 nextMandatoryInstance;
-
-  beber++;
-P1OUT ^= 0x08;
-  if (beber == 8555)
-     beber = 8555;
-
   /* At this point there can only be one current timer interrupt under way. */
   #ifdef DEBUG_MODE
      static UINT8 nesting = 0;
@@ -920,7 +910,6 @@ P1OUT ^= 0x08;
      /* Set the timer comparator to the next periodic task arrival time. */
      _OSSetTimer(arrival->NextArrivalTimeLow - _OSTime);
   /* Return to the task with highest priority or start a new instance. */
-P1OUT ^= 0x08;
   ScheduleNextTask();
 } /* end of _OSTimerInterruptHandler */
 
