@@ -25,11 +25,6 @@
 #ifndef _ZOTTAOS_CORTEXM3_H_
 #define _ZOTTAOS_CORTEXM3_H_
 
-#include "ZottaOS_Types.h"
-
-#define _OSUINTPTR_LL OSUINT32_LL
-#define _OSUINTPTR_SC OSUINT32_SC
-
 /* Non-blocking algorithms use a marker that needs to be part of the address. These algo-
 ** rithms operate in RAM and for which a MSP430 or CC430 MSB address is never used. */
 #define MARKEDBIT    0x80000000u
@@ -40,6 +35,8 @@ void _OSIOHandler(void);
 
 #define _OSDisableInterrupts() __asm("CPSID i;")
 #define _OSEnableInterrupts()  __asm("CPSIE i;")
+
+#define _OSSleep() while (TRUE) { __asm("WFI"); } // Request Wait For Interrupt
 
 /* _OSScheduleTask: Generates a PendSV exception which will interrupt and proceed with the
 ** lowest interrupt priority to handler _OSContextSwapHandler (defined in this file). */

@@ -39,7 +39,7 @@
 
 
 /* Defines the priority group and level of the interval-timer. The timer's priority must
-** be higher than that of SysTick. See OSStartMultitasking(). */
+** be higher than that of SysTick. See _OSSetInterruptPriority(). */
 #define TIMER_PRIORITY      (UINT8)0
 #define TIMER_SUB_PRIORITY  (UINT8)0
 

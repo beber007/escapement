@@ -27,7 +27,6 @@ typedef unsigned short UINT16;
 typedef signed short INT16;
 typedef unsigned int UINT32;
 typedef signed int INT32;
-typedef UINT32 UINTPTR;
 #ifndef NULL
   #define NULL 0
 #endif
@@ -37,5 +36,10 @@ typedef UINT32 UINTPTR;
 #ifndef FALSE
   #define FALSE 0
 #endif
+
+/* Equivalence between address and unsigned to allow arithmetic and bitwise operations */
+typedef UINT32 UINTPTR;
+#define _OSUINTPTR_LL OSUINT32_LL
+#define _OSUINTPTR_SC OSUINT32_SC
 
 #endif /* _ZOTTAOS_TYPE_H_ */

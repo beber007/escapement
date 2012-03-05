@@ -139,13 +139,14 @@ void _OSGenerateSoftTimerInterrupt(void)
 } /* end of _OSGenerateSoftTimerInterrupt */
 
 
-/* OSGetActualTime: Returns the current value of the wall clock. */
+/* OSGetActualTime: Returns the current value of the wall clock. Combines the 16 bits of
+** the timer counter with the global variable Time to yield the current time.*/
 INT32 OSGetActualTime(void)
 {
   INT32 currentTime, tmp;
   do {
      currentTime = _OSTime;
-     tmp = currentTime | OSTimerCounter;
+     tmp = currentTime + OSTimerCounter;
   } while (currentTime != _OSTime);
   return tmp;
 } /* end of OSGetActualTime */

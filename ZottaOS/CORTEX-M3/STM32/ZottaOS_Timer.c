@@ -16,7 +16,7 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOSHard_Timer.c: Hardware abstract timer layer. This file holds all timer
+/* File ZottaOS_Timer.c: Hardware abstract timer layer. This file holds all timer
 **          related functions needed by the ZottaOS family of kernels so that these can
 **          easily be ported from one MSP to another and also to other microcontrollers.
 ** Version identifier: May 2011
@@ -26,12 +26,9 @@
 /* TODO: offrir la possibilité de chager de timer. OK pour les Timer 2, 3 ,4 */
 /* TODO: optimiser et documenter _OSInitializeTimer */
 
-
-
 #include "ZottaOS_CortexM3.h"
-#include "ZottaOS_Interrupts.h"
-#include "ZottaOS_Timer.h"
 #include "ZottaOS.h"
+#include "ZottaOS_Timer.h"
 
 #define TIMER_PRESCALER 71
 
@@ -143,12 +140,10 @@ void _OSTimerShift(INT32 shiftTimeLimit)
 
 
 /* OSGetActualTime: Retrieve the current time. Combines the 16 bits of the timer counter
-** with the global variable Time to yield the current time.
-** Returned value: (INT32) current time. */
+** with the global variable Time to yield the current time. */
 INT32 OSGetActualTime(void)
 {
-  INT32 currentTime;
-  INT32 tmp;
+  INT32 currentTime, tmp;
   do {
      currentTime = Time;
      tmp = currentTime | TIM_COUNTER;
@@ -157,8 +152,8 @@ INT32 OSGetActualTime(void)
 } /* end of OSGetActualTime */
 
 
-/* _OSTimerHandler: Catches a STM-32 Timer 2 interrupt and generates a software timer inter-
-** rupt which is than carried out at a lower priority.
+/* _OSTimerHandler: Catches a STM-32 Timer 2 interrupt and generates a software timer
+** interrupt which is than carried out at a lower priority.
 ** Note: This function could have been written in assembler to reduce interrupt latencies.
 */
 void _OSTimerHandler(void)
@@ -172,7 +167,6 @@ void _OSTimerHandler(void)
      TIM_STATUS &= ~1;   // Clear interrupt flag
      Time += 0x10000;    // Increment most significant word of Time
   }
-  asm("CLREX"); // Clear flag for atomic functions LDREX and STREX
   _OSGenerateSoftTimerInterrupt();
 } /* end of _OSTimerHandler */
 

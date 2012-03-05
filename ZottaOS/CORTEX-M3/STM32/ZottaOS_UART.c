@@ -18,10 +18,9 @@
 ** Compiler and linker:
 ** Authors: MIS-TIC
 */
-
-#include "ZottaOS.h"
 #include "ZottaOS_CortexM3.h"
-#include "ZottaOS_Interrupts.h"
+#include "ZottaOS.h"
+#include "ZottaOS_UART.h"
 
 
 /* STM-32 hardware registers */
