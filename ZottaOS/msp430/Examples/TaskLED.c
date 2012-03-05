@@ -42,7 +42,8 @@
 ** Version identifier: July 2010
 ** Authors: MIS-TIC */
 
-#include "../../ZottaOS.h"
+#include "../ZottaOS.h"
+#include "msp430.h"
 
 
 typedef struct TaskParametersDef {
