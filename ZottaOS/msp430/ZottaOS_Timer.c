@@ -1,33 +1,36 @@
-/* Copyright (c) 2006-201 MIS Institute of the HEIG affiliated to the University of
+/* Copyright (c) 2006-2012 MIS Institute of the HEIG-VD affiliated to the University of
 ** Applied Sciences of Western Switzerland. All rights reserved.
 ** Permission to use, copy, modify, and distribute this software and its documentation
 ** for any purpose, without fee, and without written agreement is hereby granted, pro-
 ** vided that the above copyright notice, the following three sentences and the authors
 ** appear in all copies of this software and in the software where it is used.
-** IN NO EVENT SHALL THE MIS INSTITUTE NOR THE HEIG NOR THE UNIVERSITY OF APPLIED
+** IN NO EVENT SHALL THE MIS INSTITUTE NOR THE HEIG-VD NOR THE UNIVERSITY OF APPLIED
 ** SCIENCES OF WESTERN SWITZERLAND BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL,
 ** INCIDENTAL, OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
-** DOCUMENTATION, EVEN IF THE MIS INSTITUTE OR THE HEIG OR THE UNIVERSITY OF APPLIED
+** DOCUMENTATION, EVEN IF THE MIS INSTITUTE OR THE HEIG-VD OR THE UNIVERSITY OF APPLIED
 ** SCIENCES OF WESTERN SWITZERLAND HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-** THE MIS INSTITUTE, THE HEIG AND THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWIT-
+** THE MIS INSTITUTE, THE HEIG-VD AND THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWIT-
 ** ZERLAND SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 ** IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFT-
-** WARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE MIS INSTITUTE NOR THE HEIG
+** WARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE MIS INSTITUTE NOR THE HEIG-VD
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOS_Timer.c: Hardware abstract timer layer. This file holds all timer
-**          related functions needed by ZottaOS so that these can easily be ported
-**          from one MSP to another and also to other microcontrollers.
-** Version identifier: March 201
+/* File ZottaOS_Timer.c: Hardware abstract timer layer. This file holds all timer related
+**          functions needed by ZottaOS so that these can easily be ported from one MSP to
+**          another and also to other microcontrollers.
+** Version identifier: March 2012
 ** Authors: MIS-TIC
 */
-#include "msp430.h"
-#include "ZottaOS_Types.h"
+#include "msp430.h"        /* Hardware specifics */
+#include "ZottaOS_Types.h" /* Type definitions */
+#include "ZottaOS.h"       /* Needed for the definitions of OSUINT16_LL and OSUINT16_SC */
 #include "ZottaOS_Timer.h"
-#include "ZottaOS.h"  /* Needed for the definitions of OSUINT16_LL and OSUINT16_SC */
 
-INT32 _OSTime = 0;
+/* The kernel keeps track of the relative time in a variable called _OSTime. This time
+** serves as the basis to guarantee all temporal constraints. This variable is shared
+** with the hardware timer ISR which updates it whenever it triggers. */
+INT32 _OSTime = 0; /* System wall clock */
 
 /* Although the MSP430 and CC430 provides several 16-bit timers/counters with multiple
 ** modes and features, only one timer is used to keep track of the task arrivals. This
@@ -44,11 +47,6 @@ INT32 _OSTime = 0;
 ** has elapsed is equal to CCR + 1. */
 
 
-/* _OSEnableSoftTimerInterrupt: Re-enables software timer interrupt. This function is
-** called when the current software timer ISR is complete and may be re-invoked. This
-** function is defined in the generated assembler file. */
-void _OSEnableSoftTimerInterrupt(void);
-
 /* _OSInitializeTimer: Initializes the timer which starts counting as soon as ZottaOS is
 ** ready to process the first arrival. When the kernel, i.e. when OSStartMultitasking()
 ** is called, the last operation that is done is to set the timer handler and then start
@@ -61,6 +59,11 @@ void _OSEnableSoftTimerInterrupt(void);
 ** set 0. This is done by initializing CCR with 0 - 1 = 0xFFFF. */
 void _OSInitializeTimer(void)
 {
+  /* _OSEnableSoftTimerInterrupt re-enables software timer interrupt. This function is
+  ** called when the current software timer ISR is complete and may be re-invoked. This
+  ** function is defined in the generated assembler file because the port pin can be
+  ** chosen by the user. */
+  extern void _OSEnableSoftTimerInterrupt(void);
   // Assure that the first interrupt sets _OSTime to CC register+1=0
   OSTimerCompareRegister = 0xFFFF;
   // Create an interrupt as soon as the timer runs
@@ -136,10 +139,15 @@ void _OSGenerateSoftTimerInterrupt(void)
 } /* end of _OSGenerateSoftTimerInterrupt */
 
 
-/* _OSGetActualTime: . */
+/* OSGetActualTime: Returns the current value of the wall clock. */
 INT32 OSGetActualTime(void)
 {
-  return _OSTime + OSTimerCounter;
+  INT32 currentTime, tmp;
+  do {
+     currentTime = _OSTime;
+     tmp = currentTime | OSTimerCounter;
+  } while (currentTime != _OSTime);
+  return tmp;
 } /* end of OSGetActualTime */
 
 
