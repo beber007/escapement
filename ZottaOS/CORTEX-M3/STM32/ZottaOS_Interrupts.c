@@ -20,6 +20,7 @@
 /* TODO: prendre en compte la taille max de la table des vecteur pour fixer la taille de _OSTabDevice */
 
 #include "ZottaOS_CortexM3.h"
+#include "ZottaOS_Types.h"
 #include "ZottaOS_Timer.h"
 
 

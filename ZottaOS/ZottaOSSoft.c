@@ -291,7 +291,6 @@ static BOOL ArrivalQueueInsertTestKey(const TCB *searchKey, const TCB *node);
    static void OptionalReadyQueueInsert(TCB *newNode);
 #endif
 void _OSTimerInterruptHandler(void);
-void _OSSleep(void);
 static void EnqueueRescheduleQueue(ETCB *etcb);
 static void EmptyRescheduleSynchronousTaskList(INT32 currentTime);
 #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING

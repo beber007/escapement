@@ -20,12 +20,12 @@
 #ifndef _ZOTTAOS_H_
 #define _ZOTTAOS_H_
 
-#define ZOTTAOS_VERSION_HARD
+#include "ZottaOS_Config.h"     /* Import the kernel version */
 
 #ifndef _ASM_
 
-#include "ZottaOS_Types.h"
-#include "ZottaOS_Interrupts.h"
+#include "ZottaOS_Types.h"      /* Type definitions */
+#include "ZottaOS_Interrupts.h" /* Interrupt priorities and ISR index definitions */
 
 #endif /* _ASM_ */
 

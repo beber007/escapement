@@ -49,6 +49,11 @@ void _OSInitializeTimer(void);
 /* _OSStartTimer: Orders the hardware timer to begin counting. */
 void _OSStartTimer(void);
 
+/* OSGetActualTime: Retrieve the current time.
+** Returned value: (INT32) current time.
+** This function is defined as INT32 OSGetActualTime(void) and is defined in the user API
+** for kernel version. */
+
 /* _OSGenerateSoftTimerInterrupt: Provokes a software timer interrupt. This function is
 ** called when an event occurs and should be scheduled. */
 void _OSGenerateSoftTimerInterrupt(void);

@@ -21,8 +21,6 @@
 #ifndef ZOTTAOS_TIMER_H
 #define ZOTTAOS_TIMER_H
 
-#include "ZottaOS_Types.h"
-
 /* Keeping track of time and performing all its related events is a tricky business. In
 ** ZottaOS we divide these 2 actions in two. The first only keeps track of the time (the
 ** wall clock) with a dedicated hardware timer and is implemented by an ISR. The second
@@ -45,6 +43,11 @@ void _OSInitializeTimer(void);
 
 /* _OSStartTimer: Orders the hardware timer to begin counting. */
 void _OSStartTimer(void);
+
+/* OSGetActualTime: Retrieve the current time.
+** Returned value: (INT32) current time.
+** This function is defined as INT32 OSGetActualTime(void) and is defined in the user API
+** for kernel version. */
 
 /* _OSSetTimer: Sets the timer to interrupt at a specified value. This function is called
 ** by the software timer ISR to set the next time event.

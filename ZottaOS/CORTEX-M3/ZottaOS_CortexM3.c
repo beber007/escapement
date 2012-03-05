@@ -22,11 +22,11 @@
 ** Authors: MIS-TIC
 */
 
+#include "ZottaOS_Types.h"
 #include "ZottaOS_CortexM3.h"
 #include "ZottaOS_Interrupts.h"
 
 
-#define STATE_ZOMBIE 0x02
 #define READYQ       0
 #define ARRIVALQ     1
 
@@ -40,34 +40,49 @@ extern MinimalTCB *_OSActiveTask;
 extern MinimalTCB *_OSQueueHead;
 extern BOOL _OSNoSaveContext;
 
-void _OSSleep(void)
-{
-  while (TRUE) {
-     __asm("WFI"); // Request Wait For Interrupt
-  }
+#define STATE_ZOMBIE        0x02
 
-}
-
-void _OSTimerInterruptHandler(void);
+#if defined(ZOTTAOS_VERSION_SOFT)
+   extern MinimalTCB *_OSQueueTail;
+   #define STATE_INIT          0x00
+   #define STATE_ACTIVATE      0x10
+#endif
 
 /* _OSSoftTimerInterrupt: .*/
 void _OSSoftTimerInterrupt(void)
 {
-  /* We need to assert that an application task is not in the middle of preparing to do a
-  ** context switch. If this is the case, we need to supersede its actions and never re-
-  ** turn to that task instance. */
-  _OSActiveTask =  _OSQueueHead->Next[READYQ];
-  /* A task is in the middle of removing itself from the ready queue if its current state
-  ** is set to STATE_ZOMBIE. If this is the case, the ready queue may be in an incoherent
-  ** state and needs to be adjusted. The context of this task should also not be saved. */
+  extern void _OSTimerInterruptHandler(void);
+  /* Before jumping to the generic service routine of the timer, we need to assert that an
+  ** application task is not in the middle of preparing to do a context switch. If this is
+  ** the case, we need to supersede its actions and never return to that task instance.*/
+  _OSActiveTask = _OSQueueHead->Next[READYQ];
+  /* A finished task is in the middle of removing itself from the ready queue if its cur-
+  ** rent state is set to STATE_ZOMBIE. If this is the case, the ready queue may be in an
+  ** incoherent state and needs to be adjusted. The context of this task should also not
+  ** be saved. */
   if (_OSActiveTask->TaskState & STATE_ZOMBIE) {
-     /* An application task removing itself from the ready q. */
-     /* Make the ready queue coherent, i.e. finish the work started by the interrupted task
-     ** and don't save its context since it is terminated. */
+     /* Make the ready queue coherent, i.e. finish the work started by the interrupted
+     ** task and don't save its context since it is terminated. */
      _OSActiveTask = _OSQueueHead->Next[READYQ] = _OSActiveTask->Next[READYQ];
-     _OSNoSaveContext = TRUE;
+     _OSNoSaveContext = TRUE; /* Don't save the context of the interrupted task */
   }
-  _OSTimerInterruptHandler();
+  #if defined(ZOTTAOS_VERSION_SOFT)
+     else if (_OSActiveTask->TaskState & STATE_ACTIVATE) {
+       /* Yes: The operations done by the task doing the promotion are
+       **   (1)   OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];
+       **   (2)   _OSActiveTask->Next[READYQ] = OSQueueTail;
+       **   (3)   _OSActiveTask->TaskState = STATE_INIT;
+       ** So if OSQueueTail != _OSActiveTask->Next[READYQ], we need to do steps (1-3); other-
+       ** wise, (2) is already done and we need only step (3) */
+        if (_OSActiveTask->Next[READYQ] != _OSQueueTail) {
+           _OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];
+           _OSActiveTask->Next[READYQ] = _OSQueueTail;
+        }
+        _OSActiveTask->TaskState = STATE_INIT;
+        _OSNoSaveContext = TRUE; /* Don't save the context of the interrupted task */
+     }
+   #endif
+  _OSTimerInterruptHandler(); /* Jump to to the generic service routine of the timer */
 } /* end of _OSSoftTimerInterrupt */
 
 

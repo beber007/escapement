@@ -19,6 +19,7 @@
 ** Version identifier: February 2012
 ** Authors: MIS-TIC */
 
+#include "ZottaOS_CortexM3.h"
 #include "ZottaOS.h"
 #include "ZottaOS_TimerEvent.h"
 
