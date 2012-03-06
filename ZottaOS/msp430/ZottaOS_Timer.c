@@ -105,6 +105,7 @@ void _OSStartTimer(void)
 void _OSSetTimer(INT32 nextTimeInterval)
 {
   UINT16 newTime;
+  nextTimeInterval -= _OSTime;
   if (nextTimeInterval < INFINITY32) {
      newTime = (UINT16)nextTimeInterval;
      while (TRUE) {
