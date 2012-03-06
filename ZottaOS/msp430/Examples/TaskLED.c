@@ -78,32 +78,32 @@ int main(void)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x1;
      TaskParameters->Delay = 100;
-     OSCreateTask(FixedDelayTask,0,100000,100000,TaskParameters);
+     OSCreateTask(FixedDelayTask,0,20,10,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x2;
-     TaskParameters->Delay = 50;
-     OSCreateTask(FixedDelayTask,0,200,200,TaskParameters);
+     TaskParameters->Delay = 100;
+     OSCreateTask(FixedDelayTask,0,20,20,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x4;
-     TaskParameters->Delay = 2500;
-     OSCreateTask(VariableDelayTask,0,500,350,TaskParameters);
+     TaskParameters->Delay = 2200;
+     OSCreateTask(VariableDelayTask,0,60,60,TaskParameters);
   #elif defined(ZOTTAOS_VERSION_SOFT)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x1;
-     TaskParameters->Delay = 220;
-     OSCreateTask(FixedDelayTask,17,0,65,65,1,3,0,TaskParameters);
+     TaskParameters->Delay = 200;
+     OSCreateTask(FixedDelayTask,4,0,20,10,1,3,0,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x2;
-     TaskParameters->Delay = 220;
-     OSCreateTask(FixedDelayTask,17,0,65,39,1,3,0,TaskParameters);
+     TaskParameters->Delay = 200;
+     OSCreateTask(FixedDelayTask,4,0,20,20,1,3,0,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x4;
-     TaskParameters->Delay = 1900;
-     OSCreateTask(VariableDelayTask,131,0,195,195,1,1,0,TaskParameters);
+     TaskParameters->Delay = 2200;
+     OSCreateTask(VariableDelayTask,17,0,60,60,1,1,0,TaskParameters);
   #else
      #error Wrong kernel version
   #endif  
