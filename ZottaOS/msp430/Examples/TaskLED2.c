@@ -82,36 +82,34 @@ int main(void)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x1;
      TaskParameters->Delay = 100;
-     OSCreateTask(FixedDelayTaskA,0,30,30,TaskParameters);
+     OSCreateTask(FixedDelayTaskA,0,20,20,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x2;
      TaskParameters->Delay = 50;
-     //OSCreateSynchronousTask(FixedDelayTaskB,7,Event,TaskParameters);
+     OSCreateSynchronousTask(FixedDelayTaskB,10,Event,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x4;
-     TaskParameters->Delay = 2500;
-     //OSCreateTask(VariableDelayTask,0,90,90,TaskParameters);
+     TaskParameters->Delay = 2200;
+     OSCreateTask(VariableDelayTask,0,60,60,TaskParameters);
   #elif defined(ZOTTAOS_VERSION_SOFT)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x1;
      TaskParameters->Delay = 200;
      TaskParameters->Event = Event;
-     OSCreateTask(FixedDelayTaskA,7,0,30,30,1,3,0,TaskParameters);
+     OSCreateTask(FixedDelayTaskA,5,0,20,20,1,3,0,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x2;
-     TaskParameters->Delay = 50;
+     TaskParameters->Delay = 100;
      TaskParameters->Event = Event;
-     OSCreateSynchronousTask(FixedDelayTaskB,2,7,14,Event,TaskParameters);
+     OSCreateSynchronousTask(FixedDelayTaskB,3,5,42,Event,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x4;
-     TaskParameters->Delay = 3500;
-     OSCreateTask(VariableDelayTask,80,0,90,90,1,1,0,TaskParameters);
-  #else
-     #error Wrong kernel version
+     TaskParameters->Delay = 2200;
+     OSCreateTask(VariableDelayTask,45,0,60,60,1,1,0,TaskParameters);
   #endif  
 
   /* Start the OS so that it starts scheduling the user tasks */
@@ -128,9 +126,9 @@ void FixedDelayTaskA(void *argument)
   UINT32 i;
   TaskParametersDef *TaskParameters = (TaskParametersDef *)argument;
   ToggleBit(TaskParameters->GPIO_Pin);
-  //for (i = 0; i < TaskParameters->Delay; i += 1);
+  for (i = 0; i < TaskParameters->Delay; i += 1);
   ToggleBit(TaskParameters->GPIO_Pin);
-  //OSScheduleSuspendedTask(TaskParameters->Event);
+  OSScheduleSuspendedTask(TaskParameters->Event);
   OSEndTask();
 } /* end of FixedDelayTask */
 
@@ -146,7 +144,7 @@ void FixedDelayTaskB(void *argument)
   for (i = 0; i < TaskParameters->Delay; i += 1);
   ToggleBit(TaskParameters->GPIO_Pin);
   if (tmp) {
-     OSScheduleSuspendedTask(TaskParameters->Event);
+     //OSScheduleSuspendedTask(TaskParameters->Event);
      tmp = FALSE;
   }
   else
