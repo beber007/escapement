@@ -70,7 +70,10 @@ int main(void)
   /* Set the system clock characteristics */
   OSInitializeSystemClocks();
 
-  /* Create the 3 tasks. Notice that each particular task receives a private set of para-
+
+  while(1);
+
+/* Create the 3 tasks. Notice that each particular task receives a private set of para-
   ** meters that it inherits from the main program and that it is the only task that can
   ** later access. */
 
@@ -93,17 +96,17 @@ int main(void)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x1;
      TaskParameters->Delay = 200;
-     OSCreateTask(FixedDelayTask,4,0,20,10,1,3,0,TaskParameters);
+     OSCreateTask(FixedDelayTask,5,0,20,10,1,3,0,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x2;
      TaskParameters->Delay = 200;
-     OSCreateTask(FixedDelayTask,4,0,20,20,1,3,0,TaskParameters);
+     OSCreateTask(FixedDelayTask,5,0,20,20,1,3,0,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x4;
      TaskParameters->Delay = 2200;
-     OSCreateTask(VariableDelayTask,17,0,60,60,1,1,0,TaskParameters);
+     OSCreateTask(VariableDelayTask,45,0,60,60,1,1,0,TaskParameters);
   #else
      #error Wrong kernel version
   #endif  

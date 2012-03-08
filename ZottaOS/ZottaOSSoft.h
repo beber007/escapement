@@ -251,9 +251,9 @@ void *OSCreateEventDescriptor(void);
 **   (4) (UINT8) Total processor utilization of all aperiodic tasks * 256; this parameter
 **       is only used for EDF and can be set to 0 under Deadline Monotonic Scheduling.
 **       For maximum reactivity of event-driven task, the best setting is given by:
-**           1.   sum = 0.0
+**           1.   sum = 1.0
 **           2.   for all periodic task i do
-**           2.1     sum += m_i * wcet_i / k_i / period_i
+**           2.1     sum -= m_i * wcet_i / k_i / period_i
 **           2.2  end for
 **           3.   set aperiodicUtilization to (UINT8)(256.0 * sum) for all event-driven
 **                tasks

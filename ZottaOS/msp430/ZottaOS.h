@@ -31,7 +31,6 @@
 #if defined(ZOTTAOS_VERSION_HARD)
    #include "../ZottaOSHard.h"
 #elif defined(ZOTTAOS_VERSION_SOFT)
-   #define GetTime OSGetActualTime
    #include "../ZottaOSSoft.h"
 #elif defined(ZOTTAOS_VERSION_HARD_PA)
    #include "../ZottaOSHardPA.h"
