@@ -70,9 +70,6 @@ int main(void)
   /* Set the system clock characteristics */
   OSInitializeSystemClocks();
 
-
-  while(1);
-
 /* Create the 3 tasks. Notice that each particular task receives a private set of para-
   ** meters that it inherits from the main program and that it is the only task that can
   ** later access. */
