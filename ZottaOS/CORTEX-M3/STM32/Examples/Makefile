@@ -47,7 +47,7 @@ AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g
 
 CPU = cortex-m3
 
-all: build/TaskLED.elf build/UARTSimpleEcho.elf build/COLD_LED1.elf build/COLD_LED2.elf build/COLD_LED3.elf build/COLD_LED4.elf build/COLD_StateChart_UART.elf build/COLD_StateChart_LED.elf
+all: build/TaskLED.elf build/UARTSimpleEcho.elf build/TestTimerEvent.elf
 
 clean: 
 	rm -f build/*.o build/*.elf
@@ -92,24 +92,10 @@ build/stm32f10x_tim.o : ../Libraries/STM32F10x_StdPeriph_Driver/src/stm32f10x_ti
 
 build/TaskLED.o : TaskLED.c 
 	$(CC) $(CFLAGS) $(INCLUDE_PATH_LIB_STM32) $(INCLUDE_PATH_ZOTTAOS) -o $@ $<
-build/TaskLEDAdv.o : TaskLEDAdv.c 
-	$(CC) $(CFLAGS) $(INCLUDE_PATH_LIB_STM32) $(INCLUDE_PATH_ZOTTAOS) -o $@ $<
 build/UARTSimpleEcho.o : UARTSimpleEcho.c 
 	$(CC) $(CFLAGS) $(INCLUDE_PATH_LIB_STM32) $(INCLUDE_PATH_ZOTTAOS) -o $@ $<
-build/COLD_LED1.o : COLD_LED1.c 
+build/TestTimerEvent.o : TestTimerEvent.c 
 	$(CC) $(CFLAGS) $(INCLUDE_PATH_LIB_STM32) $(INCLUDE_PATH_ZOTTAOS) -o $@ $<
-build/COLD_LED2.o : COLD_LED2.c 
-	$(CC) $(CFLAGS) $(INCLUDE_PATH_LIB_STM32) $(INCLUDE_PATH_ZOTTAOS) -o $@ $<
-build/COLD_LED3.o : COLD_LED3.c 
-	$(CC) $(CFLAGS) $(INCLUDE_PATH_LIB_STM32) $(INCLUDE_PATH_ZOTTAOS) -o $@ $<
-build/COLD_LED4.o : COLD_LED4.c 
-	$(CC) $(CFLAGS) $(INCLUDE_PATH_LIB_STM32) $(INCLUDE_PATH_ZOTTAOS) -o $@ $<
-build/COLD_StateChart.o : COLD_StateChart.c 
-	$(CC) $(CFLAGS) $(INCLUDE_PATH_LIB_STM32) $(INCLUDE_PATH_ZOTTAOS) -o $@ $<
-build/COLD_StateChart_Generated_LED.o : COLD_StateChart_Generated_LED.c
-	$(CC) $(CFLAGS) $(INCLUDE_PATH_LIB_STM32) $(INCLUDE_PATH_ZOTTAOS) -o $@ $< 
-build/COLD_StateChart_Generated_UART.o : COLD_StateChart_Generated_UART.c
-	$(CC) $(CFLAGS) $(INCLUDE_PATH_LIB_STM32) $(INCLUDE_PATH_ZOTTAOS) -o $@ $< 
 
 build/TaskLED.elf : ${OBJECTS} build/TaskLED.o
 	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS} build/TaskLED.o -T${LINKERFILE}
@@ -117,14 +103,6 @@ build/UARTSimpleEcho.elf : ${OBJECTS} build/UARTSimpleEcho.o
 	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS} build/UARTSimpleEcho.o -T${LINKERFILE}
 build/COLD_LED1.elf : ${OBJECTS} build/COLD_LED1.o
 	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ build/COLD_LED1.o ${OBJECTS} -T${LINKERFILE}
-build/COLD_LED2.elf : ${OBJECTS} build/COLD_LED2.o
-	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ build/COLD_LED2.o ${OBJECTS} -T${LINKERFILE}
-build/COLD_LED3.elf : ${OBJECTS} build/COLD_LED3.o
-	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ build/COLD_LED3.o ${OBJECTS} -T${LINKERFILE}
-build/COLD_LED4.elf : ${OBJECTS} build/COLD_LED4.o
-	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ build/COLD_LED4.o ${OBJECTS} -T${LINKERFILE}
-build/COLD_StateChart_UART.elf : ${OBJECTS} build/COLD_StateChart.o build/COLD_StateChart_Generated_UART.o
-	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ build/COLD_StateChart.o build/COLD_StateChart_Generated_UART.o ${OBJECTS} -T${LINKERFILE}
-build/COLD_StateChart_LED.elf : ${OBJECTS} build/COLD_StateChart.o build/COLD_StateChart_Generated_LED.o
-	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ build/COLD_StateChart.o build/COLD_StateChart_Generated_LED.o ${OBJECTS} -T${LINKERFILE}
+build/TestTimerEvent.elf : ${OBJECTS} build/TestTimerEvent.o
+	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ build/TestTimerEvent.o ${OBJECTS} -T${LINKERFILE}
 	
