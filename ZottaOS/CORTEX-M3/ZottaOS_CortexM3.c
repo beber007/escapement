@@ -26,7 +26,7 @@
 */
 
 #include "ZottaOS_Types.h"
-#include "ZottaOS_CortexM3.h"
+#include "ZottaOS_Processor.h"
 #include "ZottaOS_Interrupts.h"
 
 
@@ -171,8 +171,8 @@ static void SoftTimerInterrupt(void);
 
 static void FinalizeContextSwitchPreparation(void);
 
-/* Cortex-M
- * 3 interrupt vector table and reset (see Cortex-M3 Technical Reference Manual
+
+/* Cortex-M3 interrupt vector table and reset (see Cortex-M3 Technical Reference Manual
 ** Sections 5.2 and 5.9.1, pages 5-3 and 5-19) */
 __attribute__ ((section(".isr_vector_general")))
 void (* const CortextM3VectorTable[])(void) =
@@ -194,7 +194,7 @@ void (* const CortextM3VectorTable[])(void) =
 };
 
 
-/* Cortex registers setting the number interrupt priority levels. */
+/* CortexM3 registers setting the number interrupt priority levels. */
 #define AIRCR *((UINT32 *)0xE000ED0C) // Application Interrupt/Reset Control Register
 #define SHPR *((UINT16 *)0xE000ED22)  // System Handlers 14-15 Priority Register
 
@@ -270,7 +270,7 @@ void _OSResetHandler(void)
         break;
   }
 
-  SystemInit();
+  _OSInitializeSystemClocks();
 
   /* Call the application's entry point */
   asm("B main");
@@ -398,8 +398,7 @@ typedef struct MinimalIODescriptor {
 ** source, the processor may go haywire after it proceeds to a non valid address. */
 void _OSIOHandler(void)
 {
-  /* Global interrupt vector with one entry per source which is defined in either
-  ** ZottaOS_msp430xxx.asm or ZottaOS_cc430xxx.asm */
+  extern MinimalTCB *_OSActiveTask;
   extern void *_OSTabDevice[];
   MinimalIODescriptor *peripheralIODescriptor;
   /* Retrieve the specific handler from IODescriptorTab */

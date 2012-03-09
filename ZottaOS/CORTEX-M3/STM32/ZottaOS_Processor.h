@@ -27,5 +27,6 @@
 
 #include "ZottaOS_Config.h"
 #include "ZottaOS_CortexM3.h"
+#include "ZottaOS_STM32.h"
 
 #endif /* ZOTTAOS_PROCESSOR_H_ */
