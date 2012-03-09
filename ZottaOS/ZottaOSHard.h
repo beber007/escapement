@@ -138,7 +138,7 @@
 #define DEADLINE_MONOTONIC_SCHEDULING  2
 
 /* The following define sets the scheduling algorithm to use. */
-#define SCHEDULER_REAL_TIME_MODE DEADLINE_MONOTONIC_SCHEDULING
+#define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
 
 #ifndef _ASM_
 

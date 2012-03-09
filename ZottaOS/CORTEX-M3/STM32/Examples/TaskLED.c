@@ -66,28 +66,28 @@ int main(void)
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_13;
-     TaskParameters->Delay = 200;
-     OSCreateTask(FixedDelayTask,0,600,600,TaskParameters);
+     TaskParameters->Delay = 100;
+     OSCreateTask(FixedDelayTask,0,300,300,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_14;
-     TaskParameters->Delay = 1800;
-     OSCreateTask(VariableDelayTask,0,600,599,TaskParameters);
+     TaskParameters->Delay = 3200;
+     OSCreateTask(VariableDelayTask,0,900,900,TaskParameters);
   #elif defined(ZOTTAOS_VERSION_SOFT)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_12;
-     TaskParameters->Delay = 600;
-     OSCreateTask(FixedDelayTask,200,0,700,699,1,3,0,TaskParameters);
+     TaskParameters->Delay = 200;
+     OSCreateTask(FixedDelayTask,70,0,300,300,1,3,0,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_13;
-     TaskParameters->Delay = 600;
-     OSCreateTask(FixedDelayTask,200,0,700,700,1,3,0,TaskParameters);
+     TaskParameters->Delay = 200;
+     OSCreateTask(FixedDelayTask,70,0,300,300,1,3,0,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_14;
-     TaskParameters->Delay = 7000;
-     OSCreateTask(VariableDelayTask,1600,0,2100,2100,1,1,0,TaskParameters);
+     TaskParameters->Delay = 3200;
+     OSCreateTask(VariableDelayTask,800,0,900,900,1,1,0,TaskParameters);
   #endif
 
   /* Start the OS so that it starts scheduling the user tasks */
