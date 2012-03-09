@@ -26,8 +26,13 @@
 ** their occurrence time.
 ** Parameters:
 **  (1) (UINT8) maximum nomber of pending events;
-**  (2) (UINT8) index denoting the timer device. */
-void OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex);
+**  (2) (UINT8) index denoting the timer device;
+**  (3) (UINT16 *) index denoting the timer device;
+**  (4) (UINT16 *) index denoting the timer device;
+**  (5) (UINT16 *) index denoting the timer device;
+**  (6) (UINT16) index denoting the timer device. */
+BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex, UINT16 *control,
+                      UINT16 *counter, UINT16 *compare, UINT16 timerEnable);
 
 /* OSScheduleTimerEvent: Entry point to insert an event into the event list associated
 ** with a timer.

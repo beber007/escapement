@@ -94,6 +94,20 @@ BOOL OSInitReceiveUART(BOOL (*userReceiveInterruptHandler)(UINT8), UINT8 interru
            descriptor->EnableReceiveInterruptBit = UCA1RXIE;
            return TRUE;
      #endif
+     #ifdef OS_IO_USCIB0RX
+        case OS_IO_USCIB0RX:
+           descriptor->HardwareReceiveBuffer = (UINT8*)&UCB0RXBUF;
+           descriptor->HardwareControlRegister = (UINT8*)&IE2;
+           descriptor->EnableReceiveInterruptBit = UCB0RXIE;
+           return TRUE;
+     #endif
+     #ifdef OS_IO_USCIB1RX
+        case OS_IO_USCIB1RX:
+           descriptor->HardwareReceiveBuffer = (UINT8*)&UCB1RXBUF;
+           descriptor->HardwareControlRegister = (UINT8*)&UC1IE;
+           descriptor->EnableReceiveInterruptBit = UCB1RXIE;
+           return TRUE;
+     #endif
      #ifdef OS_IO_USCI_A0_RX
         case OS_IO_USCI_A0_RX:
            descriptor->HardwareReceiveBuffer = (UINT8*)&UCA0RXBUF;
@@ -119,6 +133,34 @@ BOOL OSInitReceiveUART(BOOL (*userReceiveInterruptHandler)(UINT8), UINT8 interru
         case OS_IO_USCI_A3_RX:
            descriptor->HardwareReceiveBuffer = (UINT8*)&UCA3RXBUF;
            descriptor->HardwareControlRegister = (UINT8*)&UCA3IE;
+           descriptor->EnableReceiveInterruptBit = UCRXIE;
+           return TRUE;
+     #endif
+     #ifdef OS_IO_USCI_B0_RX
+        case OS_IO_USCI_B0_RX:
+           descriptor->HardwareReceiveBuffer = (UINT8*)&UCB0RXBUF;
+           descriptor->HardwareControlRegister = (UINT8*)&UCB0IE;
+           descriptor->EnableReceiveInterruptBit = UCRXIE;
+           return TRUE;
+     #endif
+     #ifdef OS_IO_USCI_B1_RX
+        case OS_IO_USCI_B1_RX:
+           descriptor->HardwareReceiveBuffer = (UINT8*)&UCB1RXBUF;
+           descriptor->HardwareControlRegister = (UINT8*)&UCB1IE;
+           descriptor->EnableReceiveInterruptBit = UCRXIE;
+           return TRUE;
+     #endif
+     #ifdef OS_IO_USCI_B2_RX
+        case OS_IO_USCI_B2_RX:
+           descriptor->HardwareReceiveBuffer = (UINT8*)&UCB2RXBUF;
+           descriptor->HardwareControlRegister = (UINT8*)&UCB2IE;
+           descriptor->EnableReceiveInterruptBit = UCRXIE;
+           return TRUE;
+     #endif
+     #ifdef OS_IO_USCI_B3_RX
+        case OS_IO_USCI_B3_RX:
+           descriptor->HardwareReceiveBuffer = (UINT8*)&UCB3RXBUF;
+           descriptor->HardwareControlRegister = (UINT8*)&UCB3IE;
            descriptor->EnableReceiveInterruptBit = UCRXIE;
            return TRUE;
      #endif

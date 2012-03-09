@@ -70,6 +70,10 @@ void _OSInitializeTimer(void)
   OSTimerCounter = 0xFFFE;
   // Select timer clock source and divider, and enable timer interrupts
   OSTimerControlRegister |= OSTimerSourceEnable;
+
+
+
+
   #ifdef OSTimerSourceDivider
      OSTimerSourceDivider;
   #endif

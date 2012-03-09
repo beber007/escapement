@@ -1,24 +1,27 @@
-/* Copyright (c) 2006-2012 MIS Institute of the HEIG affiliated to the University of
+/* Copyright (c) 2006-2012 MIS Institute of the HEIG-VD affiliated to the University of
 ** Applied Sciences of Western Switzerland. All rights reserved.
-** IN NO EVENT SHALL THE MIS INSTITUTE NOR THE HEIG NOR THE UNIVERSITY OF APPLIED
+** Permission to use, copy, modify, and distribute this software and its documentation
+** for any purpose, without fee, and without written agreement is hereby granted, pro-
+** vided that the above copyright notice, the following three sentences and the authors
+** appear in all copies of this software and in the software where it is used.
+** IN NO EVENT SHALL THE MIS INSTITUTE NOR THE HEIG-VD NOR THE UNIVERSITY OF APPLIED
 ** SCIENCES OF WESTERN SWITZERLAND BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL,
 ** INCIDENTAL, OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
-** DOCUMENTATION, EVEN IF THE MIS INSTITUTE OR THE HEIG OR THE UNIVERSITY OF APPLIED
+** DOCUMENTATION, EVEN IF THE MIS INSTITUTE OR THE HEIG-VD OR THE UNIVERSITY OF APPLIED
 ** SCIENCES OF WESTERN SWITZERLAND HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-** THE MIS INSTITUTE, THE HEIG AND THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWIT-
+** THE MIS INSTITUTE, THE HEIG-VD AND THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWIT-
 ** ZERLAND SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 ** IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFT-
-** WARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE MIS INSTITUTE NOR THE HEIG
+** WARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE MIS INSTITUTE NOR THE HEIG-VD
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File NTRTOS_STM32.c: Contains functions that are specific to the STM-32 family of
+/* File ZottaOS_STM32.c: Contains functions that are specific to the STM-32 family of
 ** microcontrollers. The functions defined here are divided into 2 parts. The first part
 ** contains functions to support the time and the timer. The second part consists of the
 ** the microcontroller's interrupt routines that start at position 16 of the interrupt
 ** table and that are specific to the microcontroller at hand.
-** Version identifier: January 2012
-** Compiler and linker:
+** Version date: March 2012
 ** Authors: MIS-TIC
 */
 
@@ -30,12 +33,15 @@
 #define MARKEDBIT    0x80000000u
 #define UNMARKEDBIT  0x7FFFFFFFu
 
-void _OSSoftTimerInterrupt(void);
+
+/* _OSIOHandler: . */
 void _OSIOHandler(void);
 
-#define _OSDisableInterrupts() __asm("CPSID i;")
+/* _OSEnableInterrupts and _OSDisableInterrupts: . */
 #define _OSEnableInterrupts()  __asm("CPSIE i;")
+#define _OSDisableInterrupts() __asm("CPSID i;")
 
+/* _OSSleep: . */
 #define _OSSleep() while (TRUE) { __asm("WFI"); } // Request Wait For Interrupt
 
 /* _OSScheduleTask: Generates a PendSV exception which will interrupt and proceed with the
