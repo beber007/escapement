@@ -21,16 +21,30 @@
 ** Authors: MIS-TIC
 */
 
-/* TODO: prendre en compte la taille max de la table des vecteur pour fixer la taille de _OSTabDevice */
-
-#include "ZottaOS_CortexM3.h"
+#include "ZottaOS_Processor.h"
 #include "ZottaOS_Types.h"
 #include "ZottaOS_Timer.h"
 
 
+#ifdef STM32F10X_LD
+   void *_OSTabDevice[43];
+#elif defined (STM32F10X_LD_VL)
+   void *_OSTabDevice[56];
+#elif defined (STM32F10X_MD)
+  void *_OSTabDevice[43];
+#elif defined (STM32F10X_MD_VL)
+   void *_OSTabDevice[56];
+#elif defined (STM32F10X_HD)
+   void *_OSTabDevice[60];
+#elif defined (STM32F10X_HD_VL)
+   void *_OSTabDevice[61];
+#elif defined (STM32F10X_XL)
+   void *_OSTabDevice[60];
+#elif defined (STM32F10X_CL)
+   void *_OSTabDevice[68];
+#endif
 /* Table of devices used by the interrupt handler and the peripheral devices to obtain
 ** the appropriate I/O routine. */
-void *_OSTabDevice[68];
 
 /* STM-32 specific interrupt vector table, which is added by the linker at the end of
 ** table CortextM3VectorTable which is defined in NTRTOS_CortexM3.c. */
