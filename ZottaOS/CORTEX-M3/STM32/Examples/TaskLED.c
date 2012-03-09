@@ -1,14 +1,18 @@
-/* Copyright (c) 2012 MIS Institute of the HEIG affiliated to the University of Applied
-** Sciences of Western Switzerland. All rights reserved.
-** IN NO EVENT SHALL THE MIS INSTITUTE NOR THE HEIG NOR THE UNIVERSITY OF APPLIED
+/* Copyright (c) 2006-2012 MIS Institute of the HEIG-VD affiliated to the University of
+** Applied Sciences of Western Switzerland. All rights reserved.
+** Permission to use, copy, modify, and distribute this software and its documentation
+** for any purpose, without fee, and without written agreement is hereby granted, pro-
+** vided that the above copyright notice, the following three sentences and the authors
+** appear in all copies of this software and in the software where it is used.
+** IN NO EVENT SHALL THE MIS INSTITUTE NOR THE HEIG-VD NOR THE UNIVERSITY OF APPLIED
 ** SCIENCES OF WESTERN SWITZERLAND BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL,
 ** INCIDENTAL, OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
-** DOCUMENTATION, EVEN IF THE MIS INSTITUTE OR THE HEIG OR THE UNIVERSITY OF APPLIED
+** DOCUMENTATION, EVEN IF THE MIS INSTITUTE OR THE HEIG-VD OR THE UNIVERSITY OF APPLIED
 ** SCIENCES OF WESTERN SWITZERLAND HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-** THE MIS INSTITUTE, THE HEIG AND THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWIT-
+** THE MIS INSTITUTE, THE HEIG-VD AND THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWIT-
 ** ZERLAND SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 ** IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFT-
-** WARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE MIS INSTITUTE NOR THE HEIG
+** WARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE MIS INSTITUTE NOR THE HEIG-VD
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
@@ -16,9 +20,7 @@
 ** Two of these tasks do a constant number of iterations in a loop, while the third does
 ** a variable number of iterations, which increases at each invocation until this number
 ** reaches a maximum value, at which time it restarts with a iteration of 1.
-**
-**
-** Version identifier: January 2012
+** Version date: March 2012
 ** Authors: MIS-TIC */
 
 #include "ZottaOS.h"
@@ -66,28 +68,28 @@ int main(void)
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_13;
-     TaskParameters->Delay = 100;
-     OSCreateTask(FixedDelayTask,0,300,300,TaskParameters);
+     TaskParameters->Delay = 200;
+     OSCreateTask(FixedDelayTask,0,600,600,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_14;
-     TaskParameters->Delay = 3200;
-     OSCreateTask(VariableDelayTask,0,900,900,TaskParameters);
+     TaskParameters->Delay = 1800;
+     OSCreateTask(VariableDelayTask,0,600,599,TaskParameters);
   #elif defined(ZOTTAOS_VERSION_SOFT)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_12;
-     TaskParameters->Delay = 200;
-     OSCreateTask(FixedDelayTask,70,0,300,300,1,3,0,TaskParameters);
+     TaskParameters->Delay = 600;
+     OSCreateTask(FixedDelayTask,200,0,700,699,1,3,0,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_13;
-     TaskParameters->Delay = 200;
-     OSCreateTask(FixedDelayTask,70,0,300,300,1,3,0,TaskParameters);
+     TaskParameters->Delay = 600;
+     OSCreateTask(FixedDelayTask,200,0,700,700,1,3,0,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_14;
-     TaskParameters->Delay = 3200;
-     OSCreateTask(VariableDelayTask,800,0,900,900,1,1,0,TaskParameters);
+     TaskParameters->Delay = 7000;
+     OSCreateTask(VariableDelayTask,1600,0,2100,2100,1,1,0,TaskParameters);
   #endif
 
   /* Start the OS so that it starts scheduling the user tasks */

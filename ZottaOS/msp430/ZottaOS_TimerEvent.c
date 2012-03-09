@@ -19,8 +19,8 @@
 ** Version identifier: February 2012
 ** Authors: MIS-TIC */
 
-#include "msp430.h"        /* Hardware specifics */
-#include "ZottaOS.h" /* Type definitions */
+#include "msp430.h"  /* Hardware specifics */
+#include "ZottaOS.h"
 #include "ZottaOS_TimerEvent.h"
 
 /* Because the timer continues ticking, when we wish to set a new value for the timer
@@ -86,24 +86,18 @@ static void TimerIntHandler(TIMER_ISR_DATA *device);
 /* OSInitTimerEvent: Creates an ISR descriptor block holding the specifics of a timer
 ** device that is used as an event handler and which can schedule a list of event at
 ** their occurrence time. */
-void OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex)
+BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex, UINT16 *control,
+                      UINT16 *counter, UINT16 *compare, UINT16 timerEnable)
 {
   TIMER_ISR_DATA *device;
   UINT8 i;
   device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
   device->TimerIntHandler = TimerIntHandler;
   OSSetISRDescriptor(interruptIndex,device);
-  switch (interruptIndex) { /* Specific timer device registers */
-     #ifdef OS_IO_TIMER1_A0_CC0
-     case OS_IO_TIMER1_A0_CC0:
-        device->Control = (UINT16 *)&TA1CTL;
-        device->Counter = (UINT16 *)&TA1R;
-        device->Compare = (UINT16 *)&TA1CCR0;
-        device->TimerEnable    = TAIE;
-        break;
-     #endif
-     default: break;
-  }
+  device->Control = control;
+  device->Counter = counter;
+  device->Compare = compare;
+  device->TimerEnable = timerEnable;
   device->Time = 0;
   device->PendingQueueOperation = NULL;
   /* Initialize event queue */
@@ -114,6 +108,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex)
   for (i = 0; i < nbNode - 1; i += 1)
      device->FreeNodes[i].Next = &device->FreeNodes[i+1];
   device->FreeNodes[i].Next = NULL;
+  return TRUE;
 } /* end of OSInitTimerEvent */
 
 
