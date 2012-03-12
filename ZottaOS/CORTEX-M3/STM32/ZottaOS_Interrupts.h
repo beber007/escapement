@@ -24,30 +24,7 @@
 #ifndef _ZOTTAOS_INTERRUPTS_
 #define _ZOTTAOS_INTERRUPTS_
 
-#include "ZottaOS_STM32.h"
-
-/* The nested vector interrupt controller (NVIC) under Cortex-M3 allows dynamic prioriti-
-** zation of interrupts with up to 256 levels that can be arranged into priority level
-** groups where each group can be preempted. The NVIC is configurable by the pair (A,B),
-** where A denotes the number of bits used to set the number of groups (number of priori-
-** ties), and B is the number of bits used for the number of subpriorities within a
-** group. A + B = 8 and A = [2..7]. Note that NTRTOS requires 3 priority groups for it-
-** self. From highest to lowest priority, these are: one for the peripheral hardware tim-
-** er, one for the software timer interrupt and a final one for the PendSV used to finali-
-** ze a context switch.
-** In the following, PRIGROUP determines the setting of the (A,B) pair, where PRIGROUP is
-** a value in the range [0..5] yielding A = 7 - PRIGROUP and B = 8 - A.
-** Note that some microcontrollers may have fewer than 8 bits to define the priority le-
-** vels, for example STM-32 uses only 4 bits and PRIGROUP must be in the range [3..5]
-** which then gives A = 7 - PRIGROUP and B = 4 - A. */
-#define PRIGROUP (UINT32)3
-
-
-/* Defines the priority group and level of the interval-timer. The timer's priority must
-** be higher than that of SysTick. See _OSSetInterruptPriority(). */
-#define TIMER_PRIORITY      (UINT8)0
-#define TIMER_SUB_PRIORITY  (UINT8)0
-
+#include "ZottaOS_Config.h"
 
 #define OS_IO_WWDG                 0  /* Window WatchDog Interrupt */
 #define OS_IO_PVD                  1  /* PVD through EXTI Line detection Interrupt */

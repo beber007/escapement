@@ -69,13 +69,19 @@ int main(void)
      OSCreateSynchronousTask((void (*)(void *))ClearLedTask,2000,TaskParameters->Event,TaskParameters);
      OSCreateTask((void (*)(void *))SetLedTask,0,20000,20000,TaskParameters);
   #elif defined(ZOTTAOS_VERSION_SOFT)
-     tmp = OSCreateEventDescriptor();
-     OSCreateSynchronousTask((void (*)(void *))ClearLed1Task,0,1000,0,tmp,NULL);
-     OSCreateTask((void (*)(void *))SetLed1Task,0,0,10000,10000,1,1,0,tmp);
+     TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
+     TaskParameters->GPIO_Pin = 0x1;
+     TaskParameters->Delay = 1000;
+     TaskParameters->Event = OSCreateEventDescriptor();
+     OSCreateSynchronousTask((void (*)(void *))ClearLedTask,0,1000,0,TaskParameters->Event,TaskParameters);
+     OSCreateTask((void (*)(void *))SetLedTask,0,0,10000,10000,1,1,0,TaskParameters);
 
-     tmp = OSCreateEventDescriptor();
-     OSCreateSynchronousTask((void (*)(void *))ClearLed2Task,0,2000,0,tmp,NULL);
-     OSCreateTask((void (*)(void *))SetLed2Task,0,0,20000,20000,1,1,0,tmp);
+     TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
+     TaskParameters->GPIO_Pin = 0x2;
+     TaskParameters->Delay = 2000;
+     TaskParameters->Event = OSCreateEventDescriptor();
+     OSCreateSynchronousTask((void (*)(void *))ClearLedTask,0,2000,0,TaskParameters->Event,TaskParameters);
+     OSCreateTask((void (*)(void *))SetLedTask,0,0,20000,20000,1,1,0,TaskParameters);
   #endif
 
   /* Start the OS so that it starts scheduling the user tasks */

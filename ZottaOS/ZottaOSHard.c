@@ -393,7 +393,6 @@ void OSEndTask(void)
 }
 
 
-
 /* _OSTimerInterruptHandler: Software interrupt handler for the timer that manages task
 ** instance arrivals. Because the timer is a bit counter with a predefined number of bits,
 ** when a timer event occurs, it can be that there are no arrivals. In this case, we only
@@ -419,8 +418,8 @@ void _OSTimerInterruptHandler(void)
      #endif
      /* Mark that a software timer interrupt is under way so that new interrupts will not be
      ** generated (see EnqueueRescheduleQueue). */
-     while (!_OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,
-          GetMarkedReference(_OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList))));
+     while (!OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,
+          GetMarkedReference(OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList))));
   #endif
   currentTime = OSGetActualTime();
   /* Transfer all new arrivals to the ready queue. */
@@ -737,22 +736,22 @@ void EnqueueRescheduleQueue(ETCB *etcb)
   #endif
   while (TRUE) {
      #ifdef NESTED_TIMER_INTERRUPT
-        tmp = _OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList);
+        tmp = OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList);
         if (IsMarkedReference(tmp)) {
            etcb->Next[BLOCKQ] = (ETCB *)GetUnmarkedReference(tmp);
-           if (_OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,GetMarkedReference(etcb)))
+           if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,GetMarkedReference(etcb)))
               return;
         }
         else {
            etcb->Next[BLOCKQ] = (ETCB *)tmp;
-           if (_OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb)) {
+           if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb)) {
               _OSGenerateSoftTimerInterrupt(); // Generate a soft timer interrupt
               return;
            }
         }
      #else
-        etcb->Next[BLOCKQ] = (ETCB *)_OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList);
-        if (_OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb)) {
+        etcb->Next[BLOCKQ] = (ETCB *)OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList);
+        if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb)) {
            _OSGenerateSoftTimerInterrupt(); // Generate a soft timer interrupt
            return;
         }
@@ -770,11 +769,11 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
   ETCB *etcb;
   do {
      #ifdef NESTED_TIMER_INTERRUPT
-        while ((etcb = (ETCB *)GetUnmarkedReference(_OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList))) != NULL) {
-           if (_OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,GetMarkedReference(etcb->Next[BLOCKQ]))) {
+        while ((etcb = (ETCB *)GetUnmarkedReference(OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList))) != NULL) {
+           if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,GetMarkedReference(etcb->Next[BLOCKQ]))) {
      #else
-        while ((etcb = (ETCB *)_OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList)) != NULL) {
-           if (_OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb->Next[BLOCKQ])) {
+        while ((etcb = (ETCB *)OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList)) != NULL) {
+           if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb->Next[BLOCKQ])) {
      #endif
            #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
               /* Under EDF, the task that is to process the event cannot execute until it
@@ -815,7 +814,7 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
            }
         }
      }
-  } while (!_OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,NULL));
+  } while (!OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,NULL));
 } /* end of EmptyRescheduleSynchronousTaskList */
 
 
@@ -877,8 +876,8 @@ BOOL OSStartMultitasking(void)
   /* Start the first task in the ready queue, i.e. the Idle task. */
   _OSActiveTask = _OSQueueHead->Next[READYQ];
   _OSScheduleTask();     // Start the Idle task
-  _OSEnableInterrupts();
-  return FALSE;
+  _OSEnableInterrupts(); // Necessary for microcontrollers that return from _OSSchedule-
+  return FALSE;          // Task, e.g. CORTEX-M3
 } /* end of OSStartMultitasking */
 
 
@@ -984,12 +983,12 @@ void FIFODequeueHelper(FIFOQUEUE *queue, UINTPTR signal, DEQUEUE_DESCRIPTOR *des
      des->SlotReturn = des->SlotPropose;
   if (des->SlotReturn != signal)
      while (TRUE) {
-        slot = _OSUINTPTR_LL(&queue->Q[h]);
+        slot = OSUINTPTR_LL(&queue->Q[h]);
         if (des->Done || slot == SIGNAL)
            break;
         else if (slot == NULL)
            if (des->SlotReturn == NULL) {
-              if (_OSUINTPTR_SC(&queue->Q[h],SIGNAL)) {
+              if (OSUINTPTR_SC(&queue->Q[h],SIGNAL)) {
                  des->Done = TRUE;
                  break;
               }
@@ -999,7 +998,7 @@ void FIFODequeueHelper(FIFOQUEUE *queue, UINTPTR signal, DEQUEUE_DESCRIPTOR *des
               des->Done = TRUE;
               break;
            }
-        else if (_OSUINTPTR_SC(&queue->Q[h],NULL)) {
+        else if (OSUINTPTR_SC(&queue->Q[h],NULL)) {
            IncrementFifoQueueIndex(&queue->Head,des->Head,queue->MaxIndex);
            des->Done = TRUE;
            break;
@@ -1064,11 +1063,11 @@ void FIFOEnqueueHelper(FIFOQUEUE *queue, ENQUEUE_DESCRIPTOR *des)
      des->SlotReturn = des->SlotPropose;
   if (des->SlotReturn == NULL || des->SlotReturn == SIGNAL)
      while (TRUE) {
-        slot = _OSUINTPTR_LL(&queue->Q[t]);
+        slot = OSUINTPTR_LL(&queue->Q[t]);
         if (des->Done)
            break;
         else if (slot == SIGNAL) {
-           if (_OSUINTPTR_SC(&queue->Q[t],NULL)) {
+           if (OSUINTPTR_SC(&queue->Q[t],NULL)) {
               des->Done = TRUE;
               break;
            }
@@ -1078,7 +1077,7 @@ void FIFOEnqueueHelper(FIFOQUEUE *queue, ENQUEUE_DESCRIPTOR *des)
               des->Done = TRUE;
               break;
            }
-           else if (_OSUINTPTR_SC(&queue->Q[t],des->Item)) {
+           else if (OSUINTPTR_SC(&queue->Q[t],des->Item)) {
               IncrementFifoQueueIndex(&queue->Tail,des->Tail,queue->MaxIndex);
               des->Done = TRUE;
               break;

@@ -563,34 +563,39 @@ UINT8 OSGetReferenceBuffer(void *descriptor, UINT8 readMode, UINT8 **data);
 
 
 /* ATOMIC INSTRUCTIONS --------------------------------------------------------------- */
-/* OSUINT8_LL, OSUINT16_LL, OSINT16_LL, OSUINT32_LL and OSUINT32_LL: The LL functions are
-** used in conjunction with their corresponding SC functions call to provide
+/* OSUINT8_LL, OSUINT16_LL, OSINT16_LL, OSUINT32_LL, OSUINT32_LL and OSUINTPTR_LL: The LL
+** functions are used in conjunction with their corresponding SC functions call to provide
 ** synchronization support for ZottaOS. The LL/SC pair of functions works very much like
 ** simple a get and a set function. The LL functions, in addition of returning the
 ** contents of a memory location, have the effect of setting a user transparent
 ** reservation bit. If this bit is still set when an SC function is executed, the store of
 ** SC occurs; otherwise the store fails and the specified memory location is left
-** unchanged (see OSUINT8_SC, OSUINT16_SC, OSINT16_SC, OSUINT32_SC and OSINT32_SC).
+** unchanged (see OSUINT8_SC, OSUINT16_SC, OSINT16_SC, OSUINT32_SC, OSINT32_SC and
+** OSUINTPTR_SC).
 ** The LL function is semantically equivalent to the atomic execution of the following
 ** code:
 **    TYPE OSTYPE_LL(TYPE *memAddr) {
 **       reserveBit = TRUE;
 **       return *memAddr;
 **    }
-** where TYPE can be one of UINT8, UINT16, INT16, UINT32 or INT32.
+** where TYPE can be one of UINT8, UINT16, INT16, UINT32, INT32 or UINTPTR.
 ** Parameter: (TYPE *) Address to a memory location that holds the value to read, where
-** TYPE can be one of UINT8, UINT16, INT16, UINT32 or INT32.
+** TYPE can be one of UINT8, UINT16, INT16, UINT32, INT32 or UINTPTR.
 ** Returned value: (TYPE) The contents stored in the memory location specified by the pa-
-**    rameter. */
+**    rameter.
+** These functions are implemented in ZottaOS_Atomic.c. However OSUINTPTR_LL is simply a
+** define to one of the other functions are depends on the width of an address that is
+** defined in ZottaOS_Type.h. */
 UINT8 OSUINT8_LL(UINT8 *memAddr);
 UINT16 OSUINT16_LL(UINT16 *memAddr);
 INT16 OSINT16_LL(INT16 *memAddr);
 UINT32 OSUINT32_LL(UINT32 *memAddr);
 INT32 OSINT32_LL(INT32 *memAddr);
 
-/* OSUINT8_SC, OSUINT16_SC, OSINT16_SC, OSUINT32_SC and OSUINT32_SC: Store Memory Location
-** if Reserved. If the reservation bit is set by a previous call to an LL function, the
-** second parameter is written into the memory location specified by the first parameter.
+/* OSUINT8_SC, OSUINT16_SC, OSINT16_SC, OSUINT32_SC, OSUINT32_SC and OSUINTPTR_SC: Store
+** Memory Location if Reserved. If the reservation bit is set by a previous call to an LL
+** function, the second parameter is written into the memory location specified by the
+** first parameter.
 ** SC functions are semantically equivalent to the atomic execution of the following code
 **    BOOL OStype_SC(TYPE *memAddr, TYPE newValue) {
 **       if (reserveBit) {
@@ -601,13 +606,16 @@ INT32 OSINT32_LL(INT32 *memAddr);
 **       else
 **          return FALSE;
 **     }
-** where TYPE can be one of UINT8, UINT16, INT16, UINT32 or INT32.
+** where TYPE can be one of UINT8, UINT16, INT16, UINT32, INT32 or UINTPTR.
 ** Parameters:
 **   (1) (TYPE *) Address to a memory location that holds the value to modify, where TYPE
-**                can be one of UINT8, UINT16, INT16, UINT32 or INT32.
+**                can be one of UINT8, UINT16, INT16, INT32 or UINTPTR.
 **   (2) (TYPE) Value to insert into the memory location specified by the above parameter
 **              if and only if the reservation bit is still set.
-** Returned value: (BOOL) TRUE if the store took place and FALSE otherwise. */
+** Returned value: (BOOL) TRUE if the store took place and FALSE otherwise.
+** These functions are implemented in ZottaOS_Atomic.c. However OSUINTPTR_SC is simply a
+** define to one of the other functions are depends on the width of an address that is
+** defined in ZottaOS_Type.h. */
 BOOL OSUINT8_SC(UINT8 *memAddr, UINT8 newValue);
 BOOL OSUINT16_SC(UINT16 *memAddr, UINT16 newValue);
 BOOL OSINT16_SC(INT16 *memAddr, INT16 newValue);
@@ -616,3 +624,4 @@ BOOL OSINT32_SC(INT32 *memAddr, INT32 newValue);
 
 #endif /* _ASM_ */
 #endif /* ZOTTAOS_H */
+

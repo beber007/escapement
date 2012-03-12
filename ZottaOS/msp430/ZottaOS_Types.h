@@ -43,7 +43,7 @@ typedef signed long INT32;
 
 /* Equivalence between address and unsigned to allow arithmetic and bitwise operations */
 typedef UINT16 UINTPTR;
-#define _OSUINTPTR_LL OSUINT16_LL
-#define _OSUINTPTR_SC OSUINT16_SC
+#define OSUINTPTR_LL OSUINT16_LL
+#define OSUINTPTR_SC OSUINT16_SC
 
 #endif /* _ZOTTAOS_TYPE_H_ */
