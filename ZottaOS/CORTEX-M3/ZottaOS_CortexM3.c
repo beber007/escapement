@@ -16,11 +16,11 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File NTRTOS_STM32.c: Contains functions that are specific to the STM-32 family of
-** microcontrollers. The functions defined here are divided into 2 parts. The first part
-** contains functions to support the time and the timer. The second part consists of the
-** the microcontroller's interrupt routines that start at position 16 of the interrupt
-** table and that are specific to the microcontroller at hand.
+/* File ZottaOS_CortexM3.c: Contains functions that are specific to the CORTEX-M3 family
+** of microcontrollers. The functions defined here are divided into 2 parts. The first
+** part consists of the microcontroller's interrupt routines that start at position 16 of
+** the interrupt table and that are specific to the microcontroller at hand. The second
+** part contains functions to support dynamic memory allocations.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */
@@ -28,127 +28,6 @@
 #include "ZottaOS_Types.h"
 #include "ZottaOS_Processor.h"
 #include "ZottaOS_Interrupts.h"
-
-
-/* ATOMIC INSTRUCTIONS --------------------------------------------------------------- */
-/* OSUINT8_LL, OSUINT16_LL, OSINT16_LL, OSUINT32_LL and OSUINT32_LL: The LL functions are
-** used in conjunction with their corresponding SC functions call to provide
-** synchronization support for ZottaOS. The LL/SC pair of functions works very much like
-** simple a get and a set function. The LL functions, in addition of returning the
-** contents of a memory location, have the effect of setting a user transparent
-** reservation bit. If this bit is still set when an SC function is executed, the store of
-** SC occurs; otherwise the store fails and the specified memory location is left
-** unchanged (see OSUINT8_SC, OSUINT16_SC, OSINT16_SC, OSUINT32_SC and OSINT32_SC).
-** The LL function is semantically equivalent to the atomic execution of the following
-** code:
-**    TYPE OSTYPE_LL(TYPE *memAddr) {
-**       reserveBit = TRUE;
-**       return *memAddr;
-**    }
-** where TYPE can be one of UINT8, UINT16, INT16, UINT32 or INT32.
-** Parameter: (TYPE *) Address to a memory location that holds the value to read, where
-** TYPE can be one of UINT8, UINT16, INT16, UINT32 or INT32.
-** Returned value: (TYPE) The contents stored in the memory location specified by the pa-
-**    rameter. */
-
-inline UINT8 OSUINT8_LL(UINT8 *memAddr)
-{
-  UINT8 tmp;
-  asm volatile ("LDREXB %0,[%1]":"=&b"(tmp):"r"(memAddr));
-  return tmp;
-}
-
-inline UINT16 OSUINT16_LL(UINT16 *memAddr)
-{
-  UINT16 tmp;
-  asm volatile ("LDREXH %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
-  return tmp;
-}
-
-inline INT16 OSINT16_LL(INT16 *memAddr)
-{
-  INT16 tmp;
-  asm volatile ("LDREXH %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
-  return tmp;
-}
-
-inline UINT32 OSUINT32_LL(UINT32 *memAddr)
-{
-  UINT32 tmp;
-  asm volatile ("LDREX %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
-  return tmp;
-}
-
-inline INT32 OSINT32_LL(INT32 *memAddr)
-{
-  INT32 tmp;
-  asm volatile ("LDREX %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
-  return tmp;
-}
-/* end of OSUINT8_LL, OSUINT16_LL, OSINT16_LL, OSUINT32_LL and OSINT32_LL */
-
-
-/* OSUINT8_SC, OSUINT16_SC, OSINT16_SC, OSUINT32_SC and OSUINT32_SC: Store Memory Location
-** if Reserved. If the reservation bit is set by a previous call to an LL function, the
-** second parameter is written into the memory location specified by the first parameter.
-** SC functions are semantically equivalent to the atomic execution of the following code
-**    BOOL OStype_SC(TYPE *memAddr, TYPE newValue) {
-**       if (reserveBit) {
-**          *memAddr = newValue
-**          reserveBit = FALSE;
-**          return TRUE;
-**       }
-**       else
-**          return FALSE;
-**     }
-** where TYPE can be one of UINT8, UINT16, INT16, UINT32 or INT32.
-** Parameters:
-**   (1) (TYPE *) Address to a memory location that holds the value to modify, where TYPE
-**                can be one of UINT8, UINT16, INT16, UINT32 or INT32.
-**   (2) (TYPE) Value to insert into the memory location specified by the above parameter
-**              if and only if the reservation bit is still set.
-** Returned value: (BOOL) TRUE if the store took place and FALSE otherwise. */
-
-inline BOOL OSUINT8_SC(UINT8 *memAddr, register UINT8 newVal)
-{
-  register BOOL tmp;
-  asm volatile ("STREXB %0,%2,[%1]\n"
-                "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
-  return tmp;
-}
-
-inline BOOL OSUINT16_SC(UINT16 *memAddr, register UINT16 newVal)
-{
-  register BOOL tmp;
-  asm volatile ("STREXH %0,%2,[%1]\n"
-                "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
-  return tmp;
-}
-
-inline BOOL OSINT16_SC(INT16 *memAddr, register INT16 newVal)
-{
-  register BOOL tmp;
-  asm volatile ("STREXH %0,%2,[%1]\n"
-                "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
-  return tmp;
-}
-
-inline BOOL OSUINT32_SC(UINT32 *memAddr, register UINT32 newVal)
-{
-  register BOOL tmp;
-  asm volatile ("STREX %0,%2,[%1]\n"
-                "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
-  return tmp;
-}
-
-inline BOOL OSINT32_SC(INT32 *memAddr, register INT32 newVal)
-{
-  register BOOL tmp;
-  asm volatile ("STREX %0,%2,[%1]\n"
-                "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
-  return tmp;
-}
-/* end of OSUINT8_SC, OSUINT16_SC, OSINT16_SC, OSUINT32_SC and OSINT32_SC */
 
 
 /* SYSTEM INTERRUPT ------------------------------------------------------------------ */
@@ -269,9 +148,6 @@ void _OSResetHandler(void)
         #endif
         break;
   }
-
-  _OSInitializeSystemClocks();
-
   /* Call the application's entry point */
   asm("B main");
 } /* end of _OSResetHandler */
@@ -320,19 +196,14 @@ void DebugMonitor(void)
 /* end of the Cortex-M3 system interrupt handler definitions */
 
 
-#define READYQ       0
-
-#define STATE_ZOMBIE 0x02
-#if defined(ZOTTAOS_VERSION_SOFT)
-   #define STATE_INIT          0x00
-   #define STATE_ACTIVATE      0x10
-#endif
-
-typedef struct MinimalTCB {
-  struct MinimalTCB *Next[2]; // Next TCB in the list where this task is located
-                              // [0]: ready queue link, [1]: arrival queue link
-  UINT8 TaskState;            // Current state of the task
-} MinimalTCB;
+/* SoftTimerInterrupt: .*/
+void SoftTimerInterrupt(void)
+{
+  extern void _OSTimerInterruptHandler(void); /* Defined in ZottaOSHard.c or ZottaOSSoft.c */
+  FinalizeContextSwitchPreparation();
+  _OSTimerInterruptHandler(); // Jump to to the generic service routine of the timer
+  __asm("CLREX;");            // Make all pending SC() fail
+} /* end of SoftTimerInterrupt */
 
 
 /* FinalizeContextSwitchPreparation: On entry of an interrupt handler, we need to assert
@@ -341,6 +212,17 @@ typedef struct MinimalTCB {
 ** instance.*/
 void FinalizeContextSwitchPreparation(void)
 {
+  #define READYQ       0
+  #define STATE_ZOMBIE 0x02
+  #if defined(ZOTTAOS_VERSION_SOFT)
+     #define STATE_INIT          0x00
+     #define STATE_ACTIVATE      0x10
+  #endif
+  typedef struct MinimalTCB {
+     struct MinimalTCB *Next[2]; // Next TCB in the list where this task is located
+                                 // [0]: ready queue link, [1]: arrival queue link
+     UINT8 TaskState;            // Current state of the task
+  } MinimalTCB;
   extern MinimalTCB *_OSActiveTask;
   extern MinimalTCB *_OSQueueHead;
   #if defined(ZOTTAOS_VERSION_SOFT)
@@ -375,16 +257,6 @@ void FinalizeContextSwitchPreparation(void)
      }
    #endif
 } /* end of FinalizeContextSwitchPreparation */
-
-
-/* SoftTimerInterrupt: .*/
-void SoftTimerInterrupt(void)
-{
-  extern void _OSTimerInterruptHandler(void); /* Defined in ZottaOSHard.c or ZottaOSSoft.c */
-  FinalizeContextSwitchPreparation();
-  _OSTimerInterruptHandler(); // Jump to to the generic service routine of the timer
-  __asm("CLREX;");            // Make all pending SC() fail
-} /* end of SoftTimerInterrupt */
 
 
 /* Definition of a minimal peripheral descriptor to retrieve the peripheral interrupt

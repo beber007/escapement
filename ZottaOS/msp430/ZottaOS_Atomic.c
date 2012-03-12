@@ -17,7 +17,7 @@
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
 /* File ZottaOS_Atomic.h: Defines the LL/SC atomic instructions used used with the types
- *                        defined for ZottaOS kernels.
+**                        defined for ZottaOS kernels.
 ** Version identifier: March 2012
 ** Authors: MIS-TIC
 */

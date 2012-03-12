@@ -16,17 +16,22 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOS_STM32.h:
-** Version date: March 2012
+/* File ZottaOS_Config.h: .
+** Version identifier: March 2012
 ** Authors: MIS-TIC
 */
 
-#ifndef _ZOTTAOS_STM32_
-#define _ZOTTAOS_STM32_
+#ifndef ZOTTAOS_CONFIG_H_
+#define ZOTTAOS_CONFIG_H_
+
+//#define ZOTTAOS_VERSION_HARD
+#define ZOTTAOS_VERSION_SOFT
 
 /* Uncomment the line below that corresponds to your target STM32 device while leaving
 ** the others commented. */
- #if !defined (STM32F10X_LD) && !defined (STM32F10X_LD_VL) && !defined (STM32F10X_MD) && !defined (STM32F10X_MD_VL) && !defined (STM32F10X_HD) && !defined (STM32F10X_HD_VL) && !defined (STM32F10X_XL) && !defined (STM32F10X_CL)
+ #if !defined (STM32F10X_LD) && !defined (STM32F10X_LD_VL) && !defined (STM32F10X_MD) && \
+     !defined (STM32F10X_MD_VL) && !defined (STM32F10X_HD) && !defined (STM32F10X_HD_VL) &&\
+     !defined (STM32F10X_XL) && !defined (STM32F10X_CL)
   /* #define STM32F10X_LD */     /*!< STM32F10X_LD: STM32 Low density devices */
   /* #define STM32F10X_LD_VL */  /*!< STM32F10X_LD_VL: STM32 Low density Value Line devices */
   /* #define STM32F10X_MD */     /*!< STM32F10X_MD: STM32 Medium density devices */
@@ -37,9 +42,26 @@
   /* #define STM32F10X_CL */     /*!< STM32F10X_CL: STM32 Connectivity line devices */
 #endif
 
-void SytemeInit(void); /* defined in system_stm32f10x.c ST library file */
+/* The nested vector interrupt controller (NVIC) under Cortex-M3 allows dynamic prioriti-
+** zation of interrupts with up to 256 levels that can be arranged into priority level
+** groups where each group can be preempted. The NVIC is configurable by the pair (A,B),
+** where A denotes the number of bits used to set the number of groups (number of priori-
+** ties), and B is the number of bits used for the number of subpriorities within a
+** group. A + B = 8 and A = [2..7]. Note that NTRTOS requires 3 priority groups for it-
+** self. From highest to lowest priority, these are: one for the peripheral hardware tim-
+** er, one for the software timer interrupt and a final one for the PendSV used to finali-
+** ze a context switch.
+** In the following, PRIGROUP determines the setting of the (A,B) pair, where PRIGROUP is
+** a value in the range [0..5] yielding A = 7 - PRIGROUP and B = 8 - A.
+** Note that some microcontrollers may have fewer than 8 bits to define the priority le-
+** vels, for example STM-32 uses only 4 bits and PRIGROUP must be in the range [3..5]
+** which then gives A = 7 - PRIGROUP and B = 4 - A. */
+#define PRIGROUP (UINT32)3
 
-#define _OSInitializeSystemClocks() SystemInit()
 
-#endif /* _ZOTTAOS_STM32_ */
+/* Defines the priority group and level of the interval-timer. The timer's priority must
+** be higher than that of SysTick. See _OSSetInterruptPriority(). */
+#define TIMER_PRIORITY      (UINT8)0
+#define TIMER_SUB_PRIORITY  (UINT8)0
 
+#endif /* ZOTTAOS_CONFIG_H_ */
