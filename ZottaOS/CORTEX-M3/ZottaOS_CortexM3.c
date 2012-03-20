@@ -25,9 +25,7 @@
 ** Authors: MIS-TIC
 */
 
-#include "ZottaOS_Types.h"
-#include "ZottaOS_Processor.h"
-#include "ZottaOS_Interrupts.h"
+#include "ZottaOS.h"
 
 
 /* SYSTEM INTERRUPT ------------------------------------------------------------------ */
@@ -89,7 +87,7 @@ void _OSResetHandler(void)
   extern UINT32 _edata; // RAM end location of previous globals
   extern UINT32 _bss;   // Global variables that are initialized to 0 and stored in RAM.
   extern UINT32 _ebss;  // RAM end address of the above.
-  extern void SystemInit (void); // Defined in system_stm32f10x.c */
+  extern void SystemInit (void); // Defined in system_stm32f10x.c
   UINT32 *pulSrc, *pulDest;
   asm("CPSID I");       // Disable all interrupt
   /* Copy the data segment initializers from flash to SRAM */
@@ -206,6 +204,14 @@ void SoftTimerInterrupt(void)
 } /* end of SoftTimerInterrupt */
 
 
+typedef struct MinimalTCB {
+   struct MinimalTCB *Next[2]; // Next TCB in the list where this task is located
+                               // [0]: ready queue link, [1]: arrival queue link
+   UINT8 TaskState;            // Current state of the task
+} MinimalTCB;
+
+extern MinimalTCB *_OSActiveTask;
+
 /* FinalizeContextSwitchPreparation: On entry of an interrupt handler, we need to assert
 ** that an application task is not in the middle of preparing to do a context switch. If
 ** this is the case, we need to supersede its actions and never return to that task
@@ -218,12 +224,6 @@ void FinalizeContextSwitchPreparation(void)
      #define STATE_INIT          0x00
      #define STATE_ACTIVATE      0x10
   #endif
-  typedef struct MinimalTCB {
-     struct MinimalTCB *Next[2]; // Next TCB in the list where this task is located
-                                 // [0]: ready queue link, [1]: arrival queue link
-     UINT8 TaskState;            // Current state of the task
-  } MinimalTCB;
-  extern MinimalTCB *_OSActiveTask;
   extern MinimalTCB *_OSQueueHead;
   #if defined(ZOTTAOS_VERSION_SOFT)
      extern MinimalTCB *_OSQueueTail;
@@ -270,11 +270,16 @@ typedef struct MinimalIODescriptor {
 ** source, the processor may go haywire after it proceeds to a non valid address. */
 void _OSIOHandler(void)
 {
-  extern MinimalTCB *_OSActiveTask;
   extern void *_OSTabDevice[];
   MinimalIODescriptor *peripheralIODescriptor;
-  /* Retrieve the specific handler from IODescriptorTab */
+  /* Retrieve the specific handler from _OSTabDevice */
   peripheralIODescriptor = _OSTabDevice[(*((UINT32 *)0xE000ED04) & 0x1FF) - 16];
+  #ifdef DEBUG_MODE
+     if (peripheralIODescriptor == NULL) {
+       _OSDisableInterrupts();
+       while (TRUE); // referring to an inexistent ISR descriptor.
+     }
+  #endif
   /* Call the specific handler */
   peripheralIODescriptor->PeripheralInterruptHandler(peripheralIODescriptor);
   if (_OSActiveTask != NULL) { /* If the kernel has already started */

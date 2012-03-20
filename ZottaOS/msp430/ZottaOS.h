@@ -18,6 +18,7 @@
 */
 /* File ZottaOS.h: User API for all ZottaOS kernels. The kernel selection is imported from
 **                 ZottaOS_msp430XXX.h or ZottaOS_cc430XXX.h generated file.
+** Platform version: All MSP430 and CC430 microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */

@@ -17,6 +17,7 @@
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
 /* File ZottaOS_Timer.h: Defines the interface between the hardware timer and ZottaOS.
+** Platform version: All MSP430 and CC430 microcontrollers.
 ** Version identifier: March 2012
 ** Authors: MIS-TIC
 */
@@ -24,6 +25,11 @@
 #ifndef ZOTTAOS_TIMER_H
 #define ZOTTAOS_TIMER_H
 
+/* Depending on the microcontroller, some have prioritized interrupts while others don't,
+** and some can avoid nesting interrupts while others cannot even forbid nesting the same
+** interrupt. To allow all different possibilities and yet provide portable code over a
+** wide range of microcontrollers, we have flags that define the behavior of the internal
+** timer handler. On the MSP430 line of microcontroller, nesting cannot be avoided. */
 #define NESTED_TIMER_INTERRUPT
 
 /* Keeping track of time and performing all its related events is a tricky business. In
@@ -49,7 +55,7 @@ void _OSInitializeTimer(void);
 /* _OSStartTimer: Orders the hardware timer to begin counting. */
 void _OSStartTimer(void);
 
-/* OSGetActualTime: Retrieve the current time.
+/* OSGetActualTime: Retrieves the current time.
 ** Returned value: (INT32) current time.
 ** This function is defined as INT32 OSGetActualTime(void) and is defined in the user API
 ** for kernel version. */
@@ -64,10 +70,9 @@ void _OSGenerateSoftTimerInterrupt(void);
 **                    terrupt, i.e. the time of the next event minus the current time. */
 void _OSSetTimer(INT32 nextTimeInterval);
 
-/* OSGetActualTime: . */
-INT32 OSGetActualTime(void);
-
-/* _OSTimerShift: . */
+/* _OSTimerShift: Shifts the encapsulated wall clock variable to avoid its overflow. This
+** function is called by the software timer ISR whenever it shifts all the system temporal
+** variables. */
 void _OSTimerShift(INT32 shiftTimeLimit);
 
 #endif /* ZOTTAOS_TIMER_H */

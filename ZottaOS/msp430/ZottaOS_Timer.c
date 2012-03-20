@@ -19,6 +19,7 @@
 /* File ZottaOS_Timer.c: Hardware abstract timer layer. This file holds all timer related
 **          functions needed by ZottaOS so that these can easily be ported from one MSP to
 **          another and also to other microcontrollers.
+** Platform version: All MSP430 and CC430 microcontrollers.
 ** Version identifier: March 2012
 ** Authors: MIS-TIC
 */

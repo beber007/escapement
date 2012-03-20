@@ -18,6 +18,7 @@
 */
 /* File ZottaOS_Processor.h: Defined architecture specifics for ZottaOS kernels. Note that
 **                           these definitions are not intended for the user.
+** Platform version: All MSP430 and CC430 microcontrollers.
 ** Version identifier: March 2012
 ** Authors: MIS-TIC
 */

@@ -18,6 +18,7 @@
 */
 /* File UART.c: Contains the implementation of an API allowing facilitated message
 ** transmissions and easy access to the receiver part of a UART.
+** Platform version: All STM32 microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */
@@ -66,31 +67,41 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
   descriptor->NbTransmit = 0;
   descriptor->CurrentBuffer = NULL;
   switch (interruptIndex) {  /* Specific UART device configuration */
+        #ifdef OS_IO_USART1
         case OS_IO_USART1:
            descriptor->Status = (UINT16 *)USART1_BASE;
            descriptor->HardwareBuffer = (UINT16 *)(USART1_BASE + 0x04);
            descriptor->ControlReg2 = (UINT16 *)(USART1_BASE + 0x0C);
            break;
+        #endif
+        #ifdef OS_IO_USART2
         case OS_IO_USART2:
             descriptor->Status = (UINT16 *)USART2_BASE;
             descriptor->HardwareBuffer = (UINT16 *)(USART2_BASE + 0x04);
             descriptor->ControlReg2 = (UINT16 *)(USART2_BASE + 0x0C);
            break;
+        #endif
+        #ifdef OS_IO_USART3
         case OS_IO_USART3:
             descriptor->Status = (UINT16 *)USART3_BASE;
             descriptor->HardwareBuffer = (UINT16 *)(USART3_BASE + 0x04);
             descriptor->ControlReg2 = (UINT16 *)(USART3_BASE + 0x0C);
            break;
+        #endif
+        #ifdef OS_IO_UART4
         case OS_IO_UART4:
             descriptor->Status = (UINT16 *)UART4_BASE;
             descriptor->HardwareBuffer = (UINT16 *)(UART4_BASE + 0x04);
             descriptor->ControlReg2 = (UINT16 *)(UART4_BASE + 0x0C);
            break;
+        #endif
+        #ifdef OS_IO_UART5
         case OS_IO_UART5:
             descriptor->Status = (UINT16 *)UART5_BASE;
             descriptor->HardwareBuffer = (UINT16 *)(UART5_BASE + 0x04);
             descriptor->ControlReg2 = (UINT16 *)(UART5_BASE + 0x0C);
            break;
+        #endif
      default: break;
   }
   OSSetISRDescriptor(interruptIndex,descriptor);

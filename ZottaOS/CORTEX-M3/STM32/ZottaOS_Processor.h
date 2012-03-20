@@ -18,6 +18,7 @@
 */
 /* File ZottaOS_Processor.h: Defined architecture specifics for ZottaOS kernels. Note that
 **                           these definitions are not intended for the user.
+** Platform version: All STM32 microcontrollers.
 ** Version identifier: March 2012
 ** Authors: MIS-TIC
 */
@@ -30,6 +31,7 @@
 
 void SytemeInit(void); /* defined in system_stm32f10x.c ST library file */
 
+/* OSInitializeSystemClocks: System clock initialization routine. */
 #define OSInitializeSystemClocks() SystemInit()
 
 #endif /* ZOTTAOS_PROCESSOR_H_ */

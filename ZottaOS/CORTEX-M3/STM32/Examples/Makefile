@@ -29,6 +29,7 @@ OBJECTS = build/ZottaOS_UART.o \
           build/ZottaOS_TimerEvent.o \
           build/ZottaOS_Interrupts.o \
           build/ZottaOS_Timer.o \
+          build/ZottaOS_Atomic.o \
           build/ZottaOS_CortexM3.o \
           build/ZottaOS_CortexM3_a.o \
           build/ZottaOSHard.o \
@@ -55,6 +56,8 @@ all: build/TaskLED.elf build/UARTSimpleEcho.elf build/TestTimerEvent.elf
 clean: 
 	rm -f build/*.o build/*.elf
 
+build/ZottaOS_Atomic.o : ../../ZottaOS_Atomic.c
+	$(CC) $(CFLAGS) $(INCLUDE_PATH_ZOTTAOS) -o $@ $<
 build/ZottaOS_Interrupts.o : ../ZottaOS_Interrupts.c
 	$(CC) $(CFLAGS) $(INCLUDE_PATH_ZOTTAOS) -o $@ $<
 build/ZottaOS_Timer.o : ../ZottaOS_Timer.c

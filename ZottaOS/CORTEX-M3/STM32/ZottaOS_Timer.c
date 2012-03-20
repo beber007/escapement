@@ -19,6 +19,7 @@
 /* File ZottaOS_Timer.c: Hardware abstract timer layer. This file holds all timer
 **          related functions needed by the ZottaOS family of kernels so that these can
 **          easily be ported from one MSP to another and also to other microcontrollers.
+** Platform version: All STM32 microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */
@@ -30,11 +31,6 @@
 #include "ZottaOS.h"
 #include "ZottaOS_Timer.h"
 
-#define TIMER_PRESCALER 71
-
-//#define TIM OS_IO_TIM2
-//#define TIM OS_IO_TIM3
-#define TIM OS_IO_TIM4
 
 
 /* Because the timer continues ticking, when we wish set a new value for the timer compa-
@@ -58,14 +54,16 @@
 #define INT_SET_ENABLE       *((UINT32 *)0xE000E100)
 #define INT_PRIORITY_LEVEL   *((UINT32 *)0xE000E470)
 
-#if TIM == OS_IO_TIM2
-  #define TIME_BASE 0x40000000
-#elif TIM == OS_IO_TIM3
-  #define TIME_BASE 0x40000400
-#elif TIM == OS_IO_TIM4
-  #define TIME_BASE 0x40000800
-#elif TIM == OS_IO_TIM5
-  #define TIME_BASE 0x40000C00
+#ifdef ZOTTAOS_TIMER
+   #if ZOTTAOS_TIMER == OS_IO_TIM2
+      #define TIME_BASE 0x40000000
+   #elif ZOTTAOS_TIMER == OS_IO_TIM3
+      #define TIME_BASE 0x40000400
+   #else
+      #error This timer can not be selected! (verify ZOTTAOS_TIMER define in ZottaOS_Config.h)
+   #endif
+#else
+   #error You must select the timer to be used by ZottaOS! (define ZOTTAOS_TIMER in ZottaOS_Config.h)
 #endif
 
 #define TIM_CONTROL1         *((UINT16 *)(TIME_BASE + 0x00))
@@ -98,13 +96,13 @@ void _OSInitializeTimer(void)
 {
   UINT32 tmppriority, tmppre, tmpsub = 0x0F;
   /* Enable clock for timer TIM2 */
-  ACPB1CLKENABLE |= 1 << (TIM - OS_IO_TIM2);
+  ACPB1CLKENABLE |= 1 << (ZOTTAOS_TIMER - OS_IO_TIM2);
   /* Set the autoreload value */
   TIM_AUTORELOAD = 65535;
   /* Set the compare register value */
   TIM_COMPARATOR = 1;
   /* Set the prescaler value */
-  TIM_PRESCALER = TIMER_PRESCALER;
+  TIM_PRESCALER = ZOTTAOS_TIMER_PRESCALER;
   /* Generate an update event to reload the prescaler and the Repetition counter values
   ** immediately */
   TIM_EVENT_GENERATION = 1;
@@ -119,7 +117,7 @@ void _OSInitializeTimer(void)
   tmppriority |=  TIMER_SUB_PRIORITY & tmpsub;
   INT_PRIORITY_LEVEL = tmppriority << 0x04;
   /* Enable the selected IRQ channels */
-  INT_SET_ENABLE = (UINT32)(0x01 << TIM);
+  INT_SET_ENABLE = (UINT32)(0x01 << ZOTTAOS_TIMER);
 } /* end of _OSInitializeTimer */
 
 

@@ -18,11 +18,22 @@
 */
 /* File ZottaOS_Atomic.h: Defines the LL/SC atomic instructions used used with the types
 **                        defined for ZottaOS kernels.
+** Platform version: All CORTEX-M3 microcontrollers.
 ** Version identifier: March 2012
 ** Authors: MIS-TIC
 */
 
 #include "ZottaOS.h"
+
+/* ATOMIC INSTRUCTIONS
+** LL & SC Atomic Instruction
+** The LL/SC pair of instructions are becoming increasing popular among high-end micro-
+** controllers. Basically the LL atomically reads the content of a memory location and
+** reserves it. The SC instruction used in combination with the LL takes a memory location
+** and a value as parameters. It checks whether the memory location is still reserved and
+** if so applies the value parameter to it and clears the reservation. On the other hand,
+** if the memory location is not reserved at the time of the call, the memory location is
+** left unchanged. */
 
 /* OSUINT8_LL: The LL functions are used in conjunction with their corresponding SC
 ** functions call to provide synchronization support for ZottaOS */

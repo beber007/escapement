@@ -16,7 +16,9 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOS.h: Selects the kernel for the application.
+/* File ZottaOS.h: User API for all ZottaOS kernels. The kernel selection is imported from
+**                 ZottaOS_Config.h file.
+** Platform version: All CORTEX-M3 microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */
@@ -30,6 +32,7 @@
 
 #include "ZottaOS_Types.h"      /* Type definitions */
 #include "ZottaOS_Interrupts.h" /* Interrupt priorities and ISR index definitions */
+#include "ZottaOS_Processor.h"  /* OSInitializeSystemClocks definitions */
 
 #endif /* _ASM_ */
 
