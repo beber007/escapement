@@ -14,6 +14,7 @@
 */
 /* File TimerEvent.h: Provides an API that transforms a timer device into a manager that
 ** schedules event-driven tasks..
+** Platform version: All MSP430 and CC430 microcontrollers.
 ** Version identifier: February 2012
 ** Authors: MIS-TIC
 */

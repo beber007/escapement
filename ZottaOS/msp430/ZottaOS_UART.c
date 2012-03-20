@@ -18,6 +18,7 @@
 */
 /* File ZottaOS_UART.c: Contains the implementation of an API allowing facilitated message
 **                      transmissions and easy access to the receiver part of a UART.
+** Platform version: All MSP430 and CC430 microcontrollers.
 ** Version identifier: March 2012
 ** Authors: MIS-TIC */
 

@@ -19,6 +19,7 @@
 /* File TimerEvent.c: Implements an event queue that is associated with a timer device.
 ** Events that are inserted into the queue are specified along with a delay, and as soon
 ** as this delay has expired, the event is scheduled.
+** Platform version: All STM32 microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC */
 
@@ -210,16 +211,16 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
      }
      else if (right == NULL || des->Node->Time < right->Time) {
         UINTPTR *successorNode = (UINTPTR *)&des->Node->Next;
-        while (_OSUINTPTR_LL(successorNode) == (UINTPTR)des)
-           if (_OSUINTPTR_SC(successorNode,(UINTPTR)right))
+        while (OSUINTPTR_LL(successorNode) == (UINTPTR)des)
+           if (OSUINTPTR_SC(successorNode,(UINTPTR)right))
               break;
-        while (_OSUINTPTR_LL((UINTPTR *)&left->Next) == (UINTPTR)right) {
+        while (OSUINTPTR_LL((UINTPTR *)&left->Next) == (UINTPTR)right) {
            /* At this point an ABA problem can arise: Say that a task inserts node N
            ** between nodes A and B, and gets preempted. Another task completes the in-
            ** sertion, and then removes N. In this case, node N must not be reinserted.
            ** To correct this flaw, we simply need to check if another task completed the
            ** current insertion. */
-           if (des->Done || _OSUINTPTR_SC((UINTPTR *)&left->Next,(UINTPTR)des->Node))
+           if (des->Done || OSUINTPTR_SC((UINTPTR *)&left->Next,(UINTPTR)des->Node))
               break;
         }
         des->Done = TRUE; // Mark that node has been inserted
@@ -286,11 +287,11 @@ void DeleteQueueHelper(DELETEQUEUE_OP *des)
         break;
      }
      else if (des->Event == right->Event) {
-        while (_OSUINTPTR_LL((UINTPTR *)&des->Node) == (UINTPTR)des && !des->Done)
-           if (_OSUINTPTR_SC((UINTPTR *)&des->Node,(UINTPTR)right))
+        while (OSUINTPTR_LL((UINTPTR *)&des->Node) == (UINTPTR)des && !des->Done)
+           if (OSUINTPTR_SC((UINTPTR *)&des->Node,(UINTPTR)right))
               break;
-        while (_OSUINTPTR_LL((UINTPTR *)&left->Next) == (UINTPTR)right)
-           if (des->Done || _OSUINTPTR_SC((UINTPTR *)&left->Next,(UINTPTR)right->Next))
+        while (OSUINTPTR_LL((UINTPTR *)&left->Next) == (UINTPTR)right)
+           if (des->Done || OSUINTPTR_SC((UINTPTR *)&left->Next,(UINTPTR)right->Next))
               break;
         des->Done = TRUE;    // Mark that the node has been removed
         break;
@@ -306,8 +307,8 @@ void DeleteQueueHelper(DELETEQUEUE_OP *des)
 TIMER_EVENT_NODE *GetFreeNode(TIMER_ISR_DATA *des)
 {
   TIMER_EVENT_NODE *node;
-  while ((node = (TIMER_EVENT_NODE *)_OSUINTPTR_LL((UINTPTR *)&des->FreeNodes)) != NULL)
-     if (_OSUINTPTR_SC((UINTPTR *)&des->FreeNodes,(UINTPTR)node->Next))
+  while ((node = (TIMER_EVENT_NODE *)OSUINTPTR_LL((UINTPTR *)&des->FreeNodes)) != NULL)
+     if (OSUINTPTR_SC((UINTPTR *)&des->FreeNodes,(UINTPTR)node->Next))
         break;
   return node;
 } /* end of GetFreeNode */
@@ -317,8 +318,8 @@ TIMER_EVENT_NODE *GetFreeNode(TIMER_ISR_DATA *des)
 void ReleaseNode(TIMER_ISR_DATA *device, TIMER_EVENT_NODE *freeNode)
 {
   while (TRUE) {
-     freeNode->Next = (TIMER_EVENT_NODE *)_OSUINTPTR_LL((UINTPTR *)&device->FreeNodes);
-     if (_OSUINTPTR_SC((UINTPTR *)&device->FreeNodes,(UINTPTR)freeNode))
+     freeNode->Next = (TIMER_EVENT_NODE *)OSUINTPTR_LL((UINTPTR *)&device->FreeNodes);
+     if (OSUINTPTR_SC((UINTPTR *)&device->FreeNodes,(UINTPTR)freeNode))
         return;
   }
 } /* end of ReleaseNode */

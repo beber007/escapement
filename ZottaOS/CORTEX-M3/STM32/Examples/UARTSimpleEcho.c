@@ -45,6 +45,8 @@ int main(void)
   /* Keep debugger connection during sleep mode */
   DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
 
+  OSInitializeSystemClocks();
+
   /* Initialize ZottaOS I/O UART drivers */
   OSInitUART(UART_TRANSMIT_FIFO_NB_NODE,UART_TRANSMIT_FIFO_NODE_SIZE,
              UARTUserReceiveInterruptHandler, UART_VECTOR);

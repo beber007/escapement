@@ -15,7 +15,7 @@
 /* File TimerEvent.c: Implements an event queue that is associated with a timer device.
 ** Events that are inserted into the queue are specified along with a delay, and as soon
 ** as this delay has expired, the event is scheduled.
-**
+** Platform version: All MSP430 and CC430 microcontrollers.
 ** Version identifier: February 2012
 ** Authors: MIS-TIC */
 

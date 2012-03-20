@@ -18,6 +18,7 @@
 */
 /* File ZottaOSHard_Timer.h: Defines the interface between the hardware timer and
 **                           ZottaOS-Hard.
+** Platform version: All STM32 microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */

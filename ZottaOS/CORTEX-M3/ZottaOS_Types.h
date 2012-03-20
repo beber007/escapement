@@ -17,6 +17,7 @@
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
 /* File ZottaOS_Types.h: Contains common data types that are compiler specific.
+** Platform version: All CORTEX-M3 microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */
@@ -42,7 +43,7 @@ typedef signed int INT32;
 
 /* Equivalence between address and unsigned to allow arithmetic and bitwise operations */
 typedef UINT32 UINTPTR;
-#define _OSUINTPTR_LL OSUINT32_LL
-#define _OSUINTPTR_SC OSUINT32_SC
+#define OSUINTPTR_LL OSUINT32_LL
+#define OSUINTPTR_SC OSUINT32_SC
 
 #endif /* _ZOTTAOS_TYPE_H_ */

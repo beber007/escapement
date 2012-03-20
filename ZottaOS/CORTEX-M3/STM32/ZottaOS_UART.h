@@ -18,6 +18,7 @@
 */
 /* File UART.h: Contains the interface to the API implementation allowing message
 **              transmissions and easy access to the receiver part of a UART.
+** Platform version: All STM32 microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */

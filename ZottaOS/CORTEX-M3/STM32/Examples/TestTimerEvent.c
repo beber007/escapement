@@ -43,6 +43,8 @@ int main(void)
   /* Keep debugger connection during sleep mode */
   DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
 
+  OSInitializeSystemClocks();
+
   OSInitTimerEvent(2,OS_IO_TIM3);
 
   InitializeTimer();

@@ -18,6 +18,7 @@
 */
 /* File TimerEvent.h: Provides an API that transforms a timer device into a manager that
 ** schedules event-driven tasks..
+** Platform version: All STM32 microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */
