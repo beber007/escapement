@@ -48,9 +48,42 @@ void ClearLED(UINT16 GPIO_Pin);
 int main(void)
 {
   TaskParametersDef *TaskParameters;
-
   /* Stop timer during debugger connection */
-  DBGMCU_Config(DBGMCU_TIM4_STOP,ENABLE);
+  #if ZOTTAOS_TIMER == OS_IO_TIM17
+     DBGMCU_Config(DBGMCU_TIM17_STOP,ENABLE);
+  #elif ZOTTAOS_TIMER == OS_IO_TIM16
+     DBGMCU_Config(DBGMCU_TIM16_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM15
+     DBGMCU_Config(DBGMCU_TIM15_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM14
+     DBGMCU_Config(DBGMCU_TIM14_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM13
+     DBGMCU_Config(DBGMCU_TIM13_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM12
+     DBGMCU_Config(DBGMCU_TIM12_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM11
+     DBGMCU_Config(DBGMCU_TIM11_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM10
+     DBGMCU_Config(DBGMCU_TIM10_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM9
+     DBGMCU_Config(DBGMCU_TIM9_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM8
+     DBGMCU_Config(DBGMCU_TIM8_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM7
+     DBGMCU_Config(DBGMCU_TIM7_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM6
+     DBGMCU_Config(DBGMCU_TIM6_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM5
+     DBGMCU_Config(DBGMCU_TIM5_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM34
+     DBGMCU_Config(DBGMCU_TIM4_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM3
+     DBGMCU_Config(DBGMCU_TIM3_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM2
+     DBGMCU_Config(DBGMCU_TIM2_STOP,ENABLE);
+   #elif ZOTTAOS_TIMER == OS_IO_TIM1
+     DBGMCU_Config(DBGMCU_TIM1_STOP,ENABLE);
+   #endif
   /* Keep debugger connection during sleep mode */
   DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
 
@@ -65,18 +98,18 @@ int main(void)
   #if defined(ZOTTAOS_VERSION_HARD)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_12;
-     TaskParameters->Delay = 100;
-     OSCreateTask(FixedDelayTask,0,300,300,TaskParameters);
+     TaskParameters->Delay = 150;
+     OSCreateTask(FixedDelayTask,0,700,699,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_13;
-     TaskParameters->Delay = 200;
-     OSCreateTask(FixedDelayTask,0,600,600,TaskParameters);
+     TaskParameters->Delay = 150;
+     OSCreateTask(FixedDelayTask,0,700,700,TaskParameters);
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_14;
-     TaskParameters->Delay = 1800;
-     OSCreateTask(VariableDelayTask,0,600,599,TaskParameters);
+     TaskParameters->Delay = 7000;
+     OSCreateTask(VariableDelayTask,0,2100,2100,TaskParameters);
   #elif defined(ZOTTAOS_VERSION_SOFT)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = GPIO_Pin_12;

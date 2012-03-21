@@ -25,14 +25,11 @@
 #ifndef ZOTTAOS_CONFIG_H_
 #define ZOTTAOS_CONFIG_H_
 
-#define ZOTTAOS_TIMER OS_IO_TIM2
-//#define ZOTTAOS_TIMER OS_IO_TIM3
 
-#define ZOTTAOS_TIMER_PRESCALER 71
+/* Selects which version to be used ZottaOS */
+#define ZOTTAOS_VERSION_HARD
+//#define ZOTTAOS_VERSION_SOFT
 
-
-//#define ZOTTAOS_VERSION_HARD
-#define ZOTTAOS_VERSION_SOFT
 
 /* The nested vector interrupt controller (NVIC) under Cortex-M3 allows dynamic prioriti-
 ** zation of interrupts with up to 256 levels that can be arranged into priority level
@@ -51,10 +48,18 @@
 #define PRIGROUP (UINT32)3
 
 
+/* Select the interval-timer */
+#define ZOTTAOS_TIMER OS_IO_TIM1
+//#define ZOTTAOS_TIMER OS_IO_TIM3
+
+/* Define the interval-timer prescaler */
+#define ZOTTAOS_TIMER_PRESCALER 71
+
 /* Defines the priority group and level of the interval-timer. The timer's priority must
 ** be higher than that of SysTick. See _OSSetInterruptPriority(). */
 #define TIMER_PRIORITY      (UINT8)0
 #define TIMER_SUB_PRIORITY  (UINT8)0
+
 
 /* Uncomment the line below that corresponds to your target STM32 device while leaving
 ** the others commented. */
