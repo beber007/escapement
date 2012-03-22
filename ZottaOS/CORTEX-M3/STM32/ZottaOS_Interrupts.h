@@ -27,6 +27,9 @@
 
 #include "ZottaOS_Config.h"
 
+#define OS_IO_TIM1            0xFF
+#define OS_IO_TIM8            0xFE
+
 /* ------------------------------ GLOBAL ---------------------------------------------- */
   #define OS_IO_WWDG                   0  /* Window WatchDog */
   #define OS_IO_PVD                    1  PVD through EXTI Line detection */

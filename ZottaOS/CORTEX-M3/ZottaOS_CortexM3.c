@@ -200,7 +200,8 @@ void SoftTimerInterrupt(void)
   extern void _OSTimerInterruptHandler(void); /* Defined in ZottaOSHard.c or ZottaOSSoft.c */
   FinalizeContextSwitchPreparation();
   _OSTimerInterruptHandler(); // Jump to to the generic service routine of the timer
-  __asm("CLREX;");            // Make all pending SC() fail
+  // The CLREX instruction is done in _OSContextSwapHandler (PendSV handler) prior to
+  // returning to a user task.
 } /* end of SoftTimerInterrupt */
 
 
