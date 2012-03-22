@@ -61,6 +61,11 @@ void _OSSetTimer(INT32 nextArrival);
 
 void _OSTimerShift(INT32 shiftTimeLimit);
 
-void _OSTimerHandler(void);
+#if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
+   void _OSTimerHandler_cc(void);
+   void _OSTimerHandler_up(void);
+#else
+   void _OSTimerHandler(void);
+#endif
 
 #endif /* ZOTTAOS_TIMER_H */

@@ -324,13 +324,13 @@ void (* const STM32VectorTable[])(void) =
       defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || defined(STM32F105XX) || defined(STM32F107XX)
      _OSIOHandler, /* OS_IO_TIM1_BRK           24 TIM1 Break */
      #if ZOTTAOS_TIMER == OS_IO_TIM1
-        _OSTimerHandler, /* OS_IO_TIM1_UP      25 TIM1 Update */
+        _OSTimerHandler_up, /* OS_IO_TIM1_UP      25 TIM1 Update */
      #else
         _OSIOHandler, /* OS_IO_TIM1_UP         25 TIM1 Update */
      #endif
      _OSIOHandler, /* OS_IO_TIM1_TRG_COM       26 TIM1 Trigger and Commutation */
      #if ZOTTAOS_TIMER == OS_IO_TIM1
-        _OSTimerHandler, /* OS_IO_TIM1_CC      27 TIM1 Capture Compare */
+        _OSTimerHandler_cc, /* OS_IO_TIM1_CC      27 TIM1 Capture Compare */
      #else
         _OSIOHandler, /* OS_IO_TIM1_CC         27 TIM1 Capture Compare */
      #endif
@@ -341,7 +341,9 @@ void (* const STM32VectorTable[])(void) =
      #else
         _OSIOHandler, /* OS_IO_TIM1_BRK_TIM15    24 TIM1 Break and TIM15 */
      #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM16
+     #if ZOTTAOS_TIMER == OS_IO_TIM1
+        _OSTimerHandler_up, /* OS_IO_TIM1_UP_TIM16  25 TIM1 Update and TIM16 */
+     #elif ZOTTAOS_TIMER == OS_IO_TIM16
         _OSTimerHandler, /* OS_IO_TIM1_UP_TIM16  25 TIM1 Update and TIM16 */
      #else
         _OSIOHandler, /* OS_IO_TIM1_UP_TIM16     25 TIM1 Update and TIM16 */
@@ -352,7 +354,7 @@ void (* const STM32VectorTable[])(void) =
         _OSIOHandler, /* OS_IO_TIM1_TRG_COM_TIM17    26 TIM1 Trigger and Commutation and TIM17 */
      #endif
      #if ZOTTAOS_TIMER == OS_IO_TIM1
-        _OSTimerHandler, /* OS_IO_TIM1_CC      27 TIM1 Capture Compare */
+        _OSTimerHandler_cc, /* OS_IO_TIM1_CC      27 TIM1 Capture Compare */
      #else
         _OSIOHandler, /* OS_IO_TIM1_CC         27 TIM1 Capture Compare */
      #endif
@@ -363,7 +365,9 @@ void (* const STM32VectorTable[])(void) =
      #else
         _OSIOHandler, /* OS_IO_TIM1_BRK_TIM9    24 TIM1 Break  and TIM9 global */
      #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM10
+     #if ZOTTAOS_TIMER == OS_IO_TIM1
+        _OSTimerHandler_up, /* OS_IO_TIM1_UP_TIM10 25 TIM1 Update and TIM10 global */
+     #elif ZOTTAOS_TIMER == OS_IO_TIM10
         _OSTimerHandler, /* OS_IO_TIM1_UP_TIM10 25 TIM1 Update and TIM10 global */
      #else
         _OSIOHandler, /* OS_IO_TIM1_UP_TIM10    25 TIM1 Update and TIM10 global */
@@ -491,13 +495,13 @@ void (* const STM32VectorTable[])(void) =
       defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE)
      _OSIOHandler, /* OS_IO_TIM8_BRK           43 TIM8 Break */
      #if ZOTTAOS_TIMER == OS_IO_TIM8
-        _OSTimerHandler, /* OS_IO_TIM8_UP      44 TIM8 Update */
+        _OSTimerHandler_up, /* OS_IO_TIM8_UP      44 TIM8 Update */
      #else
         _OSIOHandler, /* OS_IO_TIM8_UP         44 TIM8 Update */
      #endif
      _OSIOHandler, /* OS_IO_TIM8_TRG_COM       45 TIM8 Trigger and Commutation */
      #if ZOTTAOS_TIMER == OS_IO_TIM8
-        _OSTimerHandler, /* OS_IO_TIM8_CC      46 TIM8 Capture Compare */
+        _OSTimerHandler_cc, /* OS_IO_TIM8_CC      46 TIM8 Capture Compare */
      #else
         _OSIOHandler, /* OS_IO_TIM8_CC         46 TIM8 Capture Compare */
      #endif
@@ -529,7 +533,9 @@ void (* const STM32VectorTable[])(void) =
      #else
         _OSIOHandler, /* OS_IO_TIM8_BRK_TIM12     43 TIM8 Break and TIM12 global */
      #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM8 || ZOTTAOS_TIMER == OS_IO_TIM13
+     #if ZOTTAOS_TIMER == OS_IO_TIM8
+        _OSTimerHandler_up, /* OS_IO_TIM8_UP_TIM13   44 TIM8 Update and TIM13 global */
+     #elif ZOTTAOS_TIMER == OS_IO_TIM13
         _OSTimerHandler, /* OS_IO_TIM8_UP_TIM13   44 TIM8 Update and TIM13 global */
      #else
         _OSIOHandler, /* OS_IO_TIM8_UP_TIM13      44 TIM8 Update and TIM13 global */
@@ -540,7 +546,7 @@ void (* const STM32VectorTable[])(void) =
         _OSIOHandler, /* OS_IO_TIM8_TRG_COM_TIM14    45 TIM8 Trigger and Commutation  and TIM14 global */
      #endif
      #if ZOTTAOS_TIMER == OS_IO_TIM8
-        _OSTimerHandler, /* OS_IO_TIM8_CC         46 TIM8 Capture Compare */
+        _OSTimerHandler_cc, /* OS_IO_TIM8_CC         46 TIM8 Capture Compare */
      #else
         _OSIOHandler, /* OS_IO_TIM8_CC            46 TIM8 Capture Compare */
      #endif
@@ -744,10 +750,20 @@ void (* const STM32VectorTable[])(void) =
   _OSIOHandler, /* OS_IO_RTC_Alarm             41  RTC Alarm (A and B) through EXTI Line */
   _OSIOHandler, /* OS_IO_OTG_FS_WKUP           42  USB OTG FS Wakeup through EXTI line */
   _OSIOHandler, /* OS_IO_TIM8_BRK_TIM12        43  TIM8 Break and TIM12 global */
-  _OSIOHandler, /* OS_IO_TIM8_UP_TIM13         44  TIM8 Update and TIM13 global */
+  #if ZOTTAOS_TIMER == OS_IO_TIM8
+     _OSTimerHandler_up, /* OS_IO_TIM8_UP_TIM13 44  TIM8 Update and TIM13 global */
+  #elif ZOTTAOS_TIMER == OS_IO_TIM8
+     _OSTimerHandler, /* OS_IO_TIM8_UP_TIM13   44  TIM8 Update and TIM13 global */
+  #else
+     _OSIOHandler, /* OS_IO_TIM8_UP_TIM13      44  TIM8 Update and TIM13 global */
+  #endif
   _OSIOHandler, /* OS_IO_TIM8_TRG_COM_TIM14    45  TIM8 Trigger and Commutation and TIM14
                                                    global */
-  _OSIOHandler, /* OS_IO_TIM8_CC               46  TIM8 Capture Compare */
+  #if ZOTTAOS_TIMER == OS_IO_TIM8
+     _OSTimerHandler_cc, /* OS_IO_TIM8_CC      46  TIM8 Capture Compare */
+  #else
+     _OSIOHandler, /* OS_IO_TIM8_CC            46  TIM8 Capture Compare */
+  #endif
   _OSIOHandler, /* OS_IO_DMA1_Stream7          47  DMA1 Stream7 */
   #if defined(STM32F205VX_ZX) || defined(STM32F215VX_ZX) || defined(STM32F207XX) || \
       defined(STM32F217XX) || defined(STM32F405VX_ZX) || defined(STM32F415VX_ZX) || \

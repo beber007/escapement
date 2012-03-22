@@ -121,8 +121,8 @@
 #if defined(STM32L1XXXX)
    #if ZOTTAOS_TIMER == OS_IO_TIM9 || ZOTTAOS_TIMER ==  OS_IO_TIM10 || \
        ZOTTAOS_TIMER == OS_IO_TIM11
-      #define CLKENABLE   *((UINT32 *)0x40023820) // RCC_APB2ENR
-      //#define CLKENABLE   *((UINT32 *)0x4002382C) // RCC_APB2LPENR
+      #define CLK_ENABLE   *((UINT32 *)0x40023820) // RCC_APB2ENR
+      //#define CLK_ENABLE   *((UINT32 *)0x4002382C) // RCC_APB2LPENR
       #if ZOTTAOS_TIMER == OS_IO_TIM9
          #define CLK_ENABLE_BIT 0x4
       #elif ZOTTAOS_TIMER ==  OS_IO_TIM10
@@ -132,8 +132,8 @@
       #endif
    #elif ZOTTAOS_TIMER ==  OS_IO_TIM2 || ZOTTAOS_TIMER == OS_IO_TIM3 || \
          ZOTTAOS_TIMER == OS_IO_TIM4 || ZOTTAOS_TIMER == OS_IO_TIM5
-      #define CLKENABLE   *((UINT32 *)0x40023824) // RCC_APB1ENR
-      //#define CLKENABLE   *((UINT32 *)0x40023830) // RCC_APB1LPENR
+      #define CLK_ENABLE   *((UINT32 *)0x40023824) // RCC_APB1ENR
+      //#define CLK_ENABLE   *((UINT32 *)0x40023830) // RCC_APB1LPENR
       #if ZOTTAOS_TIMER ==  OS_IO_TIM2
          #define CLK_ENABLE_BIT 0x1
       #elif ZOTTAOS_TIMER == OS_IO_TIM3
@@ -148,7 +148,7 @@
    #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER ==  OS_IO_TIM8 || \
        ZOTTAOS_TIMER == OS_IO_TIM9 || ZOTTAOS_TIMER == OS_IO_TIM10 || ZOTTAOS_TIMER == OS_IO_TIM11 || \
        ZOTTAOS_TIMER == OS_IO_TIM15 || ZOTTAOS_TIMER == OS_IO_TIM16 || ZOTTAOS_TIMER == OS_IO_TIM17
-      #define CLKENABLE   *((UINT32 *)0x40021018) // RCC_APB2ENR
+      #define CLK_ENABLE   *((UINT32 *)0x40021018) // RCC_APB2ENR
       #if ZOTTAOS_TIMER == OS_IO_TIM1
          #define CLK_ENABLE_BIT 0x800
       #elif ZOTTAOS_TIMER ==  OS_IO_TIM8
@@ -190,8 +190,8 @@
 #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
    #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8 || \
        ZOTTAOS_TIMER == OS_IO_TIM9 || ZOTTAOS_TIMER == OS_IO_TIM10 || ZOTTAOS_TIMER == OS_IO_TIM11
-      #define CLKENABLE   *((UINT32 *)0x40023844) // RCC_APB2ENR
-      //#define CLKENABLE   *((UINT32 *)0x40023864) // RCC_APB2LPENR
+      #define CLK_ENABLE   *((UINT32 *)0x40023844) // RCC_APB2ENR
+      //#define CLK_ENABLE   *((UINT32 *)0x40023864) // RCC_APB2LPENR
       #if ZOTTAOS_TIMER == OS_IO_TIM1
          #define CLK_ENABLE_BIT 0x1
       #elif ZOTTAOS_TIMER == OS_IO_TIM8
@@ -207,8 +207,8 @@
          ZOTTAOS_TIMER == OS_IO_TIM4 || ZOTTAOS_TIMER == OS_IO_TIM5 || \
          ZOTTAOS_TIMER == OS_IO_TIM12 || ZOTTAOS_TIMER == OS_IO_TIM13 || \
          ZOTTAOS_TIMER == OS_IO_TIM14
-      #define CLKENABLE   *((UINT32 *)0x40023840) // RCC_APB1ENR
-      //#define CLKENABLE   *((UINT32 *)0x40023860) // RCC_APB1LPENR
+      #define CLK_ENABLE   *((UINT32 *)0x40023840) // RCC_APB1ENR
+      //#define CLK_ENABLE   *((UINT32 *)0x40023860) // RCC_APB1LPENR
       #if ZOTTAOS_TIMER ==  OS_IO_TIM2
          #define CLK_ENABLE_BIT 0x1
       #elif ZOTTAOS_TIMER == OS_IO_TIM3
@@ -258,12 +258,50 @@ static volatile INT32 Time;
 ** set 0. This is done by initializing CCR with 0 - 1 = 0xFFFF. */
 void _OSInitializeTimer(void)
 {
-  UINT8 tmppriority, *intPriorityLevel;
-  UINT32 *intSetEnable;
+  UINT8 tmppriority;
+  #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
+     UINT8 *intPriorityLevel_cc, *intPriorityLevel_up;
+     UINT32 *intSetEnable_cc, *intSetEnable_up;
+  #else
+     UINT8 *intPriorityLevel;
+     UINT32 *intSetEnable;
+  #endif
+  #if ZOTTAOS_TIMER == OS_IO_TIM1
+     #if defined(STM32F103X4_X6) || defined(STM32F103T8_TB) || \
+         defined(STM32F103C8_CB_R8_RB_V8_VB) || defined(STM32F103RC_RD_RE) || \
+         defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || defined(STM32F105XX) || defined(STM32F107XX)
+        intSetEnable_up = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_UP / 32);
+        intPriorityLevel_up = (UINT8 *)(0xE000E400 + OS_IO_TIM1_UP);
+     #elif defined(STM32F100X4_X6) || defined(STM32F100X8_XB) || \
+           defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE)
+        intSetEnable_up = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_UP_TIM16 / 32);
+        intPriorityLevel_up = (UINT8 *)(0xE000E400 + OS_IO_TIM1_UP_TIM16);
+     #elif defined (STM32F101RF_RG)|| defined(STM32F101VF_VG_ZF_ZG) || \
+           defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
+           defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        intSetEnable_up = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_UP_TIM10 / 32);
+        intPriorityLevel_up = (UINT8 *)(0xE000E400 + OS_IO_TIM1_UP_TIM10);
+     #endif
+     intSetEnable_cc = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_CC / 32);
+     intPriorityLevel_cc = (UINT8 *)(0xE000E400 + OS_IO_TIM1_CC);
+  #elif ZOTTAOS_TIMER == OS_IO_TIM8
+     #if defined(STM32F101RC_RD_RE) || defined(STM32F101VC_VD_VE_ZC_ZD_ZE) || \
+         defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE)
+        intSetEnable_up = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_UP / 32);
+        intPriorityLevel_up = (UINT8 *)(0xE000E400 + OS_IO_TIM8_UP);
+     #elif defined(STM32F101RF_RG) || defined(STM32F101VF_VG_ZF_ZG) || \
+           defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
+           defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        intSetEnable_up = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_UP_TIM13 / 32);
+        intPriorityLevel_up = (UINT8 *)(0xE000E400 + OS_IO_TIM8_UP_TIM13);
+     #endif
+     intSetEnable_cc = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_CC / 32);
+     intPriorityLevel_cc = (UINT8 *)(0xE000E400 + OS_IO_TIM8_CC);
+  #else
+     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(ZOTTAOS_TIMER / 32);
+     intPriorityLevel = (UINT8 *)(0xE000E400 + ZOTTAOS_TIMER);
+  #endif
   /* */
-  intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(ZOTTAOS_TIMER / 32);
-  /* */
-  intPriorityLevel = (UINT8 *)(0xE000E400 + ZOTTAOS_TIMER);
   CLK_ENABLE |= CLK_ENABLE_BIT;                   // Enable the clock for timer
   TIM_AUTORELOAD = 0xFFFF;                        // Set the autoreload value
   TIM_PRESCALER = ZOTTAOS_TIMER_PRESCALER;        // Set the prescaler value
@@ -277,9 +315,40 @@ void _OSInitializeTimer(void)
   // le nombre 3 correspond au nombre maximum de bits pour la priorité moins le nombre de bit implémenté soit (7 -4 pour le stm32)
   tmppriority |=  TIMER_SUB_PRIORITY & (0x0F >> (7 - PRIGROUP));
   // (7 - PRIGROUP) correspond aux nombres de bits pour la priorité.
-  *intPriorityLevel = tmppriority << 0x04;       // Set the IRQ priority
-  // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
-  *intSetEnable |= 0x01 << (ZOTTAOS_TIMER % 32); // Enable the IRQ channels
+  #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
+     *intPriorityLevel_up = tmppriority << 0x04;       // Set the IRQ priority
+     *intPriorityLevel_cc = tmppriority << 0x04;       // Set the IRQ priority
+     // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
+  #else
+     *intPriorityLevel = tmppriority << 0x04;       // Set the IRQ priority
+  #endif
+  #if ZOTTAOS_TIMER == OS_IO_TIM1
+     #if defined(STM32F103X4_X6) || defined(STM32F103T8_TB) || \
+         defined(STM32F103C8_CB_R8_RB_V8_VB) || defined(STM32F103RC_RD_RE) || \
+         defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || defined(STM32F105XX) || defined(STM32F107XX)
+        *intSetEnable_up |= 0x01 << (OS_IO_TIM1_UP % 32); // Enable the IRQ channels
+     #elif defined(STM32F100X4_X6) || defined(STM32F100X8_XB) || \
+           defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE)
+        *intSetEnable_up |= 0x01 << (OS_IO_TIM1_UP_TIM16 % 32); // Enable the IRQ channels
+     #elif defined (STM32F101RF_RG)|| defined(STM32F101VF_VG_ZF_ZG) || \
+           defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
+           defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        *intSetEnable_up |= 0x01 << (OS_IO_TIM1_UP_TIM10 % 32); // Enable the IRQ channels
+     #endif
+     *intSetEnable_cc |= 0x01 << (OS_IO_TIM1_CC % 32); // Enable the IRQ channels
+  #elif ZOTTAOS_TIMER == OS_IO_TIM8
+     #if defined(STM32F101RC_RD_RE) || defined(STM32F101VC_VD_VE_ZC_ZD_ZE) || \
+         defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE)
+        *intSetEnable_up |= 0x01 << (OS_IO_TIM8_UP % 32); // Enable the IRQ channels
+     #elif defined(STM32F101RF_RG) || defined(STM32F101VF_VG_ZF_ZG) || \
+           defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
+           defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        *intSetEnable_up |= 0x01 << (OS_IO_TIM8_UP_TIM13 % 32); // Enable the IRQ channels
+     #endif
+     *intSetEnable_cc |= 0x01 << (OS_IO_TIM8_CC % 32); // Enable the IRQ channels
+  #else
+     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(ZOTTAOS_TIMER / 32);
+  #endif
 } /* end of _OSInitializeTimer */
 
 
@@ -288,7 +357,7 @@ void _OSInitializeTimer(void)
 void _OSStartTimer(void)
 {
   TIM_CONTROL1 |= 1;       // Enable the TIM Counter
-  TIM_STATUS |= (UINT16)2; // Generate the first comparator interrupt
+  TIM_EVENT_GENERATION |= (UINT16)2; // Generate the first comparator interrupt
 } /* end of _OSStartTimer */
 
 
@@ -311,23 +380,48 @@ INT32 OSGetActualTime(void)
   return tmp;
 } /* end of OSGetActualTime */
 
-
-/* _OSTimerHandler: Catches a STM-32 Timer interrupt and generates a software timer
-** interrupt which is than carried out at a lower priority.
-** Note: This function could have been written in assembler to reduce interrupt latencies. */
-void _OSTimerHandler(void)
-{
-  /* Disable timer comparator*/
-  TIM_COMPARATOR = 0;
-  /* Test interrupt source */
-  if (TIM_STATUS & 2)    // Is comparator interrupt pending?
-     TIM_STATUS &= ~2;   // Clear interrupt flag
-  if (TIM_STATUS & 1) {  // Is timer overflow interrupt?
+#if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
+   /* _OSTimerHandler: Catches a STM-32 Timer interrupt and generates a software timer
+   ** interrupt which is than carried out at a lower priority.
+   ** Note: This function could have been written in assembler to reduce interrupt latencies. */
+   void _OSTimerHandler_up(void)
+   {
+     TIM_COMPARATOR = 0; // Disable timer comparator
      TIM_STATUS &= ~1;   // Clear interrupt flag
      Time += 0x10000;    // Increment most significant word of Time
-  }
-  _OSGenerateSoftTimerInterrupt();
-} /* end of _OSTimerHandler */
+     _OSGenerateSoftTimerInterrupt();
+   } /* end of _OSTimerHandler_up */
+
+
+   /* _OSTimerHandler: Catches a STM-32 Timer interrupt and generates a software timer
+   ** interrupt which is than carried out at a lower priority.
+   ** Note: This function could have been written in assembler to reduce interrupt latencies. */
+   void _OSTimerHandler_cc(void)
+   {
+     TIM_COMPARATOR = 0; // Disable timer comparator
+     TIM_STATUS &= ~2;   // Clear interrupt flag
+     _OSGenerateSoftTimerInterrupt();
+   } /* end of _OSTimerHandler_cc */
+
+
+#else
+   /* _OSTimerHandler: Catches a STM-32 Timer interrupt and generates a software timer
+   ** interrupt which is than carried out at a lower priority.
+   ** Note: This function could have been written in assembler to reduce interrupt latencies. */
+   void _OSTimerHandler(void)
+   {
+     TIM_COMPARATOR = 0; // Disable timer comparator
+     /* Test interrupt source */
+     if (TIM_STATUS & 2)    // Is comparator interrupt pending?
+        TIM_STATUS &= ~2;   // Clear interrupt flag
+     if (TIM_STATUS & 1) {  // Is timer overflow interrupt?
+        TIM_STATUS &= ~1;   // Clear interrupt flag
+        Time += 0x10000;    // Increment most significant word of Time
+     }
+     _OSGenerateSoftTimerInterrupt();
+   } /* end of _OSTimerHandler */
+#endif
+
 
 /* Because the timer continues ticking, when we wish set a new value for the timer compa-
 ** rator, the difference in time between the new value and the previous must be such that

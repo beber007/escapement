@@ -49,7 +49,7 @@
 
 
 /* Select the interval-timer */
-#define ZOTTAOS_TIMER OS_IO_TIM1
+#define ZOTTAOS_TIMER OS_IO_TIM8
 //#define ZOTTAOS_TIMER OS_IO_TIM3
 
 /* Define the interval-timer prescaler */
