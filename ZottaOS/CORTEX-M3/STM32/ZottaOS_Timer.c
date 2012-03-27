@@ -234,15 +234,24 @@
 #define TIM_INT_ENABLE       *((UINT16 *)(TIME_BASE + 0x0C))
 #define TIM_STATUS           *((UINT16 *)(TIME_BASE + 0x10))
 #define TIM_EVENT_GENERATION *((UINT16 *)(TIME_BASE + 0x14))
-#define TIM_COUNTER          *((UINT16 *)(TIME_BASE + 0x24))
+#ifdef ZOTTAOS_TIMER_32
+   #define TIM_COUNTER       *((UINT32 *)(TIME_BASE + 0x24))
+#elif defined(ZOTTAOS_TIMER_16)
+   #define TIM_COUNTER       *((UINT16 *)(TIME_BASE + 0x24))
+#endif
 #define TIM_PRESCALER        *((UINT16 *)(TIME_BASE + 0x28))
-#define TIM_AUTORELOAD       *((UINT16 *)(TIME_BASE + 0x2C))
-#define TIM_COMPARATOR       *((UINT16 *)(TIME_BASE + 0x34))
+#ifdef ZOTTAOS_TIMER_32
+   #define TIM_AUTORELOAD    *((UINT32 *)(TIME_BASE + 0x2C))
+   #define TIM_COMPARATOR    *((UINT32 *)(TIME_BASE + 0x34))
+#elif defined(ZOTTAOS_TIMER_16)
+   #define TIM_AUTORELOAD    *((UINT16 *)(TIME_BASE + 0x2C))
+   #define TIM_COMPARATOR    *((UINT16 *)(TIME_BASE + 0x34))
+#endif
 
 
 /* System wall clock. This variable stores the most-significant 16 bits of the current
-** time. The lower 16 bits are directly taken from the timer counter register. To get the
-** current time, use _OSTimerGet. */
+** time. The lower 16 bits are directly taken from the timer counter register. To get
+** the current time, use _OSTimerGet. */
 static volatile INT32 Time;
 
 
@@ -303,7 +312,11 @@ void _OSInitializeTimer(void)
   #endif
   /* */
   CLK_ENABLE |= CLK_ENABLE_BIT;                   // Enable the clock for timer
-  TIM_AUTORELOAD = 0xFFFF;                        // Set the autoreload value
+  #ifdef ZOTTAOS_TIMER_32
+     TIM_AUTORELOAD = 0x3FFFFFFF;                 // Set the autoreload value (2^30 - 1)
+  #elif defined(ZOTTAOS_TIMER_16)
+     TIM_AUTORELOAD = 0xFFFF;                     // Set the autoreload value
+  #endif
   TIM_PRESCALER = ZOTTAOS_TIMER_PRESCALER;        // Set the prescaler value
   TIM_EVENT_GENERATION = 1;                       // Generate an update event to reload
                                                   // the prescaler
@@ -347,7 +360,7 @@ void _OSInitializeTimer(void)
      #endif
      *intSetEnable_cc |= 0x01 << (OS_IO_TIM8_CC % 32); // Enable the IRQ channels
   #else
-     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(ZOTTAOS_TIMER / 32);
+     *intSetEnable |= 0x01 << (ZOTTAOS_TIMER % 32); // Enable the IRQ channels
   #endif
 } /* end of _OSInitializeTimer */
 
@@ -379,6 +392,7 @@ INT32 OSGetActualTime(void)
   } while (currentTime != Time);
   return tmp;
 } /* end of OSGetActualTime */
+
 
 #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
    /* _OSTimerHandler: Catches a STM-32 Timer interrupt and generates a software timer
@@ -416,7 +430,11 @@ INT32 OSGetActualTime(void)
         TIM_STATUS &= ~2;   // Clear interrupt flag
      if (TIM_STATUS & 1) {  // Is timer overflow interrupt?
         TIM_STATUS &= ~1;   // Clear interrupt flag
-        Time += 0x10000;    // Increment most significant word of Time
+        #ifdef ZOTTAOS_TIMER_32
+           Time += 0x40000000; // Increment most significant part of Time
+        #elif defined(ZOTTAOS_TIMER_16)
+           Time += 0x10000; // Increment most significant word of Time
+        #endif
      }
      _OSGenerateSoftTimerInterrupt();
    } /* end of _OSTimerHandler */
@@ -432,21 +450,42 @@ INT32 OSGetActualTime(void)
 ** END_TIMER_OFFSET. */
 #define TIMER_OFFSET 5
 
-#define INFINITY32 0x0000FFFF
-#define INFINITY16 0xFFFF
-#define INFINITY32_OFFSET 0x0000FFFA // = INFINITY32 - TIMER_OFFSET
+#ifdef ZOTTAOS_TIMER_16
+   #define INFINITY32 0x0000FFFF
+   #define INFINITY16 0xFFFF
+   #define INFINITY32_OFFSET 0x0000FFFA // = INFINITY32 - TIMER_OFFSET
+#endif
 
 /* _OSSetTimer: Sets the timer comparator to the next time event interval. This function
  * is called by the software timer interrupt handler when it finishes processing the cur-
  * rent interrupt and prepares its next interrupt. */
 void _OSSetTimer(INT32 nextArrival)
 {
+#ifdef ZOTTAOS_TIMER_32
+  while (TRUE) {
+     OSUINT32_LL(&TIM_COMPARATOR);
+     if (nextArrival > TIMER_OFFSET) {
+        if (TIM_COUNTER > nextArrival - TIMER_OFFSET) {      // START_TIMER_OFFSET
+           if (nextArrival > 0x3FFFFFFF - TIMER_OFFSET)
+              break;
+           else
+              nextArrival = TIM_COUNTER + TIMER_OFFSET;
+        }
+     }
+     else
+        nextArrival = TIM_COUNTER + TIMER_OFFSET;
+     if (OSUINT32_SC(&TIM_COMPARATOR,nextArrival))           // END_TIMER_OFFSET
+        break;
+     /* If we get here, the task has been interrupted by a source different than
+     ** the interval timer. */
+  }
+#elif defined(ZOTTAOS_TIMER_16)
   INT32 time32;
   UINT16 time16;
   while (TRUE) {
      OSUINT16_LL(&TIM_COMPARATOR);
      if ((time32 =  nextArrival - Time) < INFINITY32_OFFSET) {
-         if (time32 > 0) {
+        if (time32 > 0) {
            time16 = (UINT16)time32;
            if (time16 > TIMER_OFFSET) {
               if (TIM_COUNTER > time16 - TIMER_OFFSET) {       // START_TIMER_OFFSET
@@ -469,4 +508,5 @@ void _OSSetTimer(INT32 nextArrival)
      else
         break;
   }
+#endif
 } /* end of _OSSetTimer */
