@@ -324,13 +324,13 @@ void (* const STM32VectorTable[])(void) =
       defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || defined(STM32F105XX) || defined(STM32F107XX)
      _OSIOHandler, /* OS_IO_TIM1_BRK           24 TIM1 Break */
      #if ZOTTAOS_TIMER == OS_IO_TIM1
-        _OSTimerHandler_up, /* OS_IO_TIM1_UP      25 TIM1 Update */
+        _OSTimerHandler_up, /* OS_IO_TIM1_UP  25 TIM1 Update */
      #else
         _OSIOHandler, /* OS_IO_TIM1_UP         25 TIM1 Update */
      #endif
      _OSIOHandler, /* OS_IO_TIM1_TRG_COM       26 TIM1 Trigger and Commutation */
      #if ZOTTAOS_TIMER == OS_IO_TIM1
-        _OSTimerHandler_cc, /* OS_IO_TIM1_CC      27 TIM1 Capture Compare */
+        _OSTimerHandler_cc, /* OS_IO_TIM1_CC  27 TIM1 Capture Compare */
      #else
         _OSIOHandler, /* OS_IO_TIM1_CC         27 TIM1 Capture Compare */
      #endif

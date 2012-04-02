@@ -25,7 +25,6 @@
 #ifndef ZOTTAOS_CONFIG_H_
 #define ZOTTAOS_CONFIG_H_
 
-
 /* Selects which version to be used ZottaOS */
 //#define ZOTTAOS_VERSION_HARD
 #define ZOTTAOS_VERSION_SOFT
@@ -48,34 +47,20 @@
 #define PRIGROUP (UINT32)3
 
 
-/* Select the interval-timer */
-//#define ZOTTAOS_TIMER OS_IO_TIM1
-//#define ZOTTAOS_TIMER OS_IO_TIM8
-
-#define ZOTTAOS_TIMER OS_IO_TIM2  // 32bits on STM32F2XXXX and STM32F4XXXX families
-//#define ZOTTAOS_TIMER OS_IO_TIM3
-//#define ZOTTAOS_TIMER OS_IO_TIM4
-//#define ZOTTAOS_TIMER OS_IO_TIM5 // 32bits on STM32L1XXXX, STM32F2XXXX and STM32F4XXXX families
-
-//#define ZOTTAOS_TIMER OS_IO_TIM9
-//#define ZOTTAOS_TIMER OS_IO_TIM10
-//#define ZOTTAOS_TIMER OS_IO_TIM11
-
-//#define ZOTTAOS_TIMER OS_IO_TIM12
-//#define ZOTTAOS_TIMER OS_IO_TIM13
-//#define ZOTTAOS_TIMER OS_IO_TIM14
-
-//#define ZOTTAOS_TIMER OS_IO_TIM15
-//#define ZOTTAOS_TIMER OS_IO_TIM16
-//#define ZOTTAOS_TIMER OS_IO_TIM17
+/* You can choose the timer for ZottaOS from the following choices: OS_IO_TIM1 to
+** OS_IO_TIM5 and OS_IO_TIM8 to OS_IO_TIM17. Basic timers 6 and 7 may not be used because
+** they do not have a comparator. If the selected timer is not implemented in the part
+** number of the STM32 series used, a compiler error will indicate that the corresponding
+** symbol does not exist.*/
+#define ZOTTAOS_TIMER OS_IO_TIM3
 
 /* Define the interval-timer prescaler */
 #define ZOTTAOS_TIMER_PRESCALER 83
 
 /* Defines the priority group and level of the interval-timer. The timer's priority must
 ** be higher than that of SysTick. See _OSSetInterruptPriority(). */
-#define TIMER_PRIORITY      (UINT8)0
-#define TIMER_SUB_PRIORITY  (UINT8)0
+#define TIMER_PRIORITY     (UINT8)0
+#define TIMER_SUB_PRIORITY (UINT8)0
 
 
 /* Uncomment the line below that corresponds to your target STM32 device while leaving
@@ -214,7 +199,7 @@
 /* STM32F417VE, STM32F417VG, STM32F417ZE, STM32F417ZG, STM32F417LE and STM32F417LG */
 //#define STM32F417XX
 
-/* Define STM32 families */
+/* Define STM32 series (family) */
 #if defined(STM32L151X6_X8_XB) || defined(STM32L152X6_X8_XB) || defined(STM32L151XC) || \
     defined(STM32L152XC) || defined(STM32L151XD) || defined(STM32L152XD) || \
     defined(STM32L162XD)
@@ -240,16 +225,5 @@
    #error STM32 version undefined
 #endif
 
-
-/* Define 16bits or 32bits timer */
-#if (defined(STM32L1XXXX) && ZOTTAOS_TIMER == OS_IO_TIM5) || \
-    (defined(STM32F2XXXX) && ZOTTAOS_TIMER == OS_IO_TIM2) || \
-    (defined(STM32F2XXXX) && ZOTTAOS_TIMER == OS_IO_TIM5) || \
-    (defined(STM32F4XXXX) && ZOTTAOS_TIMER == OS_IO_TIM2) || \
-    (defined(STM32F4XXXX) && ZOTTAOS_TIMER == OS_IO_TIM5)
-   #define ZOTTAOS_TIMER_32
-#else
-   #define ZOTTAOS_TIMER_16
-#endif
 
 #endif /* ZOTTAOS_CONFIG_H_ */

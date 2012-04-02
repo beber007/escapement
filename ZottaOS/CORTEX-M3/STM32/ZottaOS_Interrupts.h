@@ -27,8 +27,6 @@
 
 #include "ZottaOS_Config.h"
 
-#define OS_IO_TIM1            0xFF
-#define OS_IO_TIM8            0xFE
 
 /* ------------------------------ GLOBAL ---------------------------------------------- */
   #define OS_IO_WWDG                   0  /* Window WatchDog */
@@ -196,19 +194,30 @@
      #define OS_IO_TIM1_UP            25 /* TIM1 Update */
      #define OS_IO_TIM1_TRG_COM       26 /* TIM1 Trigger and Commutation */
      #define OS_IO_TIM1_CC            27 /* TIM1 Capture Compare */
+     #define OS_IO_TIM1               OS_IO_TIM1_CC
   #elif defined(STM32F100X4_X6) || defined(STM32F100X8_XB) || \
         defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE)
      #define OS_IO_TIM1_BRK_TIM15     24 /* TIM1 Break and TIM15 */
+     #define OS_IO_TIM15 OS_IO_TIM1_BRK_TIM15
      #define OS_IO_TIM1_UP_TIM16      25 /* TIM1 Update and TIM16 */
+     #define OS_IO_TIM1_UP            OS_IO_TIM1_UP_TIM16
+     #define OS_IO_TIM16              OS_IO_TIM1_UP_TIM16
      #define OS_IO_TIM1_TRG_COM_TIM17 26 /* TIM1 Trigger and Commutation and TIM17 */
+     #define OS_IO_TIM17              OS_IO_TIM1_TRG_COM_TIM17
      #define OS_IO_TIM1_CC            27 /* TIM1 Capture Compare */
+     #define OS_IO_TIM1               OS_IO_TIM1_CC
   #elif defined (STM32F101RF_RG)|| defined(STM32F101VF_VG_ZF_ZG) || \
         defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
      #define OS_IO_TIM1_BRK_TIM9      24 /* TIM1 Break  and TIM9 global */
+     #define OS_IO_TIM9 OS_IO_TIM1_BRK_TIM9
      #define OS_IO_TIM1_UP_TIM10      25 /* TIM1 Update and TIM10 global */
+     #define OS_IO_TIM1_UP            OS_IO_TIM1_UP_TIM10
+     #define OS_IO_TIM10              OS_IO_TIM1_UP_TIM10
      #define OS_IO_TIM1_TRG_COM_TIM11 26 /* TIM1 Trigger and Commutation  and TIM11
                                             global */
+     #define OS_IO_TIM11 OS_IO_TIM1_TRG_COM_TIM11
      #define OS_IO_TIM1_CC            27 /* TIM1 Capture Compare */
+     #define OS_IO_TIM1               OS_IO_TIM1_CC
   #endif
   #define OS_IO_TIM2                  28 /* TIM2 global */
   #define OS_IO_TIM3                  29 /* TIM3 global */
@@ -280,6 +289,7 @@
      #define OS_IO_TIM8_UP            44 /* TIM8 Update */
      #define OS_IO_TIM8_TRG_COM       45 /* TIM8 Trigger and Commutation */
      #define OS_IO_TIM8_CC            46 /* TIM8 Capture Compare */
+     #define OS_IO_TIM8               OS_IO_TIM8_CC
   #elif defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE )
      #define OS_IO_TIM12              43 /* TIM12 global */
      #define OS_IO_TIM13              44 /* TIM13 global */
@@ -287,10 +297,15 @@
   #elif defined(STM32F101RF_RG) || defined(STM32F101VF_VG_ZF_ZG) || \
         defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
      #define OS_IO_TIM8_BRK_TIM12     43 /* TIM8 Break and TIM12 global */
+     #define OS_IO_TIM12              OS_IO_TIM8_BRK_TIM12
      #define OS_IO_TIM8_UP_TIM13      44 /* TIM8 Update and TIM13 global */
+     #define OS_IO_TIM8_UP            OS_IO_TIM8_UP_TIM13
+     #define OS_IO_TIM13              OS_IO_TIM8_UP_TIM13
      #define OS_IO_TIM8_TRG_COM_TIM14 45 /* TIM8 Trigger and Commutation  and TIM14
                                             global */
+     #define OS_IO_TIM14              OS_IO_TIM8_TRG_COM_TIM14
      #define OS_IO_TIM8_CC            46 /* TIM8 Capture Compare */
+     #define OS_IO_TIM8               OS_IO_TIM8_CC
   #endif
   #if defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
@@ -388,10 +403,15 @@
   #define OS_IO_CAN1_SCE              22  /* CAN1 SCE */
   #define OS_IO_EXTI9_5               23  /* External Line[9:5]  */
   #define OS_IO_TIM1_BRK_TIM9         24  /* TIM1 Break and TIM9 global */
+  #define OS_IO_TIM9                  OS_IO_TIM1_BRK_TIM9
   #define OS_IO_TIM1_UP_TIM10         25  /* TIM1 Update and TIM10 global */
+  #define OS_IO_TIM1_UP               OS_IO_TIM1_UP_TIM10
+  #define OS_IO_TIM10                 OS_IO_TIM1_UP_TIM10
   #define OS_IO_TIM1_TRG_COM_TIM11    26  /* TIM1 Trigger and Commutation and TIM11
                                              global */
+  #define OS_IO_TIM11                 OS_IO_TIM1_TRG_COM_TIM11
   #define OS_IO_TIM1_CC               27  /* TIM1 Capture Compare */
+  #define OS_IO_TIM1                  OS_IO_TIM1_CC
   #define OS_IO_TIM2                  28  /* TIM2 global */
   #define OS_IO_TIM3                  29  /* TIM3 global */
   #define OS_IO_TIM4                  30  /* TIM4 global */
@@ -408,10 +428,15 @@
   #define OS_IO_RTC_Alarm             41  /* RTC Alarm (A and B) through EXTI Line */
   #define OS_IO_OTG_FS_WKUP           42  /* USB OTG FS Wakeup through EXTI line */
   #define OS_IO_TIM8_BRK_TIM12        43  /* TIM8 Break and TIM12 global */
+  #define OS_IO_TIM12                 OS_IO_TIM8_BRK_TIM12
   #define OS_IO_TIM8_UP_TIM13         44  /* TIM8 Update and TIM13 global */
+  #define OS_IO_TIM8_UP               OS_IO_TIM8_UP_TIM13
+  #define OS_IO_TIM13                 OS_IO_TIM8_UP_TIM13
   #define OS_IO_TIM8_TRG_COM_TIM14    45  /* TIM8 Trigger and Commutation and TIM14
                                              global */
+  #define OS_IO_TIM14                 OS_IO_TIM8_TRG_COM_TIM14
   #define OS_IO_TIM8_CC               46  /* TIM8 Capture Compare */
+  #define OS_IO_TIM8                  OS_IO_TIM8_CC
   #define OS_IO_DMA1_Stream7          47  /* DMA1 Stream7 */
   #if defined(STM32F205VX_ZX) || defined(STM32F215VX_ZX) || defined(STM32F207XX) || \
       defined(STM32F217XX) || defined(STM32F405VX_ZX) || defined(STM32F415VX_ZX) || \

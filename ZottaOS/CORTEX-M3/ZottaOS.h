@@ -32,7 +32,7 @@
 
 #include "ZottaOS_Types.h"      /* Type definitions */
 #include "ZottaOS_Interrupts.h" /* Interrupt priorities and ISR index definitions */
-#include "ZottaOS_Processor.h"  /* OSInitializeSystemClocks definitions */
+#include "ZottaOS_Processor.h"
 
 #endif /* _ASM_ */
 

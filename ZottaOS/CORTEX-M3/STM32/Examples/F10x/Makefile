@@ -21,21 +21,21 @@
 
 FAMILLY = STM32F10x
 LINKERFILE = STM32F103RC_Flash.ld
+CC = /root/CodeSourcery/Sourcery_CodeBench_Lite_for_ARM_EABI/bin/arm-none-eabi-gcc
+CPU = cortex-m3
+
+
 
 FAMILLY_LC = `echo $(FAMILLY) | tr A-Z a-z`
 
 DEF_HEADER_FILE = $(FAMILLY_LC).h
-CONF_HEADER_FILE = ZottaOS_Config_$(FAMILLY_LC).h
+CONF_HEADER_FILE = ZottaOS_$(FAMILLY_LC).h
 
 PATH_LIB_ST = ../../Libraries
 
 INCLUDE_LIB_ST = -I../../ -I${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/inc -I${PATH_LIB_ST}/CMSIS/Device/${FAMILLY} -I${PATH_LIB_ST}/CMSIS/Include -include ${CONF_HEADER_FILE} -include ${DEF_HEADER_FILE}
 
-CC = /root/CodeSourcery/Sourcery_CodeBench_Lite_for_ARM_EABI/bin/arm-none-eabi-gcc
-
-CPU = cortex-m3
-
-all: build/TaskLED.elf build/UARTSimpleEcho.elf build/TestTimerEvent.elf
+all: build/TaskLEDF1.elf build/UARTSimpleEchoF1.elf build/TestTimerEventF1.elf
 
 clean: 
 	rm -f build/*.o build/*.elf
@@ -151,18 +151,18 @@ build/misc.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/misc.c
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
 
 
-build/TaskLED.o : ../TaskLED.c 
+build/TaskLEDF1.o : TaskLEDF1.c 
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ZOTTAOS) -o $@ $<
-build/UARTSimpleEcho.o : ../UARTSimpleEcho.c 
+build/UARTSimpleEchoF1.o : UARTSimpleEchoF1.c 
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ZOTTAOS) -o $@ $<
-build/TestTimerEvent.o : ../TestTimerEvent.c 
+build/TestTimerEventF1.o : TestTimerEventF1.c 
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ZOTTAOS) -o $@ $<
 
 
-build/TaskLED.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TaskLED.o
-	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TaskLED.o -T${LINKERFILE}
-build/UARTSimpleEcho.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/UARTSimpleEcho.o
-	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/UARTSimpleEcho.o -T${LINKERFILE}
-build/TestTimerEvent.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TestTimerEvent.o
-	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ build/TestTimerEvent.o ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} -T${LINKERFILE}
+build/TaskLEDF1.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TaskLEDF1.o
+	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TaskLEDF1.o -T${LINKERFILE}
+build/UARTSimpleEchoF1.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/UARTSimpleEchoF1.o
+	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/UARTSimpleEchoF1.o -T${LINKERFILE}
+build/TestTimerEventF1.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TestTimerEventF1.o
+	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ build/TestTimerEventF1.o ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} -T${LINKERFILE}
 	
