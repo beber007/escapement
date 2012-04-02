@@ -28,11 +28,28 @@
 
 
 /* STM-32 hardware registers */
-#define USART1_BASE 0x40013800
-#define USART2_BASE 0x40004400
-#define USART3_BASE 0x40004800
-#define UART4_BASE  0x40004C00
-#define UART5_BASE  0x40005000
+#ifdef OS_IO_USART1
+   #if defined(STM32F2XXXX) || defined(STM32F4XXXX)
+      #define USART1_BASE 0x40011000
+   #else
+      #define USART1_BASE 0x40013800
+   #endif
+#endif
+#ifdef OS_IO_USART2
+   #define USART2_BASE 0x40004400
+#endif
+#ifdef OS_IO_USART3
+   #define USART3_BASE 0x40004800
+#endif
+#ifdef OS_IO_UART4
+   #define UART4_BASE  0x40004C00
+#endif
+#ifdef OS_IO_UART5
+   #define UART5_BASE  0x40005000
+#endif
+#ifdef OS_IO_UART6
+   #define UART6_BASE  0x40011400
+#endif
 
 
 typedef struct UART_INTERRUPT_DESCRIPTOR { // Interrupt handler opaque descriptor
@@ -100,6 +117,13 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
             descriptor->Status = (UINT16 *)UART5_BASE;
             descriptor->HardwareBuffer = (UINT16 *)(UART5_BASE + 0x04);
             descriptor->ControlReg2 = (UINT16 *)(UART5_BASE + 0x0C);
+           break;
+        #endif
+        #ifdef OS_IO_UART6
+        case OS_IO_UART6:
+            descriptor->Status = (UINT16 *)UART6_BASE;
+            descriptor->HardwareBuffer = (UINT16 *)(UART6_BASE + 0x04);
+            descriptor->ControlReg2 = (UINT16 *)(UART6_BASE + 0x0C);
            break;
         #endif
      default: break;

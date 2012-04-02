@@ -29,9 +29,4 @@
 #include "ZottaOS_Config.h"
 #include "ZottaOS_CortexM3.h"
 
-void SytemeInit(void); /* defined in system_stm32f10x.c ST library file */
-
-/* OSInitializeSystemClocks: System clock initialization routine. */
-#define OSInitializeSystemClocks() SystemInit()
-
 #endif /* ZOTTAOS_PROCESSOR_H_ */

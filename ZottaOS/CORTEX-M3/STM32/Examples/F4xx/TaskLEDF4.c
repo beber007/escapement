@@ -16,7 +16,7 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File TaskLED.c: Illustrates 3 simple periodic tasks that toggle an output GPIO port.
+/* File TaskLEDF4.c: Illustrates 3 simple periodic tasks that toggle an output GPIO port.
 ** Two of these tasks do a constant number of iterations in a loop, while the third does
 ** a variable number of iterations, which increases at each invocation until this number
 ** reaches a maximum value, at which time it restarts with a iteration of 1.
@@ -24,6 +24,7 @@
 ** Authors: MIS-TIC */
 
 #include "ZottaOS.h"
+#include "stm32f4xx.h"
 
 #define FLAG_PORT GPIOB
 #define FLAG1_PIN GPIO_Pin_13
@@ -85,7 +86,7 @@ int main(void)
   /* Keep debugger connection during sleep mode */
   DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
   /* Initialize Hardware */
-  OSInitializeSystemClocks();
+  SystemInit();
   InitializeFlags(FLAG1_PIN | FLAG2_PIN | FLAG3_PIN);
   /* Create the 3 tasks. Notice that each particular task receives a private set of para-
   ** meters that it inherits from the main program and that it is the only task that can
@@ -111,7 +112,7 @@ int main(void)
      TaskParameters->GPIOx = FLAG_PORT;
      TaskParameters->GPIO_Pin = FLAG1_PIN;
      TaskParameters->Delay = 450;
-     OSCreateTask(FixedDelayTask,50,0,200,299,1,3,0,TaskParameters);
+     OSCreateTask(FixedDelayTask,50,0,200,70,1,3,0,TaskParameters);
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIOx = FLAG_PORT;
      TaskParameters->GPIO_Pin = FLAG2_PIN;
