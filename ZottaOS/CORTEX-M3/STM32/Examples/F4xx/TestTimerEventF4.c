@@ -23,6 +23,13 @@
 #include "ZottaOS.h"
 #include "ZottaOS_TimerEvent.h"
 
+#include "stm32f4xx_dbgmcu.h"
+#include "stm32f4xx_gpio.h"
+#include "stm32f4xx_rcc.h"
+#include "stm32f4xx_tim.h"
+#include "misc.h"
+
+
 static void InitializeTimer(void);
 
 #define LED_PORT GPIOB
@@ -43,10 +50,10 @@ int main(void)
   DBGMCU_Config(DBGMCU_TIM3_STOP,ENABLE);
   /* Keep debugger connection during sleep mode */
   DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
+/* Initialize Hardware */
+  SystemInit();
 
-  OSInitializeSystemClocks();
-
-  OSInitTimerEvent(2,OS_IO_TIM3);
+  OSInitTimerEvent(2,OS_IO_TIM1,0);
 
   InitializeTimer();
 

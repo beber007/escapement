@@ -29,86 +29,98 @@
 #include "ZottaOS_Timer.h"
 
 
+/* Define 16-bit or 32-bit timer */
+#if defined(STM32L1XXXX) && ZOTTAOS_TIMER == OS_IO_TIM5 || \
+    defined(STM32F2XXXX) && ZOTTAOS_TIMER == OS_IO_TIM2 || \
+    defined(STM32F2XXXX) && ZOTTAOS_TIMER == OS_IO_TIM5 || \
+    defined(STM32F4XXXX) && ZOTTAOS_TIMER == OS_IO_TIM2 || \
+    defined(STM32F4XXXX) && ZOTTAOS_TIMER == OS_IO_TIM5
+   #define ZOTTAOS_TIMER_32
+#else
+   #define ZOTTAOS_TIMER_16
+#endif
+
+
 /* Definitions of hardware registers */
 
 #ifdef ZOTTAOS_TIMER
    #if defined(STM32L1XXXX)
-      #if ZOTTAOS_TIMER == OS_IO_TIM11
-         #define TIME_BASE 0x40011000
-      #elif ZOTTAOS_TIMER == OS_IO_TIM10
-         #define TIME_BASE 0x40010C00
-      #elif ZOTTAOS_TIMER == OS_IO_TIM9
-         #define TIME_BASE 0x40010800
-      #elif ZOTTAOS_TIMER == OS_IO_TIM5
-         #define TIME_BASE 0x40000C00
-      #elif ZOTTAOS_TIMER == OS_IO_TIM4
-         #define TIME_BASE 0x40000800
+      #if ZOTTAOS_TIMER == OS_IO_TIM2
+         #define TIME_BASE 0x40000000
       #elif ZOTTAOS_TIMER == OS_IO_TIM3
          #define TIME_BASE 0x40000400
-      #elif ZOTTAOS_TIMER == OS_IO_TIM2
-         #define TIME_BASE 0x40000000
+      #elif ZOTTAOS_TIMER == OS_IO_TIM4
+         #define TIME_BASE 0x40000800
+      #elif ZOTTAOS_TIMER == OS_IO_TIM5
+         #define TIME_BASE 0x40000C00
+      #elif ZOTTAOS_TIMER == OS_IO_TIM9
+         #define TIME_BASE 0x40010800
+      #elif ZOTTAOS_TIMER == OS_IO_TIM10
+         #define TIME_BASE 0x40010C00
+      #elif ZOTTAOS_TIMER == OS_IO_TIM11
+         #define TIME_BASE 0x40011000
       #else
          #error Selected timer does not exist! (verify ZOTTAOS_TIMER defined in ZottaOS_Config.h)
       #endif
    #elif defined(STM32F1XXXX)
-      #if ZOTTAOS_TIMER == OS_IO_TIM17
-         #define TIME_BASE 0x40014800
-      #elif ZOTTAOS_TIMER == OS_IO_TIM16
-         #define TIME_BASE 0x40014400
-      #elif ZOTTAOS_TIMER == OS_IO_TIM15
-         #define TIME_BASE 0x40014000
-      #elif ZOTTAOS_TIMER == OS_IO_TIM14
-         #define TIME_BASE 0x40002000
-      #elif ZOTTAOS_TIMER == OS_IO_TIM13
-         #define TIME_BASE 0x40001C00
-      #elif ZOTTAOS_TIMER == OS_IO_TIM12
-         #define TIME_BASE 0x40001800
-      #elif ZOTTAOS_TIMER == OS_IO_TIM11
-         #define TIME_BASE 0x40015400
-      #elif ZOTTAOS_TIMER == OS_IO_TIM10
-         #define TIME_BASE 0x40015000
-      #elif ZOTTAOS_TIMER == OS_IO_TIM9
-         #define TIME_BASE 0x40014C00
-      #elif ZOTTAOS_TIMER == OS_IO_TIM8
-         #define TIME_BASE 0x40013400
-      #elif ZOTTAOS_TIMER == OS_IO_TIM5
-         #define TIME_BASE 0x40000C00
-      #elif ZOTTAOS_TIMER == OS_IO_TIM34
-         #define TIME_BASE 0x40000800
-      #elif ZOTTAOS_TIMER == OS_IO_TIM3
-         #define TIME_BASE 0x40000400
+      #if ZOTTAOS_TIMER == OS_IO_TIM1
+         #define TIME_BASE 0x40012C00
       #elif ZOTTAOS_TIMER == OS_IO_TIM2
          #define TIME_BASE 0x40000000
-      #elif ZOTTAOS_TIMER == OS_IO_TIM1
-         #define TIME_BASE 0x40012C00
+      #elif ZOTTAOS_TIMER == OS_IO_TIM3
+         #define TIME_BASE 0x40000400
+      #elif ZOTTAOS_TIMER == OS_IO_TIM4
+         #define TIME_BASE 0x40000800
+      #elif ZOTTAOS_TIMER == OS_IO_TIM5
+         #define TIME_BASE 0x40000C00
+      #elif ZOTTAOS_TIMER == OS_IO_TIM8
+         #define TIME_BASE 0x40013400
+      #elif ZOTTAOS_TIMER == OS_IO_TIM9
+         #define TIME_BASE 0x40014C00
+      #elif ZOTTAOS_TIMER == OS_IO_TIM10
+         #define TIME_BASE 0x40015000
+      #elif ZOTTAOS_TIMER == OS_IO_TIM11
+         #define TIME_BASE 0x40015400
+      #elif ZOTTAOS_TIMER == OS_IO_TIM12
+         #define TIME_BASE 0x40001800
+      #elif ZOTTAOS_TIMER == OS_IO_TIM13
+         #define TIME_BASE 0x40001C00
+      #elif ZOTTAOS_TIMER == OS_IO_TIM14
+         #define TIME_BASE 0x40002000
+      #elif ZOTTAOS_TIMER == OS_IO_TIM15
+         #define TIME_BASE 0x40014000
+      #elif ZOTTAOS_TIMER == OS_IO_TIM16
+         #define TIME_BASE 0x40014400
+      #elif ZOTTAOS_TIMER == OS_IO_TIM17
+         #define TIME_BASE 0x40014800
       #else
          #error Selected timer does not exist! (verify ZOTTAOS_TIMER defined in ZottaOS_Config.h)
       #endif
    #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
-      #if ZOTTAOS_TIMER == OS_IO_TIM14
-         #define TIME_BASE 0x40002000
-      #elif ZOTTAOS_TIMER == OS_IO_TIM13
-         #define TIME_BASE 0x40001C00
-      #elif ZOTTAOS_TIMER == OS_IO_TIM12
-         #define TIME_BASE 0x40001800
-      #elif ZOTTAOS_TIMER == OS_IO_TIM11
-         #define TIME_BASE 0x40014800
-      #elif ZOTTAOS_TIMER == OS_IO_TIM10
-         #define TIME_BASE 0x40014400
-      #elif ZOTTAOS_TIMER == OS_IO_TIM9
-         #define TIME_BASE 0x40014000
-      #elif ZOTTAOS_TIMER == OS_IO_TIM8
-         #define TIME_BASE 0x40010400
-      #elif ZOTTAOS_TIMER == OS_IO_TIM5
-         #define TIME_BASE 0x40000C00
-      #elif ZOTTAOS_TIMER == OS_IO_TIM4
-         #define TIME_BASE 0x40000800
-      #elif ZOTTAOS_TIMER == OS_IO_TIM3
-         #define TIME_BASE 0x40000400
+      #if ZOTTAOS_TIMER == OS_IO_TIM1
+         #define TIME_BASE 0x40010000
       #elif ZOTTAOS_TIMER == OS_IO_TIM2
          #define TIME_BASE 0x40000000
-      #elif ZOTTAOS_TIMER == OS_IO_TIM1
-         #define TIME_BASE 0x40010000
+      #elif ZOTTAOS_TIMER == OS_IO_TIM3
+         #define TIME_BASE 0x40000400
+      #elif ZOTTAOS_TIMER == OS_IO_TIM4
+         #define TIME_BASE 0x40000800
+      #elif ZOTTAOS_TIMER == OS_IO_TIM5
+         #define TIME_BASE 0x40000C00
+      #elif ZOTTAOS_TIMER == OS_IO_TIM8
+         #define TIME_BASE 0x40010400
+      #elif ZOTTAOS_TIMER == OS_IO_TIM9
+         #define TIME_BASE 0x40014000
+      #elif ZOTTAOS_TIMER == OS_IO_TIM10
+         #define TIME_BASE 0x40014400
+      #elif ZOTTAOS_TIMER == OS_IO_TIM11
+         #define TIME_BASE 0x40014800
+      #elif ZOTTAOS_TIMER == OS_IO_TIM12
+         #define TIME_BASE 0x40001800
+      #elif ZOTTAOS_TIMER == OS_IO_TIM13
+         #define TIME_BASE 0x40001C00
+      #elif ZOTTAOS_TIMER == OS_IO_TIM14
+         #define TIME_BASE 0x40002000
       #else
          #error Selected timer does not exist! (verify ZOTTAOS_TIMER defined in ZottaOS_Config.h)
       #endif
@@ -268,48 +280,8 @@ static volatile INT32 Time;
 void _OSInitializeTimer(void)
 {
   UINT8 tmppriority;
-  #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
-     UINT8 *intPriorityLevel_cc, *intPriorityLevel_up;
-     UINT32 *intSetEnable_cc, *intSetEnable_up;
-  #else
-     UINT8 *intPriorityLevel;
-     UINT32 *intSetEnable;
-  #endif
-  #if ZOTTAOS_TIMER == OS_IO_TIM1
-     #if defined(STM32F103X4_X6) || defined(STM32F103T8_TB) || \
-         defined(STM32F103C8_CB_R8_RB_V8_VB) || defined(STM32F103RC_RD_RE) || \
-         defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || defined(STM32F105XX) || defined(STM32F107XX)
-        intSetEnable_up = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_UP / 32);
-        intPriorityLevel_up = (UINT8 *)(0xE000E400 + OS_IO_TIM1_UP);
-     #elif defined(STM32F100X4_X6) || defined(STM32F100X8_XB) || \
-           defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE)
-        intSetEnable_up = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_UP_TIM16 / 32);
-        intPriorityLevel_up = (UINT8 *)(0xE000E400 + OS_IO_TIM1_UP_TIM16);
-     #elif defined (STM32F101RF_RG)|| defined(STM32F101VF_VG_ZF_ZG) || \
-           defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
-           defined(STM32F2XXXX) || defined(STM32F4XXXX)
-        intSetEnable_up = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_UP_TIM10 / 32);
-        intPriorityLevel_up = (UINT8 *)(0xE000E400 + OS_IO_TIM1_UP_TIM10);
-     #endif
-     intSetEnable_cc = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_CC / 32);
-     intPriorityLevel_cc = (UINT8 *)(0xE000E400 + OS_IO_TIM1_CC);
-  #elif ZOTTAOS_TIMER == OS_IO_TIM8
-     #if defined(STM32F101RC_RD_RE) || defined(STM32F101VC_VD_VE_ZC_ZD_ZE) || \
-         defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE)
-        intSetEnable_up = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_UP / 32);
-        intPriorityLevel_up = (UINT8 *)(0xE000E400 + OS_IO_TIM8_UP);
-     #elif defined(STM32F101RF_RG) || defined(STM32F101VF_VG_ZF_ZG) || \
-           defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
-           defined(STM32F2XXXX) || defined(STM32F4XXXX)
-        intSetEnable_up = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_UP_TIM13 / 32);
-        intPriorityLevel_up = (UINT8 *)(0xE000E400 + OS_IO_TIM8_UP_TIM13);
-     #endif
-     intSetEnable_cc = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_CC / 32);
-     intPriorityLevel_cc = (UINT8 *)(0xE000E400 + OS_IO_TIM8_CC);
-  #else
-     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(ZOTTAOS_TIMER / 32);
-     intPriorityLevel = (UINT8 *)(0xE000E400 + ZOTTAOS_TIMER);
-  #endif
+  UINT8 *intPriorityLevel;
+  UINT32 *intSetEnable;
   /* */
   CLK_ENABLE |= CLK_ENABLE_BIT;                   // Enable the clock for timer
   #ifdef ZOTTAOS_TIMER_32
@@ -319,48 +291,38 @@ void _OSInitializeTimer(void)
   #endif
   TIM_PRESCALER = ZOTTAOS_TIMER_PRESCALER;        // Set the prescaler value
   TIM_EVENT_GENERATION = 1;                       // Generate an update event to reload
-                                                  // the prescaler
+                                                 // the prescaler
   TIM_STATUS = (UINT16)~3;                        // Clear update flag
   TIM_INT_ENABLE |= 3;                            // Enable update interrupt
-
   /* Compute the IRQ priority */
   tmppriority = TIMER_PRIORITY << (PRIGROUP - 3);
   // le nombre 3 correspond au nombre maximum de bits pour la priorité moins le nombre de bit implémenté soit (7 -4 pour le stm32)
   tmppriority |=  TIMER_SUB_PRIORITY & (0x0F >> (7 - PRIGROUP));
   // (7 - PRIGROUP) correspond aux nombres de bits pour la priorité.
-  #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
-     *intPriorityLevel_up = tmppriority << 0x04;       // Set the IRQ priority
-     *intPriorityLevel_cc = tmppriority << 0x04;       // Set the IRQ priority
-     // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
-  #else
-     *intPriorityLevel = tmppriority << 0x04;       // Set the IRQ priority
-  #endif
+  // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
   #if ZOTTAOS_TIMER == OS_IO_TIM1
-     #if defined(STM32F103X4_X6) || defined(STM32F103T8_TB) || \
-         defined(STM32F103C8_CB_R8_RB_V8_VB) || defined(STM32F103RC_RD_RE) || \
-         defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || defined(STM32F105XX) || defined(STM32F107XX)
-        *intSetEnable_up |= 0x01 << (OS_IO_TIM1_UP % 32); // Enable the IRQ channels
-     #elif defined(STM32F100X4_X6) || defined(STM32F100X8_XB) || \
-           defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE)
-        *intSetEnable_up |= 0x01 << (OS_IO_TIM1_UP_TIM16 % 32); // Enable the IRQ channels
-     #elif defined (STM32F101RF_RG)|| defined(STM32F101VF_VG_ZF_ZG) || \
-           defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
-           defined(STM32F2XXXX) || defined(STM32F4XXXX)
-        *intSetEnable_up |= 0x01 << (OS_IO_TIM1_UP_TIM10 % 32); // Enable the IRQ channels
-     #endif
-     *intSetEnable_cc |= 0x01 << (OS_IO_TIM1_CC % 32); // Enable the IRQ channels
+     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_UP / 32);
+     *intSetEnable |= 0x01 << (OS_IO_TIM1_UP % 32); // Enable the IRQ channels
+     intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM1_UP);
+     *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_CC / 32);
+     *intSetEnable |= 0x01 << (OS_IO_TIM1_CC % 32); // Enable the IRQ channels
+     intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM1_CC);
+     *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
   #elif ZOTTAOS_TIMER == OS_IO_TIM8
-     #if defined(STM32F101RC_RD_RE) || defined(STM32F101VC_VD_VE_ZC_ZD_ZE) || \
-         defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE)
-        *intSetEnable_up |= 0x01 << (OS_IO_TIM8_UP % 32); // Enable the IRQ channels
-     #elif defined(STM32F101RF_RG) || defined(STM32F101VF_VG_ZF_ZG) || \
-           defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
-           defined(STM32F2XXXX) || defined(STM32F4XXXX)
-        *intSetEnable_up |= 0x01 << (OS_IO_TIM8_UP_TIM13 % 32); // Enable the IRQ channels
-     #endif
-     *intSetEnable_cc |= 0x01 << (OS_IO_TIM8_CC % 32); // Enable the IRQ channels
+     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_UP / 32);
+     *intSetEnable |= 0x01 << (OS_IO_TIM8_UP % 32); // Enable the IRQ channels
+     intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM8_UP);
+     *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_CC / 32);
+     *intSetEnable |= 0x01 << (OS_IO_TIM8_CC % 32); // Enable the IRQ channels
+     intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM8_CC);
+     *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
   #else
+     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(ZOTTAOS_TIMER / 32);
      *intSetEnable |= 0x01 << (ZOTTAOS_TIMER % 32); // Enable the IRQ channels
+     intPriorityLevel = (UINT8 *)(0xE000E400 + ZOTTAOS_TIMER);
+     *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
   #endif
 } /* end of _OSInitializeTimer */
 
@@ -450,63 +412,30 @@ INT32 OSGetActualTime(void)
 ** END_TIMER_OFFSET. */
 #define TIMER_OFFSET 5
 
-#ifdef ZOTTAOS_TIMER_16
-   #define INFINITY32 0x0000FFFF
-   #define INFINITY16 0xFFFF
-   #define INFINITY32_OFFSET 0x0000FFFA // = INFINITY32 - TIMER_OFFSET
-#endif
-
 /* _OSSetTimer: Sets the timer comparator to the next time event interval. This function
  * is called by the software timer interrupt handler when it finishes processing the cur-
  * rent interrupt and prepares its next interrupt. */
 void _OSSetTimer(INT32 nextArrival)
 {
 #ifdef ZOTTAOS_TIMER_32
-  while (TRUE) {
+  do {
      OSUINT32_LL(&TIM_COMPARATOR);
-     if (nextArrival > TIMER_OFFSET) {
-        if (TIM_COUNTER > nextArrival - TIMER_OFFSET) {      // START_TIMER_OFFSET
-           if (nextArrival > 0x3FFFFFFF - TIMER_OFFSET)
-              break;
-           else
-              nextArrival = TIM_COUNTER + TIMER_OFFSET;
-        }
-     }
-     else
-        nextArrival = TIM_COUNTER + TIMER_OFFSET;
-     if (OSUINT32_SC(&TIM_COMPARATOR,nextArrival))           // END_TIMER_OFFSET
+     if (nextArrival - TIMER_OFFSET < TIM_COUNTER) {
+        TIM_EVENT_GENERATION |= 2;
         break;
-     /* If we get here, the task has been interrupted by a source different than
-     ** the interval timer. */
-  }
+     }
+  } while (!OSUINT32_SC(&TIM_COMPARATOR,nextArrival));
 #elif defined(ZOTTAOS_TIMER_16)
-  INT32 time32;
   UINT16 time16;
-  while (TRUE) {
-     OSUINT16_LL(&TIM_COMPARATOR);
-     if ((time32 =  nextArrival - Time) < INFINITY32_OFFSET) {
-        if (time32 > 0) {
-           time16 = (UINT16)time32;
-           if (time16 > TIMER_OFFSET) {
-              if (TIM_COUNTER > time16 - TIMER_OFFSET) {       // START_TIMER_OFFSET
-                 if (time16 > INFINITY16 - TIMER_OFFSET)
-                    break;
-                 else
-                    time16 = TIM_COUNTER + TIMER_OFFSET;
-              }
-           }
-           else
-              time16 = TIM_COUNTER + TIMER_OFFSET;
+  if ((nextArrival & 0xFFFF0000) == Time) {
+     time16 = (UINT16)nextArrival;
+     do {
+        OSUINT16_LL(&TIM_COMPARATOR);
+        if (time16 - TIMER_OFFSET < TIM_COUNTER) {
+           TIM_EVENT_GENERATION |= 2;
+           break;
         }
-        else
-           break;
-        if (OSUINT16_SC(&TIM_COMPARATOR,time16))              // END_TIMER_OFFSET
-           break;
-        /* If we get here, the task has been interrupted by a source different than
-        ** the interval timer. */
-     }
-     else
-        break;
+     } while (!OSUINT16_SC(&TIM_COMPARATOR,time16));
   }
 #endif
 } /* end of _OSSetTimer */

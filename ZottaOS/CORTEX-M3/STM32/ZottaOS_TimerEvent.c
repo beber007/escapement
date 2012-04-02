@@ -37,15 +37,95 @@
 ** periodically shift the occurrence times. This is done very SHIFT_TIME_LIMIT tics. */
 #define SHIFT_TIME_LIMIT 0x40000000 // = 2^30
 
+#ifdef OS_IO_TIM1
+   #if defined(STM32F1XXXX)
+      #define BASE_TIM1 0x40012C00
+   #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+      #define BASE_TIM1 0x40010000
+   #else
+      #error Base address must be specified
+   #endif
+#endif
+#ifdef OS_IO_TIM2
+   #define BASE_TIM2 0x40000000
+#endif
+#ifdef OS_IO_TIM3
+   #define BASE_TIM3 0x40000400
+#endif
+#ifdef OS_IO_TIM4
+   #define BASE_TIM4 0x40000800
+#endif
+#ifdef OS_IO_TIM5
+   #define BASE_TIM5 0x40000C00
+#endif
+#ifdef OS_IO_TIM8
+   #if defined(STM32F1XXXX)
+      #define BASE_TIM8 0x40013400
+   #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+      #define BASE_TIM8 0x40010400
+   #else
+      #error Base address must be specified
+   #endif
+#endif
+#ifdef OS_IO_TIM9
+   #if defined(STM32L1XXXX)
+      #define BASE_TIM9 0x40010800
+   #elif defined(STM32F1XXXX)
+      #define BASE_TIM9 0x40014C00
+   #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+      #define BASE_TIM9 0x40014000
+   #else
+      #error Base address must be specified
+   #endif
+#endif
+#ifdef OS_IO_TIM10
+   #if defined(STM32L1XXXX)
+      #define BASE_TIM10 0x40010C00
+   #elif defined(STM32F1XXXX)
+      #define BASE_TIM10 0x40015000
+   #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+      #define BASE_TIM10 0x40014400
+   #else
+      #error Base address must be specified
+   #endif
+#endif
+#ifdef OS_IO_TIM11
+   #if defined(STM32L1XXXX)
+      #define BASE_TIM11 0x40011000
+   #elif defined(STM32F1XXXX)
+      #define BASE_TIM11 0x40015400
+   #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+      #define BASE_TIM11 0x40014800
+   #else
+      #error Base address must be specified
+   #endif
+#endif
+#ifdef OS_IO_TIM12
+   #define BASE_TIM12 0x40001800
+#endif
+#ifdef OS_IO_TIM13
+   #define BASE_TIM13 0x40001C00
+#endif
+#ifdef OS_IO_TIM14
+   #define BASE_TIM14 0x40002000
+#endif
+#ifdef OS_IO_TIM15
+   #define BASE_TIM15 0x40014000
+#endif
+#ifdef OS_IO_TIM16
+   #define BASE_TIM16 0x40014400
+#endif
+#ifdef OS_IO_TIM17
+   #define BASE_TIM17 0x40014800
+#endif
 
-#define BASE_TIM2 0x40000000
-#define BASE_TIM3 0x40000400
-#define BASE_TIM4 0x40000800
-#define BASE_TIM5 0x40000C00
-
+#define OFFSET_CONTROL1         0x00
+#define OFFSET_INT_ENABLE       0x0C
 #define OFFSET_STATUS           0x10
 #define OFFSET_EVENT_GENERATION 0x14
 #define OFFSET_COUNTER          0x24
+#define OFFSET_PRESCALER        0x28
+#define OFFSET_AUTORELOAD       0x2C
 #define OFFSET_COMPARATOR       0x34
 
 
@@ -61,15 +141,15 @@ typedef struct { // Queue of events with their associated time of occurrence
 
 typedef struct TIMER_ISR_DATA {
   void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
-  UINT16 *Status;
-  UINT16 *EventGeneration;
-  UINT16 *Counter;
-  UINT16 *Comparator;
+  UINT32 *ClkEnable;
+  UINT32 ClkEnableBit;
+  UINT32 Base;
   INT32 Time;                        // Current time
   void *PendingQueueOperation;       // Interrupted operations that are not complete
   TIMER_EVENT_NODE_HEAD *EventQueue; // List of events sorted by their time of occurrence
   TIMER_EVENT_NODE *FreeNodes;       // Pool of free nodes used to link events
 } TIMER_ISR_DATA;
+
 
 typedef enum {InsertEventOp,DeleteEventOp} EVENTOP;
 
@@ -100,38 +180,377 @@ static void TimerIntHandler(TIMER_ISR_DATA *device);
 /* OSInitTimerEvent: Creates an ISR descriptor block holding the specifics of a timer
 ** device that is used as an event handler and which can schedule a list of event at
 ** their occurrence time. */
-void OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex)
+void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
 {
   TIMER_ISR_DATA *device;
-  UINT8 i;
+  UINT8 i, tmppriority, *intPriorityLevel;
+  UINT32 *intSetEnable;
+
   device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
   device->TimerIntHandler = TimerIntHandler;
-  OSSetISRDescriptor(interruptIndex,device);
-  switch (interruptIndex) { /* Specific timer device registers */
+
+  *(UINT16 *)(device->Base + OFFSET_PRESCALER) = prescaler; // Set the prescaler value
+  *(UINT16 *)(device->Base + OFFSET_EVENT_GENERATION) = 1; // Generate an update event to reload the prescaler
+  *(UINT16 *)(device->Base + OFFSET_STATUS) = (UINT16)~3; // Clear update flag
+  *(UINT16 *)(device->Base + OFFSET_INT_ENABLE) |= 3; // Enable update interrupt
+
+  /* Compute the IRQ priority */
+  tmppriority = TIMER_PRIORITY << (PRIGROUP - 3);
+  // le nombre 3 correspond au nombre maximum de bits pour la priorité moins le nombre de bit implémenté soit (7 -4 pour le stm32)
+  tmppriority |=  TIMER_SUB_PRIORITY & (0x0F >> (7 - PRIGROUP));
+  // (7 - PRIGROUP) correspond aux nombres de bits pour la priorité.
+  // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
+
+  switch (timerIndex) { /* Specific timer device registers */
+     #ifdef OS_IO_TIM1
+     case OS_IO_TIM1:
+        #if defined(STM32F1XXXX)
+           device->ClkEnable = (UINT32 *)0x40021018; // RCC_APB2ENR
+           device->ClkEnableBit = 0x800;
+        #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           device->ClkEnable = (UINT32 *)0x40023844; // RCC_APB2ENR
+           //ClkEnable = (UINT32 *)0x40023864; // RCC_APB2LPENR
+           device->ClkEnableBit = 0x1;
+        #endif
+        device->Base = BASE_TIM1;
+        OSSetISRDescriptor(OS_IO_TIM1_UP,device);
+        OSSetISRDescriptor(OS_IO_TIM1_CC,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_UP / 32);
+        *intSetEnable |= 0x01 << (OS_IO_TIM1_UP % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM1_UP);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_CC / 32);
+        *intSetEnable |= 0x01 << (OS_IO_TIM1_CC % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM1_CC);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
+        break;
+     #endif
+     #ifdef OS_IO_TIM2
      case OS_IO_TIM2:
-        device->Status = (UINT16 *)(BASE_TIM2 + OFFSET_STATUS);
-        device->EventGeneration = (UINT16 *)(BASE_TIM2 + OFFSET_EVENT_GENERATION);
-        device->Counter = (UINT16 *)(BASE_TIM2 + OFFSET_COUNTER);
-        device->Comparator = (UINT16 *)(BASE_TIM2 + OFFSET_COMPARATOR);
+        #if defined(STM32L1XXXX)
+           device->ClkEnable = (UINT32 *)0x40023824; // RCC_APB1ENR
+           //device->ClkEnable = (UINT32 *)0x40023830; // RCC_APB1LPENR
+        #elif defined(STM32F1XXXX)
+           device->ClkEnable = (UINT32 *)0x4002101C; // RCC_APB1ENR
+        #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           device->ClkEnable = (UINT32 *)0x40023840; // RCC_APB1ENR
+           //device->ClkEnable = (UINT32 *)0x40023860; // RCC_APB1LPENR
+        #endif
+        device->ClkEnableBit = 0x1;
+        device->Base = BASE_TIM2;
+        OSSetISRDescriptor(timerIndex,device);
+
+        #if defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           *(UINT32 *)(device->Base + OFFSET_AUTORELOAD) = 0x3FFFFFFF; // Set the autoreload value (2^30 - 1)
+        #else
+           *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+        #endif
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
         break;
+     #endif
+     #ifdef OS_IO_TIM3
      case OS_IO_TIM3:
-        device->Status = (UINT16 *)(BASE_TIM3 + OFFSET_STATUS);
-        device->EventGeneration = (UINT16 *)(BASE_TIM3 + OFFSET_EVENT_GENERATION);
-        device->Counter = (UINT16 *)(BASE_TIM3 + OFFSET_COUNTER);
-        device->Comparator = (UINT16 *)(BASE_TIM3 + OFFSET_COMPARATOR);
+        #if defined(STM32L1XXXX)
+           device->ClkEnable = (UINT32 *)0x40023824; // RCC_APB1ENR
+           //device->ClkEnable = (UINT32 *)0x40023830; // RCC_APB1LPENR
+        #elif defined(STM32F1XXXX)
+           device->ClkEnable = (UINT32 *)0x4002101C; // RCC_APB1ENR
+        #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           device->ClkEnable = (UINT32 *)0x40023840; // RCC_APB1ENR
+           //device->ClkEnable = (UINT32 *)0x40023860; // RCC_APB1LPENR
+        #endif
+        device->ClkEnableBit = 0x2;
+        device->Base = BASE_TIM3;
+        OSSetISRDescriptor(timerIndex,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
         break;
+     #endif
+     #ifdef OS_IO_TIM4
      case OS_IO_TIM4:
-        device->Status = (UINT16 *)(BASE_TIM4 + OFFSET_STATUS);
-        device->EventGeneration = (UINT16 *)(BASE_TIM4 + OFFSET_EVENT_GENERATION);
-        device->Counter = (UINT16 *)(BASE_TIM4 + OFFSET_COUNTER);
-        device->Comparator = (UINT16 *)(BASE_TIM4 + OFFSET_COMPARATOR);
+        #if defined(STM32L1XXXX)
+           device->ClkEnable = (UINT32 *)0x40023824; // RCC_APB1ENR
+           //device->ClkEnable = (UINT32 *)0x40023830; // RCC_APB1LPENR
+        #elif defined(STM32F1XXXX)
+           device->ClkEnable = (UINT32 *)0x4002101C; // RCC_APB1ENR
+        #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           device->ClkEnable = (UINT32 *)0x40023840; // RCC_APB1ENR
+           //device->ClkEnable = (UINT32 *)0x40023860; // RCC_APB1LPENR
+        #endif
+        device->ClkEnableBit = 0x4;
+        device->Base = BASE_TIM4;
+        OSSetISRDescriptor(timerIndex,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
         break;
+     #endif
+     #ifdef OS_IO_TIM5
      case OS_IO_TIM5:
-        device->Status = (UINT16 *)(BASE_TIM5 + OFFSET_STATUS);
-        device->EventGeneration = (UINT16 *)(BASE_TIM5 + OFFSET_EVENT_GENERATION);
-        device->Counter = (UINT16 *)(BASE_TIM5 + OFFSET_COUNTER);
-        device->Comparator = (UINT16 *)(BASE_TIM5 + OFFSET_COMPARATOR);
-     default: break;
+        #if defined(STM32L1XXXX)
+           device->ClkEnable = (UINT32 *)0x40023824; // RCC_APB1ENR
+           //device->ClkEnable = (UINT32 *)0x40023830; // RCC_APB1LPENR
+        #elif defined(STM32F1XXXX)
+           device->ClkEnable = (UINT32 *)0x4002101C; // RCC_APB1ENR
+        #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           device->ClkEnable = (UINT32 *)0x40023840; // RCC_APB1ENR
+           //device->ClkEnable = (UINT32 *)0x40023860; // RCC_APB1LPENR
+        #endif
+        device->ClkEnableBit = 0x8;
+        device->Base = BASE_TIM5;
+        OSSetISRDescriptor(timerIndex,device);
+
+        #if defined(STM32L1XXXX) || defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           *(UINT32 *)(device->Base + OFFSET_AUTORELOAD) = 0x3FFFFFFF; // Set the autoreload value (2^30 - 1)
+        #else
+           *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+        #endif
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
+        break;
+     #endif
+     #ifdef OS_IO_TIM8
+     case OS_IO_TIM8:
+        #if defined(STM32F1XXXX)
+           device->ClkEnable = (UINT32 *)0x40021018; // RCC_APB2ENR
+           device->ClkEnableBit = 0x2000;
+        #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           device->ClkEnable = (UINT32 *)0x40023844; // RCC_APB2ENR
+           //device->ClkEnable = (UINT32 *)0x40023864; // RCC_APB2LPENR
+           device->ClkEnableBit = 0x2;
+        #endif
+        device->Base = BASE_TIM8;
+        OSSetISRDescriptor(OS_IO_TIM8_UP,device);
+        OSSetISRDescriptor(OS_IO_TIM8_CC,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_UP / 32);
+        *intSetEnable |= 0x01 << (OS_IO_TIM8_UP % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM8_UP);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_CC / 32);
+        *intSetEnable |= 0x01 << (OS_IO_TIM8_CC % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM8_CC);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
+        break;
+     #endif
+     #ifdef OS_IO_TIM9
+     case OS_IO_TIM9:
+        #if defined(STM32L1XXXX)
+           device->ClkEnable = (UINT32 *)0x40023820; // RCC_APB2ENR
+           //device->ClkEnable = (UINT32 *)0x4002382C; // RCC_APB2LPENR
+           device->ClkEnableBit = 0x04
+        #elif defined(STM32F1XXXX)
+           device->ClkEnable = (UINT32 *)0x40021018; // RCC_APB2ENR
+           device->ClkEnableBit = 0x080000;
+        #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           device->ClkEnable = (UINT32 *)0x40023844; // RCC_APB2ENR
+           //device->ClkEnable = (UINT32 *)0x40023864; // RCC_APB2LPENR
+           device->ClkEnableBit = 0x10000;
+        #endif
+        device->Base = BASE_TIM9;
+        OSSetISRDescriptor(timerIndex,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
+        break;
+     #endif
+     #ifdef OS_IO_TIM10
+     case OS_IO_TIM10:
+        #if defined(STM32L1XXXX)
+           device->ClkEnable = (UINT32 *)0x40023820; // RCC_APB2ENR
+           //device->ClkEnable = (UINT32 *)0x4002382C; // RCC_APB2LPENR
+           device->ClkEnableBit = 0x08
+        #elif defined(STM32F1XXXX)
+           device->ClkEnable = (UINT32 *)0x40021018; // RCC_APB2ENR
+           device->ClkEnableBit = 0x100000;
+        #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           device->ClkEnable = (UINT32 *)0x40023844; // RCC_APB2ENR
+           //device->ClkEnable = (UINT32 *)0x40023864; // RCC_APB2LPENR
+           device->ClkEnableBit = 0x20000;
+        #endif
+        device->Base = BASE_TIM10;
+        OSSetISRDescriptor(timerIndex,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
+        break;
+     #endif
+     #ifdef OS_IO_TIM11
+     case OS_IO_TIM11:
+        #if defined(STM32L1XXXX)
+           device->ClkEnable = (UINT32 *)0x40023820; // RCC_APB2ENR
+           //device->ClkEnable = (UINT32 *)0x4002382C; // RCC_APB2LPENR
+           device->ClkEnableBit = 0x10
+        #elif defined(STM32F1XXXX)
+           device->ClkEnable = (UINT32 *)0x40021018; // RCC_APB2ENR
+           device->ClkEnableBit = 0x200000;
+        #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           device->ClkEnable = (UINT32 *)0x40023844; // RCC_APB2ENR
+           //device->ClkEnable = (UINT32 *)0x40023864; // RCC_APB2LPENR
+           device->ClkEnableBit = 0x40000;
+        #endif
+        device->Base = BASE_TIM11;
+        OSSetISRDescriptor(timerIndex,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
+        break;
+     #endif
+     #ifdef OS_IO_TIM12
+     case OS_IO_TIM12:
+        #if defined(STM32F1XXXX)
+           device->ClkEnable = (UINT32 *)0x4002101C; // RCC_APB1ENR
+        #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           device->ClkEnable = (UINT32 *)0x40023840; // RCC_APB1ENR
+           //device->ClkEnable = (UINT32 *)0x40023860; // RCC_APB1LPENR
+        #endif
+        device->ClkEnableBit = 0x40;
+        device->Base = BASE_TIM12;
+        OSSetISRDescriptor(timerIndex,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
+        break;
+     #endif
+     #ifdef OS_IO_TIM13
+     case OS_IO_TIM13:
+        #if defined(STM32F1XXXX)
+           device->ClkEnable = (UINT32 *)0x4002101C; // RCC_APB1ENR
+        #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           device->ClkEnable = (UINT32 *)0x40023840; // RCC_APB1ENR
+           //device->ClkEnable = (UINT32 *)0x40023860; // RCC_APB1LPENR
+        #endif
+        device->ClkEnableBit = 0x80;
+        device->Base = BASE_TIM13;
+        OSSetISRDescriptor(timerIndex,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
+        break;
+     #endif
+     #ifdef OS_IO_TIM14
+     case OS_IO_TIM14:
+        #if defined(STM32F1XXXX)
+           device->ClkEnable = (UINT32 *)0x4002101C; // RCC_APB1ENR
+        #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           device->ClkEnable = (UINT32 *)0x40023840; // RCC_APB1ENR
+           //device->ClkEnable = (UINT32 *)0x40023860; // RCC_APB1LPENR
+        #endif
+        device->ClkEnableBit = 0x100;
+        device->Base = BASE_TIM14;
+        OSSetISRDescriptor(timerIndex,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
+        break;
+     #endif
+     #ifdef OS_IO_TIM15
+     case OS_IO_TIM15:
+        device->ClkEnable = (UINT32 *)0x40021018; // RCC_APB2ENR
+        device->ClkEnableBit = 0x10000;
+        device->Base = BASE_TIM15;
+        OSSetISRDescriptor(timerIndex,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
+        break;
+     #endif
+     #ifdef OS_IO_TIM16
+     case OS_IO_TIM16:
+        device->ClkEnable = (UINT32 *)0x40021018; // RCC_APB2ENR
+        device->ClkEnableBit = 0x20000;
+        device->Base = BASE_TIM16;
+        OSSetISRDescriptor(timerIndex,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
+        break;
+     #endif
+     #ifdef OS_IO_TIM17
+     case OS_IO_TIM17:
+        device->ClkEnable = (UINT32 *)0x40021018; // RCC_APB2ENR
+        device->ClkEnableBit = 0x40000;
+        device->Base = BASE_TIM17;
+        OSSetISRDescriptor(timerIndex,device);
+
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
+        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+
+        break;
+     #endif
+     default:
+     break;
   }
   device->Time = 0;
   device->PendingQueueOperation = NULL;
@@ -143,6 +562,10 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex)
   for (i = 0; i < nbNode - 1; i += 1)
      device->FreeNodes[i].Next = &device->FreeNodes[i+1];
   device->FreeNodes[i].Next = NULL;
+
+
+  *device->ClkEnable |= device->ClkEnableBit;
+
 } /* end of OSInitTimerEvent */
 
 
@@ -158,7 +581,20 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
      return FALSE;
   /* Because the timer ISR can shift the current time, the time at which this event oc-
   ** curs is done in 2 steps. */
-  timerEventNode->Time = (*device->Counter + delay) | 0x80000000;
+  #if defined(STM32L1XXXX)
+     if (device->Base == BASE_TIM5) {
+  #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+     if (device->Base == BASE_TIM2 || device->Base == BASE_TIM5) {
+  #endif
+  #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        timerEventNode->Time = delay | 0x80000000;
+     }
+     else {
+  #endif
+        timerEventNode->Time = (*(UINT16 *)(device->Base + OFFSET_COUNTER) + delay) | 0x80000000;
+  #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+     }
+  #endif
   timerEventNode->Event = event;
   des.EventOp = InsertEventOp;  // Prepare the insertion so that other task may complete
   des.Done = FALSE;             // it.
@@ -198,9 +634,24 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
   ** the timer ISR can set this time. Because the timer ISR shifts its current time to
   ** avoid overflow, the event occurrence time may not be finalized without the ISR's
   ** awareness. */
-  while ((scheduledTime = OSINT32_LL(&des->Node->Time)) < 0)
-     if (OSINT32_SC(&des->Node->Time,(scheduledTime ^ 0x80000000) + device->Time))
-        break;
+  while ((scheduledTime = OSINT32_LL(&des->Node->Time)) < 0) {
+     #if defined(STM32L1XXXX)
+        if (device->Base == BASE_TIM5) {
+     #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        if (device->Base == BASE_TIM2 || device->Base == BASE_TIM5) {
+     #endif
+     #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           if (OSINT32_SC(&des->Node->Time,(scheduledTime ^ 0x80000000) + *(UINT32 *)(device->Base + OFFSET_COUNTER) ))
+              break;
+        }
+        else {
+     #endif
+           if (OSINT32_SC(&des->Node->Time,(scheduledTime ^ 0x80000000) + device->Time))
+              break;
+     #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        }
+     #endif
+  }
   while (TRUE) {         // Loop until done
      right = left->Next; // Get adjacent node
      if (des->Done)      // Has a higher priority task finished the work?
@@ -232,8 +683,8 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
   /* Generate a timer comparator interrupt if the inserted event is the first one. */
   if (genInterrupt)
      while (device->EventQueue->Next == des->Node) {
-         OSUINT16_LL(device->EventGeneration);
-         if (des->GeneratedInterrupt || OSUINT16_SC(device->EventGeneration,2))
+         OSUINT16_LL((UINT16 *)(device->Base + OFFSET_EVENT_GENERATION));
+         if (des->GeneratedInterrupt || OSUINT16_SC((UINT16 *)(device->Base + OFFSET_EVENT_GENERATION),2))
             break;
      }
   des->GeneratedInterrupt = TRUE;
@@ -331,7 +782,20 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
   UINT16 time16;
   TIMER_EVENT_NODE *eventNode;
   INSERTQUEUE_OP *pendingOp;
-  *device->Comparator = 0;       // Disable timer comparator */
+  #if defined(STM32L1XXXX)
+    if (device->Base == BASE_TIM5) {
+  #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+     if (device->Base == BASE_TIM2 || device->Base == BASE_TIM5) {
+  #endif
+  #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        *(UINT32 *)(device->Base + OFFSET_COMPARATOR) = 0; // Disable timer comparator
+     }
+     else {
+  #endif
+        *(UINT16 *)(device->Base + OFFSET_COMPARATOR) = 0; // Disable timer comparator
+  #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+     }
+  #endif
   /* First finalize any pending operation in case there is an inserted node that already
   ** has its occurrence time but is not yet in the queue. */
   pendingOp = (INSERTQUEUE_OP *)device->PendingQueueOperation;
@@ -343,34 +807,81 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
   }
   device->PendingQueueOperation = NULL;
   /* Test interrupt source */
-  if (*device->Status & 2)       // Is comparator interrupt pending?
-     *device->Status &= ~2;      // Clear interrupt flag
-  if (*device->Status & 1) {     // Is timer overflow interrupt?
-     *device->Status &= ~1;      // Clear interrupt flag
-     device->Time += 0x10000;    // Increment most significant word of Time
-     if (device->Time >= SHIFT_TIME_LIMIT) {   // Shift all time value
-        eventNode = device->EventQueue->Next;
-        while (eventNode != NULL) {
-           eventNode->Time -= SHIFT_TIME_LIMIT;
-           eventNode = eventNode->Next;
+  if (*(UINT16 *)(device->Base + OFFSET_STATUS) & 2)   // Is comparator interrupt pending?
+     *(UINT16 *)(device->Base + OFFSET_STATUS) &= ~2;  // Clear interrupt flag
+  if (*(UINT16 *)(device->Base + OFFSET_STATUS) & 1) { // Is timer overflow interrupt?
+     *(UINT16 *)(device->Base + OFFSET_STATUS) &= ~1;  // Clear interrupt flag
+     #if defined(STM32L1XXXX)
+        if (device->Base == BASE_TIM5) {
+     #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        if (device->Base == BASE_TIM2 || device->Base == BASE_TIM5) {
+     #endif
+     #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+           eventNode = device->EventQueue->Next;
+           while (eventNode != NULL) {
+              eventNode->Time -= SHIFT_TIME_LIMIT;
+              eventNode = eventNode->Next;
+           }
         }
-        device->Time -= SHIFT_TIME_LIMIT;
+        else {
+     #endif
+           device->Time += 0x10000;    // Increment most significant word of Time
+           if (device->Time >= SHIFT_TIME_LIMIT) { // Shift all time value
+              eventNode = device->EventQueue->Next;
+              while (eventNode != NULL) {
+                 eventNode->Time -= SHIFT_TIME_LIMIT;
+                 eventNode = eventNode->Next;
+              }
+              device->Time -= SHIFT_TIME_LIMIT;
+           }
+     #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        }
+     #endif
+  }
+  #if defined(STM32L1XXXX)
+     if (device->Base == BASE_TIM5) {
+  #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+     if (device->Base == BASE_TIM2 || device->Base == BASE_TIM5) {
+  #endif
+  #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        // Schedule events that now occur
+        eventNode = device->EventQueue->Next;
+        while (eventNode != NULL && eventNode->Time <= *(UINT32 *)(device->Base + OFFSET_COUNTER)) {
+           OSScheduleSuspendedTask(eventNode->Event);
+           device->EventQueue->Next = eventNode->Next;
+           ReleaseNode(device,eventNode);
+           eventNode = device->EventQueue->Next;
+        }
+        // Program timer comparator
+        do {
+           OSUINT32_LL((UINT32 *)(device->Base + OFFSET_COMPARATOR));
+           if (eventNode->Time - TIMER_OFFSET < *(UINT32 *)(device->Base + OFFSET_COUNTER)) {
+              *(UINT16 *)(device->Base + OFFSET_EVENT_GENERATION) = 2;
+              break;
+           }
+        } while (!OSUINT32_SC((UINT32 *)(device->Base + OFFSET_COMPARATOR),eventNode->Time));
      }
-  }
-  // Schedule events that now occur
-  eventNode = device->EventQueue->Next;
-  while (eventNode != NULL && eventNode->Time <= (device->Time | *device->Counter)) {
-     OSScheduleSuspendedTask(eventNode->Event);
-     device->EventQueue->Next = eventNode->Next;
-     ReleaseNode(device,eventNode);
-     eventNode = device->EventQueue->Next;
-  }
-  // Program timer comparator
-  if (eventNode != NULL && (eventNode->Time & 0xFFFF0000) == device->Time) {
-     time16 = (UINT16)eventNode->Time;
-     if (time16 - TIMER_OFFSET < *device->Counter)
-        *device->EventGeneration = 2;
-     else
-        *device->Comparator = time16;
-  }
+     else {
+  #endif
+        // Schedule events that now occur
+        eventNode = device->EventQueue->Next;
+        while (eventNode != NULL && eventNode->Time <= (device->Time | *(UINT16 *)(device->Base + OFFSET_COUNTER))) {
+           OSScheduleSuspendedTask(eventNode->Event);
+           device->EventQueue->Next = eventNode->Next;
+           ReleaseNode(device,eventNode);
+           eventNode = device->EventQueue->Next;
+        }
+        if ((eventNode->Time & 0xFFFF0000) == device->Time) {
+           time16 = (UINT16)eventNode->Time;
+           do {
+              OSUINT16_LL((UINT16 *)(device->Base + OFFSET_COMPARATOR));
+              if (time16 - TIMER_OFFSET < *(UINT16 *)(device->Base + OFFSET_COUNTER)) {
+                 *(UINT16 *)(device->Base + OFFSET_EVENT_GENERATION) |= 2;
+                 break;
+              }
+           } while (!OSUINT16_SC((UINT16 *)(device->Base + OFFSET_COMPARATOR),time16));
+        }
+  #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+     }
+  #endif
 } /* end of TimerIntHandler */
