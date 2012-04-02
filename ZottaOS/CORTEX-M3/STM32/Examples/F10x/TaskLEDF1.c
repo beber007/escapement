@@ -25,10 +25,10 @@
 
 #include "ZottaOS.h"
 
-#define LED_PORT GPIOB
-#define LED1_PIN GPIO_Pin_13
-#define LED2_PIN GPIO_Pin_14
-#define LED3_PIN GPIO_Pin_15
+#define FLAG_PORT GPIOB
+#define FLAG1_PIN GPIO_Pin_13
+#define FLAG2_PIN GPIO_Pin_14
+#define FLAG3_PIN GPIO_Pin_15
 
 typedef struct TaskParametersDef {
    GPIO_TypeDef* GPIOx; // Output port for the task
@@ -38,8 +38,7 @@ typedef struct TaskParametersDef {
 
 static void FixedDelayTask(void *argument);
 static void VariableDelayTask(void *argument);
-
-void InitializeFlag(u16 GPIO_Pin);
+static void InitializeFlags(u16 GPIO_Pin);
 
 
 int main(void)
@@ -72,63 +71,52 @@ int main(void)
      DBGMCU_Config(DBGMCU_TIM4_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM3
      DBGMCU_Config(DBGMCU_TIM3_STOP,ENABLE);
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM3_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM2
      DBGMCU_Config(DBGMCU_TIM2_STOP,ENABLE);
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM2_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM1
      DBGMCU_Config(DBGMCU_TIM1_STOP,ENABLE);
-     DBGMCU_APB2PeriphConfig(DBGMCU_TIM1_STOP,ENABLE);
   #endif
   /* Keep debugger connection during sleep mode */
   DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
-
+  /* Initialize hardware */
   OSInitializeSystemClocks();
-
+  InitializeFlags(FLAG1_PIN | FLAG2_PIN | FLAG3_PIN);
   /* Create the 3 tasks. Notice that each particular task receives a private set of para-
   ** meters that it inherits from the main program and that it is the only task that can
   ** later access. */
-
-  InitializeFlag(GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15);
-
   #if defined(ZOTTAOS_VERSION_HARD)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
-     TaskParameters->GPIOx = LED_PORT;
-     TaskParameters->GPIO_Pin = LED1_PIN;
+     TaskParameters->GPIOx = FLAG_PORT;
+     TaskParameters->GPIO_Pin = FLAG1_PIN;
      TaskParameters->Delay = 150;
-     OSCreateTask(FixedDelayTask,0,200,199,TaskParameters);
-
+     OSCreateTask(FixedDelayTask,0,700,699,TaskParameters);
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
-     TaskParameters->GPIOx = LED_PORT;
-     TaskParameters->GPIO_Pin = LED2_PIN;
+     TaskParameters->GPIOx = FLAG_PORT;
+     TaskParameters->GPIO_Pin = FLAG2_PIN;
      TaskParameters->Delay = 150;
-     OSCreateTask(FixedDelayTask,0,200,200,TaskParameters);
-
+     OSCreateTask(FixedDelayTask,0,700,700,TaskParameters);
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
-     TaskParameters->GPIOx = LED_PORT;
-     TaskParameters->GPIO_Pin = LED3_PIN;
-     TaskParameters->Delay = 5000;
-     OSCreateTask(VariableDelayTask,0,600,600,TaskParameters);
+     TaskParameters->GPIOx = FLAG_PORT;
+     TaskParameters->GPIO_Pin = FLAG3_PIN;
+     TaskParameters->Delay = 7000;
+     OSCreateTask(VariableDelayTask,0,2100,2100,TaskParameters);
   #elif defined(ZOTTAOS_VERSION_SOFT)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
-     TaskParameters->GPIOx = LED_PORT;
-     TaskParameters->GPIO_Pin = LED1_PIN;
+     TaskParameters->GPIOx = FLAG_PORT;
+     TaskParameters->GPIO_Pin = FLAG1_PIN;
      TaskParameters->Delay = 600;
-     OSCreateTask(FixedDelayTask,200,0,700,699,1,3,0,TaskParameters);
-
+     OSCreateTask(FixedDelayTask,200,0,700,250,1,3,0,TaskParameters);
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
-     TaskParameters->GPIOx = LED_PORT;
-     TaskParameters->GPIO_Pin = LED2_PIN;
+     TaskParameters->GPIOx = FLAG_PORT;
+     TaskParameters->GPIO_Pin = FLAG2_PIN;
      TaskParameters->Delay = 600;
      OSCreateTask(FixedDelayTask,200,0,700,700,1,3,0,TaskParameters);
-
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
-     TaskParameters->GPIOx = LED_PORT;
-     TaskParameters->GPIO_Pin = LED3_PIN;
+     TaskParameters->GPIOx = FLAG_PORT;
+     TaskParameters->GPIO_Pin = FLAG3_PIN;
      TaskParameters->Delay = 7000;
      OSCreateTask(VariableDelayTask,1600,0,2100,2100,1,1,0,TaskParameters);
   #endif
-
   /* Start the OS so that it starts scheduling the user tasks */
   return OSStartMultitasking();
 } /* end of main */
@@ -170,16 +158,14 @@ void VariableDelayTask(void *argument)
 
 
 /* InitializeFlag: .*/
-void InitializeFlag(u16 GPIO_Pin)
+void InitializeFlags(u16 GPIO_Pin)
 {
   GPIO_InitTypeDef GPIO_InitStructure;
   /* Enable GPIO_LED clock */
-  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
   /* Configure GPIO_LED Pin as Output push-pull */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
   GPIO_Init(GPIOB, &GPIO_InitStructure);
 } /* end of InitializeFlag */
