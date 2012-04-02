@@ -34,7 +34,7 @@
 #define SHIFT_TIME_LIMIT 0x40000000 // = 2^30
 
 
-typedef struct TIMER_EVENT_NODE { // Blocks that in the event queue
+typedef struct TIMER_EVENT_NODE { // Blocks that are in the event queue
   struct TIMER_EVENT_NODE *Next;
   void *Event;
   INT32 Time;
@@ -51,6 +51,7 @@ typedef struct TIMER_ISR_DATA {
   UINT16 *Compare;
   UINT16 TimerEnable;
   INT32 Time;                        // Current time
+  UINT16 Version;                    // Number of timer shifts
   void *PendingQueueOperation;       // Interrupted operations that are not complete
   TIMER_EVENT_NODE_HEAD *EventQueue; // List of events sorted by their time of occurrence
   TIMER_EVENT_NODE *FreeNodes;       // Pool of free nodes used to link events
@@ -64,6 +65,8 @@ typedef struct {
   TIMER_EVENT_NODE *Left;
   TIMER_EVENT_NODE *Node;
   volatile BOOL GeneratedInterrupt;
+  INT32 Time;                        // Interrupt time of the event
+  UINT16 Version;                    // Saved timer shift version
 } INSERTQUEUE_OP;
 
 typedef struct {
@@ -108,9 +111,6 @@ BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex, UINT16 *control,
   for (i = 0; i < nbNode - 1; i += 1)
      device->FreeNodes[i].Next = &device->FreeNodes[i+1];
   device->FreeNodes[i].Next = NULL;
-
-
-
   return TRUE;
 } /* end of OSInitTimerEvent */
 
@@ -127,15 +127,20 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
      return FALSE;
   /* Because the timer ISR can shift the current time, the time at which this event oc-
   ** curs is done in 2 steps. */
-  timerEventNode->Time = (*device->Counter + delay) | 0x80000000;
+  do {
+     timerTime = device->Time;
+     des.Time = *device->Counter + delay + timerTime;
+     des.Version = device->Version;
+  } while (timerTime != device->Time);
+  timerEventNode->Time = -1;     // Unintialized sentinel
   timerEventNode->Event = event;
-  des.EventOp = InsertEventOp;  // Prepare the insertion so that other task may complete
-  des.Done = FALSE;             // it.
+  des.EventOp = InsertEventOp;   // Prepare the insertion so that other task may complete
+  des.Done = FALSE;              // it.
   des.Left = (TIMER_EVENT_NODE *)device->EventQueue;
   des.Node = timerEventNode;
   des.GeneratedInterrupt = FALSE;
   pendingOp = (INSERTQUEUE_OP *)device->PendingQueueOperation;
-  if (pendingOp != NULL) {      // Is there an incomplete operation under way?
+  if (pendingOp != NULL) {       // Is there an incomplete operation under way?
      if (pendingOp->EventOp == InsertEventOp)
         InsertQueueHelper(pendingOp,device,TRUE);
      else
@@ -179,11 +184,15 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
   INT32 scheduledTime;
   TIMER_EVENT_NODE *right, *left = des->Left;
   /* Finish completing the time at which the event takes place. This is done here so that
-  ** the timer ISR can set this time. Because the timer ISR shifts its current time to
-  ** avoid overflow, the event occurrence time may not be finalized without the ISR's
+  ** the timer ISR can correct this time. Because the timer ISR shifts its current time
+  ** to avoid overflow, the event occurrence time may not be finalized without the ISR's
   ** awareness. */
-  while ((scheduledTime = OSINT32_LL(&des->Node->Time)) < 0)
-     if (OSINT32_SC(&des->Node->Time,(scheduledTime ^ 0x80000000) + device->Time))
+  if (des->Version == device->Version)
+     scheduledTime = des->Time;
+  else
+     scheduledTime = des->Time - SHIFT_TIME_LIMIT;
+  while (OSINT32_LL(&des->Node->Time) == -1)
+     if (OSINT32_SC(&des->Node->Time,scheduledTime))
         break;
   while (TRUE) {         // Loop until done
      right = left->Next; // Get adjacent node
@@ -326,12 +335,9 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
         DeleteQueueHelper((DELETEQUEUE_OP *)pendingOp);
   }
   device->PendingQueueOperation = NULL;
-
-  // Set comparator to INFINITY16
   device->Time += *device->Compare;
   *device->Compare = INFINITY16;
   *device->Control |= device->TimerEnable;
-
   if (device->Time >= SHIFT_TIME_LIMIT) {   // Shift all time value
      eventNode = device->EventQueue->Next;
      while (eventNode != NULL) {
@@ -339,6 +345,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
         eventNode = eventNode->Next;
      }
      device->Time -= SHIFT_TIME_LIMIT;
+     device->Version += 1;
   }
   // Schedule events that now occur
   eventNode = device->EventQueue->Next;
