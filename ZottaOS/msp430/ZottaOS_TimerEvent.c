@@ -126,13 +126,15 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
   if ((timerEventNode = GetFreeNode(device)) == NULL)
      return FALSE;
   /* Because the timer ISR can shift the current time, the time at which this event oc-
-  ** curs is done in 2 steps. */
+  ** curs is done in 2 steps. The time is determined here and then transferred to the
+  ** event at the last moment so that if there is a time shift, it can be detected and
+  ** corrected. */
   do {
      timerTime = device->Time;
      des.Time = *device->Counter + delay + timerTime;
      des.Version = device->Version;
   } while (timerTime != device->Time);
-  timerEventNode->Time = -1;     // Unintialized sentinel
+  timerEventNode->Time = -1;     // Set at an uninitialized sentinel value
   timerEventNode->Event = event;
   des.EventOp = InsertEventOp;   // Prepare the insertion so that other task may complete
   des.Done = FALSE;              // it.
