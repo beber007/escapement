@@ -260,17 +260,16 @@ void FinalizeContextSwitchPreparation(void)
 } /* end of FinalizeContextSwitchPreparation */
 
 
-/* Definition of a minimal peripheral descriptor to retrieve the peripheral interrupt
-** handler*/
-typedef struct MinimalIODescriptor {
-  void (*PeripheralInterruptHandler)(struct MinimalIODescriptor *);
-} MinimalIODescriptor;
-
 /* _OSIOHandler: Default interrupt handler that calls the appropriate handler depending
 ** upon the interrupt source. Note that if no handler is associated with the interrupt
 ** source, the processor may go haywire after it proceeds to a non valid address. */
 void _OSIOHandler(void)
 {
+  /* Definition of a minimal peripheral descriptor to retrieve the peripheral interrupt
+  ** handler*/
+  typedef struct MinimalIODescriptor {
+     void (*PeripheralInterruptHandler)(struct MinimalIODescriptor *);
+  } MinimalIODescriptor;
   extern void *_OSTabDevice[];
   MinimalIODescriptor *peripheralIODescriptor;
   /* Retrieve the specific handler from _OSTabDevice */

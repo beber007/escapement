@@ -26,8 +26,8 @@
 #define ZOTTAOS_CONFIG_H_
 
 /* Selects which version to be used ZottaOS */
-//#define ZOTTAOS_VERSION_HARD
-#define ZOTTAOS_VERSION_SOFT
+#define ZOTTAOS_VERSION_HARD
+//#define ZOTTAOS_VERSION_SOFT
 
 
 /* The nested vector interrupt controller (NVIC) under Cortex-M3 allows dynamic prioriti-

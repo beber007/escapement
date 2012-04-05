@@ -61,6 +61,8 @@ void _OSSetTimer(INT32 nextArrival);
 
 void _OSTimerShift(INT32 shiftTimeLimit);
 
+
+/* Dans le cas du timer1 ou du timer8, les vecteurs d'interruptions sont splitée. Il devient necessaire de traiter le vecteur des comparateurs et du débordement */
 #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
    void _OSTimerHandler_cc(void);
    void _OSTimerHandler_up(void);
