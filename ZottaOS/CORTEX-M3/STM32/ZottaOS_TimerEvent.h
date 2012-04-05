@@ -30,10 +30,12 @@
 ** device that is used as an event handler and which can schedule a list of event at
 ** their occurrence time.
 ** Parameters:
-**  (1) (UINT8) maximum nomber of pending events;
+**  (1) (UINT8) maximum number of pending events;
 **  (2) (UINT8) index denoting the timer device;
-**  (3) (UINT16) . */
-void OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex, UINT16 prescaler);
+**  (3) (UINT16) ;
+**  (4) (UINT8) ;
+**  (5) (UINT8) . */
+void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 priority, UINT8 subpriority);
 
 /* OSScheduleTimerEvent: Entry point to insert an event into the event list associated
 ** with a timer.

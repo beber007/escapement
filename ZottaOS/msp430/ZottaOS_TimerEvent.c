@@ -122,6 +122,7 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
   TIMER_EVENT_NODE *timerEventNode;
   TIMER_ISR_DATA *device;
   INSERTQUEUE_OP des, *pendingOp;
+  INT32 timerTime;
   device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
   if ((timerEventNode = GetFreeNode(device)) == NULL)
      return FALSE;
@@ -226,11 +227,12 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
   }
   /* Generate a timer comparator interrupt if the inserted event is the first one. */
   if (genInterrupt)
-     do {
-        OSUINT16_LL((UINT16 *)device->Compare);
-        if (OSTimerCounter >= 0xFFFC) // 0xFFFE - TARDELAY
-           break;
-     } while (!OSUINT16_SC((UINT16 *)device->Compare,*device->Counter + TAROFFSET));
+     while (device->EventQueue->Next == des->Node) {
+    	 OSUINT16_LL((UINT16 *)device->Compare);
+    	 if (des->GeneratedInterrupt || *device->Counter >= 0xFFFC || // 0xFFFE - TARDELAY
+    		 OSUINT16_SC((UINT16 *)device->Compare,*device->Counter + TAROFFSET))
+            break;
+	 }
   des->GeneratedInterrupt = TRUE;
 } /* end of InsertQueueHelper */
 

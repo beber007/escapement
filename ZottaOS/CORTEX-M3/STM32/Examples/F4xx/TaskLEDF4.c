@@ -39,7 +39,7 @@ typedef struct TaskParametersDef {
 
 static void FixedDelayTask(void *argument);
 static void VariableDelayTask(void *argument);
-static void InitializeFlags(u16 GPIO_Pin);
+static void InitializeFlags(UINT16 GPIO_Pin);
 
 
 int main(void)
@@ -163,7 +163,7 @@ void VariableDelayTask(void *argument)
 
 
 /* InitializeFlags: Initialize input/output pin for flags.*/
-void InitializeFlags(u16 GPIO_Pin)
+void InitializeFlags(UINT16 GPIO_Pin)
 {
   GPIO_InitTypeDef GPIO_InitStructure;
   /* Enable GPIO_LED clock */

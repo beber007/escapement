@@ -129,7 +129,7 @@
 #define OFFSET_COMPARATOR       0x34
 
 
-typedef struct TIMER_EVENT_NODE { // Blocks that in the event queue
+typedef struct TIMER_EVENT_NODE { // Blocks that are in the event queue
   struct TIMER_EVENT_NODE *Next;
   void *Event;
   INT32 Time;
@@ -144,10 +144,11 @@ typedef struct TIMER_ISR_DATA {
   UINT32 *ClkEnable;
   UINT32 ClkEnableBit;
   UINT32 Base;
-  INT32 Time;                        // Current time
   void *PendingQueueOperation;       // Interrupted operations that are not complete
   TIMER_EVENT_NODE_HEAD *EventQueue; // List of events sorted by their time of occurrence
   TIMER_EVENT_NODE *FreeNodes;       // Pool of free nodes used to link events
+  UINT16 Version;                    // Number of timer shifts
+  INT32 Time;                        // Current time (allocated only on 16-bit timers)
 } TIMER_ISR_DATA;
 
 
@@ -159,6 +160,8 @@ typedef struct {
   TIMER_EVENT_NODE *Left;
   TIMER_EVENT_NODE *Node;
   volatile BOOL GeneratedInterrupt;
+  UINT16 Version;                    // Saved timer shift version
+  INT32 Time;                        // Interrupt time of the event
 } INSERTQUEUE_OP;
 
 typedef struct {
@@ -180,24 +183,35 @@ static void TimerIntHandler(TIMER_ISR_DATA *device);
 /* OSInitTimerEvent: Creates an ISR descriptor block holding the specifics of a timer
 ** device that is used as an event handler and which can schedule a list of event at
 ** their occurrence time. */
-void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
+void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 priority, UINT8 subpriority)
 {
   TIMER_ISR_DATA *device;
   UINT8 i, tmppriority, *intPriorityLevel;
   UINT32 *intSetEnable;
-
-  device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
-  device->TimerIntHandler = TimerIntHandler;
-
-  *(UINT16 *)(device->Base + OFFSET_PRESCALER) = prescaler; // Set the prescaler value
-  *(UINT16 *)(device->Base + OFFSET_EVENT_GENERATION) = 1; // Generate an update event to reload the prescaler
-  *(UINT16 *)(device->Base + OFFSET_STATUS) = (UINT16)~3; // Clear update flag
-  *(UINT16 *)(device->Base + OFFSET_INT_ENABLE) |= 3; // Enable update interrupt
+  #if defined(STM32L1XXXX)
+     if (timerIndex == OS_IO_TIM5) {
+  #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+     if (timerIndex == OS_IO_TIM2 || timerIndex == OS_IO_TIM5) {
+  #endif
+  #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        /* The current wall clock is entirely given in the timers's counter register.
+        ** Hence we do not need to keep track of the current time. */
+        device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA) - sizeof(INT32));
+     }
+     else {
+  #endif
+        /* On 16-bit timers, the current is given by the sum of the timer's counter
+        ** augmented by the number of times that this counter overflowed. This overflow
+        ** value is stored in the devices's Time field. */
+        device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+  #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+     }
+  #endif
 
   /* Compute the IRQ priority */
-  tmppriority = TIMER_PRIORITY << (PRIGROUP - 3);
+  tmppriority = priority << (PRIGROUP - 3);
   // le nombre 3 correspond au nombre maximum de bits pour la priorité moins le nombre de bit implémenté soit (7 -4 pour le stm32)
-  tmppriority |=  TIMER_SUB_PRIORITY & (0x0F >> (7 - PRIGROUP));
+  tmppriority |=  subpriority & (0x0F >> (7 - PRIGROUP));
   // (7 - PRIGROUP) correspond aux nombres de bits pour la priorité.
   // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
 
@@ -215,8 +229,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->Base = BASE_TIM1;
         OSSetISRDescriptor(OS_IO_TIM1_UP,device);
         OSSetISRDescriptor(OS_IO_TIM1_CC,device);
-
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
 
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_UP / 32);
         *intSetEnable |= 0x01 << (OS_IO_TIM1_UP % 32); // Enable the IRQ channels
@@ -244,12 +256,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->Base = BASE_TIM2;
         OSSetISRDescriptor(timerIndex,device);
 
-        #if defined(STM32F2XXXX) || defined(STM32F4XXXX)
-           *(UINT32 *)(device->Base + OFFSET_AUTORELOAD) = 0x3FFFFFFF; // Set the autoreload value (2^30 - 1)
-        #else
-           *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
-        #endif
-
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
         intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
@@ -271,8 +277,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->ClkEnableBit = 0x2;
         device->Base = BASE_TIM3;
         OSSetISRDescriptor(timerIndex,device);
-
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
 
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
@@ -296,8 +300,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->Base = BASE_TIM4;
         OSSetISRDescriptor(timerIndex,device);
 
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
-
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
         intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
@@ -320,12 +322,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->Base = BASE_TIM5;
         OSSetISRDescriptor(timerIndex,device);
 
-        #if defined(STM32L1XXXX) || defined(STM32F2XXXX) || defined(STM32F4XXXX)
-           *(UINT32 *)(device->Base + OFFSET_AUTORELOAD) = 0x3FFFFFFF; // Set the autoreload value (2^30 - 1)
-        #else
-           *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
-        #endif
-
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
         intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
@@ -346,8 +342,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->Base = BASE_TIM8;
         OSSetISRDescriptor(OS_IO_TIM8_UP,device);
         OSSetISRDescriptor(OS_IO_TIM8_CC,device);
-
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
 
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_UP / 32);
         *intSetEnable |= 0x01 << (OS_IO_TIM8_UP % 32); // Enable the IRQ channels
@@ -377,8 +371,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->Base = BASE_TIM9;
         OSSetISRDescriptor(timerIndex,device);
 
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
-
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
         intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
@@ -402,8 +394,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         #endif
         device->Base = BASE_TIM10;
         OSSetISRDescriptor(timerIndex,device);
-
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
 
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
@@ -429,8 +419,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->Base = BASE_TIM11;
         OSSetISRDescriptor(timerIndex,device);
 
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
-
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
         intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
@@ -449,8 +437,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->ClkEnableBit = 0x40;
         device->Base = BASE_TIM12;
         OSSetISRDescriptor(timerIndex,device);
-
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
 
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
@@ -471,8 +457,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->Base = BASE_TIM13;
         OSSetISRDescriptor(timerIndex,device);
 
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
-
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
         intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
@@ -492,8 +476,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->Base = BASE_TIM14;
         OSSetISRDescriptor(timerIndex,device);
 
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
-
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
         intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
@@ -507,8 +489,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->ClkEnableBit = 0x10000;
         device->Base = BASE_TIM15;
         OSSetISRDescriptor(timerIndex,device);
-
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
 
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
@@ -524,8 +504,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->Base = BASE_TIM16;
         OSSetISRDescriptor(timerIndex,device);
 
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
-
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
         intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
@@ -540,8 +518,6 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
         device->Base = BASE_TIM17;
         OSSetISRDescriptor(timerIndex,device);
 
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
-
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
         *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
         intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
@@ -552,6 +528,31 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
      default:
      break;
   }
+
+  device->TimerIntHandler = TimerIntHandler;
+  *device->ClkEnable |= device->ClkEnableBit;
+
+  #if defined(STM32L1XXXX)
+     if (timerIndex == OS_IO_TIM5) {
+  #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
+     if (timerIndex == OS_IO_TIM2 || timerIndex == OS_IO_TIM5) {
+  #endif
+  #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+        *(UINT32 *)(device->Base + OFFSET_AUTORELOAD) = 0x3FFFFFFF; // Set the autoreload value (2^30 - 1)
+     }
+     else {
+  #endif
+        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF; // Set the autoreload value
+  #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
+     }
+  #endif
+
+
+  *(UINT16 *)(device->Base + OFFSET_PRESCALER) = prescaler; // Set the prescaler value
+  *(UINT16 *)(device->Base + OFFSET_EVENT_GENERATION) = 1; // Generate an update event to reload the prescaler
+  *(UINT16 *)(device->Base + OFFSET_STATUS) = (UINT16)~3; // Clear update flag
+  *(UINT16 *)(device->Base + OFFSET_INT_ENABLE) |= 3; // Enable update interrupt
+
   device->Time = 0;
   device->PendingQueueOperation = NULL;
   /* Initialize event queue */
@@ -563,9 +564,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler)
      device->FreeNodes[i].Next = &device->FreeNodes[i+1];
   device->FreeNodes[i].Next = NULL;
 
-
-  *device->ClkEnable |= device->ClkEnableBit;
-
+  *(UINT16 *)(device->Base + OFFSET_CONTROL1) |= 1; // Enable the TIM Counter
 } /* end of OSInitTimerEvent */
 
 
@@ -576,33 +575,44 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
   TIMER_EVENT_NODE *timerEventNode;
   TIMER_ISR_DATA *device;
   INSERTQUEUE_OP des, *pendingOp;
+  INT32 timerTime;
   device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
   if ((timerEventNode = GetFreeNode(device)) == NULL)
      return FALSE;
   /* Because the timer ISR can shift the current time, the time at which this event oc-
-  ** curs is done in 2 steps. */
+  ** curs is done in 2 steps. The time is determined here and then transferred to the
+  ** event at the last moment so that if there is a time shift, it can be detected and
+  ** corrected. */
   #if defined(STM32L1XXXX)
      if (device->Base == BASE_TIM5) {
   #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
      if (device->Base == BASE_TIM2 || device->Base == BASE_TIM5) {
   #endif
   #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
-        timerEventNode->Time = delay | 0x80000000;
+        do {
+           des.Version = device->Version;
+           des.Time = *(UINT32 *)(device->Base + OFFSET_COUNTER) + delay;
+        } while (des.Version != device->Version);
      }
      else {
   #endif
-        timerEventNode->Time = (*(UINT16 *)(device->Base + OFFSET_COUNTER) + delay) | 0x80000000;
+        do {
+           timerTime = device->Time;
+           des.Time = *(UINT16 *)(device->Base + OFFSET_COUNTER) + delay + timerTime;
+           des.Version = device->Version;
+        } while (timerTime != device->Time);
   #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
      }
   #endif
+  timerEventNode->Time = -1;     // Set at an uninitialized sentinel value
   timerEventNode->Event = event;
-  des.EventOp = InsertEventOp;  // Prepare the insertion so that other task may complete
-  des.Done = FALSE;             // it.
+  des.EventOp = InsertEventOp;   // Prepare the insertion so that other task may complete
+  des.Done = FALSE;              // it.
   des.Left = (TIMER_EVENT_NODE *)device->EventQueue;
   des.Node = timerEventNode;
   des.GeneratedInterrupt = FALSE;
   pendingOp = (INSERTQUEUE_OP *)device->PendingQueueOperation;
-  if (pendingOp != NULL) {      // Is there an incomplete operation under way?
+  if (pendingOp != NULL) {       // Is there an incomplete operation under way?
      if (pendingOp->EventOp == InsertEventOp)
         InsertQueueHelper(pendingOp,device,TRUE);
      else
@@ -631,27 +641,16 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
   INT32 scheduledTime;
   TIMER_EVENT_NODE *right, *left = des->Left;
   /* Finish completing the time at which the event takes place. This is done here so that
-  ** the timer ISR can set this time. Because the timer ISR shifts its current time to
-  ** avoid overflow, the event occurrence time may not be finalized without the ISR's
+  ** the timer ISR can correct this time. Because the timer ISR shifts its current time
+  ** to avoid overflow, the event occurrence time may not be finalized without the ISR's
   ** awareness. */
-  while ((scheduledTime = OSINT32_LL(&des->Node->Time)) < 0) {
-     #if defined(STM32L1XXXX)
-        if (device->Base == BASE_TIM5) {
-     #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
-        if (device->Base == BASE_TIM2 || device->Base == BASE_TIM5) {
-     #endif
-     #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
-           if (OSINT32_SC(&des->Node->Time,(scheduledTime ^ 0x80000000) + *(UINT32 *)(device->Base + OFFSET_COUNTER) ))
-              break;
-        }
-        else {
-     #endif
-           if (OSINT32_SC(&des->Node->Time,(scheduledTime ^ 0x80000000) + device->Time))
-              break;
-     #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
-        }
-     #endif
-  }
+  if (des->Version == device->Version)
+     scheduledTime = des->Time;
+  else
+     scheduledTime = des->Time - SHIFT_TIME_LIMIT;
+  while (OSINT32_LL(&des->Node->Time) == -1)
+     if (OSINT32_SC(&des->Node->Time,scheduledTime))
+        break;
   while (TRUE) {         // Loop until done
      right = left->Next; // Get adjacent node
      if (des->Done)      // Has a higher priority task finished the work?
@@ -806,7 +805,10 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
         DeleteQueueHelper((DELETEQUEUE_OP *)pendingOp);
   }
   device->PendingQueueOperation = NULL;
-  /* Test interrupt source */
+  /* Test interrupt source. For 32-bit timer counters, there are 2 interrupt events: an
+  ** overflow event for which all temporal values must be shifted, and a comparator event.
+  ** In addition to the above, 16-bit counters also have a timer increment event, which
+  ** may cause shifting of the temporal values. */
   if (*(UINT16 *)(device->Base + OFFSET_STATUS) & 2)   // Is comparator interrupt pending?
      *(UINT16 *)(device->Base + OFFSET_STATUS) &= ~2;  // Clear interrupt flag
   if (*(UINT16 *)(device->Base + OFFSET_STATUS) & 1) { // Is timer overflow interrupt?
@@ -822,6 +824,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
               eventNode->Time -= SHIFT_TIME_LIMIT;
               eventNode = eventNode->Next;
            }
+           device->Version += 1;
         }
         else {
      #endif
@@ -833,6 +836,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
                  eventNode = eventNode->Next;
               }
               device->Time -= SHIFT_TIME_LIMIT;
+              device->Version += 1;
            }
      #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
         }
@@ -853,13 +857,15 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
            eventNode = device->EventQueue->Next;
         }
         // Program timer comparator
-        do {
-           OSUINT32_LL((UINT32 *)(device->Base + OFFSET_COMPARATOR));
-           if (eventNode->Time - TIMER_OFFSET < *(UINT32 *)(device->Base + OFFSET_COUNTER)) {
-              *(UINT16 *)(device->Base + OFFSET_EVENT_GENERATION) = 2;
-              break;
-           }
-        } while (!OSUINT32_SC((UINT32 *)(device->Base + OFFSET_COMPARATOR),eventNode->Time));
+        if (eventNode != NULL) {
+           do {
+              OSUINT32_LL((UINT32 *)(device->Base + OFFSET_COMPARATOR));
+              if (eventNode->Time - TIMER_OFFSET < *(UINT32 *)(device->Base + OFFSET_COUNTER)) {
+                 *(UINT16 *)(device->Base + OFFSET_EVENT_GENERATION) = 2;
+                 break;
+              }
+           } while (!OSUINT32_SC((UINT32 *)(device->Base + OFFSET_COMPARATOR),eventNode->Time));
+        }
      }
      else {
   #endif
@@ -871,7 +877,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
            ReleaseNode(device,eventNode);
            eventNode = device->EventQueue->Next;
         }
-        if ((eventNode->Time & 0xFFFF0000) == device->Time) {
+        if (eventNode != NULL && (eventNode->Time & 0xFFFF0000) == device->Time) {
            time16 = (UINT16)eventNode->Time;
            do {
               OSUINT16_LL((UINT16 *)(device->Base + OFFSET_COMPARATOR));
