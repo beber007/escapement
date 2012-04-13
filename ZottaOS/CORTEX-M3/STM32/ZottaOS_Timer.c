@@ -261,6 +261,21 @@
 #endif
 
 
+typedef struct TIMER_ISR_DATA {
+  void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
+} TIMER_ISR_DATA;
+
+/* _OSTimerHandler: Comparator and Overflow interrupts handler.
+** Dans le cas du timer1 ou du timer8, plusieurs vecteurs d'interruptions sont définit. Il
+** devient donc necessaire de traiter séparement les vecteurs d'interruption */
+#if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
+   static void TimerHandler_cc(struct TIMER_ISR_DATA *descriptor); // Interrupt handler for comparator interrupt
+   static void TimerHandler_up(struct TIMER_ISR_DATA *descriptor); // Interrupt handler for overflow
+#else
+   static void TimerHandler(struct TIMER_ISR_DATA *descriptor); // Interrupt handler for comparator and overflow interrupt
+#endif
+
+
 /* System wall clock. This variable stores the most-significant 16 bits of the current
 ** time. The lower 16 bits are directly taken from the timer counter register. To get
 ** the current time, use _OSTimerGet. */
@@ -279,6 +294,7 @@ static volatile INT32 Time;
 ** set 0. This is done by initializing CCR with 0 - 1 = 0xFFFF. */
 void _OSInitializeTimer(void)
 {
+  TIMER_ISR_DATA *device;
   UINT8 tmppriority;
   UINT8 *intPriorityLevel;
   UINT32 *intSetEnable;
@@ -324,6 +340,84 @@ void _OSInitializeTimer(void)
      intPriorityLevel = (UINT8 *)(0xE000E400 + ZOTTAOS_TIMER);
      *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
   #endif
+
+  device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+  #if ZOTTAOS_TIMER == OS_IO_TIM1
+     device->TimerIntHandler = TimerHandler_up;
+     OSSetISRDescriptor(OS_IO_TIM1_UP,0,device);
+     device->TimerIntHandler = TimerHandler_cc;
+     OSSetISRDescriptor(OS_IO_TIM1_CC,0,device);
+  #elif ZOTTAOS_TIMER == OS_IO_TIM2
+     dervice->TimerIntHandler = TimerHandler;
+     OSSetISRDescriptor(OS_IO_TIM2,0,device);
+  #elif ZOTTAOS_TIMER == OS_IO_TIM3
+     dervice->TimerIntHandler = TimerHandler;
+     OSSetISRDescriptor(OS_IO_TIM3,0,device);
+  #elif ZOTTAOS_TIMER == OS_IO_TIM4
+     dervice->TimerIntHandler = TimerHandler;
+     OSSetISRDescriptor(OS_IO_TIM4,0,device);
+  #elif ZOTTAOS_TIMER == OS_IO_TIM5
+     dervice->TimerIntHandler = TimerHandler;
+     OSSetISRDescriptor(OS_IO_TIM5,0,device);
+  #elif ZOTTAOS_TIMER == OS_IO_TIM8
+     dervice->TimerIntHandler = TimerHandler_up;
+     OSSetISRDescriptor(OS_IO_TIM8_UP,0,device);
+     dervice->TimerIntHandler = TimerHandler_cc
+     OSSetISRDescriptor(OS_IO_TIM8_CC,0,device);
+  #elif ZOTTAOS_TIMER == OS_IO_TIM9
+     dervice->TimerIntHandler = TimerHandler;
+     #ifdef OS_IO_TIM1_BRK_TIM9
+        OSSetISRDescriptor(OS_IO_TIM1_BRK_TIM9,1,device);
+     #else
+        OSSetISRDescriptor(OS_IO_TIM9,0,device);
+     #endif
+  #elif ZOTTAOS_TIMER == OS_IO_TIM10
+     dervice->TimerIntHandler = TimerHandler;
+     #ifdef OS_IO_TIM1_UP_TIM10
+        OSSetISRDescriptor(OS_IO_TIM1_UP_TIM10,1,device);
+     #else
+        OSSetISRDescriptor(OS_IO_TIM10,0,device);
+     #endif
+  #elif ZOTTAOS_TIMER == OS_IO_TIM11
+     dervice->TimerIntHandler = TimerHandler;
+     #ifdef OS_IO_TIM1_TRG_COM_TIM11
+        OSSetISRDescriptor(OS_IO_TIM1_TRG_COM_TIM11,1,device);
+     #else
+        OSSetISRDescriptor(OS_IO_TIM11,0,device);
+     #endif
+  #elif ZOTTAOS_TIMER == OS_IO_TIM12
+     dervice->TimerIntHandler = TimerHandler;
+     #ifdef OS_IO_TIM8_BRK_TIM12
+        OSSetISRDescriptor(OS_IO_TIM8_BRK_TIM12,1,device);
+     #else
+        OSSetISRDescriptor(OS_IO_TIM12,0,device);
+     #endif
+  #elif ZOTTAOS_TIMER == OS_IO_TIM13
+     dervice->TimerIntHandler = TimerHandler;
+     #ifdef OS_IO_TIM8_UP_TIM13
+        OSSetISRDescriptor(OS_IO_TIM8_UP_TIM13,1,device);
+     #else
+        OSSetISRDescriptor(OS_IO_TIM13,0,device);
+     #endif
+  #elif ZOTTAOS_TIMER == OS_IO_TIM14
+     dervice->TimerIntHandler = TimerHandler;
+     #ifdef OS_IO_TIM8_TRG_COM_TIM14
+        OSSetISRDescriptor(OS_IO_TIM8_TRG_COM_TIM14,1,device);
+     #else
+        OSSetISRDescriptor(OS_IO_TIM14,0,device);
+     #endif
+  #elif ZOTTAOS_TIMER == OS_IO_TIM15
+     dervice->TimerIntHandler = TimerHandler;
+     OSSetISRDescriptor(OS_IO_TIM1_BRK_TIM15,1,device);
+  #elif ZOTTAOS_TIMER == OS_IO_TIM16
+     dervice->TimerIntHandler = _OSTimerHandler;
+     OSSetISRDescriptor(OS_IO_TIM1_UP_TIM16,1,device);
+  #elif ZOTTAOS_TIMER == OS_IO_TIM17
+     dervice->TimerIntHandler = TimerHandler;
+     OSSetISRDescriptor(OS_IO_TIM1_TRG_COM_TIM17,1,device);
+  #endif
+
+
 } /* end of _OSInitializeTimer */
 
 
@@ -356,35 +450,28 @@ INT32 OSGetActualTime(void)
 } /* end of OSGetActualTime */
 
 
+/* _TimerHandler: Catches STM-32 Timer interrupts and generates a software timer
+** interrupt which is than carried out at a lower priority.
+** Note: This function could have been written in assembler to reduce interrupt latencies. */
 #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
-   /* _OSTimerHandler: Catches a STM-32 Timer interrupt and generates a software timer
-   ** interrupt which is than carried out at a lower priority.
-   ** Note: This function could have been written in assembler to reduce interrupt latencies. */
-   void _OSTimerHandler_up(void)
+   void TimerHandler_up(struct TIMER_ISR_DATA *descriptor)
    {
      TIM_COMPARATOR = 0; // Disable timer comparator
      TIM_STATUS &= ~1;   // Clear interrupt flag
      Time += 0x10000;    // Increment most significant word of Time
      _OSGenerateSoftTimerInterrupt();
-   } /* end of _OSTimerHandler_up */
+   } /* end of TimerHandler_up */
 
-
-   /* _OSTimerHandler: Catches a STM-32 Timer interrupt and generates a software timer
-   ** interrupt which is than carried out at a lower priority.
-   ** Note: This function could have been written in assembler to reduce interrupt latencies. */
-   void _OSTimerHandler_cc(void)
+   void TimerHandler_cc(struct TIMER_ISR_DATA *descriptor)
    {
      TIM_COMPARATOR = 0; // Disable timer comparator
      TIM_STATUS &= ~2;   // Clear interrupt flag
      _OSGenerateSoftTimerInterrupt();
-   } /* end of _OSTimerHandler_cc */
+   } /* end of TimerHandler_cc */
 
 
 #else
-   /* _OSTimerHandler: Catches a STM-32 Timer interrupt and generates a software timer
-   ** interrupt which is than carried out at a lower priority.
-   ** Note: This function could have been written in assembler to reduce interrupt latencies. */
-   void _OSTimerHandler(void)
+   void TimerHandler(struct TIMER_ISR_DATA *descriptor)
    {
      TIM_COMPARATOR = 0; // Disable timer comparator
      /* Test interrupt source */
@@ -399,9 +486,32 @@ INT32 OSGetActualTime(void)
         #endif
      }
      _OSGenerateSoftTimerInterrupt();
-   } /* end of _OSTimerHandler */
+   } /* end of TimerHandler */
 #endif
 
+
+/* _OSTimerSelector: . */
+void _OSTimerSelector(struct TIMERSELECT *timerSelect)
+{
+  #define OFFSET_STATUS 0x10
+  #define OFFSET_ENABLE 0x0C
+  typedef struct MinimalIODescriptor {
+     void (*PeripheralInterruptHandler)(struct MinimalIODescriptor *);
+  } MinimalIODescriptor;
+  MinimalIODescriptor *peripheralIODescriptor;
+  /* Call the specific handler */
+  if (*(UINT32 *)(timerSelect->BaseRegisterTab[0] + OFFSET_STATUS) &
+      *(UINT32 *)(timerSelect->BaseRegisterTab[0] + OFFSET_ENABLE) &
+      timerSelect->InterruptBit) {
+     peripheralIODescriptor = timerSelect->TimerISRTab[0];
+     peripheralIODescriptor->PeripheralInterruptHandler(peripheralIODescriptor);
+  }
+  if (*(UINT32 *)(timerSelect->BaseRegisterTab[1] + OFFSET_STATUS) &
+      *(UINT32 *)(timerSelect->BaseRegisterTab[1] + OFFSET_ENABLE)) {
+     peripheralIODescriptor = timerSelect->TimerISRTab[1];
+     peripheralIODescriptor->PeripheralInterruptHandler(peripheralIODescriptor);
+  }
+} /* end of _OSTimerSelector */
 
 /* Because the timer continues ticking, when we wish set a new value for the timer compa-
 ** rator, the difference in time between the new value and the previous must be such that

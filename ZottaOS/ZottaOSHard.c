@@ -892,9 +892,18 @@ extern void *_OSTabDevice[];
 **   (1) (UINT8) index of the _OSTabDevice entry;
 **   (2) (void *) ISR descriptor for the specified interrupt.
 ** Returned value: none. */
-void OSSetISRDescriptor(UINT8 entry, void *descriptor)
+//void OSSetISRDescriptor(UINT8 entry, void *descriptor)
+//{
+//  _OSTabDevice[entry] = descriptor;
+//} /* end of OSSetISRDescriptor */
+void OSSetISRDescriptor(UINT8 entry, UINT8 subentry, void *descriptor)
 {
-  _OSTabDevice[entry] = descriptor;
+  if (_OSTabDevice[entry] != NULL &&
+      ((TIMERSELECT *)_OSTabDevice[entry])->TimerSelector == _OSTimerSelector &&
+      subentry < TIMER_ISR_TAB_SIZE)
+     ((TIMERSELECT *)_OSTabDevice[entry])->TimerISRTab[subentry] = descriptor;
+  else
+     _OSTabDevice[entry] = descriptor;
 } /* end of OSSetISRDescriptor */
 
 
@@ -903,9 +912,19 @@ void OSSetISRDescriptor(UINT8 entry, void *descriptor)
 ** Returned value: (void *) The requested ISR descriptor is returned. If no previous
 **    OSSetIODescriptor was previously made for the specified entry, the returned value
 **    is undefined. */
-void *OSGetISRDescriptor(UINT8 entry)
+//void *OSGetISRDescriptor(UINT8 entry);
+//{
+//  return _OSTabDevice[entry];
+//} /* end of OSGetISRDescriptor */
+
+void *OSGetISRDescriptor(UINT8 entry, UINT8 subentry)
 {
-  return _OSTabDevice[entry];
+  if (_OSTabDevice[entry] != NULL &&
+      ((TIMERSELECT *)_OSTabDevice[entry])->TimerSelector == _OSTimerSelector &&
+      subentry < TIMER_ISR_TAB_SIZE)
+     return ((TIMERSELECT *)_OSTabDevice[entry])->TimerISRTab[subentry];
+  else
+     return _OSTabDevice[entry];
 } /* end of OSGetISRDescriptor */
 
 
