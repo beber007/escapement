@@ -179,19 +179,20 @@ static void DeleteQueueHelper(DELETEQUEUE_OP *des);
 static TIMER_EVENT_NODE *GetFreeNode(TIMER_ISR_DATA *device);
 static void ReleaseNode(TIMER_ISR_DATA *device, TIMER_EVENT_NODE *node);
 static void TimerIntHandler(TIMER_ISR_DATA *device);
+static UINT8 GetInterruptSubIndex(UINT8 interruptIndex);
 
 /* OSInitTimerEvent: Creates an ISR descriptor block holding the specifics of a timer
 ** device that is used as an event handler and which can schedule a list of event at
 ** their occurrence time. */
-void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 priority, UINT8 subpriority)
+void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 subpriority, UINT8 interruptIndex)
 {
   TIMER_ISR_DATA *device;
   UINT8 i, tmppriority, *intPriorityLevel;
   UINT32 *intSetEnable;
   #if defined(STM32L1XXXX)
-     if (timerIndex == OS_IO_TIM5) {
+     if (interruptIndex == OS_IO_TIM5) {
   #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
-     if (timerIndex == OS_IO_TIM2 || timerIndex == OS_IO_TIM5) {
+     if (interruptIndex == OS_IO_TIM2 || interruptIndex == OS_IO_TIM5) {
   #endif
   #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
         /* The current wall clock is entirely given in the timers's counter register.
@@ -215,7 +216,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
   // (7 - PRIGROUP) correspond aux nombres de bits pour la priorité.
   // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
 
-  switch (timerIndex) { /* Specific timer device registers */
+  switch (interruptIndex) { /* Specific timer device registers */
      #ifdef OS_IO_TIM1
      case OS_IO_TIM1:
         #if defined(STM32F1XXXX)
@@ -227,8 +228,8 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
            device->ClkEnableBit = 0x1;
         #endif
         device->Base = BASE_TIM1;
-        OSSetISRDescriptor(OS_IO_TIM1_UP,device);
-        OSSetISRDescriptor(OS_IO_TIM1_CC,device);
+        OSSetISRDescriptor(OS_IO_TIM1_UP,0,device);
+        OSSetISRDescriptor(OS_IO_TIM1_CC,0,device);
 
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_UP / 32);
         *intSetEnable |= 0x01 << (OS_IO_TIM1_UP % 32); // Enable the IRQ channels
@@ -254,11 +255,11 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
         #endif
         device->ClkEnableBit = 0x1;
         device->Base = BASE_TIM2;
-        OSSetISRDescriptor(timerIndex,device);
+        OSSetISRDescriptor(OS_IO_TIM2,0,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -276,11 +277,11 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
         #endif
         device->ClkEnableBit = 0x2;
         device->Base = BASE_TIM3;
-        OSSetISRDescriptor(timerIndex,device);
+        OSSetISRDescriptor(OS_IO_TIM3,0,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -298,11 +299,11 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
         #endif
         device->ClkEnableBit = 0x4;
         device->Base = BASE_TIM4;
-        OSSetISRDescriptor(timerIndex,device);
+        OSSetISRDescriptor(OS_IO_TIM4,0,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -320,11 +321,11 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
         #endif
         device->ClkEnableBit = 0x8;
         device->Base = BASE_TIM5;
-        OSSetISRDescriptor(timerIndex,device);
+        OSSetISRDescriptor(OS_IO_TIM5,0,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -340,8 +341,8 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
            device->ClkEnableBit = 0x2;
         #endif
         device->Base = BASE_TIM8;
-        OSSetISRDescriptor(OS_IO_TIM8_UP,device);
-        OSSetISRDescriptor(OS_IO_TIM8_CC,device);
+        OSSetISRDescriptor(OS_IO_TIM8_UP,0,device);
+        OSSetISRDescriptor(OS_IO_TIM8_CC,0,device);
 
         intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_UP / 32);
         *intSetEnable |= 0x01 << (OS_IO_TIM8_UP % 32); // Enable the IRQ channels
@@ -369,11 +370,16 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
            device->ClkEnableBit = 0x10000;
         #endif
         device->Base = BASE_TIM9;
-        OSSetISRDescriptor(timerIndex,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        #ifdef OS_IO_TIM1_BRK_TIM9
+           OSSetISRDescriptor(OS_IO_TIM1_BRK_TIM9,1,device);
+        #else
+           OSSetISRDescriptor(OS_IO_TIM9,0,device);
+        #endif
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -393,11 +399,16 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
            device->ClkEnableBit = 0x20000;
         #endif
         device->Base = BASE_TIM10;
-        OSSetISRDescriptor(timerIndex,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        #ifdef OS_IO_TIM1_UP_TIM10
+           OSSetISRDescriptor(OS_IO_TIM1_UP_TIM10,1,device);
+        #else
+           OSSetISRDescriptor(OS_IO_TIM10,0,device);
+        #endif
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -417,11 +428,16 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
            device->ClkEnableBit = 0x40000;
         #endif
         device->Base = BASE_TIM11;
-        OSSetISRDescriptor(timerIndex,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        #ifdef OS_IO_TIM1_TRG_COM_TIM11
+           OSSetISRDescriptor(OS_IO_TIM1_TRG_COM_TIM11,1,device);
+        #else
+           OSSetISRDescriptor(OS_IO_TIM11,0,device);
+        #endif
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -436,11 +452,16 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
         #endif
         device->ClkEnableBit = 0x40;
         device->Base = BASE_TIM12;
-        OSSetISRDescriptor(timerIndex,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        #ifdef OS_IO_TIM8_BRK_TIM12
+           OSSetISRDescriptor(OS_IO_TIM8_BRK_TIM12,1,device);
+        #else
+           OSSetISRDescriptor(OS_IO_TIM12,0,device);
+        #endif
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -455,11 +476,16 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
         #endif
         device->ClkEnableBit = 0x80;
         device->Base = BASE_TIM13;
-        OSSetISRDescriptor(timerIndex,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        #ifdef OS_IO_TIM8_UP_TIM13
+           OSSetISRDescriptor(OS_IO_TIM8_UP_TIM13,1,device);
+        #else
+           OSSetISRDescriptor(OS_IO_TIM13,0,device);
+        #endif
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -474,11 +500,16 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
         #endif
         device->ClkEnableBit = 0x100;
         device->Base = BASE_TIM14;
-        OSSetISRDescriptor(timerIndex,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        #ifdef OS_IO_TIM8_TRG_COM_TIM14
+           OSSetISRDescriptor(OS_IO_TIM8_TRG_COM_TIM14,1,device);
+        #else
+           OSSetISRDescriptor(OS_IO_TIM14,0,device);
+        #endif
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -488,11 +519,12 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
         device->ClkEnable = (UINT32 *)0x40021018; // RCC_APB2ENR
         device->ClkEnableBit = 0x10000;
         device->Base = BASE_TIM15;
-        OSSetISRDescriptor(timerIndex,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        OSSetISRDescriptor(OS_IO_TIM1_BRK_TIM15,1,device);
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -502,11 +534,12 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
         device->ClkEnable = (UINT32 *)0x40021018; // RCC_APB2ENR
         device->ClkEnableBit = 0x20000;
         device->Base = BASE_TIM16;
-        OSSetISRDescriptor(timerIndex,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        OSSetISRDescriptor(OS_IO_TIM1_UP_TIM16,1,device);
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -516,11 +549,12 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
         device->ClkEnable = (UINT32 *)0x40021018; // RCC_APB2ENR
         device->ClkEnableBit = 0x40000;
         device->Base = BASE_TIM17;
-        OSSetISRDescriptor(timerIndex,device);
 
-        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(timerIndex / 32);
-        *intSetEnable |= 0x01 << (timerIndex % 32); // Enable the IRQ channels
-        intPriorityLevel = (UINT8 *)(0xE000E400 + timerIndex);
+        OSSetISRDescriptor(OS_IO_TIM1_TRG_COM_TIM17,1,device);
+
+        intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(interruptIndex / 32);
+        *intSetEnable |= 0x01 << (interruptIndex % 32); // Enable the IRQ channels
+        intPriorityLevel = (UINT8 *)(0xE000E400 + interruptIndex);
         *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
 
         break;
@@ -533,9 +567,9 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 pr
   *device->ClkEnable |= device->ClkEnableBit;
 
   #if defined(STM32L1XXXX)
-     if (timerIndex == OS_IO_TIM5) {
+     if (interruptIndex == OS_IO_TIM5) {
   #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
-     if (timerIndex == OS_IO_TIM2 || timerIndex == OS_IO_TIM5) {
+     if (interruptIndex == OS_IO_TIM2 || interruptIndex == OS_IO_TIM5) {
   #endif
   #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
         *(UINT32 *)(device->Base + OFFSET_AUTORELOAD) = 0x3FFFFFFF; // Set the autoreload value (2^30 - 1)
@@ -576,7 +610,7 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
   TIMER_ISR_DATA *device;
   INSERTQUEUE_OP des, *pendingOp;
   INT32 timerTime;
-  device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
+  device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex,GetInterruptSubIndex(interruptIndex));
   if ((timerEventNode = GetFreeNode(device)) == NULL)
      return FALSE;
   /* Because the timer ISR can shift the current time, the time at which this event oc-
@@ -625,6 +659,76 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
   device->PendingQueueOperation = NULL;
   return TRUE;
 } /* end of OSScheduleTimerEvent */
+
+
+/* GetInterruptSubIndex: . */
+UINT8 GetInterruptSubIndex(UINT8 interruptIndex)
+{
+  switch (interruptIndex) { /* Specific timer device registers */
+  #ifdef OS_IO_TIM9
+     case OS_IO_TIM9:
+        #ifdef OS_IO_TIM1_BRK_TIM9
+           return 1;
+     #else
+           return 0;
+     #endif
+  #endif
+  #ifdef OS_IO_TIM10
+     case OS_IO_TIM10:
+        #ifdef OS_IO_TIM1_UP_TIM10
+           return 1;
+        #else
+           return 0;
+        #endif
+  #endif
+  #ifdef OS_IO_TIM11
+     case OS_IO_TIM11:
+        #ifdef OS_IO_TIM1_TRG_COM_TIM11
+           return 1;
+        #else
+           return 0;
+        #endif
+  #endif
+  #ifdef OS_IO_TIM12
+     case OS_IO_TIM12:
+        #ifdef OS_IO_TIM8_BRK_TIM12
+           return 1;
+        #else
+           return 0;
+        #endif
+  #endif
+  #ifdef OS_IO_TIM13
+     case OS_IO_TIM13:
+        #ifdef OS_IO_TIM8_UP_TIM13
+           return 1;
+        #else
+           return 0;
+        #endif
+  #endif
+  #ifdef OS_IO_TIM14
+     case OS_IO_TIM14:
+        #ifdef OS_IO_TIM8_TRG_COM_TIM14
+           return 1;
+        #else
+           return 0;
+        #endif
+  #endif
+  #ifdef OS_IO_TIM15
+     case OS_IO_TIM15:
+        return 1;
+  #endif
+  #ifdef OS_IO_TIM16
+     case OS_IO_TIM16:
+        return 1;
+  #endif
+  #ifdef OS_IO_TIM17
+     case OS_IO_TIM17:
+        return 1;
+  #endif
+     default:
+        return 0;
+  }
+} /* end of GetInterruptSubIndex */
 
 
 /* InsertQueueHelper: Performs the insertion described by a descriptor into a sorted
@@ -698,7 +802,7 @@ BOOL OSUnScheduleTimerEvent(void *event, UINT8 interruptIndex)
   TIMER_ISR_DATA *device;
   des.EventOp = DeleteEventOp;  // Prepare the removal so that other task may complete
   des.Done = FALSE;             // it.
-  device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
+  device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex,GetInterruptSubIndex(interruptIndex));
   des.Left = (TIMER_EVENT_NODE *)device->EventQueue;
   des.Event = event;
   des.Node = (TIMER_EVENT_NODE *)&des;
