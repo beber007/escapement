@@ -1,4 +1,4 @@
-/* Copyright (c) 2006-2012 MIS Institute of the HEIG-VD affiliated to the University of
+/* Copyright (c) 2012 MIS Institute of the HEIG-VD affiliated to the University of
 ** Applied Sciences of Western Switzerland. All rights reserved.
 ** Permission to use, copy, modify, and distribute this software and its documentation
 ** for any purpose, without fee, and without written agreement is hereby granted, pro-
@@ -17,9 +17,9 @@
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
 /* File TimerEvent.h: Provides an API that transforms a timer device into a manager that
-** schedules event-driven tasks..
+** schedules event-driven tasks.
 ** Platform version: All STM32 microcontrollers.
-** Version date: March 2012
+** Version date: April 2012
 ** Authors: MIS-TIC
 */
 
