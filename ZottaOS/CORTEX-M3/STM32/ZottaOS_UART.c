@@ -128,7 +128,7 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
         #endif
      default: break;
   }
-  OSSetISRDescriptor(interruptIndex,descriptor);
+  OSSetISRDescriptor(interruptIndex,0,descriptor);
   return TRUE;
 } /* end of OSInitUART */
 
@@ -138,7 +138,7 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
 void *OSGetFreeNodeUART(UINT8 interruptIndex)
 {
   UART_INTERRUPT_DESCRIPTOR *descriptor =
-                          (UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(interruptIndex);
+                          (UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(interruptIndex,0);
   return OSGetFreeNodeFIFO(descriptor->FifoArray);
 } /* end of OSGetFreeNodeUART */
 
@@ -148,7 +148,7 @@ void *OSGetFreeNodeUART(UINT8 interruptIndex)
 void OSReleaseNodeUART(void *buffer, UINT8 interruptIndex)
 {
   UART_INTERRUPT_DESCRIPTOR *descriptor =
-                          (UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(interruptIndex);
+                          (UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(interruptIndex,0);
   OSReleaseNodeFIFO(descriptor->FifoArray,buffer);
 } /* end of OSReleaseNodeUART */
 
@@ -158,7 +158,7 @@ void OSReleaseNodeUART(void *buffer, UINT8 interruptIndex)
 void OSEnqueueUART(void *buffer, UINT8 dataSize, UINT8 interruptIndex)
 {
   UART_INTERRUPT_DESCRIPTOR *descriptor =
-                          (UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(interruptIndex);
+                          (UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(interruptIndex,0);
   OSEnqueueFIFO(descriptor->FifoArray,buffer,dataSize);
   /* Enable transmit buffer empty interrupts from the UART once it finishes the previous
   ** send operation. Note that this can be immediate if the last transmission has already
