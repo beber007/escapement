@@ -1,14 +1,18 @@
-/* Copyright (c) 2012 MIS Institute of the HEIG affiliated to the University of Applied
-** Sciences of Western Switzerland. All rights reserved.
-** IN NO EVENT SHALL THE MIS INSTITUTE NOR THE HEIG NOR THE UNIVERSITY OF APPLIED
+/* Copyright (c) 2012 MIS Institute of the HEIG-VD affiliated to the University of
+** Applied Sciences of Western Switzerland. All rights reserved.
+** Permission to use, copy, modify, and distribute this software and its documentation
+** for any purpose, without fee, and without written agreement is hereby granted, pro-
+** vided that the above copyright notice, the following three sentences and the authors
+** appear in all copies of this software and in the software where it is used.
+** IN NO EVENT SHALL THE MIS INSTITUTE NOR THE HEIG-VD NOR THE UNIVERSITY OF APPLIED
 ** SCIENCES OF WESTERN SWITZERLAND BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL,
 ** INCIDENTAL, OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
-** DOCUMENTATION, EVEN IF THE MIS INSTITUTE OR THE HEIG OR THE UNIVERSITY OF APPLIED
+** DOCUMENTATION, EVEN IF THE MIS INSTITUTE OR THE HEIG-VD OR THE UNIVERSITY OF APPLIED
 ** SCIENCES OF WESTERN SWITZERLAND HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-** THE MIS INSTITUTE, THE HEIG AND THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWIT-
+** THE MIS INSTITUTE, THE HEIG-VD AND THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWIT-
 ** ZERLAND SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 ** IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFT-
-** WARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE MIS INSTITUTE NOR THE HEIG
+** WARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE MIS INSTITUTE NOR THE HEIG-VD
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
@@ -16,7 +20,7 @@
 ** Events that are inserted into the queue are specified along with a delay, and as soon
 ** as this delay has expired, the event is scheduled.
 ** Platform version: All MSP430 and CC430 microcontrollers.
-** Version identifier: February 2012
+** Version identifier: April 2012
 ** Authors: MIS-TIC */
 
 #include "msp430.h"  /* Hardware specifics */
@@ -40,21 +44,17 @@ typedef struct TIMER_EVENT_NODE { // Blocks that are in the event queue
   INT32 Time;
 } TIMER_EVENT_NODE;
 
-typedef struct { // Queue of events with their associated time of occurrence
-  TIMER_EVENT_NODE *Next;
-} TIMER_EVENT_NODE_HEAD;
-
 typedef struct TIMER_ISR_DATA {
   void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
   UINT16 *Control;
   UINT16 *Counter;
   UINT16 *Compare;
   UINT16 TimerEnable;
-  INT32 Time;                        // Current time
-  UINT16 Version;                    // Number of timer shifts
-  void *PendingQueueOperation;       // Interrupted operations that are not complete
-  TIMER_EVENT_NODE_HEAD *EventQueue; // List of events sorted by their time of occurrence
-  TIMER_EVENT_NODE *FreeNodes;       // Pool of free nodes used to link events
+  INT32 Time;                       // Current time
+  UINT16 Version;                   // Number of timer shifts
+  void *PendingQueueOperation;      // Interrupted operations that are not complete
+  TIMER_EVENT_NODE *EventQueue;     // List of events sorted by their time of occurrence
+  TIMER_EVENT_NODE *FreeNodes;      // Pool of free nodes used to link events
 } TIMER_ISR_DATA;
 
 typedef enum {InsertEventOp,DeleteEventOp} EVENTOP;
@@ -65,8 +65,8 @@ typedef struct {
   TIMER_EVENT_NODE *Left;
   TIMER_EVENT_NODE *Node;
   volatile BOOL GeneratedInterrupt;
-  INT32 Time;                        // Interrupt time of the event
-  UINT16 Version;                    // Saved timer shift version
+  INT32 Time;                       // Interrupt time of the event
+  UINT16 Version;                   // Saved timer shift version
 } INSERTQUEUE_OP;
 
 typedef struct {
@@ -104,8 +104,7 @@ BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex, UINT16 *control,
   device->Time = 0;
   device->PendingQueueOperation = NULL;
   /* Initialize event queue */
-  device->EventQueue = (TIMER_EVENT_NODE_HEAD *)OSMalloc(sizeof(TIMER_EVENT_NODE_HEAD));
-  device->EventQueue->Next = NULL;
+  device->EventQueue = NULL;
   /* Create a pool of free event nodes */
   device->FreeNodes = (TIMER_EVENT_NODE *)OSMalloc(nbNode * sizeof(TIMER_EVENT_NODE));
   for (i = 0; i < nbNode - 1; i += 1)
@@ -139,7 +138,7 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
   timerEventNode->Event = event;
   des.EventOp = InsertEventOp;   // Prepare the insertion so that other task may complete
   des.Done = FALSE;              // it.
-  des.Left = (TIMER_EVENT_NODE *)device->EventQueue;
+  des.Left = (TIMER_EVENT_NODE *)&device->EventQueue;
   des.Node = timerEventNode;
   des.GeneratedInterrupt = FALSE;
   pendingOp = (INSERTQUEUE_OP *)device->PendingQueueOperation;
@@ -227,12 +226,12 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
   }
   /* Generate a timer comparator interrupt if the inserted event is the first one. */
   if (genInterrupt)
-     while (device->EventQueue->Next == des->Node) {
-    	 OSUINT16_LL((UINT16 *)device->Compare);
-    	 if (des->GeneratedInterrupt || *device->Counter >= 0xFFFC || // 0xFFFE - TARDELAY
-    		 OSUINT16_SC((UINT16 *)device->Compare,*device->Counter + TAROFFSET))
-            break;
-	 }
+     while (device->EventQueue == des->Node) {
+        OSUINT16_LL((UINT16 *)device->Compare);
+        if (des->GeneratedInterrupt || *device->Counter >= 0xFFFC || // 0xFFFE - TARDELAY
+            OSUINT16_SC((UINT16 *)device->Compare,*device->Counter + TAROFFSET))
+           break;
+  }
   des->GeneratedInterrupt = TRUE;
 } /* end of InsertQueueHelper */
 
@@ -246,7 +245,7 @@ BOOL OSUnScheduleTimerEvent(void *event, UINT8 interruptIndex)
   des.EventOp = DeleteEventOp;  // Prepare the removal so that other task may complete
   des.Done = FALSE;             // it.
   device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
-  des.Left = (TIMER_EVENT_NODE *)device->EventQueue;
+  des.Left = (TIMER_EVENT_NODE *)&device->EventQueue;
   des.Event = event;
   des.Node = (TIMER_EVENT_NODE *)&des;
   pendingOp = device->PendingQueueOperation;
@@ -256,7 +255,7 @@ BOOL OSUnScheduleTimerEvent(void *event, UINT8 interruptIndex)
      else
         DeleteQueueHelper(pendingOp);
   }
-  device->PendingQueueOperation = &des;    // Post the insertion for other tasks
+  device->PendingQueueOperation = &des;    // Post the removal for other tasks
   DeleteQueueHelper(&des);                 // Do the operation
   device->PendingQueueOperation = NULL;
   if (des.Node != (TIMER_EVENT_NODE *)&des) {
@@ -280,7 +279,7 @@ void DeleteQueueHelper(DELETEQUEUE_OP *des)
      if (des->Done)          // Has a higher priority task finished the work?
         break;
      else if (right == NULL) {  // Is the seeked node already removed from the queue?
-        des->Done = TRUE;       // Mark that node has been inserted
+        des->Done = TRUE;       // Mark that node has been removed
         break;
      }
      else if (des->Event == right->Event) {
@@ -343,21 +342,18 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
   device->Time += *device->Compare;
   *device->Control |= device->TimerEnable;
   if (device->Time >= SHIFT_TIME_LIMIT) {   // Shift all time value
-     eventNode = device->EventQueue->Next;
-     while (eventNode != NULL) {
+     for (eventNode = device->EventQueue; eventNode != NULL; eventNode = eventNode->Next)
         eventNode->Time -= SHIFT_TIME_LIMIT;
-        eventNode = eventNode->Next;
-     }
      device->Time -= SHIFT_TIME_LIMIT;
      device->Version += 1;
   }
   // Schedule events that now occur
-  eventNode = device->EventQueue->Next;
+  eventNode = device->EventQueue;
   while (eventNode != NULL && eventNode->Time <= (device->Time | *device->Counter)) {
      OSScheduleSuspendedTask(eventNode->Event);
-     device->EventQueue->Next = eventNode->Next;
+     device->EventQueue = eventNode->Next;
      ReleaseNode(device,eventNode);
-     eventNode = device->EventQueue->Next;
+     eventNode = device->EventQueue;
   }
   if (eventNode != NULL) {
      // Program timer comparator
