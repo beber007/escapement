@@ -1,4 +1,4 @@
-/* Copyright (c) 2006-2012 MIS Institute of the HEIG-VD affiliated to the University of
+/* Copyright (c) 2012 MIS Institute of the HEIG-VD affiliated to the University of
 ** Applied Sciences of Western Switzerland. All rights reserved.
 ** Permission to use, copy, modify, and distribute this software and its documentation
 ** for any purpose, without fee, and without written agreement is hereby granted, pro-
@@ -20,7 +20,7 @@
 ** Events that are inserted into the queue are specified along with a delay, and as soon
 ** as this delay has expired, the event is scheduled.
 ** Platform version: All STM32 microcontrollers.
-** Version date: March 2012
+** Version date: April 2012
 ** Authors: MIS-TIC */
 
 #include "ZottaOS_CortexM3.h"
@@ -135,20 +135,16 @@ typedef struct TIMER_EVENT_NODE { // Blocks that are in the event queue
   INT32 Time;
 } TIMER_EVENT_NODE;
 
-typedef struct { // Queue of events with their associated time of occurrence
-  TIMER_EVENT_NODE *Next;
-} TIMER_EVENT_NODE_HEAD;
-
 typedef struct TIMER_ISR_DATA {
   void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
   UINT32 *ClkEnable;
   UINT32 ClkEnableBit;
   UINT32 Base;
-  void *PendingQueueOperation;       // Interrupted operations that are not complete
-  TIMER_EVENT_NODE_HEAD *EventQueue; // List of events sorted by their time of occurrence
-  TIMER_EVENT_NODE *FreeNodes;       // Pool of free nodes used to link events
-  UINT16 Version;                    // Number of timer shifts
-  INT32 Time;                        // Current time (allocated only on 16-bit timers)
+  void *PendingQueueOperation;      // Interrupted operations that are not complete
+  TIMER_EVENT_NODE *EventQueue;     // List of events sorted by their time of occurrence
+  TIMER_EVENT_NODE *FreeNodes;      // Pool of free nodes used to link events
+  UINT16 Version;                   // Number of timer shifts
+  INT32 Time;                       // Current time (allocated only on 16-bit timers)
 } TIMER_ISR_DATA;
 
 
@@ -160,8 +156,8 @@ typedef struct {
   TIMER_EVENT_NODE *Left;
   TIMER_EVENT_NODE *Node;
   volatile BOOL GeneratedInterrupt;
-  UINT16 Version;                    // Saved timer shift version
-  INT32 Time;                        // Interrupt time of the event
+  UINT16 Version;                   // Saved timer shift version
+  INT32 Time;                       // Interrupt time of the event
 } INSERTQUEUE_OP;
 
 typedef struct {
@@ -590,8 +586,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 subp
   device->Time = 0;
   device->PendingQueueOperation = NULL;
   /* Initialize event queue */
-  device->EventQueue = (TIMER_EVENT_NODE_HEAD *)OSMalloc(sizeof(TIMER_EVENT_NODE_HEAD));
-  device->EventQueue->Next = NULL;
+  device->EventQueue = NULL;
   /* Create a pool of free event nodes */
   device->FreeNodes = (TIMER_EVENT_NODE *)OSMalloc(nbNode * sizeof(TIMER_EVENT_NODE));
   for (i = 0; i < nbNode - 1; i += 1)
@@ -642,7 +637,7 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
   timerEventNode->Event = event;
   des.EventOp = InsertEventOp;   // Prepare the insertion so that other task may complete
   des.Done = FALSE;              // it.
-  des.Left = (TIMER_EVENT_NODE *)device->EventQueue;
+  des.Left = (TIMER_EVENT_NODE *)&device->EventQueue;
   des.Node = timerEventNode;
   des.GeneratedInterrupt = FALSE;
   pendingOp = (INSERTQUEUE_OP *)device->PendingQueueOperation;
@@ -785,7 +780,7 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
   }
   /* Generate a timer comparator interrupt if the inserted event is the first one. */
   if (genInterrupt)
-     while (device->EventQueue->Next == des->Node) {
+     while (device->EventQueue == des->Node) {
          OSUINT16_LL((UINT16 *)(device->Base + OFFSET_EVENT_GENERATION));
          if (des->GeneratedInterrupt || OSUINT16_SC((UINT16 *)(device->Base + OFFSET_EVENT_GENERATION),2))
             break;
@@ -803,7 +798,7 @@ BOOL OSUnScheduleTimerEvent(void *event, UINT8 interruptIndex)
   des.EventOp = DeleteEventOp;  // Prepare the removal so that other task may complete
   des.Done = FALSE;             // it.
   device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex,GetInterruptSubIndex(interruptIndex));
-  des.Left = (TIMER_EVENT_NODE *)device->EventQueue;
+  des.Left = (TIMER_EVENT_NODE *)&device->EventQueue;
   des.Event = event;
   des.Node = (TIMER_EVENT_NODE *)&des;
   pendingOp = device->PendingQueueOperation;
@@ -813,7 +808,7 @@ BOOL OSUnScheduleTimerEvent(void *event, UINT8 interruptIndex)
      else
         DeleteQueueHelper(pendingOp);
   }
-  device->PendingQueueOperation = &des;    // Post the insertion for other tasks
+  device->PendingQueueOperation = &des;    // Post the removal for other tasks
   DeleteQueueHelper(&des);                 // Do the operation
   device->PendingQueueOperation = NULL;
   if (des.Node != (TIMER_EVENT_NODE *)&des) {
@@ -923,7 +918,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
         if (device->Base == BASE_TIM2 || device->Base == BASE_TIM5) {
      #endif
      #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
-           eventNode = device->EventQueue->Next;
+           eventNode = device->EventQueue;
            while (eventNode != NULL) {
               eventNode->Time -= SHIFT_TIME_LIMIT;
               eventNode = eventNode->Next;
@@ -934,7 +929,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
      #endif
            device->Time += 0x10000;    // Increment most significant word of Time
            if (device->Time >= SHIFT_TIME_LIMIT) { // Shift all time value
-              eventNode = device->EventQueue->Next;
+              eventNode = device->EventQueue;
               while (eventNode != NULL) {
                  eventNode->Time -= SHIFT_TIME_LIMIT;
                  eventNode = eventNode->Next;
@@ -953,12 +948,12 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
   #endif
   #if defined(STM32L1XXXX) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX)
         // Schedule events that now occur
-        eventNode = device->EventQueue->Next;
+        eventNode = device->EventQueue;
         while (eventNode != NULL && eventNode->Time <= *(UINT32 *)(device->Base + OFFSET_COUNTER)) {
            OSScheduleSuspendedTask(eventNode->Event);
-           device->EventQueue->Next = eventNode->Next;
+           device->EventQueue = eventNode->Next;
            ReleaseNode(device,eventNode);
-           eventNode = device->EventQueue->Next;
+           eventNode = device->EventQueue;
         }
         // Program timer comparator
         if (eventNode != NULL) {
@@ -974,12 +969,12 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
      else {
   #endif
         // Schedule events that now occur
-        eventNode = device->EventQueue->Next;
+        eventNode = device->EventQueue;
         while (eventNode != NULL && eventNode->Time <= (device->Time | *(UINT16 *)(device->Base + OFFSET_COUNTER))) {
            OSScheduleSuspendedTask(eventNode->Event);
-           device->EventQueue->Next = eventNode->Next;
+           device->EventQueue = eventNode->Next;
            ReleaseNode(device,eventNode);
-           eventNode = device->EventQueue->Next;
+           eventNode = device->EventQueue;
         }
         if (eventNode != NULL && (eventNode->Time & 0xFFFF0000) == device->Time) {
            time16 = (UINT16)eventNode->Time;
