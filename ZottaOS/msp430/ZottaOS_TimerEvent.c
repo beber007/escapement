@@ -329,6 +329,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
   UINT16 time16;
   TIMER_EVENT_NODE *eventNode;
   INSERTQUEUE_OP *pendingOp;
+  *device->Compare = INFINITY16;
   /* First finalize any pending operation in case there is an inserted node that already
   ** has its occurrence time but is not yet in the queue. */
   pendingOp = (INSERTQUEUE_OP *)device->PendingQueueOperation;
@@ -340,7 +341,6 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
   }
   device->PendingQueueOperation = NULL;
   device->Time += *device->Compare;
-  *device->Compare = INFINITY16;
   *device->Control |= device->TimerEnable;
   if (device->Time >= SHIFT_TIME_LIMIT) {   // Shift all time value
      eventNode = device->EventQueue->Next;
@@ -359,18 +359,20 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
      ReleaseNode(device,eventNode);
      eventNode = device->EventQueue->Next;
   }
-  // Program timer comparator
-  interval = eventNode->Time - device->Time;
-  if (interval < INFINITY32) {
-     time16 = (UINT16)interval;
-     while (TRUE) {
-        OSUINT16_LL(device->Compare);
-        if (time16 > *device->Counter + TAROFFSET)
-           time16 -= 1;
-        else
-           time16 = *device->Counter + TARDELAY;
-        if (OSUINT16_SC(device->Compare,time16))
-           break;
+  if (eventNode != NULL) {
+     // Program timer comparator
+     interval = eventNode->Time - device->Time;
+     if (interval < INFINITY32) {
+        time16 = (UINT16)interval;
+        while (TRUE) {
+           OSUINT16_LL(device->Compare);
+           if (time16 > *device->Counter + TAROFFSET)
+              time16 -= 1;
+           else
+              time16 = *device->Counter + TARDELAY;
+           if (OSUINT16_SC(device->Compare,time16))
+              break;
+        }
      }
   }
 } /* end of TimerIntHandler */
