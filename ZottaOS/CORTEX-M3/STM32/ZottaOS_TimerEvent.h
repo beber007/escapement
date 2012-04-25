@@ -35,7 +35,7 @@
 **  (3) (UINT16) ;
 **  (4) (UINT8) ;
 **  (5) (UINT8) . */
-void OSInitTimerEvent(UINT8 nbNode, UINT8 timerIndex, UINT16 prescaler, UINT8 priority, UINT8 subpriority);
+void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 subpriority, UINT8 interruptIndex);
 
 /* OSScheduleTimerEvent: Entry point to insert an event into the event list associated
 ** with a timer.

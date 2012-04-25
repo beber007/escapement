@@ -52,7 +52,7 @@
 ** they do not have a comparator. If the selected timer is not implemented in the part
 ** number of the STM32 series used, a compiler error will indicate that the corresponding
 ** symbol does not exist.*/
-#define ZOTTAOS_TIMER OS_IO_TIM3
+#define ZOTTAOS_TIMER OS_IO_TIM1
 
 /* Define the interval-timer prescaler */
 #define ZOTTAOS_TIMER_PRESCALER 83

@@ -278,7 +278,9 @@ void OSScheduleSuspendedTask(void *event);
 ** Parameters:
 **   (1) (UINT8) entry: entry to the internal ISR interrupt vector;
 **   (2) (void *) descriptor: ISR descriptor for the interrupt. */
-void OSSetISRDescriptor(UINT8 entry, void *descriptor);
+//void OSSetISRDescriptor(UINT8 entry, void *descriptor);
+void OSSetISRDescriptor(UINT8 entry, UINT8 subentry, void *descriptor);
+
 
 /* OSGetISRDescriptor: Returns the ISR descriptor associated with the internal table of
 ** the kernel. This function is made available to application tasks so that the inserted
@@ -289,7 +291,8 @@ void OSSetISRDescriptor(UINT8 entry, void *descriptor);
 ** Returned value: (void *) The requested ISR descriptor is returned. If no previous call
 **    to OSSetISRDescriptor was previously made for the specified entry, the returned
 **    value is undefined. */
-void *OSGetISRDescriptor(UINT8 entry);
+//void *OSGetISRDescriptor(UINT8 entry);
+void *OSGetISRDescriptor(UINT8 entry, UINT8 subentry);
 
 
 /* INTER-TASK COMMUNICATION AND I/O BUFFERS FOR INTERRUPT HANDLERS ------------------- */
