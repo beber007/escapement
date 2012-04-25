@@ -198,7 +198,7 @@
   #elif defined(STM32F100X4_X6) || defined(STM32F100X8_XB) || \
         defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE)
      #define OS_IO_TIM1_BRK_TIM15     24 /* TIM1 Break and TIM15 */
-     #define OS_IO_TIM15 OS_IO_TIM1_BRK_TIM15
+     #define OS_IO_TIM15              OS_IO_TIM1_BRK_TIM15
      #define OS_IO_TIM1_UP_TIM16      25 /* TIM1 Update and TIM16 */
      #define OS_IO_TIM1_UP            OS_IO_TIM1_UP_TIM16
      #define OS_IO_TIM16              OS_IO_TIM1_UP_TIM16
@@ -209,13 +209,13 @@
   #elif defined (STM32F101RF_RG)|| defined(STM32F101VF_VG_ZF_ZG) || \
         defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
      #define OS_IO_TIM1_BRK_TIM9      24 /* TIM1 Break  and TIM9 global */
-     #define OS_IO_TIM9 OS_IO_TIM1_BRK_TIM9
+     #define OS_IO_TIM9               OS_IO_TIM1_BRK_TIM9
      #define OS_IO_TIM1_UP_TIM10      25 /* TIM1 Update and TIM10 global */
      #define OS_IO_TIM1_UP            OS_IO_TIM1_UP_TIM10
      #define OS_IO_TIM10              OS_IO_TIM1_UP_TIM10
      #define OS_IO_TIM1_TRG_COM_TIM11 26 /* TIM1 Trigger and Commutation  and TIM11
                                             global */
-     #define OS_IO_TIM11 OS_IO_TIM1_TRG_COM_TIM11
+     #define OS_IO_TIM11              OS_IO_TIM1_TRG_COM_TIM11
      #define OS_IO_TIM1_CC            27 /* TIM1 Capture Compare */
      #define OS_IO_TIM1               OS_IO_TIM1_CC
   #endif

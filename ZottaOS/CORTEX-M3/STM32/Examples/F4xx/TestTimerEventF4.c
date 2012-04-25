@@ -34,7 +34,7 @@
 #define FLAG1_PIN GPIO_Pin_13
 #define FLAG2_PIN GPIO_Pin_14
 
-#define EVENT_TIMER_INDEX OS_IO_TIM1
+#define EVENT_TIMER_INDEX OS_IO_TIM1_CC
 
 static void SetLed1Task(void *argument);
 static void SetLed2Task(void *argument);
@@ -94,7 +94,7 @@ int main(void)
   SystemInit();
   InitializeFlags(FLAG1_PIN | FLAG2_PIN);
 
-  OSInitTimerEvent(2,EVENT_TIMER_INDEX,83,1,0);
+  OSInitTimerEvent(2,83,1,0,EVENT_TIMER_INDEX);
 
   #if defined(ZOTTAOS_VERSION_HARD)
      tmp = OSCreateEventDescriptor();

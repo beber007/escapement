@@ -34,7 +34,10 @@
 #define UNMARKEDBIT  0x7FFFFFFFu
 
 
-/* _OSIOHandler: . */
+/* _OSIOHandler: Routine de traitement générique des interruptions. A noter que si
+** plusieurs timer utilisant le même vecteur sont utilisé, alors c'est la routine
+** _OSIOHandlerMultiTimer qui est utilisée. _OSIOHandlerMultiTimer est definit dans
+**  ZottaOS_Timer.c */
 void _OSIOHandler(void);
 
 /* _OSEnableInterrupts and _OSDisableInterrupts: . */

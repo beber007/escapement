@@ -59,15 +59,20 @@ void _OSStartTimer(void);
 ** Parameter: (INT32) nextArrival: . */
 void _OSSetTimer(INT32 nextArrival);
 
+/* _OSTimerShift: Shifts the global Time variable.
+** Parameter: (INT32) shiftTimeLimit: The value will be subtract to the wall clock This is
+** a value greater than 2^16. */
 void _OSTimerShift(INT32 shiftTimeLimit);
 
+#define TIMER_ISR_TAB_SIZE 2
 
-/* Dans le cas du timer1 ou du timer8, les vecteurs d'interruptions sont splitée. Il devient necessaire de traiter le vecteur des comparateurs et du débordement */
-#if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
-   void _OSTimerHandler_cc(void);
-   void _OSTimerHandler_up(void);
-#else
-   void _OSTimerHandler(void);
-#endif
+typedef struct TIMERSELECT {
+   void (*TimerSelector)(struct TIMERSELECT *);
+   void *TimerISRTab[TIMER_ISR_TAB_SIZE];
+   UINT32 BaseRegisterTab[TIMER_ISR_TAB_SIZE];
+   UINT16 InterruptBit;
+} TIMERSELECT;
+
+void _OSTimerSelector(struct TIMERSELECT *timerSelect);
 
 #endif /* ZOTTAOS_TIMER_H */
