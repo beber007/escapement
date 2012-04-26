@@ -16,11 +16,8 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOS_STM32.c: Contains functions that are specific to the STM-32 family of
-** microcontrollers. The functions defined here are divided into 2 parts. The first part
-** contains functions to support the time and the timer. The second part consists of the
-** the microcontroller's interrupt routines that start at position 16 of the interrupt
-** table and that are specific to the microcontroller at hand.
+/* File ZottaOS_CortexM3.c: Contains functions that are common to any specific Cortex-M3
+** microcontroller.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */
@@ -29,7 +26,7 @@
 #define _ZOTTAOS_CORTEXM3_H_
 
 /* Non-blocking algorithms use a marker that needs to be part of the address. These algo-
-** rithms operate in RAM and for which a MSP430 or CC430 MSB address is never used. */
+** rithms operate in RAM and need an address bit that is never used. */
 #define MARKEDBIT    0x80000000u
 #define UNMARKEDBIT  0x7FFFFFFFu
 
@@ -44,11 +41,12 @@ void _OSIOHandler(void);
 #define _OSEnableInterrupts()  __asm("CPSIE i;")
 #define _OSDisableInterrupts() __asm("CPSID i;")
 
-/* _OSSleep: . */
+/* _OSSleep: Sets the processor to its lowest possible sleep mode. */
 #define _OSSleep() while (TRUE) { __asm("WFI"); } // Request Wait For Interrupt
 
 /* _OSScheduleTask: Generates a PendSV exception which will interrupt and proceed with the
-** lowest interrupt priority to handler _OSContextSwapHandler (defined in this file). */
+** lowest interrupt priority to handler _OSContextSwapHandler (defined in assembler in
+** ZottaOS_CortexM3_a.S). */
 #define _OSScheduleTask() (*((UINT32 *)0xE000ED04) = 0x10000000)
 
 /* _OSGenerateSoftTimerInterrupt: Called by the timer peripheral to generate a SysTick

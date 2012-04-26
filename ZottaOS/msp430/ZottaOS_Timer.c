@@ -60,10 +60,9 @@ INT32 _OSTime = 0; /* System wall clock */
 ** set 0. This is done by initializing CCR with 0 - 1 = 0xFFFF. */
 void _OSInitializeTimer(void)
 {
-  /* _OSEnableSoftTimerInterrupt re-enables software timer interrupt. This function is
-  ** called when the current software timer ISR is complete and may be re-invoked. This
-  ** function is defined in the generated assembler file because the port pin can be
-  ** chosen by the user. */
+  /* _OSEnableSoftTimerInterrupt enables software timer interrupts. This function is
+  ** defined in the generated assembler file because the port pin can be chosen by the
+  ** user. */
   extern void _OSEnableSoftTimerInterrupt(void);
   // Assure that the first interrupt sets _OSTime to CC register+1=0
   OSTimerCompareRegister = 0xFFFF;
