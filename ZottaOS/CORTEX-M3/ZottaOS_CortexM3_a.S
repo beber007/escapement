@@ -16,7 +16,7 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File NTRTOS_a_CortexM3.S: Holds assembler implemented functions for all Cortex-M3
+/* File ZottaOS_CortexM3_a.S: Holds assembler implemented functions for all Cortex-M3
                               microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC */
@@ -27,8 +27,7 @@
 
 .syntax unified
 
-/* INTERRUPTS AND CONTEXT SWITCHING FOR NTRTOS ON CORTEX-M3
-** TIMER INTERRUPTS
+/* INTERRUPTS AND CONTEXT SWITCHING FOR NTRTOS ON CORTEX-M3 TIMER INTERRUPTS
 **   The NTRTOS kernel requires a timer that can generate interruptions at variable in-
 **   tervals to determine the moments at which the various tasks will be carried out.
 **   The timer interrupts must have a higher priority level than all peripheral inter-

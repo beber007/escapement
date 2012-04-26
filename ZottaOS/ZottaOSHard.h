@@ -545,7 +545,7 @@ UINT8 OSGetReferenceBuffer(void *descriptor, UINT8 readMode, UINT8 **data);
 ** Returned value: (TYPE) The contents stored in the memory location specified by the pa-
 **    rameter.
 ** These functions are implemented in ZottaOS_Atomic.c. However OSUINTPTR_LL is simply a
-** define to one of the other functions are depends on the width of an address that is
+** define to one of the other functions and depends on the width of an address that is
 ** defined in ZottaOS_Type.h. */
 UINT8 OSUINT8_LL(UINT8 *memAddr);
 UINT16 OSUINT16_LL(UINT16 *memAddr);
@@ -575,7 +575,7 @@ INT32 OSINT32_LL(INT32 *memAddr);
 **              if and only if the reservation bit is still set.
 ** Returned value: (BOOL) TRUE if the store took place and FALSE otherwise.
 ** These functions are implemented in ZottaOS_Atomic.c. However OSUINTPTR_SC is simply a
-** define to one of the other functions are depends on the width of an address that is
+** define to one of the other functions and depends on the width of an address that is
 ** defined in ZottaOS_Type.h. */
 BOOL OSUINT8_SC(UINT8 *memAddr, UINT8 newValue);
 BOOL OSUINT16_SC(UINT16 *memAddr, UINT16 newValue);
