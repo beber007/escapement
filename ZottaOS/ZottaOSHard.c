@@ -16,14 +16,11 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOSHard.c: Generic kernel implementation.
+/* File ZottaOSHard.c: Generic kernel hard real-time implementation.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */
-
-/* TODO: Les commentaires doivent être revu pour supprimer les references au msp430 */
-
-#include "ZottaOS.h"           /* Insert the user API for the specific kernel */
+#include "ZottaOS.h"           /* Insert the user API with the specific kernel */
 #include "ZottaOS_Processor.h" /* Architecture dependent defines */
 #include "ZottaOS_Timer.h"     /* Timer HAL definitions */
 
@@ -47,9 +44,9 @@
 ** longer in the ready queue. A task with state ZOMBIE and no longer in the ready queue
 ** is considered to be in state TERMINATED, which is a fictitious state. */
 #define STATE_INIT          0x00 /* Must be equal to zero */
-#define STATE_RUNNING       0x01 /* These values are also used in ZottaOS_msp430XXX.asm */
-#define STATE_ZOMBIE        0x02 /* or in ZottaOS_cc430XXX.asm */
-#define STATE_TERMINATED    0x04
+#define STATE_RUNNING       0x01 /* These values may also be used in other implementa- */
+#define STATE_ZOMBIE        0x02 /* tion files specific to a microcontroller, e.g. */
+#define STATE_TERMINATED    0x04 /* MSP430 or CC430. */
 /* Because the task structure is different for event-driven tasks, we need to distinguish
 ** them. By default all tasks are periodic unless specified. */
 #define TASKTYPE_BLOCKING   0x08
@@ -119,19 +116,6 @@ typedef struct ETCB {
 
 
 /* TASK SCHEDULING QUEUES
-** The ready and arrival queues are implemented as wait-free concurrent linked-lists of
-** TCBs. Compared to lock-free or non-blocking algorithms, the implemented queueing oper-
-** ations are wait-free algorithms that take a bounded amount of time. Before performing
-** an operation, enqueuers and dequeuers first check for any pending operation under way
-** for the queue. If one exists, that operation is first completed. After this step, the
-** enqueuer or dequeuer posts the operation it intends to do before actually starting the
-** operation. If a higher priority enqueuer or dequeuer interrupts the queueing opera-
-** tion, this task will complete the operation on behalf of the interrupted task. The
-** point to observe and that meets the requirements of wait-free algorithms is that a
-** task may need to complete the operation posted from a lower priority task at most once
-** during its execution. The operations are also done in such a way that when completing
-** the pending operation of another task, the operation starts where the interrupted task
-** left off. */
 /* All queues use the same head and tail sentinel blocks and there are 2 or 3 lists to
 ** manage the scheduling of the tasks:
 ** Ready queue: The first item of the list points to the currently active task instance
@@ -297,7 +281,7 @@ void IdleTask(void *argument)
 {
   if (_OSQueueHead->Next[ARRIVALQ] != (TCB *)OSQueueTail || SynchronousTaskList != NULL)
      _OSStartTimer();   // Start the interval timer
-  /* set bits CPUOFF, SCG0 and SCG1 into the SR register to enter in LPM3 sleep mode */
+  /* Enter in the lowest possible sleep mode */
   _OSSleep();
 } /* end of IdleTask */
 
@@ -345,7 +329,7 @@ UINT8 GetTaskPriority(INT32 deadline)
   /* Periodic tasks are initially sorted according to their deadlines and temporarily in-
   ** serted in the arrival queue; the priority of these tasks can be found by traversing
   ** this queue. Note that the task arrival times are reset to their initial values when
-  ** starting ZottaOS. Note that after creating the last task, OSQueueTail->Priority
+  ** starting ZottaOS. Also note that after creating the last task, OSQueueTail->Priority
   ** holds the number of tasks in the application. */
   do {
      nextTCB = nextTCB->Next[ARRIVALQ];
@@ -404,9 +388,7 @@ void _OSTimerInterruptHandler(void)
   TCB *arrival;
   #ifdef NESTED_TIMER_INTERRUPT
      /* _OSEnableSoftTimerInterrupt re-enables software timer interrupt. This function is
-     ** called when the current software timer ISR is complete and may be re-invoked. This
-     ** function is defined in the generated assembler file because the port pin can be
-     ** chosen by the user. */
+     ** called when the current software timer ISR is complete and may be re-invoked. */
      extern void _OSEnableSoftTimerInterrupt(void);
      /* At this point there can only be one current timer interrupt under way. */
      #ifdef DEBUG_MODE
@@ -416,8 +398,8 @@ void _OSTimerInterruptHandler(void)
            while (TRUE); // If you get here, call us!
         }
      #endif
-     /* Mark that a software timer interrupt is under way so that new interrupts will not be
-     ** generated (see EnqueueRescheduleQueue). */
+     /* Mark that a software timer interrupt is under way so that new interrupts will not
+     ** be generated (see EnqueueRescheduleQueue). */
      while (!OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,
           GetMarkedReference(OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList))));
   #endif
@@ -882,8 +864,7 @@ BOOL OSStartMultitasking(void)
 
 
 /* INTERRUPT PROCESSING */
-/* Global interrupt vector with one entry per source which is defined in either
-** ZottaOS_msp430xxx.asm or ZottaOS_cc430xxx.asm */
+/* Global interrupt vector with one entry per source */
 extern void *_OSTabDevice[];
 
 

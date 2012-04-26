@@ -325,8 +325,8 @@ void *OSMalloc(UINT16 size)
   if (_OSStackBasePointer <= (void *)((UINTPTR)&_OSEndRAM - OSMALLOC_INTERNAL_HEAP_SIZE)) {
      _OSStackBasePointer = (UINT8 *)_OSStackBasePointer + size;
      #ifdef DEBUG_MODE
-        while (TRUE); // Memory overflow: decrease START_MAIN_STACK
-        return 0;     // To avoid compiler warning
+        while (TRUE); // Memory overflow: increase MAIN_ALLOCA_SIZE value in the linker
+        return 0;     // file. (You can retrieve this file name from the makefile)
      #else
         return NULL;
      #endif
