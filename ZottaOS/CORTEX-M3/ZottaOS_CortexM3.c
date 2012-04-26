@@ -30,11 +30,9 @@
 
 /* SYSTEM INTERRUPT ------------------------------------------------------------------ */
 
-/* Stack addresses defined in linker file */
-extern void *_OSStartStack;      // Starting address of the run-time stack
-extern void *_OSStartMainStack;  // Ditto but during initialization phase
+extern void *_OSEndRAM; // Address of the RAM memory End (defined in linker file)
 
-extern void _OSContextSwapHandler(void); /* defined in ZottaOS_CortexM3_a.S */
+extern void _OSContextSwapHandler(void); // defined in ZottaOS_CortexM3_a.S
 
 void _OSResetHandler(void); // Must be accessible by the linker file
 static void NMIException(void);
@@ -54,7 +52,8 @@ static void FinalizeContextSwitchPreparation(void);
 __attribute__ ((section(".isr_vector_general")))
 void (* const CortextM3VectorTable[])(void) =
 {
-  (void (* const)(void))&_OSStartMainStack, // Initial stack pointer, position 0
+  // Initial stack pointer, position 0
+  (void (* const)(void))((UINTPTR)&_OSEndRAM - OSMALLOC_INTERNAL_HEAP_SIZE),
   _OSResetHandler,       // Reset, invoked on power up and warm resets
   NMIException,
   HardFaultException,
@@ -318,12 +317,12 @@ void *OSMalloc(UINT16 size)
 {
   extern void *_OSStackBasePointer;
   if (_OSStackBasePointer == NULL)
-     _OSStackBasePointer = &_OSStartStack;
+     _OSStackBasePointer = &_OSEndRAM; /* initialize to end of ram */
   if (size % 4 != 0)
      size += 4 - size % 4;
   _OSStackBasePointer = (UINT8 *)_OSStackBasePointer - size;
   /* Check that requested memory block doesn't overlap main's activation record. */
-  if (_OSStackBasePointer <= (void *)&_OSStartMainStack) {
+  if (_OSStackBasePointer <= (void *)((UINTPTR)&_OSEndRAM - OSMALLOC_INTERNAL_HEAP_SIZE)) {
      _OSStackBasePointer = (UINT8 *)_OSStackBasePointer + size;
      #ifdef DEBUG_MODE
         while (TRUE); // Memory overflow: decrease START_MAIN_STACK

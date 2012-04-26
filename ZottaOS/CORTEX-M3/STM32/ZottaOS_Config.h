@@ -30,6 +30,17 @@
 //#define ZOTTAOS_VERSION_SOFT
 
 
+/* The following symbol defines the maximum size of permanent allocations performed by
+** OSMalloc while main is in execution. This value can be increased if more than 512
+** bytes are needed, and decreased if the run-time stack overflows before or when
+** OSStartMultitasking is called. Note that there is no point optimizing this value as
+** the run-time stack pointer is readjusted within OSStartMultitasking so that the stack
+** can take all the remaining RAM memory not occupied by the dynamic memory allocations
+** and the application's global variables.
+** (Also see function OSMalloc in ZottaOS_CortexM3.c) */
+#define OSMALLOC_INTERNAL_HEAP_SIZE   4096
+
+
 /* The nested vector interrupt controller (NVIC) under Cortex-M3 allows dynamic prioriti-
 ** zation of interrupts with up to 256 levels that can be arranged into priority level
 ** groups where each group can be preempted. The NVIC is configurable by the pair (A,B),
