@@ -22,19 +22,15 @@
 */
 ENTRY(_OSResetHandler)
 
-SDRAM_START = 0x20000000;
-SDRAM_SIZE  = 0x0001C000;
-
-MAIN_ALLOCA_SIZE = 0x1000;
-
-_OSStartStack = SDRAM_START + SDRAM_SIZE;
-_OSStartMainStack = _OSStartStack - MAIN_ALLOCA_SIZE;
-
 MEMORY
 {
     FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 512K
     SRAM (rwx) : ORIGIN = 0x20000000, LENGTH = 112K
 }
+
+_OSEndRAM = ORIGIN(SRAM) + LENGTH(SRAM); /* Need to initialize stack pointer and Zottaos
+                                            dynamic allocation system (OSMalloc) in
+                                            ZottaOS_CortexM3.c file. */
 
 SECTIONS
 {
