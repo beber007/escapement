@@ -143,7 +143,7 @@ typedef struct ETCB {
 } ETCB;
 
 
-/* TASK SCHEDULING QUEUES
+/* TASK SCHEDULING QUEUES */
 /* All queues use the same head and tail sentinel blocks and there are 2 or 3 lists to
 ** manage the scheduling of the tasks:
 ** Ready queue: The first item of the list points to the currently active task instance

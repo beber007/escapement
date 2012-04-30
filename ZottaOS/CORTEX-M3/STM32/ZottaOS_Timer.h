@@ -64,15 +64,26 @@ void _OSSetTimer(INT32 nextArrival);
 ** a value greater than 2^16. */
 void _OSTimerShift(INT32 shiftTimeLimit);
 
-#define TIMER_ISR_TAB_SIZE 2
+/* Claude */
+/* Lors de son initialisation, une structure TIMERSELECT est déclarée pour chaque entrée de la table
+** _OSTabDevice qui correspond à un vecteur ayant comme source plusieurs timer.
+** Ceci permet l'appel à la fonction _OSTimerSelectorHandler afin de déterminer qu'elle timer
+** est la source de l'interruption et enfin que le handler de ce timer soit executé.
+**
+** Les fonction OSSetTimerISRDescriptor et OSGetTimerISRDescriptor permette de
+** modifier ou de récupèrer les handlers dans les structures TIMERSELECT (voir ZottaOS_Timer.h)*/
+
+#define TIMER_ISR_TAB_SIZE 2 // Nombre de sous-source d'un vecteur (ici tjs 2)
 
 typedef struct TIMERSELECT {
-   void (*TimerSelector)(struct TIMERSELECT *);
-   void *TimerISRTab[TIMER_ISR_TAB_SIZE];
-   UINT32 BaseRegisterTab[TIMER_ISR_TAB_SIZE];
-   UINT16 InterruptBit;
+   void (*TimerSelector)(struct TIMERSELECT *); // contient tjs _OSTimerSelector
+   void *TimerISRTab[TIMER_ISR_TAB_SIZE];       // handler pour les sous-source
+   UINT32 BaseRegisterTab[TIMER_ISR_TAB_SIZE];  // Adresse de base des registers des timers
+   UINT16 InterruptBit;                         // Valeur du bit correspond à la source d'interruption dans les registres
 } TIMERSELECT;
 
-void _OSTimerSelector(struct TIMERSELECT *timerSelect);
+/* _OSTimerSelector: Handler d'interruption utilisé dans le cas d'un vecteur servant plusieurs timers.
+** Parameter: (struct TIMERSELECT *) timerSelect: descripteur contenant les informations permettant de déterminer la source d'interruption et les handler à appeler. */
+void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect);
 
 #endif /* ZOTTAOS_TIMER_H */

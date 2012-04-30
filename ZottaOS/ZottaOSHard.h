@@ -279,7 +279,7 @@ void OSScheduleSuspendedTask(void *event);
 **   (1) (UINT8) entry: entry to the internal ISR interrupt vector;
 **   (2) (void *) descriptor: ISR descriptor for the interrupt. */
 //void OSSetISRDescriptor(UINT8 entry, void *descriptor);
-void OSSetISRDescriptor(UINT8 entry, UINT8 subentry, void *descriptor);
+void OSSetISRDescriptor(UINT8 entry, void *descriptor);
 
 
 /* OSGetISRDescriptor: Returns the ISR descriptor associated with the internal table of
@@ -292,7 +292,7 @@ void OSSetISRDescriptor(UINT8 entry, UINT8 subentry, void *descriptor);
 **    to OSSetISRDescriptor was previously made for the specified entry, the returned
 **    value is undefined. */
 //void *OSGetISRDescriptor(UINT8 entry);
-void *OSGetISRDescriptor(UINT8 entry, UINT8 subentry);
+void *OSGetISRDescriptor(UINT8 entry);
 
 
 /* INTER-TASK COMMUNICATION AND I/O BUFFERS FOR INTERRUPT HANDLERS ------------------- */
