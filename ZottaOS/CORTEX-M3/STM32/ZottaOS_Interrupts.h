@@ -27,6 +27,26 @@
 
 #include "ZottaOS_Config.h"
 
+/* Claude
+ * Lorsque le timer 1 ou 8 ont des vecteurs ayant comme source deux timer alors les index
+ * peuvent par exemple être définit comme ci-dessous:
+ *
+ *     #define OS_IO_TIM1_BRK_TIM15     24
+ *     #define OS_IO_TIM15              OS_IO_TIM1_BRK_TIM15
+ *     #define OS_IO_TIM1_UP_TIM16      25
+ *     #define OS_IO_TIM16              OS_IO_TIM1_UP_TIM16
+ *     #define OS_IO_TIM1_UP            OS_IO_TIM1_UP_TIM16
+ *     #define OS_IO_TIM1_TRG_COM_TIM17 26
+ *     #define OS_IO_TIM17              OS_IO_TIM1_TRG_COM_TIM17
+ *     #define OS_IO_TIM1_CC            27
+ *     #define OS_IO_TIM1               OS_IO_TIM1_CC
+ *
+ *
+ * Il est a noter que les index OS_IO_TIM1, OS_IO_TIM15, OS_IO_TIM16 et OS_IO_TIM17 sont
+ * redéfinit afin de faciliter le choix de l'utilisateur concerant le timer utilisé pour
+ *  ZottaOS réaliser dans le fichier ZottaOS_Config.h. OS_IO_TIM1_UP par contre est uniquement
+ *  défini afin de faciliter la configuration du timer.
+*/
 
 /* ------------------------------ GLOBAL ---------------------------------------------- */
   #define OS_IO_WWDG                   0  /* Window WatchDog */
@@ -200,19 +220,22 @@
      #define OS_IO_TIM1_BRK_TIM15     24 /* TIM1 Break and TIM15 */
      #define OS_IO_TIM15              OS_IO_TIM1_BRK_TIM15
      #define OS_IO_TIM1_UP_TIM16      25 /* TIM1 Update and TIM16 */
-     #define OS_IO_TIM1_UP            OS_IO_TIM1_UP_TIM16
      #define OS_IO_TIM16              OS_IO_TIM1_UP_TIM16
+     #define OS_IO_TIM1_UP            OS_IO_TIM1_UP_TIM16
      #define OS_IO_TIM1_TRG_COM_TIM17 26 /* TIM1 Trigger and Commutation and TIM17 */
      #define OS_IO_TIM17              OS_IO_TIM1_TRG_COM_TIM17
      #define OS_IO_TIM1_CC            27 /* TIM1 Capture Compare */
      #define OS_IO_TIM1               OS_IO_TIM1_CC
-  #elif defined (STM32F101RF_RG)|| defined(STM32F101VF_VG_ZF_ZG) || \
-        defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
+  #elif defined (STM32F101RF_RG)|| defined(STM32F101VF_VG_ZF_ZG)
+     #define OS_IO_TIM9               24 /* TIM9 global */
+     #define OS_IO_TIM10              25 /* TIM10 global */
+     #define OS_IO_TIM11              26 /* TIM11 global */
+  #elif defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
      #define OS_IO_TIM1_BRK_TIM9      24 /* TIM1 Break  and TIM9 global */
      #define OS_IO_TIM9               OS_IO_TIM1_BRK_TIM9
      #define OS_IO_TIM1_UP_TIM10      25 /* TIM1 Update and TIM10 global */
-     #define OS_IO_TIM1_UP            OS_IO_TIM1_UP_TIM10
      #define OS_IO_TIM10              OS_IO_TIM1_UP_TIM10
+     #define OS_IO_TIM1_UP            OS_IO_TIM1_UP_TIM10
      #define OS_IO_TIM1_TRG_COM_TIM11 26 /* TIM1 Trigger and Commutation  and TIM11
                                             global */
      #define OS_IO_TIM11              OS_IO_TIM1_TRG_COM_TIM11
@@ -283,24 +306,23 @@
      #define OS_IO_OTG_FS_WKUP        42 /* USB OTG FS WakeUp from suspend through EXTI
                                             Line */
   #endif
-  #if defined(STM32F101RC_RD_RE) || defined(STM32F101VC_VD_VE_ZC_ZD_ZE) || \
-      defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE)
+  #if defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE)
      #define OS_IO_TIM8_BRK           43 /* TIM8 Break */
      #define OS_IO_TIM8_UP            44 /* TIM8 Update */
      #define OS_IO_TIM8_TRG_COM       45 /* TIM8 Trigger and Commutation */
      #define OS_IO_TIM8_CC            46 /* TIM8 Capture Compare */
      #define OS_IO_TIM8               OS_IO_TIM8_CC
-  #elif defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE )
+  #elif defined(STM32F101RF_RG) || defined(STM32F101VF_VG_ZF_ZG) || \
+        defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE )
      #define OS_IO_TIM12              43 /* TIM12 global */
      #define OS_IO_TIM13              44 /* TIM13 global */
      #define OS_IO_TIM14              45 /* TIM14 global */
-  #elif defined(STM32F101RF_RG) || defined(STM32F101VF_VG_ZF_ZG) || \
-        defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
+  #elif defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
      #define OS_IO_TIM8_BRK_TIM12     43 /* TIM8 Break and TIM12 global */
      #define OS_IO_TIM12              OS_IO_TIM8_BRK_TIM12
      #define OS_IO_TIM8_UP_TIM13      44 /* TIM8 Update and TIM13 global */
-     #define OS_IO_TIM8_UP            OS_IO_TIM8_UP_TIM13
      #define OS_IO_TIM13              OS_IO_TIM8_UP_TIM13
+     #define OS_IO_TIM8_UP            OS_IO_TIM8_UP_TIM13
      #define OS_IO_TIM8_TRG_COM_TIM14 45 /* TIM8 Trigger and Commutation  and TIM14
                                             global */
      #define OS_IO_TIM14              OS_IO_TIM8_TRG_COM_TIM14
@@ -405,8 +427,8 @@
   #define OS_IO_TIM1_BRK_TIM9         24  /* TIM1 Break and TIM9 global */
   #define OS_IO_TIM9                  OS_IO_TIM1_BRK_TIM9
   #define OS_IO_TIM1_UP_TIM10         25  /* TIM1 Update and TIM10 global */
-  #define OS_IO_TIM1_UP               OS_IO_TIM1_UP_TIM10
   #define OS_IO_TIM10                 OS_IO_TIM1_UP_TIM10
+  #define OS_IO_TIM1_UP               OS_IO_TIM1_UP_TIM10
   #define OS_IO_TIM1_TRG_COM_TIM11    26  /* TIM1 Trigger and Commutation and TIM11
                                              global */
   #define OS_IO_TIM11                 OS_IO_TIM1_TRG_COM_TIM11
@@ -430,8 +452,8 @@
   #define OS_IO_TIM8_BRK_TIM12        43  /* TIM8 Break and TIM12 global */
   #define OS_IO_TIM12                 OS_IO_TIM8_BRK_TIM12
   #define OS_IO_TIM8_UP_TIM13         44  /* TIM8 Update and TIM13 global */
-  #define OS_IO_TIM8_UP               OS_IO_TIM8_UP_TIM13
   #define OS_IO_TIM13                 OS_IO_TIM8_UP_TIM13
+  #define OS_IO_TIM8_UP               OS_IO_TIM8_UP_TIM13
   #define OS_IO_TIM8_TRG_COM_TIM14    45  /* TIM8 Trigger and Commutation and TIM14
                                              global */
   #define OS_IO_TIM14                 OS_IO_TIM8_TRG_COM_TIM14
@@ -494,6 +516,32 @@
   #error STM32 version undefined
 #endif
 
+
+/* Claude les deux fonctions suivantes permettent d'enregisterer ou de récupèrer le decripteur d'un timer */
+/* Elle doivent être obligatoirement utilisé à la place des fonctions OSSetISRDescriptor et OSGetISRDescriptor
+** pour les vecteurs ayant 2 timer diffèrent comme source. Les Entrée de _OSTabDevice correspondant à ces vecteurs
+** sont initialisé et pointe sur une stucture du type TIMERSELECT. Le champs TimerSelector des structure TIMERSELECT
+** contienne tjs _OSTimerSelectorHandler. Ceci permet de facilement detecter que l'entrée correspond à un vecteur
+** dont les sources proviennent de deux timers. */
+
+/* OSSetTimerISRDescriptor: Associates an timer ISR descriptor with an _OSTabDevice
+** sub-entry.
+** Parameters:
+**   (1) (UINT8) index of the _OSTabDevice entry;
+**   (2) (UINT8) sub-index of the _OSTabDevice entry;
+**   (3) (void *) ISR descriptor for the specified interrupt.
+** Returned value: none. */
+void OSSetTimerISRDescriptor(UINT8 entry, UINT8 subentry, void *descriptor);
+
+/* OSGetTimerISRDescriptor: Returns the timer ISR descriptor associated with an
+** _OSTabDevice sub-entry.
+** Parameters:
+**   (1) (UINT8) index of _OSTabDevice where the timer selection descriptor is held;
+**   (2) (UINT8) sub-index of _OSTabDevice where the timer ISR descriptor is held.
+** Returned value: (void *) The requested timer ISR descriptor is returned. If no previous
+**    OSSetTimerISRDescriptor was previously made for the specified entry, the returned
+**    value is undefined. */
+void *OSGetTimerISRDescriptor(UINT8 entry, UINT8 subentry);
 
 #endif /* _ZOTTAOS_INTERRUPTS_ */
 

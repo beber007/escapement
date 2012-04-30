@@ -42,7 +42,6 @@
 
 
 /* Definitions of hardware registers */
-
 #ifdef ZOTTAOS_TIMER
    #if defined(STM32L1XXXX)
       #if ZOTTAOS_TIMER == OS_IO_TIM2
@@ -260,14 +259,14 @@
    #define TIM_COMPARATOR    *((UINT16 *)(TIME_BASE + 0x34))
 #endif
 
+ #define UPDATE_INT_BIT     0x1
+ #define COMPARATOR_INT_BIT 0x2
 
+/* Minimal interrupt descriptor to call interrupt handler */
 typedef struct TIMER_ISR_DATA {
   void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
 } TIMER_ISR_DATA;
 
-/* _OSTimerHandler: Comparator and Overflow interrupts handler.
-** Dans le cas du timer1 ou du timer8, plusieurs vecteurs d'interruptions sont définit. Il
-** devient donc necessaire de traiter séparement les vecteurs d'interruption */
 #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
    static void TimerHandler_cc(struct TIMER_ISR_DATA *descriptor); // Interrupt handler for comparator interrupt
    static void TimerHandler_up(struct TIMER_ISR_DATA *descriptor); // Interrupt handler for overflow
@@ -294,129 +293,162 @@ static volatile INT32 Time;
 ** set 0. This is done by initializing CCR with 0 - 1 = 0xFFFF. */
 void _OSInitializeTimer(void)
 {
+  #define IRQ_SET_ENABLE_REGISTER 0xE000E100 // 0xE000E100 to 0xE000E11C (see CortexM3_TRM)
+  #define IRQ_PRIORITY_REGISTER   0xE000E400 // 0xE000E400 to 0xE000E41F (see CortexM3_TRM)
   TIMER_ISR_DATA *device;
-  UINT8 tmppriority;
+  UINT8 priority;
   UINT8 *intPriorityLevel;
   UINT32 *intSetEnable;
-  /* */
-  CLK_ENABLE |= CLK_ENABLE_BIT;                   // Enable the clock for timer
+  CLK_ENABLE |= CLK_ENABLE_BIT;            // Enable the clock for timer
   #ifdef ZOTTAOS_TIMER_32
-     TIM_AUTORELOAD = 0x3FFFFFFF;                 // Set the autoreload value (2^30 - 1)
+     TIM_AUTORELOAD = 0x3FFFFFFF;          // Set the autoreload value (2^30 - 1)
   #elif defined(ZOTTAOS_TIMER_16)
-     TIM_AUTORELOAD = 0xFFFF;                     // Set the autoreload value
+     TIM_AUTORELOAD = 0xFFFF;              // Set the autoreload value (2^16 - 1)
   #endif
-  TIM_PRESCALER = ZOTTAOS_TIMER_PRESCALER;        // Set the prescaler value
-  TIM_EVENT_GENERATION = 1;                       // Generate an update event to reload
-                                                 // the prescaler
-  TIM_STATUS = (UINT16)~3;                        // Clear update flag
-  TIM_INT_ENABLE |= 3;                            // Enable update interrupt
+  TIM_PRESCALER = ZOTTAOS_TIMER_PRESCALER; // Set timer clock prescaler to the
+                                           // ZOTTAOS_TIMER_PRESCALER. This value is define
+                                           // in ZottaOS_Config.h file.
+  TIM_EVENT_GENERATION = UPDATE_INT_BIT;   // Generate an update event to reload the prescaler
+  TIM_STATUS = ~(UPDATE_INT_BIT | COMPARATOR_INT_BIT);   // Clear update flag
+  TIM_INT_ENABLE |= UPDATE_INT_BIT | COMPARATOR_INT_BIT; // Enable update interrupt
   /* Compute the IRQ priority */
-  tmppriority = TIMER_PRIORITY << (PRIGROUP - 3);
-  // le nombre 3 correspond au nombre maximum de bits pour la priorité moins le nombre de bit implémenté soit (7 -4 pour le stm32)
-  tmppriority |=  TIMER_SUB_PRIORITY & (0x0F >> (7 - PRIGROUP));
+  priority = TIMER_PRIORITY << (PRIGROUP - 3);
+  // On soustrait 3 au PRIGROUP car 3 correspond au nombre maximum de bits pour la
+  // priorité moins le nombre de bit implémenté soit (7 - 4 = 3 pour le stm32)
+  priority |=  TIMER_SUB_PRIORITY & (0x0F >> (7 - PRIGROUP));
   // (7 - PRIGROUP) correspond aux nombres de bits pour la priorité.
-  // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
   #if ZOTTAOS_TIMER == OS_IO_TIM1
-     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_UP / 32);
+     /* Update interrupt */
+     /* Retrouve l'adresse du registre contenant le bit permettant l'IRQ */
+     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(OS_IO_TIM1_UP / 32);
      *intSetEnable |= 0x01 << (OS_IO_TIM1_UP % 32); // Enable the IRQ channels
-     intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM1_UP);
-     *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
-     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_CC / 32);
+     /* Retrouve l'adresse du registre contenant la priorité de l'IRQ */
+     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + OS_IO_TIM1_UP);
+     *intPriorityLevel = priority << 0x04; // Set the IRQ priority
+     /* Comparator interrupt */
+     /* Retrouve l'adresse du registre contenant le bit permettant l'IRQ */
+     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(OS_IO_TIM1_CC / 32);
      *intSetEnable |= 0x01 << (OS_IO_TIM1_CC % 32); // Enable the IRQ channels
-     intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM1_CC);
-     *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+     /* Retrouve l'adresse du registre contenant la priorité de l'IRQ */
+     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + OS_IO_TIM1_CC);
+     *intPriorityLevel = priority << 0x04; // Set the IRQ priority
+     // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
   #elif ZOTTAOS_TIMER == OS_IO_TIM8
-     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_UP / 32);
+     /* Update interrupt */
+     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(OS_IO_TIM8_UP / 32);
      *intSetEnable |= 0x01 << (OS_IO_TIM8_UP % 32); // Enable the IRQ channels
-     intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM8_UP);
-     *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
-     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_CC / 32);
+     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + OS_IO_TIM8_UP);
+     *intPriorityLevel = priority << 0x04; // Set the IRQ priority
+     /* Comparator interrupt */
+     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(OS_IO_TIM8_CC / 32);
      *intSetEnable |= 0x01 << (OS_IO_TIM8_CC % 32); // Enable the IRQ channels
-     intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM8_CC);
-     *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + OS_IO_TIM8_CC);
+     *intPriorityLevel = priority << 0x04; // Set the IRQ priority
+     // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
   #else
-     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(ZOTTAOS_TIMER / 32);
+     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(ZOTTAOS_TIMER / 32);
      *intSetEnable |= 0x01 << (ZOTTAOS_TIMER % 32); // Enable the IRQ channels
-     intPriorityLevel = (UINT8 *)(0xE000E400 + ZOTTAOS_TIMER);
-     *intPriorityLevel = tmppriority << 0x04; // Set the IRQ priority
+     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + ZOTTAOS_TIMER);
+     *intPriorityLevel = priority << 0x04; // Set the IRQ priority
+     // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
   #endif
 
-  device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+  /* Initialise ZottaOS internal interrupt structure */
   #if ZOTTAOS_TIMER == OS_IO_TIM1
+     /* Update interrupt */
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
      device->TimerIntHandler = TimerHandler_up;
-     OSSetISRDescriptor(OS_IO_TIM1_UP,0,device);
+     OSSetTimerISRDescriptor(OS_IO_TIM1_UP,0,device);
+     /* Comparator interrupt */
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
      device->TimerIntHandler = TimerHandler_cc;
-     OSSetISRDescriptor(OS_IO_TIM1_CC,0,device);
+     OSSetTimerISRDescriptor(OS_IO_TIM1_CC,0,device);
   #elif ZOTTAOS_TIMER == OS_IO_TIM2
-     dervice->TimerIntHandler = TimerHandler;
-     OSSetISRDescriptor(OS_IO_TIM2,0,device);
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler;
+     OSSetTimerISRDescriptor(OS_IO_TIM2,0,device);
   #elif ZOTTAOS_TIMER == OS_IO_TIM3
-     dervice->TimerIntHandler = TimerHandler;
-     OSSetISRDescriptor(OS_IO_TIM3,0,device);
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler;
+     OSSetTimerISRDescriptor(OS_IO_TIM3,0,device);
   #elif ZOTTAOS_TIMER == OS_IO_TIM4
-     dervice->TimerIntHandler = TimerHandler;
-     OSSetISRDescriptor(OS_IO_TIM4,0,device);
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler;
+     OSSetTimerISRDescriptor(OS_IO_TIM4,0,device);
   #elif ZOTTAOS_TIMER == OS_IO_TIM5
-     dervice->TimerIntHandler = TimerHandler;
-     OSSetISRDescriptor(OS_IO_TIM5,0,device);
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler;
+     OSSetTimerISRDescriptor(OS_IO_TIM5,0,device);
   #elif ZOTTAOS_TIMER == OS_IO_TIM8
-     dervice->TimerIntHandler = TimerHandler_up;
-     OSSetISRDescriptor(OS_IO_TIM8_UP,0,device);
-     dervice->TimerIntHandler = TimerHandler_cc
-     OSSetISRDescriptor(OS_IO_TIM8_CC,0,device);
+     /* Update interrupt */
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler_up;
+     OSSetTimerISRDescriptor(OS_IO_TIM8_UP,0,device);
+     /* Comparator interrupt */
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler_cc;
+     OSSetTimerISRDescriptor(OS_IO_TIM8_CC,0,device);
   #elif ZOTTAOS_TIMER == OS_IO_TIM9
-     dervice->TimerIntHandler = TimerHandler;
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler;
      #ifdef OS_IO_TIM1_BRK_TIM9
-        OSSetISRDescriptor(OS_IO_TIM1_BRK_TIM9,1,device);
+        OSSetTimerISRDescriptor(OS_IO_TIM1_BRK_TIM9,1,device);
      #else
-        OSSetISRDescriptor(OS_IO_TIM9,0,device);
+        OSSetTimerISRDescriptor(OS_IO_TIM9,0,device);
      #endif
   #elif ZOTTAOS_TIMER == OS_IO_TIM10
-     dervice->TimerIntHandler = TimerHandler;
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler;
      #ifdef OS_IO_TIM1_UP_TIM10
-        OSSetISRDescriptor(OS_IO_TIM1_UP_TIM10,1,device);
+        OSSetTimerISRDescriptor(OS_IO_TIM1_UP_TIM10,1,device);
      #else
-        OSSetISRDescriptor(OS_IO_TIM10,0,device);
+        OSSetTimerISRDescriptor(OS_IO_TIM10,0,device);
      #endif
   #elif ZOTTAOS_TIMER == OS_IO_TIM11
-     dervice->TimerIntHandler = TimerHandler;
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler;
      #ifdef OS_IO_TIM1_TRG_COM_TIM11
-        OSSetISRDescriptor(OS_IO_TIM1_TRG_COM_TIM11,1,device);
+        OSSetTimerISRDescriptor(OS_IO_TIM1_TRG_COM_TIM11,1,device);
      #else
-        OSSetISRDescriptor(OS_IO_TIM11,0,device);
+        OSSetTimerISRDescriptor(OS_IO_TIM11,0,device);
      #endif
   #elif ZOTTAOS_TIMER == OS_IO_TIM12
-     dervice->TimerIntHandler = TimerHandler;
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler;
      #ifdef OS_IO_TIM8_BRK_TIM12
-        OSSetISRDescriptor(OS_IO_TIM8_BRK_TIM12,1,device);
+        OSSetTimerISRDescriptor(OS_IO_TIM8_BRK_TIM12,1,device);
      #else
-        OSSetISRDescriptor(OS_IO_TIM12,0,device);
+        OSSetTimerISRDescriptor(OS_IO_TIM12,0,device);
      #endif
   #elif ZOTTAOS_TIMER == OS_IO_TIM13
-     dervice->TimerIntHandler = TimerHandler;
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler;
      #ifdef OS_IO_TIM8_UP_TIM13
-        OSSetISRDescriptor(OS_IO_TIM8_UP_TIM13,1,device);
+        OSSetTimerISRDescriptor(OS_IO_TIM8_UP_TIM13,1,device);
      #else
-        OSSetISRDescriptor(OS_IO_TIM13,0,device);
+        OSSetTimerISRDescriptor(OS_IO_TIM13,0,device);
      #endif
   #elif ZOTTAOS_TIMER == OS_IO_TIM14
-     dervice->TimerIntHandler = TimerHandler;
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler;
      #ifdef OS_IO_TIM8_TRG_COM_TIM14
-        OSSetISRDescriptor(OS_IO_TIM8_TRG_COM_TIM14,1,device);
+        OSSetTimerISRDescriptor(OS_IO_TIM8_TRG_COM_TIM14,1,device);
      #else
-        OSSetISRDescriptor(OS_IO_TIM14,0,device);
+        OSSetTimerISRDescriptor(OS_IO_TIM14,0,device);
      #endif
   #elif ZOTTAOS_TIMER == OS_IO_TIM15
-     dervice->TimerIntHandler = TimerHandler;
-     OSSetISRDescriptor(OS_IO_TIM1_BRK_TIM15,1,device);
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler;
+     OSSetTimerISRDescriptor(OS_IO_TIM1_BRK_TIM15,1,device);
   #elif ZOTTAOS_TIMER == OS_IO_TIM16
-     dervice->TimerIntHandler = _OSTimerHandler;
-     OSSetISRDescriptor(OS_IO_TIM1_UP_TIM16,1,device);
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = _OSTimerHandler;
+     OSSetTimerISRDescriptor(OS_IO_TIM1_UP_TIM16,1,device);
   #elif ZOTTAOS_TIMER == OS_IO_TIM17
-     dervice->TimerIntHandler = TimerHandler;
-     OSSetISRDescriptor(OS_IO_TIM1_TRG_COM_TIM17,1,device);
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler;
+     OSSetTimerISRDescriptor(OS_IO_TIM1_TRG_COM_TIM17,1,device);
   #endif
-
 
 } /* end of _OSInitializeTimer */
 
@@ -453,32 +485,33 @@ INT32 OSGetActualTime(void)
 /* _TimerHandler: Catches STM-32 Timer interrupts and generates a software timer
 ** interrupt which is than carried out at a lower priority.
 ** Note: This function could have been written in assembler to reduce interrupt latencies. */
+/* Claude Dans le cas du timer 1 ou 8, plusieurs vecteurs d'interruptions sont définit. Il
+** devient préférable de les traiter de manière séparée. */
 #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
    void TimerHandler_up(struct TIMER_ISR_DATA *descriptor)
    {
-     TIM_COMPARATOR = 0; // Disable timer comparator
-     TIM_STATUS &= ~1;   // Clear interrupt flag
-     Time += 0x10000;    // Increment most significant word of Time
+     TIM_COMPARATOR = 0;            // Disable timer comparator
+     TIM_STATUS &= ~UPDATE_INT_BIT; // Clear interrupt flag
+     Time += 0x10000;               // Increment most significant word of Time
      _OSGenerateSoftTimerInterrupt();
    } /* end of TimerHandler_up */
 
+
    void TimerHandler_cc(struct TIMER_ISR_DATA *descriptor)
    {
-     TIM_COMPARATOR = 0; // Disable timer comparator
-     TIM_STATUS &= ~2;   // Clear interrupt flag
+     TIM_COMPARATOR = 0;                // Disable timer comparator
+     TIM_STATUS &= ~COMPARATOR_INT_BIT; // Clear interrupt flag
      _OSGenerateSoftTimerInterrupt();
    } /* end of TimerHandler_cc */
-
-
 #else
    void TimerHandler(struct TIMER_ISR_DATA *descriptor)
    {
      TIM_COMPARATOR = 0; // Disable timer comparator
      /* Test interrupt source */
-     if (TIM_STATUS & 2)    // Is comparator interrupt pending?
-        TIM_STATUS &= ~2;   // Clear interrupt flag
-     if (TIM_STATUS & 1) {  // Is timer overflow interrupt?
-        TIM_STATUS &= ~1;   // Clear interrupt flag
+     if (TIM_STATUS & COMPARATOR_INT_BIT)  // Is comparator interrupt pending?
+        TIM_STATUS &= ~COMPARATOR_INT_BIT; // Clear interrupt flag
+     if (TIM_STATUS & UPDATE_INT_BIT) {    // Is timer overflow interrupt?
+        TIM_STATUS &= ~UPDATE_INT_BIT;     // Clear interrupt flag
         #ifdef ZOTTAOS_TIMER_32
            Time += 0x40000000; // Increment most significant part of Time
         #elif defined(ZOTTAOS_TIMER_16)
@@ -490,28 +523,31 @@ INT32 OSGetActualTime(void)
 #endif
 
 
-/* _OSTimerSelector: . */
-void _OSTimerSelector(struct TIMERSELECT *timerSelect)
+/* Claude */
+/* _OSTimerSelectorHandler: à reprendre depuis le fichier d'en-tête. */
+void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect)
 {
-  #define OFFSET_STATUS 0x10
-  #define OFFSET_ENABLE 0x0C
-  typedef struct MinimalIODescriptor {
-     void (*PeripheralInterruptHandler)(struct MinimalIODescriptor *);
-  } MinimalIODescriptor;
-  MinimalIODescriptor *peripheralIODescriptor;
+  #define OFFSET_STATUS 0x10 // Offset to retrieve the interrupt flags bits register
+  #define OFFSET_ENABLE 0x0C // Offset to retrieve the interrupt enable bits register
+  TIMER_ISR_DATA *peripheralIODescriptor;
   /* Call the specific handler */
+  /* Claude Le handler de la première source est appelé uniquement si la source correspond au vecteur, car
+  ** la première source correspond tjs au Timer 1 ou 8 qui ont 4 vecteurs d'interruption chacun. */
   if (*(UINT32 *)(timerSelect->BaseRegisterTab[0] + OFFSET_STATUS) &
       *(UINT32 *)(timerSelect->BaseRegisterTab[0] + OFFSET_ENABLE) &
       timerSelect->InterruptBit) {
      peripheralIODescriptor = timerSelect->TimerISRTab[0];
-     peripheralIODescriptor->PeripheralInterruptHandler(peripheralIODescriptor);
+     peripheralIODescriptor->TimerIntHandler(peripheralIODescriptor);
   }
+  /* Claude Le handler de la seconde source est appelé quelque soit la source d'interruption, car
+  ** les timer traité au seconde position on tjs un seul vecteur pour toute leurs sources. */
   if (*(UINT32 *)(timerSelect->BaseRegisterTab[1] + OFFSET_STATUS) &
       *(UINT32 *)(timerSelect->BaseRegisterTab[1] + OFFSET_ENABLE)) {
      peripheralIODescriptor = timerSelect->TimerISRTab[1];
-     peripheralIODescriptor->PeripheralInterruptHandler(peripheralIODescriptor);
+     peripheralIODescriptor->TimerIntHandler(peripheralIODescriptor);
   }
-} /* end of _OSTimerSelector */
+} /* end of _OSTimerSelectorHandler */
+
 
 /* Because the timer continues ticking, when we wish set a new value for the timer compa-
 ** rator, the difference in time between the new value and the previous must be such that
