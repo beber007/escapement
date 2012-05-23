@@ -24,6 +24,7 @@
 ** Authors: MIS-TIC */
 
 #include "ZottaOS.h"
+#include "stm32f10x.h"
 
 #define FLAG_PORT GPIOB
 #define FLAG1_PIN GPIO_Pin_13
@@ -78,8 +79,8 @@ int main(void)
   #endif
   /* Keep debugger connection during sleep mode */
   DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
-  /* Initialize hardware */
-  OSInitializeSystemClocks();
+  /* Initialize Hardware */
+  SystemInit();
   InitializeFlags(FLAG1_PIN | FLAG2_PIN | FLAG3_PIN);
   /* Create the 3 tasks. Notice that each particular task receives a private set of para-
   ** meters that it inherits from the main program and that it is the only task that can

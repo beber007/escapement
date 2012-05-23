@@ -409,12 +409,14 @@
       defined(STM32F101RF_RG) || defined(STM32F101VF_VG_ZF_ZG) || \
       defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
-   static TIMERSELECT Timer9ISRSelect  = {_OSTimerSelectorHandler,{NULL,NULL},{0x40012C00,0x40014C00},0x80};
-   static TIMERSELECT Timer10ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40012C00,0x40015000},0x01};
-   static TIMERSELECT Timer11ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40012C00,0x40015400},0x40};
-   static TIMERSELECT Timer12ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40013400,0x40001800},0x80};
-   static TIMERSELECT Timer13ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40013400,0x40001C00},0x01};
-   static TIMERSELECT Timer14ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40013400,0x40002000},0x40};
+   #if defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
+      static TIMERSELECT Timer9ISRSelect  = {_OSTimerSelectorHandler,{NULL,NULL},{0x40012C00,0x40014C00},0x80};
+      static TIMERSELECT Timer10ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40012C00,0x40015000},0x01};
+      static TIMERSELECT Timer11ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40012C00,0x40015400},0x40};
+      static TIMERSELECT Timer12ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40013400,0x40001800},0x80};
+      static TIMERSELECT Timer13ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40013400,0x40001C00},0x01};
+      static TIMERSELECT Timer14ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40013400,0x40002000},0x40};
+   #endif
    void *_OSTabDevice[60] = {
       NULL, /* OS_IO_WWDG             0 Window WatchDog */
       NULL, /* OS_IO_PVD              1 PVD through EXTI Line detection */
@@ -917,36 +919,12 @@ void (* const STM32VectorTable[])(void) =
   #else
      NULL,
   #endif
-  #if ZOTTAOS_TIMER == OS_IO_TIM9
-     _OSTimerHandler, /* OS_IO_TIM9            25  TIM9 global */
-  #else
-     _OSIOHandler, /* OS_IO_TIM9               25  TIM9 global */
-  #endif
-  #if ZOTTAOS_TIMER == OS_IO_TIM10
-     _OSTimerHandler, /* OS_IO_TIM10           26  TIM10 global */
-  #else
-     _OSIOHandler, /* OS_IO_TIM10              26  TIM10 global */
-  #endif
-  #if ZOTTAOS_TIMER == OS_IO_TIM11
-     _OSTimerHandler, /* OS_IO_TIM11           27  TIM11 global */
-  #else
-     _OSIOHandler, /* OS_IO_TIM11              27  TIM11 global */
-  #endif
-  #if ZOTTAOS_TIMER == OS_IO_TIM2
-     _OSTimerHandler, /* OS_IO_TIM2            28  TIM2 global */
-  #else
-     _OSIOHandler, /* OS_IO_TIM2               28  TIM2 global */
-  #endif
-  #if ZOTTAOS_TIMER == OS_IO_TIM3
-     _OSTimerHandler, /* OS_IO_TIM3            29  TIM3 global */
-  #else
-     _OSIOHandler, /* OS_IO_TIM3               29  TIM3 global */
-  #endif
-  #if ZOTTAOS_TIMER == OS_IO_TIM4
-     _OSTimerHandler, /* OS_IO_TIM4            30  TIM4 global */
-  #else
-     _OSIOHandler, /* OS_IO_TIM4               30  TIM4 global */
-  #endif
+  _OSIOHandler, /* OS_IO_TIM9                  25  TIM9 global */
+  _OSIOHandler, /* OS_IO_TIM10                 26  TIM10 global */
+  _OSIOHandler, /* OS_IO_TIM11                 27  TIM11 global */
+  _OSIOHandler, /* OS_IO_TIM2                  28  TIM2 global */
+  _OSIOHandler, /* OS_IO_TIM3                  29  TIM3 global */
+  _OSIOHandler, /* OS_IO_TIM4                  30  TIM4 global */
   _OSIOHandler, /* OS_IO_I2C1_EV               31  I2C1 Event */
   _OSIOHandler, /* OS_IO_I2C1_ER               32  I2C1 Error */
   _OSIOHandler, /* OS_IO_I2C2_EV               33  I2C2 Event */
@@ -971,11 +949,7 @@ void (* const STM32VectorTable[])(void) =
   #endif
   #if defined(STM32L151XC) || defined(STM32L152XC) || defined(STM32L151XD) || \
       defined(STM32L152XD) || defined(STM32L162XD)
-     #if ZOTTAOS_TIMER == OS_IO_TIM5
-        _OSTimerHandler, /* OS_IO_TIM5         46  TIM5 global */
-     #else
-        _OSIOHandler, /* OS_IO_TIM5            46  TIM5 global */
-     #endif
+     _OSIOHandler, /* OS_IO_TIM5               46  TIM5 global */
      _OSIOHandler, /* OS_IO_SPI3               47  SPI3 global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
@@ -1100,86 +1074,30 @@ void (* const STM32VectorTable[])(void) =
   #if defined(STM32F103X4_X6) || defined(STM32F103T8_TB) || \
       defined(STM32F103C8_CB_R8_RB_V8_VB) || defined(STM32F103RC_RD_RE) || \
       defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || defined(STM32F105XX) || defined(STM32F107XX)
-     _OSIOHandler, /* OS_IO_TIM1_BRK           24 TIM1 Break */
-     #if ZOTTAOS_TIMER == OS_IO_TIM1
-        _OSTimerHandler_up, /* OS_IO_TIM1_UP  25 TIM1 Update */
-     #else
-        _OSIOHandler, /* OS_IO_TIM1_UP         25 TIM1 Update */
-     #endif
-     _OSIOHandler, /* OS_IO_TIM1_TRG_COM       26 TIM1 Trigger and Commutation */
-     #if ZOTTAOS_TIMER == OS_IO_TIM1
-        _OSTimerHandler_cc, /* OS_IO_TIM1_CC  27 TIM1 Capture Compare */
-     #else
-        _OSIOHandler, /* OS_IO_TIM1_CC         27 TIM1 Capture Compare */
-     #endif
+     _OSIOHandler, /* OS_IO_TIM1_BRK     24 TIM1 Break */
+     _OSIOHandler, /* OS_IO_TIM1_UP      25 TIM1 Update */
+     _OSIOHandler, /* OS_IO_TIM1_TRG_COM 26 TIM1 Trigger and Commutation */
+     _OSIOHandler, /* OS_IO_TIM1_CC      27 TIM1 Capture Compare */
   #elif defined(STM32F100X4_X6) || defined(STM32F100X8_XB) || \
         defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE)
-     #if ZOTTAOS_TIMER == OS_IO_TIM15
-        _OSTimerHandler, /* OS_IO_TIM1_BRK_TIM15 24 TIM1 Break and TIM15 */
-     #else
-        _OSIOHandler, /* OS_IO_TIM1_BRK_TIM15    24 TIM1 Break and TIM15 */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM1
-        _OSTimerHandler_up, /* OS_IO_TIM1_UP_TIM16  25 TIM1 Update and TIM16 */
-     #elif ZOTTAOS_TIMER == OS_IO_TIM16
-        _OSTimerHandler, /* OS_IO_TIM1_UP_TIM16  25 TIM1 Update and TIM16 */
-     #else
-        _OSIOHandler, /* OS_IO_TIM1_UP_TIM16     25 TIM1 Update and TIM16 */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM17
-        _OSTimerHandler, /* OS_IO_TIM1_TRG_COM_TIM17 26 TIM1 Trigger and Commutation and TIM17 */
-     #else
-        _OSIOHandler, /* OS_IO_TIM1_TRG_COM_TIM17    26 TIM1 Trigger and Commutation and TIM17 */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM1
-        _OSTimerHandler_cc, /* OS_IO_TIM1_CC      27 TIM1 Capture Compare */
-     #else
-        _OSIOHandler, /* OS_IO_TIM1_CC         27 TIM1 Capture Compare */
-     #endif
+        _OSIOHandler, /* OS_IO_TIM1_BRK_TIM15     24 TIM1 Break and TIM15 */
+        _OSIOHandler, /* OS_IO_TIM1_UP_TIM16      25 TIM1 Update and TIM16 */
+        _OSIOHandler, /* OS_IO_TIM1_TRG_COM_TIM17 26 TIM1 Trigger and Commutation and TIM17 */
+        _OSIOHandler, /* OS_IO_TIM1_CC            27 TIM1 Capture Compare */
   #elif defined (STM32F101RF_RG)|| defined(STM32F101VF_VG_ZF_ZG)
-     #if ZOTTAOS_TIMER == OS_IO_TIM9
-        _OSTimerHandler, /* OS_IO_TIM9 24 TIM9 global */
-     #else
-        _OSIOHandler, /* OS_IO_TIM9    24 TIM9 global */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM10
-        _OSTimerHandler, /* OS_IO_TIM10 25 TIM10 global */
-     #else
-        _OSIOHandler, /* OS_IO__TIM10    25 TIM10 global */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM11
-        _OSTimerHandler, /* OS_IO_TIM11 26 TIM11*/
-     #else
-        _OSIOHandler, /* OS_IO_TIM11    26 TIM11 */
-     #endif
+     _OSIOHandler, /* OS_IO_TIM9       24 TIM9 global */
+     _OSIOHandler, /* OS_IO__TIM10     25 TIM10 global */
+     _OSIOHandler, /* OS_IO_TIM11      26 TIM11 */
      #if defined(DEBUG_MODE)
         UndefinedInterrupt,
      #else
         NULL,
      #endif
   #elif defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
-     #if ZOTTAOS_TIMER == OS_IO_TIM9
-        _OSTimerHandler, /* OS_IO_TIM1_BRK_TIM9 24 TIM1 Break  and TIM9 global */
-     #else
-        _OSIOHandler, /* OS_IO_TIM1_BRK_TIM9    24 TIM1 Break  and TIM9 global */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM1
-        _OSTimerHandler_up, /* OS_IO_TIM1_UP_TIM10 25 TIM1 Update and TIM10 global */
-     #elif ZOTTAOS_TIMER == OS_IO_TIM10
-        _OSTimerHandler, /* OS_IO_TIM1_UP_TIM10 25 TIM1 Update and TIM10 global */
-     #else
-        _OSIOHandler, /* OS_IO_TIM1_UP_TIM10    25 TIM1 Update and TIM10 global */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM11
-        _OSTimerHandler, /* OS_IO_TIM1_TRG_COM_TIM11 26 TIM1 Trigger and Commutation  and TIM11*/
-     #else
-        _OSIOHandler, /* OS_IO_TIM1_TRG_COM_TIM11    26 TIM1 Trigger and Commutation  and TIM11 */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM1
-        _OSTimerHandler, /* OS_IO_TIM1_CC       27 TIM1 Capture Compare */
-     #else
-        _OSIOHandler, /* OS_IO_TIM1_CC          27 TIM1 Capture Compare */
-     #endif
+     _OSIOHandler, /* OS_IO_TIM1_BRK_TIM9      24 TIM1 Break  and TIM9 global */
+     _OSIOHandler, /* OS_IO_TIM1_UP_TIM10      25 TIM1 Update and TIM10 global */
+     _OSIOHandler, /* OS_IO_TIM1_TRG_COM_TIM11 26 TIM1 Trigger and Commutation  and TIM11 */
+     _OSIOHandler, /* OS_IO_TIM1_CC            27 TIM1 Capture Compare */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
      UndefinedInterrupt,
@@ -1191,16 +1109,8 @@ void (* const STM32VectorTable[])(void) =
      NULL,
      NULL,
   #endif
-  #if ZOTTAOS_TIMER == OS_IO_TIM2
-     _OSTimerHandler, /* OS_IO_TIM2            28  TIM2 global */
-  #else
-     _OSIOHandler, /* OS_IO_TIM2               28  TIM2 global */
-  #endif
-  #if ZOTTAOS_TIMER == OS_IO_TIM3
-     _OSTimerHandler, /* OS_IO_TIM3            29  TIM3 global */
-  #else
-     _OSIOHandler, /* OS_IO_TIM3               29  TIM3 global */
-  #endif
+  _OSIOHandler, /* OS_IO_TIM2                  28  TIM2 global */
+  _OSIOHandler, /* OS_IO_TIM3                  29  TIM3 global */
   #if defined (STM32F100X8_XB) || defined (STM32F100RC_RD_RE) || \
       defined (STM32F100VC_VD_VE_ZC_ZD_ZE) || defined(STM32F101T8_TB) || \
       defined(STM32F101C8_CB_R8_RB_V8_VB) || defined(STM32F101RC_RD_RE) || \
@@ -1210,11 +1120,7 @@ void (* const STM32VectorTable[])(void) =
       defined (STM32F101RF_RG)|| defined(STM32F101VF_VG_ZF_ZG) || \
       defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
       defined(STM32F105XX) || defined(STM32F107XX)
-     #if ZOTTAOS_TIMER == OS_IO_TIM4
-        _OSTimerHandler, /* OS_IO_TIM4         30 TIM4 global */
-     #else
-        _OSIOHandler, /* OS_IO_TIM4            30 TIM4 global */
-     #endif
+     _OSIOHandler, /* OS_IO_TIM4               30 TIM4 global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
   #else
@@ -1291,62 +1197,24 @@ void (* const STM32VectorTable[])(void) =
   #endif
   #if defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE)
      _OSIOHandler, /* OS_IO_TIM8_BRK           43 TIM8 Break */
-     #if ZOTTAOS_TIMER == OS_IO_TIM8
-        _OSTimerHandler_up, /* OS_IO_TIM8_UP      44 TIM8 Update */
-     #else
-        _OSIOHandler, /* OS_IO_TIM8_UP         44 TIM8 Update */
-     #endif
+     _OSIOHandler, /* OS_IO_TIM8_UP            44 TIM8 Update */
      _OSIOHandler, /* OS_IO_TIM8_TRG_COM       45 TIM8 Trigger and Commutation */
-     #if ZOTTAOS_TIMER == OS_IO_TIM8
-        _OSTimerHandler_cc, /* OS_IO_TIM8_CC      46 TIM8 Capture Compare */
-     #else
-        _OSIOHandler, /* OS_IO_TIM8_CC         46 TIM8 Capture Compare */
-     #endif
+     _OSIOHandler, /* OS_IO_TIM8_CC            46 TIM8 Capture Compare */
   #elif defined(STM32F101RF_RG) || defined(STM32F101VF_VG_ZF_ZG) || \
         defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE )
-     #if ZOTTAOS_TIMER == OS_IO_TIM12
-        _OSTimerHandler, /* OS_IO_TIM12        43 TIM12 global */
-     #else
-        _OSIOHandler, /* OS_IO_TIM12           43 TIM12 global */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM13
-        _OSTimerHandler, /* OS_IO_TIM13        44 TIM13 global */
-     #else
-        _OSIOHandler, /* OS_IO_TIM13           44 TIM13 global */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM14
-        _OSTimerHandler, /* OS_IO_TIM14        45 TIM14 global */
-     #else
-        _OSIOHandler, /* OS_IO_TIM14           45 TIM14 global */
-     #endif
+     _OSIOHandler, /* OS_IO_TIM12              43 TIM12 global */
+     _OSIOHandler, /* OS_IO_TIM13              44 TIM13 global */
+     _OSIOHandler, /* OS_IO_TIM14              45 TIM14 global */
      #if defined(DEBUG_MODE)
         UndefinedInterrupt,
      #else
         NULL,
      #endif
   #elif defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
-     #if ZOTTAOS_TIMER == OS_IO_TIM12
-        _OSTimerHandler, /* OS_IO_TIM8_BRK_TIM12  43 TIM8 Break and TIM12 global */
-     #else
-        _OSIOHandler, /* OS_IO_TIM8_BRK_TIM12     43 TIM8 Break and TIM12 global */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM8
-        _OSTimerHandler_up, /* OS_IO_TIM8_UP_TIM13   44 TIM8 Update and TIM13 global */
-     #elif ZOTTAOS_TIMER == OS_IO_TIM13
-        _OSTimerHandler, /* OS_IO_TIM8_UP_TIM13   44 TIM8 Update and TIM13 global */
-     #else
-        _OSIOHandler, /* OS_IO_TIM8_UP_TIM13      44 TIM8 Update and TIM13 global */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM14
-        _OSTimerHandler, /* OS_IO_TIM8_TRG_COM_TIM14 45 TIM8 Trigger and Commutation  and TIM14 global */
-     #else
-        _OSIOHandler, /* OS_IO_TIM8_TRG_COM_TIM14    45 TIM8 Trigger and Commutation  and TIM14 global */
-     #endif
-     #if ZOTTAOS_TIMER == OS_IO_TIM8
-        _OSTimerHandler_cc, /* OS_IO_TIM8_CC         46 TIM8 Capture Compare */
-     #else
-        _OSIOHandler, /* OS_IO_TIM8_CC            46 TIM8 Capture Compare */
-     #endif
+     _OSIOHandler, /* OS_IO_TIM8_BRK_TIM12        43 TIM8 Break and TIM12 global */
+     _OSIOHandler, /* OS_IO_TIM8_UP_TIM13         44 TIM8 Update and TIM13 global */
+     _OSIOHandler, /* OS_IO_TIM8_TRG_COM_TIM14    45 TIM8 Trigger and Commutation  and TIM14 global */
+     _OSIOHandler, /* OS_IO_TIM8_CC               46 TIM8 Capture Compare */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
      UndefinedInterrupt,
@@ -1389,11 +1257,7 @@ void (* const STM32VectorTable[])(void) =
       defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
       defined(STM32F105XX) || defined(STM32F107XX)
-     #if ZOTTAOS_TIMER == OS_IO_TIM5
-        _OSTimerHandler, /* OS_IO_TIM5         50 TIM5 global */
-     #else
-        _OSIOHandler, /* OS_IO_TIM5            50 TIM5 global */
-     #endif
+     _OSIOHandler, /* OS_IO_TIM5               50 TIM5 global */
      _OSIOHandler, /* OS_IO_SPI3               51 SPI3 global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
