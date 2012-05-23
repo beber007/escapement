@@ -22,6 +22,7 @@
 
 #include "ZottaOS.h"
 #include "ZottaOS_UART.h"
+#include "stm32f10x.h"
 
 /* UART transmit FIFO buffer size definitions */
 #define UART_TRANSMIT_FIFO_NB_NODE    1
@@ -39,7 +40,7 @@ int main(void)
   /* Keep debugger connection during sleep mode */
   DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
 
-  OSInitializeSystemClocks();
+  SystemInit();
 
   /* Initialize ZottaOS I/O UART drivers */
   OSInitUART(UART_TRANSMIT_FIFO_NB_NODE,UART_TRANSMIT_FIFO_NODE_SIZE,

@@ -63,10 +63,11 @@
 ** they do not have a comparator. If the selected timer is not implemented in the part
 ** number of the STM32 series used, a compiler error will indicate that the corresponding
 ** symbol does not exist.*/
-#define ZOTTAOS_TIMER OS_IO_TIM1
+#define ZOTTAOS_TIMER OS_IO_TIM2
 
 /* Define the interval-timer prescaler */
-#define ZOTTAOS_TIMER_PRESCALER 83
+//#define ZOTTAOS_TIMER_PRESCALER 83
+#define ZOTTAOS_TIMER_PRESCALER 71
 
 /* Defines the priority group and level of the interval-timer. The timer's priority must
 ** be higher than that of SysTick. See _OSSetInterruptPriority(). */
@@ -153,7 +154,7 @@
 //#define STM32F103C8_CB_R8_RB_V8_VB
 
 /* STM32F103RC, STM32F103RD and STM32F103RE */
-//#define STM32F103RC_RD_RE
+#define STM32F103RC_RD_RE
 
 /* STM32F103VC, STM32F103VD, STM32F103VE, STM32F103ZC, STM32F103ZD and STM32F103ZE */
 //#define STM32F103VC_VD_VE_ZC_ZD_ZE
@@ -200,7 +201,7 @@
 //#define STM32F405VG_ZG
 
 /* STM32F407VE, STM32F407VG, STM32F407Ze, STM32F407ZG, STM32F407LE and STM32F407LG */
-#define STM32F407XX
+//#define STM32F407XX
 
 //#define STM32F415RG
 

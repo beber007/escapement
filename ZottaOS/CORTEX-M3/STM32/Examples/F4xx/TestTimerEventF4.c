@@ -22,19 +22,14 @@
 
 #include "ZottaOS.h"
 #include "ZottaOS_TimerEvent.h"
-
-#include "stm32f4xx_dbgmcu.h"
-#include "stm32f4xx_gpio.h"
-#include "stm32f4xx_rcc.h"
-#include "stm32f4xx_tim.h"
-#include "misc.h"
+#include "stm32f4xx.h"
 
 
 #define FLAG_PORT GPIOB
 #define FLAG1_PIN GPIO_Pin_13
 #define FLAG2_PIN GPIO_Pin_14
 
-#define EVENT_TIMER_INDEX OS_IO_TIM1_CC
+#define EVENT_TIMER_INDEX OS_IO_TIM14
 
 static void SetLed1Task(void *argument);
 static void SetLed2Task(void *argument);
@@ -87,8 +82,8 @@ int main(void)
   DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
 
 
-  DBGMCU_Config(DBGMCU_TIM1_STOP,ENABLE);
-  DBGMCU_APB2PeriphConfig(DBGMCU_TIM1_STOP,ENABLE);
+  DBGMCU_Config(DBGMCU_TIM5_STOP,ENABLE);
+  DBGMCU_APB1PeriphConfig(DBGMCU_TIM5_STOP,ENABLE);
 
 /* Initialize Hardware */
   SystemInit();
@@ -97,13 +92,12 @@ int main(void)
   OSInitTimerEvent(2,83,1,0,EVENT_TIMER_INDEX);
 
   #if defined(ZOTTAOS_VERSION_HARD)
+  tmp = OSCreateEventDescriptor();
+     OSCreateSynchronousTask(ClearLed1Task,1000,tmp,NULL);
+     OSCreateTask(SetLed1Task,0,5000,5000,tmp);
      tmp = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLed1Task,100,tmp,NULL);
-     OSCreateTask(SetLed1Task,0,200,200,tmp);
-
-     tmp = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLed2Task,200,tmp,NULL);
-     OSCreateTask(SetLed2Task,0,400,400,tmp);
+     OSCreateSynchronousTask(ClearLed2Task,1000,tmp,NULL);
+     OSCreateTask(SetLed2Task,0,10000,10000,tmp);
   #elif defined(ZOTTAOS_VERSION_SOFT)
      tmp = OSCreateEventDescriptor();
      OSCreateSynchronousTask(ClearLed1Task,0,1000,0,tmp,NULL);
@@ -123,7 +117,7 @@ int main(void)
 void SetLed1Task(void *argument)
 {
   GPIO_SetBits(FLAG_PORT,FLAG1_PIN);
-  OSScheduleTimerEvent(argument,40,EVENT_TIMER_INDEX);
+  OSScheduleTimerEvent(argument,1000,EVENT_TIMER_INDEX);
   OSEndTask();
 } /* end of SetLed1Task */
 
@@ -132,7 +126,7 @@ void SetLed1Task(void *argument)
 void SetLed2Task(void *argument)
 {
   GPIO_SetBits(FLAG_PORT,FLAG2_PIN);
-  OSScheduleTimerEvent(argument,80,EVENT_TIMER_INDEX);
+  OSScheduleTimerEvent(argument,2000,EVENT_TIMER_INDEX);
   OSEndTask();
 } /* end of SetLed2Task */
 
