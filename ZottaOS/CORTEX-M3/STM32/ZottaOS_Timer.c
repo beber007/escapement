@@ -296,7 +296,7 @@ void _OSInitializeTimer(void)
   #define IRQ_SET_ENABLE_REGISTER 0xE000E100 // 0xE000E100 to 0xE000E11C (see CortexM3_TRM)
   #define IRQ_PRIORITY_REGISTER   0xE000E400 // 0xE000E400 to 0xE000E41F (see CortexM3_TRM)
   TIMER_ISR_DATA *device;
-  UINT8 priority;
+  UINT8 tmppriority;
   UINT8 *intPriorityLevel;
   UINT32 *intSetEnable;
   CLK_ENABLE |= CLK_ENABLE_BIT;            // Enable the clock for timer
@@ -311,58 +311,33 @@ void _OSInitializeTimer(void)
   TIM_EVENT_GENERATION = UPDATE_INT_BIT;   // Generate an update event to reload the prescaler
   TIM_STATUS = ~(UPDATE_INT_BIT | COMPARATOR_INT_BIT);   // Clear update flag
   TIM_INT_ENABLE |= UPDATE_INT_BIT | COMPARATOR_INT_BIT; // Enable update interrupt
-  /* Compute the IRQ priority */
-  priority = TIMER_PRIORITY << (PRIGROUP - 3);
-  // On soustrait 3 au PRIGROUP car 3 correspond au nombre maximum de bits pour la
-  // priorité moins le nombre de bit implémenté soit (7 - 4 = 3 pour le stm32)
-  priority |=  TIMER_SUB_PRIORITY & (0x0F >> (7 - PRIGROUP));
-  // (7 - PRIGROUP) correspond aux nombres de bits pour la priorité.
-  #if ZOTTAOS_TIMER == OS_IO_TIM1
-     /* Update interrupt */
-     /* Retrouve l'adresse du registre contenant le bit permettant l'IRQ */
-     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(OS_IO_TIM1_UP / 32);
-     *intSetEnable |= 0x01 << (OS_IO_TIM1_UP % 32); // Enable the IRQ channels
-     /* Retrouve l'adresse du registre contenant la priorité de l'IRQ */
-     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + OS_IO_TIM1_UP);
-     *intPriorityLevel = priority << 0x04; // Set the IRQ priority
-     /* Comparator interrupt */
-     /* Retrouve l'adresse du registre contenant le bit permettant l'IRQ */
-     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(OS_IO_TIM1_CC / 32);
-     *intSetEnable |= 0x01 << (OS_IO_TIM1_CC % 32); // Enable the IRQ channels
-     /* Retrouve l'adresse du registre contenant la priorité de l'IRQ */
-     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + OS_IO_TIM1_CC);
-     *intPriorityLevel = priority << 0x04; // Set the IRQ priority
-     // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
-  #elif ZOTTAOS_TIMER == OS_IO_TIM8
-     /* Update interrupt */
-     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(OS_IO_TIM8_UP / 32);
-     *intSetEnable |= 0x01 << (OS_IO_TIM8_UP % 32); // Enable the IRQ channels
-     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + OS_IO_TIM8_UP);
-     *intPriorityLevel = priority << 0x04; // Set the IRQ priority
-     /* Comparator interrupt */
-     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(OS_IO_TIM8_CC / 32);
-     *intSetEnable |= 0x01 << (OS_IO_TIM8_CC % 32); // Enable the IRQ channels
-     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + OS_IO_TIM8_CC);
-     *intPriorityLevel = priority << 0x04; // Set the IRQ priority
-     // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
-  #else
-     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(ZOTTAOS_TIMER / 32);
-     *intSetEnable |= 0x01 << (ZOTTAOS_TIMER % 32); // Enable the IRQ channels
-     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + ZOTTAOS_TIMER);
-     *intPriorityLevel = priority << 0x04; // Set the IRQ priority
-     // (4 correpond à 8 moins le nombre de bit implémenter dans le STM32(4))
-  #endif
-
+  /*** Initialize Cortex-M3 Nested Vectored Interrupt Controller ***/
+  /* Compute the priority (Only 4 bits are used for priority on STM32) */
+  tmppriority = TIMER_PRIORITY << (PRIGROUP - 3); // (PRIGROUP - 3) is the number of sub priorty bits
+  tmppriority |=  TIMER_SUB_PRIORITY & (0x0F >> (7 - PRIGROUP)); // (7 - PRIGROUP) is the number priorty bits
+  /* Set the IRQ priority (IRQ priority register start at address 0xE000E400)*/
+  intPriorityLevel = (UINT8 *)(0xE000E400 + ZOTTAOS_TIMER);
+  *intPriorityLevel = tmppriority << 4; // Only 4 MSB bits are used on STM32
+  /* Enable the IRQ channels (IRQ enable register start at address 0xE000E100) */
+  intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(ZOTTAOS_TIMER / 32);
+  *intSetEnable |= 0x01 << (ZOTTAOS_TIMER % 32);
+  /* Update interrupt */
   /* Initialise ZottaOS internal interrupt structure */
   #if ZOTTAOS_TIMER == OS_IO_TIM1
-     /* Update interrupt */
-     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
-     device->TimerIntHandler = TimerHandler_up;
-     OSSetTimerISRDescriptor(OS_IO_TIM1_UP,0,device);
      /* Comparator interrupt */
      device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
      device->TimerIntHandler = TimerHandler_cc;
      OSSetTimerISRDescriptor(OS_IO_TIM1_CC,0,device);
+     /* Update interrupt */
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler_up;
+     OSSetTimerISRDescriptor(OS_IO_TIM1_UP,0,device);
+     /* Set the IRQ priority (IRQ priority register start at address 0xE000E400)*/
+     intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM1_UP);
+     *intPriorityLevel = tmppriority << 4; // Only 4 MSB bits are used on STM32
+     /* Enable the IRQ channels (IRQ enable register start at address 0xE000E100) */
+     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM1_UP / 32);
+     *intSetEnable |= 0x01 << (OS_IO_TIM1_UP % 32);
   #elif ZOTTAOS_TIMER == OS_IO_TIM2
      device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
      device->TimerIntHandler = TimerHandler;
@@ -380,14 +355,20 @@ void _OSInitializeTimer(void)
      device->TimerIntHandler = TimerHandler;
      OSSetTimerISRDescriptor(OS_IO_TIM5,0,device);
   #elif ZOTTAOS_TIMER == OS_IO_TIM8
-     /* Update interrupt */
-     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
-     device->TimerIntHandler = TimerHandler_up;
-     OSSetTimerISRDescriptor(OS_IO_TIM8_UP,0,device);
      /* Comparator interrupt */
      device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
      device->TimerIntHandler = TimerHandler_cc;
      OSSetTimerISRDescriptor(OS_IO_TIM8_CC,0,device);
+     /* Update interrupt */
+     device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+     device->TimerIntHandler = TimerHandler_up;
+     OSSetTimerISRDescriptor(OS_IO_TIM8_UP,0,device);
+     /* Set the IRQ priority (IRQ priority register start at address 0xE000E400)*/
+     intPriorityLevel = (UINT8 *)(0xE000E400 + OS_IO_TIM8_UP);
+     *intPriorityLevel = tmppriority << 4; // Only 4 MSB bits are used on STM32
+     /* Enable the IRQ channels (IRQ enable register start at address 0xE000E100) */
+     intSetEnable = (UINT32 *)0xE000E100 + (UINT32)(OS_IO_TIM8_UP / 32);
+     *intSetEnable |= 0x01 << (OS_IO_TIM8_UP % 32);
   #elif ZOTTAOS_TIMER == OS_IO_TIM9
      device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
      device->TimerIntHandler = TimerHandler;
@@ -449,7 +430,6 @@ void _OSInitializeTimer(void)
      device->TimerIntHandler = TimerHandler;
      OSSetTimerISRDescriptor(OS_IO_TIM1_TRG_COM_TIM17,1,device);
   #endif
-
 } /* end of _OSInitializeTimer */
 
 

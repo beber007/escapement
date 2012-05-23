@@ -115,7 +115,7 @@ typedef struct ETCB {
 } ETCB;
 
 
-/* TASK SCHEDULING QUEUES
+/* TASK SCHEDULING QUEUES */
 /* All queues use the same head and tail sentinel blocks and there are 2 or 3 lists to
 ** manage the scheduling of the tasks:
 ** Ready queue: The first item of the list points to the currently active task instance
@@ -491,9 +491,9 @@ void _OSTimerInterruptHandler(void)
         --nesting;
      #endif
      _OSEnableSoftTimerInterrupt();
+     /* At this point another software timer can preempt and not save the current context as
+     ** this interrupt restarts from the beginning. */
   #endif
-  /* At this point another software timer can preempt and not save the current context as
-  ** this interrupt restarts from the beginning. */
   /* Set arrival timer to the next arrival time. */
   arrival = _OSQueueHead->Next[ARRIVALQ];
   if (arrival != (TCB *)OSQueueTail &&
