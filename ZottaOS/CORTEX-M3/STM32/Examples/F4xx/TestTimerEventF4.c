@@ -92,7 +92,7 @@ int main(void)
   OSInitTimerEvent(2,83,1,0,EVENT_TIMER_INDEX);
 
   #if defined(ZOTTAOS_VERSION_HARD)
-  tmp = OSCreateEventDescriptor();
+     tmp = OSCreateEventDescriptor();
      OSCreateSynchronousTask(ClearLed1Task,1000,tmp,NULL);
      OSCreateTask(SetLed1Task,0,5000,5000,tmp);
      tmp = OSCreateEventDescriptor();

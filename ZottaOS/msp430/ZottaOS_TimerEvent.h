@@ -26,18 +26,29 @@
 #ifndef _TIMEREVENT_
 #define _TIMEREVENT_
 
+/*
+
+*/
+
+
 /* OSInitTimerEvent: Creates an ISR descriptor block holding the specifics of a timer
 ** device that is used as an event handler and which can schedule a list of event at
 ** their occurrence time.
 ** Parameters:
-**  (1) (UINT8) maximum nomber of pending events;
-**  (2) (UINT8) index denoting the timer device;
-**  (3) (UINT16 *) index denoting the timer device;
-**  (4) (UINT16 *) index denoting the timer device;
-**  (5) (UINT16 *) index denoting the timer device;
-**  (6) (UINT16) index denoting the timer device. */
-BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex, UINT16 *control,
-                      UINT16 *counter, UINT16 *compare, UINT16 timerEnable);
+**  (1) (UINT8) maximum number of pending events;
+**  (2) (UINT8)
+**  (3) (UINT8)
+**  (4) (UINT8)
+**  (5) (UINT16 *) pointer to timer counter register;
+**  (6) (UINT16 *) pointer to timer comparator register;
+**  (7) (UINT16 *);
+**  (8) (UINT16) . */
+BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 softwareInterruptIndex,
+                      UINT8 overflowInterruptIndex, UINT8 comparatorInterruptIndex,
+                      UINT16 *counter, UINT16 *compare,
+                      UINT16 *overflowControl, UINT16 overflowTimerEnable,
+                      UINT16 *comparatorControl, UINT16 comparatorTimerEnable,
+                      UINT8 *portIFG, UINT8 *portIE, UINT8 portPin);
 
 /* OSScheduleTimerEvent: Entry point to insert an event into the event list associated
 ** with a timer.
