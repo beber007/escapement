@@ -26,92 +26,88 @@
 
 void assert_failed(UINT8* pcFile,UINT32 ulLine ) { while (TRUE); }
 
+static void SetLed1Task(void *argument);
+static void SetLed2Task(void *argument);
+static void ClearLed1Task(void *argument);
+static void ClearLed2Task(void *argument);
 
-typedef struct TaskParametersDef {
-   UINT16 GPIO_Pin;    // Output pin for the task
-   UINT32 Delay;
-   void *Event;
-} TaskParametersDef;
-
-static void InitializeTimer(void);
-
-static void SetLedTask(void *argument);
-static void ClearLedTask(void *argument);
-
-#define ToggleBit(GPIO_Pin) P1OUT ^= GPIO_Pin;
+#define SetFlag(GPIO_Pin) P1OUT |= GPIO_Pin;
+#define ClearFlag(GPIO_Pin) P1OUT &= ~GPIO_Pin;
 
 
 int main(void)
 {
-  TaskParametersDef *TaskParameters;
+  void *tmp;
 
   WDTCTL = WDTPW + WDTHOLD;  // Disable watchdog timer
 
   // Initialize output I/O ports
   P1SEL = 0x00;   // Set for GPIO
-  P1DIR = 0x07;   // Set to output
+  P1DIR = 0x03;   // Set to output
   P1OUT = 0x00;   // Initially start at low
 
-  InitializeTimer();
+  P1IFG |= 0x01;   // Initially start at low
+
+  OSInitTimerEvent(2,OS_IO_PORT1_6,OS_IO_TIMER1_A1_TA,OS_IO_TIMER1_A1_CC1,
+                   (UINT16 *)&TA1R,(UINT16 *)&TA1CCR1,
+                   (UINT16 *)&TA1CTL,TAIE,
+                   (UINT16 *)&TA1CCTL1,CCIE,
+                   (UINT8 *)&P1IFG,(UINT8 *)&P1IE,BIT6);
+
+  TA1CTL |= TASSEL_1 | TAIE | MC_2;
+  TA1CCTL1 |= CCIE;
+  P1IE |= BIT6;
 
   #if defined(ZOTTAOS_VERSION_HARD)
-     TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
-     TaskParameters->GPIO_Pin = 0x1;
-     TaskParameters->Delay = 1000;
-     TaskParameters->Event = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLedTask,1000,TaskParameters->Event,TaskParameters);
-     OSCreateTask(SetLedTask,0,10000,10000,TaskParameters);
-
-     TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
-     TaskParameters->GPIO_Pin = 0x2;
-     TaskParameters->Delay = 2000;
-     TaskParameters->Event = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLedTask,2000,TaskParameters->Event,TaskParameters);
-     OSCreateTask(SetLedTask,0,20000,20000,TaskParameters);
+     tmp = OSCreateEventDescriptor();
+     OSCreateSynchronousTask(ClearLed1Task,1000,tmp,NULL);
+     OSCreateTask(SetLed1Task,0,5000,5000,tmp);
+     tmp = OSCreateEventDescriptor();
+     OSCreateSynchronousTask(ClearLed2Task,2000,tmp,NULL);
+     OSCreateTask(SetLed2Task,0,10000,10000,tmp);
   #elif defined(ZOTTAOS_VERSION_SOFT)
-     TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
-     TaskParameters->GPIO_Pin = 0x1;
-     TaskParameters->Delay = 1000;
-     TaskParameters->Event = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLedTask,0,1000,0,TaskParameters->Event,TaskParameters);
-     OSCreateTask(SetLedTask,0,0,10000,10000,1,1,0,TaskParameters);
-
-     TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
-     TaskParameters->GPIO_Pin = 0x2;
-     TaskParameters->Delay = 2000;
-     TaskParameters->Event = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLedTask,0,2000,0,TaskParameters->Event,TaskParameters);
-     OSCreateTask(SetLedTask,0,0,20000,20000,1,1,0,TaskParameters);
+     tmp = OSCreateEventDescriptor();
+     OSCreateSynchronousTask(ClearLed1Task,0,1000,0,tmp,NULL);
+     OSCreateTask(SetLed1Task,0,0,10000,10000,1,1,0,tmp);
+     tmp = OSCreateEventDescriptor();
+     OSCreateSynchronousTask(ClearLed2Task,0,2000,0,tmp,NULL);
+     OSCreateTask(SetLed2Task,0,0,20000,20000,1,1,0,tmp);
   #endif
 
   /* Start the OS so that it starts scheduling the user tasks */
   return OSStartMultitasking();
 } /* end of main */
 
-
-/* InitializeTimer: . */
-void InitializeTimer(void)
+/* SetLed1Task: . */
+void SetLed1Task(void *argument)
 {
-  OSInitTimerEvent(2,OS_IO_TIMER1_A1_TA,(UINT16 *)&TA1CTL,(UINT16 *)&TA1R,(UINT16 *)&TA1CCR0,TAIE);
-  TA1CCR0 = 0xFFFE;
-  TA1CTL |= TASSEL_1 | TAIE | MC_1;
- } /* end of InitializeTimer */
-
-
-/* SetLedTask: . */
-void SetLedTask(void *argument)
-{
-  TaskParametersDef *TaskParameters = (TaskParametersDef *)argument;
-  ToggleBit(TaskParameters->GPIO_Pin)
-  OSScheduleTimerEvent(TaskParameters->Event,1000,OS_IO_TIMER1_A1_TA);
+  SetFlag(1);
+  OSScheduleTimerEvent(argument,1000,OS_IO_PORT1_6);
   OSEndTask();
-} /* end of SetLedTask */
+} /* end of SetLed1Task */
 
 
-/* ClearLedTask: . */
-void ClearLedTask(void *argument)
+/* SetLed2Task: . */
+void SetLed2Task(void *argument)
 {
-  TaskParametersDef *TaskParameters = (TaskParametersDef *)argument;
-  ToggleBit(TaskParameters->GPIO_Pin)
+  SetFlag(2);
+  OSScheduleTimerEvent(argument,2000,OS_IO_PORT1_6);
+  OSEndTask();
+} /* end of SetLed2Task */
+
+
+/* ClearLed1Task: . */
+void ClearLed1Task(void *argument)
+{
+  ClearFlag(1);
+  OSSuspendSynchronousTask();
+} /* end of ClearLed1Task */
+
+
+/* ClearLed2Task: . */
+void ClearLed2Task(void *argument)
+{
+  ClearFlag(2);
   OSSuspendSynchronousTask();
 } /* end of ClearLed2Task */
+

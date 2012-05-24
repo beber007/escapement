@@ -27,16 +27,11 @@
 #include "ZottaOS.h"
 #include "ZottaOS_TimerEvent.h"
 
-/* Because the timer continues ticking, when we wish to set a new value for the timer
-** comparator, the difference in time between the new value and the previous must be such
-** that when the assignment is done, the timer has not passed the comparator value. This
-** is guaranteed by TIMER_OFFSET. */
-#define TIMER_OFFSET 2
 /* Because events are sorted by the time at which they occur, and that this time is mon-
 ** otonically increasing, the relative time reference wraparounds. We therefore need to
 ** periodically shift the occurrence times. This is done very SHIFT_TIME_LIMIT tics. */
-#define SHIFT_TIME_LIMIT 0x40000000 // = 2^30
-
+#define SHIFT_TIME_LIMIT    0x40000000 // = 2^30
+#define SHIFT_TIME_LIMIT_16 0x4000     // = 2^30 >> 16
 
 typedef struct TIMER_EVENT_NODE { // Blocks that are in the event queue
   struct TIMER_EVENT_NODE *Next;
@@ -44,18 +39,30 @@ typedef struct TIMER_EVENT_NODE { // Blocks that are in the event queue
   INT32 Time;
 } TIMER_EVENT_NODE;
 
-typedef struct TIMER_ISR_DATA {
-  void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
-  UINT16 *Control;
+typedef struct SOFTWARE_TIMER_ISR_DATA {
+  void (*TimerIntHandler)(struct SOFTWARE_TIMER_ISR_DATA *);
+  BOOL OverflowInterruptFlag;
+  BOOL ComparatorInterruptFlag;
   UINT16 *Counter;
   UINT16 *Compare;
-  UINT16 TimerEnable;
-  INT32 Time;                       // Current time
-  UINT16 Version;                   // Number of timer shifts
+  INT16 Time;                       // 16-bit MSB
   void *PendingQueueOperation;      // Interrupted operations that are not complete
   TIMER_EVENT_NODE *EventQueue;     // List of events sorted by their time of occurrence
   TIMER_EVENT_NODE *FreeNodes;      // Pool of free nodes used to link events
+  UINT8 *PortIFG;                   // need to software generate IO port interrupt
+  UINT8 *PortIE;                    // need to re-enable IO port interrupt
+  UINT8 PortPinBit;
+} SOFTWARE_TIMER_ISR_DATA;
+
+typedef struct TIMER_ISR_DATA {
+  void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
+  BOOL *InterruptFlag;              // Pointer to interrupt flag field of SOFTWARE_TIMER_ISR_DATA structure.
+  UINT16 *TimerControl;             // need to re-enable timer interrupt
+  UINT16 TimerEnableBit;
+  UINT8 *PortIFG;                   // need to software generate IO port interrupt
+  UINT8 PortPinBit;
 } TIMER_ISR_DATA;
+
 
 typedef enum {InsertEventOp,DeleteEventOp} EVENTOP;
 
@@ -66,7 +73,7 @@ typedef struct {
   TIMER_EVENT_NODE *Node;
   volatile BOOL GeneratedInterrupt;
   INT32 Time;                       // Interrupt time of the event
-  UINT16 Version;                   // Saved timer shift version
+  INT16 Version;                    // Backup of 16-bit MSB
 } INSERTQUEUE_OP;
 
 typedef struct {
@@ -79,37 +86,67 @@ typedef struct {
 } DELETEQUEUE_OP;
 
 
-static void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInt);
+static void InsertQueueHelper(INSERTQUEUE_OP *des, SOFTWARE_TIMER_ISR_DATA *device, BOOL genInt);
 static void DeleteQueueHelper(DELETEQUEUE_OP *des);
-static TIMER_EVENT_NODE *GetFreeNode(TIMER_ISR_DATA *device);
-static void ReleaseNode(TIMER_ISR_DATA *device, TIMER_EVENT_NODE *node);
+static TIMER_EVENT_NODE *GetFreeNode(SOFTWARE_TIMER_ISR_DATA *device);
+static void ReleaseNode(SOFTWARE_TIMER_ISR_DATA *device, TIMER_EVENT_NODE *node);
+static void SoftwareTimerIntHandler(SOFTWARE_TIMER_ISR_DATA *device);
 static void TimerIntHandler(TIMER_ISR_DATA *device);
 
 
 /* OSInitTimerEvent: Creates an ISR descriptor block holding the specifics of a timer
 ** device that is used as an event handler and which can schedule a list of event at
 ** their occurrence time. */
-BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex, UINT16 *control,
-                      UINT16 *counter, UINT16 *compare, UINT16 timerEnable)
+BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 softwareInterruptIndex,
+                      UINT8 overflowInterruptIndex, UINT8 comparatorInterruptIndex,
+                      UINT16 *counter, UINT16 *compare,
+                      UINT16 *overflowControl, UINT16 overflowTimerEnable,
+                      UINT16 *comparatorControl, UINT16 comparatorTimerEnable,
+                      UINT8 *portIFG, UINT8 *portIE, UINT8 portPin)
 {
-  TIMER_ISR_DATA *device;
   UINT8 i;
-  device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
-  device->TimerIntHandler = TimerIntHandler;
-  OSSetISRDescriptor(interruptIndex,device);
-  device->Control = control;
-  device->Counter = counter;
-  device->Compare = compare;
-  device->TimerEnable = timerEnable;
-  device->Time = 0;
-  device->PendingQueueOperation = NULL;
+  SOFTWARE_TIMER_ISR_DATA *softwareDevice;
+  TIMER_ISR_DATA *overflowDevice;
+  TIMER_ISR_DATA *comparatorDevice;
+
+  softwareDevice = (SOFTWARE_TIMER_ISR_DATA *)OSMalloc(sizeof(SOFTWARE_TIMER_ISR_DATA));
+  softwareDevice->TimerIntHandler = SoftwareTimerIntHandler;
+  softwareDevice->OverflowInterruptFlag = FALSE;
+  softwareDevice->ComparatorInterruptFlag = FALSE;
+  softwareDevice->PortIFG = portIFG;
+  softwareDevice->PortIE = portIE;
+  softwareDevice->PortPinBit = portPin;
+  OSSetISRDescriptor(softwareInterruptIndex,softwareDevice);
+
+  overflowDevice = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+  overflowDevice->TimerIntHandler = TimerIntHandler;
+  overflowDevice->InterruptFlag = &softwareDevice->OverflowInterruptFlag;
+  overflowDevice->TimerControl = overflowControl;
+  overflowDevice->TimerEnableBit = overflowTimerEnable;
+  overflowDevice->PortIFG = portIFG;
+  overflowDevice->PortPinBit = portPin;
+  OSSetISRDescriptor(overflowInterruptIndex,overflowDevice);
+
+  comparatorDevice = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+  comparatorDevice->TimerIntHandler = TimerIntHandler;
+  comparatorDevice->InterruptFlag = &softwareDevice->ComparatorInterruptFlag;
+  comparatorDevice->TimerControl = comparatorControl;
+  comparatorDevice->TimerEnableBit = comparatorTimerEnable;
+  comparatorDevice->PortIFG = portIFG;
+  comparatorDevice->PortPinBit = portPin;
+  OSSetISRDescriptor(comparatorInterruptIndex,comparatorDevice);
+
+  softwareDevice->Counter = counter;
+  softwareDevice->Compare = compare;
+  softwareDevice->Time = 0;
+  softwareDevice->PendingQueueOperation = NULL;
   /* Initialize event queue */
-  device->EventQueue = NULL;
+  softwareDevice->EventQueue = NULL;
   /* Create a pool of free event nodes */
-  device->FreeNodes = (TIMER_EVENT_NODE *)OSMalloc(nbNode * sizeof(TIMER_EVENT_NODE));
+  softwareDevice->FreeNodes = (TIMER_EVENT_NODE *)OSMalloc(nbNode * sizeof(TIMER_EVENT_NODE));
   for (i = 0; i < nbNode - 1; i += 1)
-     device->FreeNodes[i].Next = &device->FreeNodes[i+1];
-  device->FreeNodes[i].Next = NULL;
+	  softwareDevice->FreeNodes[i].Next = &softwareDevice->FreeNodes[i+1];
+  softwareDevice->FreeNodes[i].Next = NULL;
   return TRUE;
 } /* end of OSInitTimerEvent */
 
@@ -119,10 +156,9 @@ BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 interruptIndex, UINT16 *control,
 BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
 {
   TIMER_EVENT_NODE *timerEventNode;
-  TIMER_ISR_DATA *device;
+  SOFTWARE_TIMER_ISR_DATA *device;
   INSERTQUEUE_OP des, *pendingOp;
-  INT32 timerTime;
-  device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
+  device = (SOFTWARE_TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
   if ((timerEventNode = GetFreeNode(device)) == NULL)
      return FALSE;
   /* Because the timer ISR can shift the current time, the time at which this event oc-
@@ -130,10 +166,9 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
   ** event at the last moment so that if there is a time shift, it can be detected and
   ** corrected. */
   do {
-     timerTime = device->Time;
-     des.Time = *device->Counter + delay + timerTime;
-     des.Version = device->Version;
-  } while (timerTime != device->Time);
+     des.Version = device->Time; // Save current 16-bit MSB time to detect current time shifting
+     des.Time = *device->Counter + delay + ((INT32)des.Version << 16);
+  } while (des.Version != device->Time);
   timerEventNode->Time = -1;     // Set at an uninitialized sentinel value
   timerEventNode->Event = event;
   des.EventOp = InsertEventOp;   // Prepare the insertion so that other task may complete
@@ -157,21 +192,6 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
 } /* end of OSScheduleTimerEvent */
 
 
-/* To force a timer interrupt, setting the comparator to TAR does not immediately gene-
-** rate the expected interrupt. To do so, we need to set the comparator TAR + TARDELAY,
-** where TARDELAY is a delay that depends on the speed ratio between the timer clock and
-** the core clock.
-** Because the timer continues ticking, when we wish set a new value for the timer compa-
-** rator, the difference in time between the new value and the previous must be such that
-** when the assignment is done, the timer has not passed the comparator value. This is
-** guaranteed by TAROFFSET. */
-#define TARDELAY   2
-#define TAROFFSET  2
-/* The comparator register only has 16 bits, so the maximum value that is can hold is
-** 0x0000FFFF. */
-#define INFINITY16 0xFFFE
-#define INFINITY32 0x0000FFFE
-
 /* InsertQueueHelper: Performs the insertion described by a descriptor into a sorted
 ** queue. Whenever an enqueuer is interrupted in the midst of the insertion by another
 ** task, the latter task inserts the node of the interrupted enqueuer before completing
@@ -181,7 +201,7 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
 **   (2) (TIMER_ISR_DATA *) descriptor to the timer in order to retrieve the current time
 **          and to generate an interrupt if needed;
 **   (3) (BOOL) TRUE when not called from the timer ISR. */
-void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInterrupt)
+void InsertQueueHelper(INSERTQUEUE_OP *des, SOFTWARE_TIMER_ISR_DATA *device, BOOL genInterrupt)
 {
   INT32 scheduledTime;
   TIMER_EVENT_NODE *right, *left = des->Left;
@@ -189,13 +209,15 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
   ** the timer ISR can correct this time. Because the timer ISR shifts its current time
   ** to avoid overflow, the event occurrence time may not be finalized without the ISR's
   ** awareness. */
-  if (des->Version == device->Version)
-     scheduledTime = des->Time;
-  else
-     scheduledTime = des->Time - SHIFT_TIME_LIMIT;
-  while (OSINT32_LL(&des->Node->Time) == -1)
-     if (OSINT32_SC(&des->Node->Time,scheduledTime))
-        break;
+  if (OSINT32_LL(&des->Node->Time) == -1) {
+     if (des->Version > device->Time) // If 16-bit MSB backup is greater than current a time shift occurred
+        scheduledTime = des->Time - SHIFT_TIME_LIMIT;
+     else
+        scheduledTime = des->Time;
+     while (OSINT32_LL(&des->Node->Time) == -1)
+        if (OSINT32_SC(&des->Node->Time,scheduledTime))
+           break;
+  }
   while (TRUE) {         // Loop until done
      right = left->Next; // Get adjacent node
      if (des->Done)      // Has a higher priority task finished the work?
@@ -225,12 +247,15 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
         left = des->Left = right;
   }
   /* Generate a timer comparator interrupt if the inserted event is the first one. */
-  if (genInterrupt)
-     while (device->EventQueue == des->Node) {
-        OSUINT16_LL((UINT16 *)device->Compare);
-        if (des->GeneratedInterrupt || *device->Counter >= 0xFFFC || // 0xFFFE - TARDELAY
-            OSUINT16_SC((UINT16 *)device->Compare,*device->Counter + TAROFFSET))
-           break;
+  if (genInterrupt &&  device->EventQueue == des->Node) {
+     do {
+        OSUINT16_LL(device->Compare);
+        if (des->GeneratedInterrupt) return;
+     } while (!OSUINT16_SC(device->Compare,des->Node->Time));
+     if (*device->Compare <= *device->Counter) {
+        if (des->GeneratedInterrupt) return;
+        *device->PortIFG |= device->PortPinBit; // Claude on ne peut pas faire un LL/SC car sinon on peut perdre des interruption
+     }
   }
   des->GeneratedInterrupt = TRUE;
 } /* end of InsertQueueHelper */
@@ -241,10 +266,10 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
 BOOL OSUnScheduleTimerEvent(void *event, UINT8 interruptIndex)
 {
   DELETEQUEUE_OP des, *pendingOp;
-  TIMER_ISR_DATA *device;
+  SOFTWARE_TIMER_ISR_DATA *device;
   des.EventOp = DeleteEventOp;  // Prepare the removal so that other task may complete
   des.Done = FALSE;             // it.
-  device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
+  device = (SOFTWARE_TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
   des.Left = (TIMER_EVENT_NODE *)&device->EventQueue;
   des.Event = event;
   des.Node = (TIMER_EVENT_NODE *)&des;
@@ -300,7 +325,7 @@ void DeleteQueueHelper(DELETEQUEUE_OP *des)
 
 /* GetFreeNode: : Returns a node from the pool of free nodes. NULL is returned when
 ** none are available. The free node list is considered to be a stack of nodes. */
-TIMER_EVENT_NODE *GetFreeNode(TIMER_ISR_DATA *des)
+TIMER_EVENT_NODE *GetFreeNode(SOFTWARE_TIMER_ISR_DATA *des)
 {
   TIMER_EVENT_NODE *node;
   while ((node = (TIMER_EVENT_NODE *)OSUINTPTR_LL((UINTPTR *)&des->FreeNodes)) != NULL)
@@ -311,7 +336,7 @@ TIMER_EVENT_NODE *GetFreeNode(TIMER_ISR_DATA *des)
 
 
 /* ReleaseNode: Returns a node to the pool of free nodes. */
-void ReleaseNode(TIMER_ISR_DATA *device, TIMER_EVENT_NODE *freeNode)
+void ReleaseNode(SOFTWARE_TIMER_ISR_DATA *device, TIMER_EVENT_NODE *freeNode)
 {
   while (TRUE) {
      freeNode->Next = (TIMER_EVENT_NODE *)OSUINTPTR_LL((UINTPTR *)&device->FreeNodes);
@@ -322,13 +347,11 @@ void ReleaseNode(TIMER_ISR_DATA *device, TIMER_EVENT_NODE *freeNode)
 
 
 /* TimerIntHandler: ISR routine called whenever the timer device gets an interrupt. */
-void TimerIntHandler(TIMER_ISR_DATA *device)
+void SoftwareTimerIntHandler(SOFTWARE_TIMER_ISR_DATA *device)
 {
-  INT32 interval;
-  UINT16 time16;
   TIMER_EVENT_NODE *eventNode;
   INSERTQUEUE_OP *pendingOp;
-  *device->Compare = INFINITY16;
+  INT32 timeMSB;
   /* First finalize any pending operation in case there is an inserted node that already
   ** has its occurrence time but is not yet in the queue. */
   pendingOp = (INSERTQUEUE_OP *)device->PendingQueueOperation;
@@ -339,36 +362,49 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
         DeleteQueueHelper((DELETEQUEUE_OP *)pendingOp);
   }
   device->PendingQueueOperation = NULL;
-  device->Time += *device->Compare;
-  *device->Control |= device->TimerEnable;
-  if (device->Time >= SHIFT_TIME_LIMIT) {   // Shift all time value
-     for (eventNode = device->EventQueue; eventNode != NULL; eventNode = eventNode->Next)
-        eventNode->Time -= SHIFT_TIME_LIMIT;
-     device->Time -= SHIFT_TIME_LIMIT;
-     device->Version += 1;
-  }
-  // Schedule events that now occur
-  eventNode = device->EventQueue;
-  while (eventNode != NULL && eventNode->Time <= (device->Time | *device->Counter)) {
-     OSScheduleSuspendedTask(eventNode->Event);
-     device->EventQueue = eventNode->Next;
-     ReleaseNode(device,eventNode);
-     eventNode = device->EventQueue;
-  }
-  if (eventNode != NULL) {
-     // Program timer comparator
-     interval = eventNode->Time - device->Time;
-     if (interval < INFINITY32) {
-        time16 = (UINT16)interval;
-        while (TRUE) {
-           OSUINT16_LL(device->Compare);
-           if (time16 > *device->Counter + TAROFFSET)
-              time16 -= 1;
-           else
-              time16 = *device->Counter + TARDELAY;
-           if (OSUINT16_SC(device->Compare,time16))
-              break;
+  do {
+     /* shifting of the temporal values. */
+     if (device->OverflowInterruptFlag) { // Is timer overflow interrupt?
+        device->OverflowInterruptFlag = FALSE;  // Clear interrupt flag
+        device->Time += 1; // Increment MSB of time
+        if (device->Time >= SHIFT_TIME_LIMIT_16) { // Shift all time value
+           eventNode = device->EventQueue;
+           while (eventNode != NULL) {
+              eventNode->Time -= SHIFT_TIME_LIMIT;
+              eventNode = eventNode->Next;
+           }
+           device->Time -= SHIFT_TIME_LIMIT_16;
         }
      }
-  }
+     while (TRUE) {
+        *device->Compare = 0;                    // Disable timer comparator
+        device->ComparatorInterruptFlag = FALSE; // Clear interrupt flag
+        /* Schedule events that now occur */
+        timeMSB = (INT32)device->Time << 16;
+        while ((eventNode = device->EventQueue) != NULL && eventNode->Time <=
+                                                           (timeMSB | *device->Counter)) {
+           OSScheduleSuspendedTask(eventNode->Event);
+           device->EventQueue = eventNode->Next;
+           ReleaseNode(device,eventNode);
+        }
+        /* Program the next timer comparator */
+        if (eventNode != NULL && (eventNode->Time & 0xFFFF0000) == timeMSB) {
+           *device->Compare = (UINT16)eventNode->Time;
+           if (*device->Compare > *device->Counter)
+              break;
+        }
+        else
+           break;
+     }
+  } while (device->ComparatorInterruptFlag || device->OverflowInterruptFlag);
+  *device->PortIE |= device->PortPinBit;
+} /* end of TimerIntHandler */
+
+
+/* TimerIntHandler: */
+void TimerIntHandler(TIMER_ISR_DATA *device)
+{
+  *device->InterruptFlag = TRUE;
+  *device->TimerControl |= device->TimerEnableBit;
+  *device->PortIFG |= device->PortPinBit;
 } /* end of TimerIntHandler */
