@@ -26,23 +26,27 @@
 #ifndef _TIMEREVENT_
 #define _TIMEREVENT_
 
-/*
 
-*/
-
-
-/* OSInitTimerEvent: Creates an ISR descriptor block holding the specifics of a timer
+/* OSInitTimerEvent:
+ *
+ * Creates an ISR descriptor block holding the specifics of a timer
 ** device that is used as an event handler and which can schedule a list of event at
 ** their occurrence time.
 ** Parameters:
 **  (1) (UINT8) maximum number of pending events;
-**  (2) (UINT8)
-**  (3) (UINT8)
-**  (4) (UINT8)
+**  (2) (UINT8) interrupt index for software interrupt;
+**  (3) (UINT8) overflow timer interrupt index;
+**  (4) (UINT8) comparator timer interrupt index;
 **  (5) (UINT16 *) pointer to timer counter register;
 **  (6) (UINT16 *) pointer to timer comparator register;
-**  (7) (UINT16 *);
-**  (8) (UINT16) . */
+**  (7) (UINT16 *) pointer to overflow timer interrupt enable register;
+**  (8) (UINT8) bit to enable overflow timer interrupt;
+**  (9) (UINT16 *) pointer to comparator timer interrupt enable register;
+**  (10) (UINT8) bit to enable comparator timer interrupt;
+**  (11) (UINT8 *) pointer to software interrupt flags register;
+**  (11) (UINT8 *) pointer to software interrupt enable register;
+**  (12) (UINT8) bit to clear flag or enable software interrupt;.
+** Returned value: (BOOL) successfulness of the operation. */
 BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 softwareInterruptIndex,
                       UINT8 overflowInterruptIndex, UINT8 comparatorInterruptIndex,
                       UINT16 *counter, UINT16 *compare,

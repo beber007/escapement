@@ -29,7 +29,7 @@
 
 /* Because events are sorted by the time at which they occur, and that this time is mon-
 ** otonically increasing, the relative time reference wraparounds. We therefore need to
-** periodically shift the occurrence times. This is done very SHIFT_TIME_LIMIT tics. */
+** periodically shift the occurrence times. This is done very SHIFT_TIME_LIMIT ticks. */
 #define SHIFT_TIME_LIMIT    0x40000000 // = 2^30
 #define SHIFT_TIME_LIMIT_16 0x4000     // = 2^30 >> 16
 
@@ -49,17 +49,17 @@ typedef struct SOFTWARE_TIMER_ISR_DATA {
   void *PendingQueueOperation;      // Interrupted operations that are not complete
   TIMER_EVENT_NODE *EventQueue;     // List of events sorted by their time of occurrence
   TIMER_EVENT_NODE *FreeNodes;      // Pool of free nodes used to link events
-  UINT8 *PortIFG;                   // need to software generate IO port interrupt
-  UINT8 *PortIE;                    // need to re-enable IO port interrupt
+  UINT8 *PortIFG;                   // Needed for software generation IO port interrupt
+  UINT8 *PortIE;                    // Needed to re-enable IO port interrupt
   UINT8 PortPinBit;
 } SOFTWARE_TIMER_ISR_DATA;
 
 typedef struct TIMER_ISR_DATA {
   void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
   BOOL *InterruptFlag;              // Pointer to interrupt flag field of SOFTWARE_TIMER_ISR_DATA structure.
-  UINT16 *TimerControl;             // need to re-enable timer interrupt
+  UINT16 *TimerControl;             // Needed to re-enable timer interrupt
   UINT16 TimerEnableBit;
-  UINT8 *PortIFG;                   // need to software generate IO port interrupt
+  UINT8 *PortIFG;                   // Needed for software generation IO port interrupt
   UINT8 PortPinBit;
 } TIMER_ISR_DATA;
 
@@ -247,15 +247,13 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, SOFTWARE_TIMER_ISR_DATA *device, BOO
         left = des->Left = right;
   }
   /* Generate a timer comparator interrupt if the inserted event is the first one. */
-  if (genInterrupt &&  device->EventQueue == des->Node) {
+  if (genInterrupt && device->EventQueue == des->Node) {
      do {
         OSUINT16_LL(device->Compare);
         if (des->GeneratedInterrupt) return;
      } while (!OSUINT16_SC(device->Compare,des->Node->Time));
-     if (*device->Compare <= *device->Counter) {
-        if (des->GeneratedInterrupt) return;
-        *device->PortIFG |= device->PortPinBit; // Claude on ne peut pas faire un LL/SC car sinon on peut perdre des interruption
-     }
+     if (*device->Compare <= *device->Counter)
+        *device->PortIFG |= device->PortPinBit;
   }
   des->GeneratedInterrupt = TRUE;
 } /* end of InsertQueueHelper */
@@ -303,7 +301,7 @@ void DeleteQueueHelper(DELETEQUEUE_OP *des)
      right = left->Next;     // Get adjacent node
      if (des->Done)          // Has a higher priority task finished the work?
         break;
-     else if (right == NULL) {  // Is the seeked node already removed from the queue?
+     else if (right == NULL) {  // Is the sought node already removed from the queue?
         des->Done = TRUE;       // Mark that node has been removed
         break;
      }
@@ -346,7 +344,7 @@ void ReleaseNode(SOFTWARE_TIMER_ISR_DATA *device, TIMER_EVENT_NODE *freeNode)
 } /* end of ReleaseNode */
 
 
-/* TimerIntHandler: ISR routine called whenever the timer device gets an interrupt. */
+/* SoftwareTimerIntHandler: Software timer interrupt handler. */
 void SoftwareTimerIntHandler(SOFTWARE_TIMER_ISR_DATA *device)
 {
   TIMER_EVENT_NODE *eventNode;
@@ -396,15 +394,16 @@ void SoftwareTimerIntHandler(SOFTWARE_TIMER_ISR_DATA *device)
         else
            break;
      }
+     *device->PortIFG &= ~device->PortPinBit;
   } while (device->ComparatorInterruptFlag || device->OverflowInterruptFlag);
   *device->PortIE |= device->PortPinBit;
-} /* end of TimerIntHandler */
+} /* end of SoftwareTimerIntHandler */
 
 
-/* TimerIntHandler: */
+/* TimerIntHandler: Overflow or comparator timer interrupt handler. */
 void TimerIntHandler(TIMER_ISR_DATA *device)
 {
-  *device->InterruptFlag = TRUE;
-  *device->TimerControl |= device->TimerEnableBit;
-  *device->PortIFG |= device->PortPinBit;
+  *device->InterruptFlag = TRUE; // save the state
+  *device->PortIFG |= device->PortPinBit; // Generate software interrupt
+  *device->TimerControl |= device->TimerEnableBit; // Re-enable timer interrupt
 } /* end of TimerIntHandler */
