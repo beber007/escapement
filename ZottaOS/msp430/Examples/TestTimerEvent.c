@@ -46,8 +46,6 @@ int main(void)
   P1DIR = 0x03;   // Set to output
   P1OUT = 0x00;   // Initially start at low
 
-  P1IFG |= 0x01;   // Initially start at low
-
   OSInitTimerEvent(2,OS_IO_PORT1_6,OS_IO_TIMER1_A1_TA,OS_IO_TIMER1_A1_CC1,
                    (UINT16 *)&TA1R,(UINT16 *)&TA1CCR1,
                    (UINT16 *)&TA1CTL,TAIE,
