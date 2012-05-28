@@ -20,7 +20,7 @@
 ** Events that are inserted into the queue are specified along with a delay, and as soon
 ** as this delay has expired, the event is scheduled.
 ** Platform version: All MSP430 and CC430 microcontrollers.
-** Version identifier: April 2012
+** Version identifier: May 2012
 ** Authors: MIS-TIC */
 
 #include "msp430.h"  /* Hardware specifics */
@@ -29,11 +29,11 @@
 
 /* Because events are sorted by the time at which they occur, and that this time is mon-
 ** otonically increasing, the relative time reference wraparounds. We therefore need to
-** periodically shift the occurrence times. This is done very SHIFT_TIME_LIMIT ticks. */
-#define SHIFT_TIME_LIMIT    0x40000000 // = 2^30
-#define SHIFT_TIME_LIMIT_16 0x4000     // = 2^30 >> 16
+** periodically shift the occurrence times. This is done every SHIFT_TIME_LIMIT ticks. */
+#define SHIFT_TIME_LIMIT     0x40000000 // = 2^30
+#define SHIFT_TIME_LIMIT_16  0x4000     // = 2^30 >> 16
 
-typedef struct TIMER_EVENT_NODE { // Blocks that are in the event queue
+typedef struct TIMER_EVENT_NODE {   // Blocks that are in the event queue
   struct TIMER_EVENT_NODE *Next;
   void *Event;
   INT32 Time;
@@ -86,6 +86,8 @@ typedef struct {
 } DELETEQUEUE_OP;
 
 
+static SOFTWARE_TIMER_ISR_DATA *SetSoftwareInterrupt(UINT8 softwareInterruptIndex);
+static BOOL SetTimerInterrupts(SOFTWARE_TIMER_ISR_DATA *softwareDevice, UINT8 overflowInterruptIndex);
 static void InsertQueueHelper(INSERTQUEUE_OP *des, SOFTWARE_TIMER_ISR_DATA *device, BOOL genInt);
 static void DeleteQueueHelper(DELETEQUEUE_OP *des);
 static TIMER_EVENT_NODE *GetFreeNode(SOFTWARE_TIMER_ISR_DATA *device);
@@ -94,61 +96,435 @@ static void SoftwareTimerIntHandler(SOFTWARE_TIMER_ISR_DATA *device);
 static void TimerIntHandler(TIMER_ISR_DATA *device);
 
 
-/* OSInitTimerEvent: Creates an ISR descriptor block holding the specifics of a timer
-** device that is used as an event handler and which can schedule a list of event at
-** their occurrence time. */
-BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 softwareInterruptIndex,
-                      UINT8 overflowInterruptIndex, UINT8 comparatorInterruptIndex,
-                      UINT16 *counter, UINT16 *compare,
-                      UINT16 *overflowControl, UINT16 overflowTimerEnable,
-                      UINT16 *comparatorControl, UINT16 comparatorTimerEnable,
-                      UINT8 *portIFG, UINT8 *portIE, UINT8 portPin)
+/* OSInitTimerEvent: Creates all the interrupt handlers needed to manage an event queue
+** and their structures: a timer overflow and compare match and a software generated timer
+** handler. The first 2 handlers are associated with a timer device and propagate their
+** processing to the software generated timer. In all 3 interrupt handlers should be de-
+** fined in ZottaOSconf.exe. This function also starts the timer device. */
+BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 softwareInterruptIndex, UINT8 overflowInterruptIndex)
 {
   UINT8 i;
   SOFTWARE_TIMER_ISR_DATA *softwareDevice;
-  TIMER_ISR_DATA *overflowDevice;
-  TIMER_ISR_DATA *comparatorDevice;
+  if ((softwareDevice = SetSoftwareInterrupt(softwareInterruptIndex)) != NULL)
+     if (SetTimerInterrupts(softwareDevice,overflowInterruptIndex) {
+        softwareDevice->Time = 0;
+        softwareDevice->PendingQueueOperation = NULL;
+        /* Initialize event queue */
+        softwareDevice->EventQueue = NULL;
+        /* Create a pool of free event nodes */
+        softwareDevice->FreeNodes = (TIMER_EVENT_NODE *)OSMalloc(nbNode * sizeof(TIMER_EVENT_NODE));
+        for (i = 0; i < nbNode - 1; i += 1)
+           softwareDevice->FreeNodes[i].Next = &softwareDevice->FreeNodes[i+1];
+        softwareDevice->FreeNodes[i].Next = NULL;
+        /* Allow software timer interrupts */
+        softwareDevice->PortIE |= softwareDevice->PortPinBit;
+        return TRUE;
+     }
+  return FALSE;
+} /* end of OSInitTimerEvent */
 
+
+/* SetSoftwareInterrupt: Creates and registers SoftwareTimerIntHandler that acts as the
+** timer handler so that interrupts can be re-enabled as soon as possible. */
+SOFTWARE_TIMER_ISR_DATA *SetSoftwareInterrupt(UINT8 softwareInterruptIndex)
+{
+  SOFTWARE_TIMER_ISR_DATA *softwareDevice;
   softwareDevice = (SOFTWARE_TIMER_ISR_DATA *)OSMalloc(sizeof(SOFTWARE_TIMER_ISR_DATA));
   softwareDevice->TimerIntHandler = SoftwareTimerIntHandler;
   softwareDevice->OverflowInterruptFlag = FALSE;
   softwareDevice->ComparatorInterruptFlag = FALSE;
-  softwareDevice->PortIFG = portIFG;
-  softwareDevice->PortIE = portIE;
-  softwareDevice->PortPinBit = portPin;
+  switch (softwareDevice) {  // Specific Port device configuration
+     #ifdef OS_IO_PORT1_0
+        case OS_IO_PORT1_0:
+           softwareDevice->PortIFG = (UINT8 *)&P1IFG;
+           softwareDevice->PortIE = (UINT8 *)&P1IE;
+           softwareDevice->PortPinBit = BIT0;
+           break;
+     #endif
+     #ifdef OS_IO_PORT1_1
+        case OS_IO_PORT1_1:
+           softwareDevice->PortIFG = (UINT8 *)&P1IFG;
+           softwareDevice->PortIE = (UINT8 *)&P1IE;
+           softwareDevice->PortPinBit = BIT1;
+           break;
+     #endif
+     #ifdef OS_IO_PORT1_2
+        case OS_IO_PORT1_2:
+           softwareDevice->PortIFG = (UINT8 *)&P1IFG;
+           softwareDevice->PortIE = (UINT8 *)&P1IE;
+           softwareDevice->PortPinBit = BIT2;
+           break;
+     #endif
+     #ifdef OS_IO_PORT1_3
+        case OS_IO_PORT1_3:
+           softwareDevice->PortIFG = (UINT8 *)&P1IFG;
+           softwareDevice->PortIE = (UINT8 *)&P1IE;
+           softwareDevice->PortPinBit = BIT3;
+           break;
+     #endif
+     #ifdef OS_IO_PORT1_4
+        case OS_IO_PORT1_4:
+           softwareDevice->PortIFG = (UINT8 *)&P1IFG;
+           softwareDevice->PortIE = (UINT8 *)&P1IE;
+           softwareDevice->PortPinBit = BIT4;
+           break;
+     #endif
+     #ifdef OS_IO_PORT1_5
+        case OS_IO_PORT1_5:
+           softwareDevice->PortIFG = (UINT8 *)&P1IFG;
+           softwareDevice->PortIE = (UINT8 *)&P1IE;
+           softwareDevice->PortPinBit = BIT5;
+           break;
+     #endif
+     #ifdef OS_IO_PORT1_6
+        case OS_IO_PORT1_6:
+           softwareDevice->PortIFG = (UINT8 *)&P1IFG;
+           softwareDevice->PortIE = (UINT8 *)&P1IE;
+           softwareDevice->PortPinBit = BIT6;
+           break;
+     #endif
+     #ifdef OS_IO_PORT1_7
+        case OS_IO_PORT1_7:
+           softwareDevice->PortIFG = (UINT8 *)&P1IFG;
+           softwareDevice->PortIE = (UINT8 *)&P1IE;
+           softwareDevice->PortPinBit = BIT7;
+           break;
+     #endif
+     #ifdef OS_IO_PORT2_0
+        case OS_IO_PORT2_0:
+           softwareDevice->PortIFG = (UINT8 *)&P2IFG;
+           softwareDevice->PortIE = (UINT8 *)&P2IE;
+           softwareDevice->PortPinBit = BIT0;
+           break;
+     #endif
+     #ifdef OS_IO_PORT2_1
+        case OS_IO_PORT2_1:
+           softwareDevice->PortIFG = (UINT8 *)&P2IFG;
+           softwareDevice->PortIE = (UINT8 *)&P2IE;
+           softwareDevice->PortPinBit = BIT1;
+           break;
+     #endif
+     #ifdef OS_IO_PORT2_2
+        case OS_IO_PORT2_2:
+           softwareDevice->PortIFG = (UINT8 *)&P2IFG;
+           softwareDevice->PortIE = (UINT8 *)&P2IE;
+           softwareDevice->PortPinBit = BIT2;
+           break;
+     #endif
+     #ifdef OS_IO_PORT2_3
+        case OS_IO_PORT2_3:
+           softwareDevice->PortIFG = (UINT8 *)&P2IFG;
+           softwareDevice->PortIE = (UINT8 *)&P2IE;
+           softwareDevice->PortPinBit = BIT3;
+           break;
+     #endif
+     #ifdef OS_IO_PORT2_4
+        case OS_IO_PORT2_4:
+           softwareDevice->PortIFG = (UINT8 *)&P2IFG;
+           softwareDevice->PortIE = (UINT8 *)&P2IE;
+           softwareDevice->PortPinBit = BIT4;
+           break;
+     #endif
+     #ifdef OS_IO_PORT2_5
+        case OS_IO_PORT2_5:
+           softwareDevice->PortIFG = (UINT8 *)&P2IFG;
+           softwareDevice->PortIE = (UINT8 *)&P2IE;
+           softwareDevice->PortPinBit = BIT5;
+           break;
+     #endif
+     #ifdef OS_IO_PORT2_6
+        case OS_IO_PORT2_6:
+           softwareDevice->PortIFG = (UINT8 *)&P2IFG;
+           softwareDevice->PortIE = (UINT8 *)&P2IE;
+           softwareDevice->PortPinBit = BIT6;
+           break;
+     #endif
+     #ifdef OS_IO_PORT2_7
+        case OS_IO_PORT2_7:
+           softwareDevice->PortIFG = (UINT8 *)&P2IFG;
+           softwareDevice->PortIE = (UINT8 *)&P2IE;
+           softwareDevice->PortPinBit = BIT7;
+           break;
+     #endif
+     #ifdef OS_IO_PORT3_0
+        case OS_IO_PORT3_0:
+           softwareDevice->PortIFG = (UINT8 *)&P3IFG;
+           softwareDevice->PortIE = (UINT8 *)&P3IE;
+           softwareDevice->PortPinBit = BIT0;
+           break;
+     #endif
+     #ifdef OS_IO_PORT3_1
+        case OS_IO_PORT3_1:
+           softwareDevice->PortIFG = (UINT8 *)&P3IFG;
+           softwareDevice->PortIE = (UINT8 *)&P3IE;
+           softwareDevice->PortPinBit = BIT1;
+           break;
+     #endif
+     #ifdef OS_IO_PORT3_2
+        case OS_IO_PORT3_2:
+           softwareDevice->PortIFG = (UINT8 *)&P3IFG;
+           softwareDevice->PortIE = (UINT8 *)&P3IE;
+           softwareDevice->PortPinBit = BIT2;
+           break;
+     #endif
+     #ifdef OS_IO_PORT3_3
+        case OS_IO_PORT3_3:
+           softwareDevice->PortIFG = (UINT8 *)&P3IFG;
+           softwareDevice->PortIE = (UINT8 *)&P3IE;
+           softwareDevice->PortPinBit = BIT3;
+           break;
+     #endif
+     #ifdef OS_IO_PORT3_4
+        case OS_IO_PORT3_4:
+           softwareDevice->PortIFG = (UINT8 *)&P3IFG;
+           softwareDevice->PortIE = (UINT8 *)&P3IE;
+           softwareDevice->PortPinBit = BIT4;
+           break;
+     #endif
+     #ifdef OS_IO_PORT3_5
+        case OS_IO_PORT3_5:
+           softwareDevice->PortIFG = (UINT8 *)&P3IFG;
+           softwareDevice->PortIE = (UINT8 *)&P3IE;
+           softwareDevice->PortPinBit = BIT5;
+           break;
+     #endif
+     #ifdef OS_IO_PORT3_6
+        case OS_IO_PORT3_6:
+           softwareDevice->PortIFG = (UINT8 *)&P3IFG;
+           softwareDevice->PortIE = (UINT8 *)&P3IE;
+           softwareDevice->PortPinBit = BIT6;
+           break;
+     #endif
+     #ifdef OS_IO_PORT3_7
+        case OS_IO_PORT3_7:
+           softwareDevice->PortIFG = (UINT8 *)&P3IFG;
+           softwareDevice->PortIE = (UINT8 *)&P3IE;
+           softwareDevice->PortPinBit = BIT7;
+           break;
+     #endif
+     #ifdef OS_IO_PORT4_0
+        case OS_IO_PORT4_0:
+           softwareDevice->PortIFG = (UINT8 *)&P4IFG;
+           softwareDevice->PortIE = (UINT8 *)&P4IE;
+           softwareDevice->PortPinBit = BIT0;
+           break;
+     #endif
+     #ifdef OS_IO_PORT4_1
+        case OS_IO_PORT4_1:
+           softwareDevice->PortIFG = (UINT8 *)&P4IFG;
+           softwareDevice->PortIE = (UINT8 *)&P4IE;
+           softwareDevice->PortPinBit = BIT1;
+           break;
+     #endif
+     #ifdef OS_IO_PORT4_2
+        case OS_IO_PORT4_2:
+           softwareDevice->PortIFG = (UINT8 *)&P4IFG;
+           softwareDevice->PortIE = (UINT8 *)&P4IE;
+           softwareDevice->PortPinBit = BIT2;
+           break;
+     #endif
+     #ifdef OS_IO_PORT4_3
+        case OS_IO_PORT4_3:
+           softwareDevice->PortIFG = (UINT8 *)&P4IFG;
+           softwareDevice->PortIE = (UINT8 *)&P4IE;
+           softwareDevice->PortPinBit = BIT3;
+           break;
+     #endif
+     #ifdef OS_IO_PORT4_4
+        case OS_IO_PORT4_4:
+           softwareDevice->PortIFG = (UINT8 *)&P4IFG;
+           softwareDevice->PortIE = (UINT8 *)&P4IE;
+           softwareDevice->PortPinBit = BIT4;
+           break;
+     #endif
+     #ifdef OS_IO_PORT4_5
+        case OS_IO_PORT4_5:
+           softwareDevice->PortIFG = (UINT8 *)&P4IFG;
+           softwareDevice->PortIE = (UINT8 *)&P4IE;
+           softwareDevice->PortPinBit = BIT5;
+           break;
+     #endif
+     #ifdef OS_IO_PORT4_6
+        case OS_IO_PORT4_6:
+           softwareDevice->PortIFG = (UINT8 *)&P4IFG;
+           softwareDevice->PortIE = (UINT8 *)&P4IE;
+           softwareDevice->PortPinBit = BIT6;
+           break;
+     #endif
+     #ifdef OS_IO_PORT4_7
+        case OS_IO_PORT4_7:
+           softwareDevice->PortIFG = (UINT8 *)&P4IFG;
+           softwareDevice->PortIE = (UINT8 *)&P4IE;
+           softwareDevice->PortPinBit = BIT7;
+           break;
+     #endif
+        default:
+           return NULL;
+  }
   OSSetISRDescriptor(softwareInterruptIndex,softwareDevice);
+  return softwareDevice;
+} /* end of SetSoftwareInterrupt */
 
-  overflowDevice = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+
+/* SetTimerInterrupts: Creates and registers TimerIntHandler to catch timer overflow and
+** comparator match interrupts. These interrupts simply propagate the interrupt to the
+** software timer. Note that the CC1 is used as comparator. */
+BOOL SetTimerInterrupts(SOFTWARE_TIMER_ISR_DATA *softwareDevice, UINT8 overflowInterruptIndex)
+{
+  UINT8 clockSourceSelect;
+  TIMER_ISR_DATA *comparatorDevice;
+  TIMER_ISR_DATA *overflowDevice = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
   overflowDevice->TimerIntHandler = TimerIntHandler;
   overflowDevice->InterruptFlag = &softwareDevice->OverflowInterruptFlag;
-  overflowDevice->TimerControl = overflowControl;
-  overflowDevice->TimerEnableBit = overflowTimerEnable;
-  overflowDevice->PortIFG = portIFG;
-  overflowDevice->PortPinBit = portPin;
-  OSSetISRDescriptor(overflowInterruptIndex,overflowDevice);
-
+  overflowDevice->PortIFG = softwareDevice->PortIFG;
+  overflowDevice->PortPinBit = softwareDevice->PortPinBit;
   comparatorDevice = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
   comparatorDevice->TimerIntHandler = TimerIntHandler;
   comparatorDevice->InterruptFlag = &softwareDevice->ComparatorInterruptFlag;
-  comparatorDevice->TimerControl = comparatorControl;
-  comparatorDevice->TimerEnableBit = comparatorTimerEnable;
-  comparatorDevice->PortIFG = portIFG;
-  comparatorDevice->PortPinBit = portPin;
-  OSSetISRDescriptor(comparatorInterruptIndex,comparatorDevice);
-
-  softwareDevice->Counter = counter;
-  softwareDevice->Compare = compare;
-  softwareDevice->Time = 0;
-  softwareDevice->PendingQueueOperation = NULL;
-  /* Initialize event queue */
-  softwareDevice->EventQueue = NULL;
-  /* Create a pool of free event nodes */
-  softwareDevice->FreeNodes = (TIMER_EVENT_NODE *)OSMalloc(nbNode * sizeof(TIMER_EVENT_NODE));
-  for (i = 0; i < nbNode - 1; i += 1)
-	  softwareDevice->FreeNodes[i].Next = &softwareDevice->FreeNodes[i+1];
-  softwareDevice->FreeNodes[i].Next = NULL;
+  comparatorDevice->PortIFG = softwareDevice->PortIFG;
+  comparatorDevice->PortPinBit = softwareDevice->PortPinBit;
+  switch (overflowInterruptIndex) {  // Specific timer device configuration
+     #if defined(OS_IO_TIMER0_A1_TA) && defined(OS_IO_TIMER0_A1_CC1)
+        case OS_IO_TIMER0_A1_TA:
+           overflowDevice->TimerControl = (UINT16 *)&TA0CTL;
+           overflowDevice->TimerEnableBit = TAIE;
+           softwareDevice->Counter = (UINT16 *)&TA0R;
+           softwareDevice->Compare = (UINT16 *)&TA0CCR1;
+           comparatorDevice->TimerControl = (UINT16 *)&TA0CCTL1;
+           comparatorDevice->TimerEnableBit = CCIE;
+           OSSetISRDescriptor(OS_IO_TIMER0_A1_CC1,comparatorDevice);
+           clockSourceSelect = TASSEL_1;
+           break;
+     #endif
+     #if defined(OS_IO_TIMER1_A1_TA) && defined(OS_IO_TIMER1_A1_CC1)
+        case OS_IO_TIMER1_A1_TA:
+           overflowDevice->TimerControl = (UINT16 *)&TA1CTL;
+           overflowDevice->TimerEnableBit = TAIE;
+           softwareDevice->Counter = (UINT16 *)&TA1R;
+           softwareDevice->Compare = (UINT16 *)&TA1CCR1;
+           comparatorDevice->TimerControl = (UINT16 *)&TA1CCTL1;
+           comparatorDevice->TimerEnableBit = CCIE;
+           OSSetISRDescriptor(OS_IO_TIMER1_A1_CC1,comparatorDevice);
+           clockSourceSelect = TASSEL_1;
+           break;
+     #endif
+     #if defined(OS_IO_TIMER2_A1_TA) && defined(OS_IO_TIMER2_A1_CC1)
+        case OS_IO_TIMER2_A1_TA:
+           overflowDevice->TimerControl = (UINT16 *)&TA2CTL;
+           overflowDevice->TimerEnableBit = TAIE;
+           softwareDevice->Counter = (UINT16 *)&TA2R;
+           softwareDevice->Compare = (UINT16 *)&TA2CCR1;
+           comparatorDevice->TimerControl = (UINT16 *)&TA2CCTL1;
+           comparatorDevice->TimerEnableBit = CCIE;
+           OSSetISRDescriptor(OS_IO_TIMER2_A1_CC1,comparatorDevice);
+           clockSourceSelect = TASSEL_1;
+           break;
+     #endif
+     #if defined(OS_IO_TIMER3_A1_TA) && defined(OS_IO_TIMER3_A1_CC1)
+        case OS_IO_TIMER3_A1_TA:
+           overflowDevice->TimerControl = (UINT16 *)&TA3CTL;
+           overflowDevice->TimerEnableBit = TAIE;
+           softwareDevice->Counter = (UINT16 *)&TA3R;
+           softwareDevice->Compare = (UINT16 *)&TA3CCR1;
+           comparatorDevice->TimerControl = (UINT16 *)&TA3CCTL1;
+           comparatorDevice->TimerEnableBit = CCIE;
+           OSSetISRDescriptor(OS_IO_TIMER3_A1_CC1,comparatorDevice);
+           clockSourceSelect = TASSEL_1;
+           break;
+     #endif
+     #if defined(OS_IO_TIMERA1_TA) && defined(OS_IO_TIMERA1_CC1)
+        case OS_IO_TIMERA1_TA:
+           overflowDevice->TimerControl = (UINT16 *)&TACTL;
+           overflowDevice->TimerEnableBit = TAIE;
+           softwareDevice->Counter = (UINT16 *)&TAR;
+           softwareDevice->Compare = (UINT16 *)&TACCR1;
+           comparatorDevice->TimerControl = (UINT16 *)&TACCTL1;
+           comparatorDevice->TimerEnableBit = CCIE;
+           OSSetISRDescriptor(OS_IO_TIMERA1_CC1,comparatorDevice);
+           clockSourceSelect = TASSEL_1;
+           break;
+     #endif
+     #if defined(OS_IO_TIMER0_B1_TB) && defined(OS_IO_TIMER0_B1_CC1)
+        case OS_IO_TIMER0_B1_TB:
+           overflowDevice->TimerControl = (UINT16 *)&TB0CTL;
+           overflowDevice->TimerEnableBit = TBIE;
+           softwareDevice->Counter = (UINT16 *)&TB0R;
+           softwareDevice->Compare = (UINT16 *)&TB0CCR1;
+           comparatorDevice->TimerControl = (UINT16 *)&TB0CCTL1;
+           comparatorDevice->TimerEnableBit = CCIE;
+           OSSetISRDescriptor(OS_IO_TIMER0_B1_CC1,comparatorDevice);
+           clockSourceSelect = TBSSEL_1;
+           break;
+     #endif
+     #if defined(OS_IO_TIMER1_B1_TB) && defined(OS_IO_TIMER1_B1_CC1)
+        case OS_IO_TIMER1_B1_TB:
+           overflowDevice->TimerControl = (UINT16 *)&TB1CTL;
+           overflowDevice->TimerEnableBit = TBIE;
+           softwareDevice->Counter = (UINT16 *)&TB1R;
+           softwareDevice->Compare = (UINT16 *)&TB1CCR1;
+           comparatorDevice->TimerControl = (UINT16 *)&TB1CCTL1;
+           comparatorDevice->TimerEnableBit = CCIE;
+           OSSetISRDescriptor(OS_IO_TIMER1_B1_CC1,comparatorDevice);
+           clockSourceSelect = TBSSEL_1;
+           break;
+     #endif
+     #if defined(OS_IO_TIMER2_B1_TB) && defined(OS_IO_TIMER2_B1_CC1)
+        case OS_IO_TIMER2_B1_TB:
+           overflowDevice->TimerControl = (UINT16 *)&TB2CTL;
+           overflowDevice->TimerEnableBit = TBIE;
+           softwareDevice->Counter = (UINT16 *)&TB2R;
+           softwareDevice->Compare = (UINT16 *)&TB2CCR1;
+           comparatorDevice->TimerControl = (UINT16 *)&TB2CCTL1;
+           comparatorDevice->TimerEnableBit = CCIE;
+           OSSetISRDescriptor(OS_IO_TIMER2_B1_CC1,comparatorDevice);
+           clockSourceSelect = TBSSEL_1;
+           break;
+     #endif
+     #if defined(OS_IO_TIMERB1_TB) && defined(OS_IO_TIMERB1_CC1)
+        case OS_IO_TIMERB1_TB:
+           overflowDevice->TimerControl = (UINT16 *)&TBCTL;
+           overflowDevice->TimerEnableBit = TBIE;
+           softwareDevice->Counter = (UINT16 *)&TBR;
+           softwareDevice->Compare = (UINT16 *)&TBCCR1;
+           comparatorDevice->TimerControl = (UINT16 *)&TBCCTL1;
+           comparatorDevice->TimerEnableBit = CCIE;
+           OSSetISRDescriptor(OS_IO_TIMERB1_CC1,comparatorDevice);
+           clockSourceSelect = TBSSEL_1;
+           break;
+     #endif
+     #if defined(OS_IO_TIMER0_D1_TD) && defined(OS_IO_TIMER0_D1_CC1)
+        case OS_IO_TIMER0_D1_TD:
+           overflowDevice->TimerControl = (UINT16 *)&TD0CTL0;
+           overflowDevice->TimerEnableBit = TDIE;
+           softwareDevice->Counter = (UINT16 *)&TD0R;
+           softwareDevice->Compare = (UINT16 *)&TD0CCR1;
+           comparatorDevice->TimerControl = (UINT16 *)&TD0CCTL1;
+           comparatorDevice->TimerEnableBit = CCIE;
+           OSSetISRDescriptor(OS_IO_TIMER0_D1_CC1,comparatorDevice);
+           clockSourceSelect = TDSSEL_1;
+           break;
+     #endif
+     #if defined(OS_IO_TIMER1_D1_TD) && defined(OS_IO_TIMER1_D1_CC1)
+        case OS_IO_TIMER1_D1_TD:
+           overflowDevice->TimerControl = (UINT16 *)&TD1CTL0;
+           overflowDevice->TimerEnableBit = TDIE;
+           softwareDevice->Counter = (UINT16 *)&TD1R;
+           softwareDevice->Compare = (UINT16 *)&TD1CCR1;
+           comparatorDevice->TimerControl = (UINT16 *)&TD1CCTL1;
+           comparatorDevice->TimerEnableBit = CCIE;
+           OSSetISRDescriptor(OS_IO_TIMER1_D1_CC1,comparatorDevice);
+           clockSourceSelect = TDSSEL_1;
+           break;
+     #endif
+        default:
+           return FALSE;
+  }
+  OSSetISRDescriptor(overflowInterruptIndex,overflowDevice);
+  /* Start the timer */
+  comparatorDevice->TimerControl |= comparatorDevice->TimerEnableBit;
+  overflowDevice->TimerControl |= clockSourceSelect | overflowDevice->TimerEnableBit | MC_2;
   return TRUE;
-} /* end of OSInitTimerEvent */
+} /* end of SetTimerInterrupts */
 
 
 /* OSScheduleTimerEvent: Entry point to insert an event into the event list associated
@@ -166,13 +542,13 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
   ** event at the last moment so that if there is a time shift, it can be detected and
   ** corrected. */
   do {
-     des.Version = device->Time; // Save current 16-bit MSB time to detect current time shifting
+     des.Version = device->Time; // Save current 16-bit MSB time to detect time shifting
      des.Time = *device->Counter + delay + ((INT32)des.Version << 16);
   } while (des.Version != device->Time);
   timerEventNode->Time = -1;     // Set at an uninitialized sentinel value
   timerEventNode->Event = event;
-  des.EventOp = InsertEventOp;   // Prepare the insertion so that other task may complete
-  des.Done = FALSE;              // it.
+  des.EventOp = InsertEventOp;   // Prepare the insertion so that other task may
+  des.Done = FALSE;              // complete it.
   des.Left = (TIMER_EVENT_NODE *)&device->EventQueue;
   des.Node = timerEventNode;
   des.GeneratedInterrupt = FALSE;
@@ -200,7 +576,7 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
 **   (1) (INSERTQUEUE_OP *) insertion operation to perform;
 **   (2) (TIMER_ISR_DATA *) descriptor to the timer in order to retrieve the current time
 **          and to generate an interrupt if needed;
-**   (3) (BOOL) TRUE when not called from the timer ISR. */
+**   (3) (BOOL) TRUE when not called from the timer ISR (SoftwareTimerIntHandler). */
 void InsertQueueHelper(INSERTQUEUE_OP *des, SOFTWARE_TIMER_ISR_DATA *device, BOOL genInterrupt)
 {
   INT32 scheduledTime;
@@ -353,7 +729,7 @@ void SoftwareTimerIntHandler(SOFTWARE_TIMER_ISR_DATA *device)
   /* First finalize any pending operation in case there is an inserted node that already
   ** has its occurrence time but is not yet in the queue. */
   pendingOp = (INSERTQUEUE_OP *)device->PendingQueueOperation;
-  if (pendingOp != NULL) {       // Is there an incomplete operation under way?
+  if (pendingOp != NULL) {          // Is there an incomplete operation under way?
      if (pendingOp->EventOp == InsertEventOp)
         InsertQueueHelper(pendingOp,device,FALSE);
      else
@@ -362,9 +738,9 @@ void SoftwareTimerIntHandler(SOFTWARE_TIMER_ISR_DATA *device)
   device->PendingQueueOperation = NULL;
   do {
      /* shifting of the temporal values. */
-     if (device->OverflowInterruptFlag) { // Is timer overflow interrupt?
-        device->OverflowInterruptFlag = FALSE;  // Clear interrupt flag
-        device->Time += 1; // Increment MSB of time
+     if (device->OverflowInterruptFlag) {          // Is timer overflow interrupt?
+        device->OverflowInterruptFlag = FALSE;     // Clear interrupt flag
+        device->Time += 1;                         // Increment MSB of time
         if (device->Time >= SHIFT_TIME_LIMIT_16) { // Shift all time value
            eventNode = device->EventQueue;
            while (eventNode != NULL) {
@@ -375,12 +751,12 @@ void SoftwareTimerIntHandler(SOFTWARE_TIMER_ISR_DATA *device)
         }
      }
      while (TRUE) {
-        *device->Compare = 0;                    // Disable timer comparator
-        device->ComparatorInterruptFlag = FALSE; // Clear interrupt flag
+        *device->Compare = 0;                      // Disable timer comparator
+        device->ComparatorInterruptFlag = FALSE;   // Clear interrupt flag
         /* Schedule events that now occur */
         timeMSB = (INT32)device->Time << 16;
         while ((eventNode = device->EventQueue) != NULL && eventNode->Time <=
-                                                           (timeMSB | *device->Counter)) {
+                                                         (timeMSB | *device->Counter)) {
            OSScheduleSuspendedTask(eventNode->Event);
            device->EventQueue = eventNode->Next;
            ReleaseNode(device,eventNode);
@@ -403,7 +779,7 @@ void SoftwareTimerIntHandler(SOFTWARE_TIMER_ISR_DATA *device)
 /* TimerIntHandler: Overflow or comparator timer interrupt handler. */
 void TimerIntHandler(TIMER_ISR_DATA *device)
 {
-  *device->InterruptFlag = TRUE; // save the state
-  *device->PortIFG |= device->PortPinBit; // Generate software interrupt
+  *device->InterruptFlag = TRUE;                   // Save the state
+  *device->PortIFG |= device->PortPinBit;          // Generate software interrupt
   *device->TimerControl |= device->TimerEnableBit; // Re-enable timer interrupt
 } /* end of TimerIntHandler */

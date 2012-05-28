@@ -16,24 +16,26 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File TestTimerEvent.c: .
-** Version identifier: March 2012
+/* File TestTimerEvent.c: Shows how to use API ZottaOS_TimerEvent. This simple program
+** periodically turns LEDS on and then schedules a event to turn them off.
+** Prior to using this API, you should run ZottaOSconf.exe to define a timer with two
+** interrupt sources (one for the overflow and its corresponding capture/compare regis-
+** ter 1, e.g. OS_IO_TIMER1_A1_TA and OS_IO_TIMER1_A1_CC1 for Timer1 A), and also a port
+** pin interrupt to act as a software interrupt (e.g. port 1 pin 6 OS_IO_PORT1_6).
+** Version identifier: May 2012
 ** Authors: MIS-TIC */
 
 #include "msp430.h"
 #include "ZottaOS.h"
 #include "ZottaOS_TimerEvent.h"
 
-void assert_failed(UINT8* pcFile,UINT32 ulLine ) { while (TRUE); }
-
 static void SetLed1Task(void *argument);
-static void SetLed2Task(void *argument);
 static void ClearLed1Task(void *argument);
+static void SetLed2Task(void *argument);
 static void ClearLed2Task(void *argument);
 
 #define SetFlag(GPIO_Pin) P1OUT |= GPIO_Pin;
 #define ClearFlag(GPIO_Pin) P1OUT &= ~GPIO_Pin;
-
 
 int main(void)
 {
@@ -41,20 +43,14 @@ int main(void)
 
   WDTCTL = WDTPW + WDTHOLD;  // Disable watchdog timer
 
-  // Initialize output I/O ports
-  P1SEL = 0x00;   // Set for GPIO
-  P1DIR = 0x03;   // Set to output
-  P1OUT = 0x00;   // Initially start at low
+  /* Initialize output I/O ports */
+  P1SEL = 0x00;    // Set for GPIO
+  P1DIR = 0x03;    // Set to output
+  P1OUT = 0x00;    // Initially start at low
 
-  OSInitTimerEvent(2,OS_IO_PORT1_6,OS_IO_TIMER1_A1_TA,OS_IO_TIMER1_A1_CC1,
-                   (UINT16 *)&TA1R,(UINT16 *)&TA1CCR1,
-                   (UINT16 *)&TA1CTL,TAIE,
-                   (UINT16 *)&TA1CCTL1,CCIE,
-                   (UINT8 *)&P1IFG,(UINT8 *)&P1IE,BIT6);
-
-  TA1CTL |= TASSEL_1 | TAIE | MC_2;
-  TA1CCTL1 |= CCIE;
-  P1IE |= BIT6;
+  /* Define and start the event handlers */
+  if (!OSInitTimerEvent(2,OS_IO_PORT1_6,OS_IO_TIMER1_A1_TA))
+     while (TRUE); // Initialization problem
 
   #if defined(ZOTTAOS_VERSION_HARD)
      tmp = OSCreateEventDescriptor();
@@ -76,7 +72,7 @@ int main(void)
   return OSStartMultitasking();
 } /* end of main */
 
-/* SetLed1Task: . */
+/* SetLed1Task: Sets a LED and triggers its clear after 1000 clock ticks. */
 void SetLed1Task(void *argument)
 {
   SetFlag(1);
@@ -85,7 +81,15 @@ void SetLed1Task(void *argument)
 } /* end of SetLed1Task */
 
 
-/* SetLed2Task: . */
+/* ClearLed1Task: Clears the LED toggled by SetLed1Task(). */
+void ClearLed1Task(void *argument)
+{
+  ClearFlag(1);
+  OSSuspendSynchronousTask();
+} /* end of ClearLed1Task */
+
+
+/* SetLed2Task: Sets a LED and triggers its clear after 2000 clock ticks. */
 void SetLed2Task(void *argument)
 {
   SetFlag(2);
@@ -94,15 +98,7 @@ void SetLed2Task(void *argument)
 } /* end of SetLed2Task */
 
 
-/* ClearLed1Task: . */
-void ClearLed1Task(void *argument)
-{
-  ClearFlag(1);
-  OSSuspendSynchronousTask();
-} /* end of ClearLed1Task */
-
-
-/* ClearLed2Task: . */
+/* ClearLed2Task: Clears the LED toggled by SetLed2Task(). */
 void ClearLed2Task(void *argument)
 {
   ClearFlag(2);
