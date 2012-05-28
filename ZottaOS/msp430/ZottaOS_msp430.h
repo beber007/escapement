@@ -346,6 +346,12 @@
 #elif defined (__MSP430F6636__) || defined (__MSP430F6637__) || defined (__MSP430F6638__)
 #include "ZottaOS_msp430f6636-38.h"
 
+#elif defined (__MSP430F6720__) || defined (__MSP430F6721__) || defined (__MSP430F6723__) || defined (__MSP430F6724__) || defined (__MSP430F6725__) || defined (__MSP430F6726__)
+#include "ZottaOS_msp430f672x.h"
+
+#elif defined (__MSP430F6730__) || defined (__MSP430F6731__) || defined (__MSP430F6733__) || defined (__MSP430F6734__) || defined (__MSP430F6735__) || defined (__MSP430F6736__)
+#include "ZottaOS_msp430f673x.h"
+
 #elif defined (__MSP430GENERIC__)
 #error "msp430 generic device does not have a default include file"
 
