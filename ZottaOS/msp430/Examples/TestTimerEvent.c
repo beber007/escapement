@@ -58,11 +58,11 @@ int main(void)
 
   #if defined(ZOTTAOS_VERSION_HARD)
      tmp = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLed1Task,1000,tmp,NULL);
-     OSCreateTask(SetLed1Task,0,5000,5000,tmp);
+     OSCreateSynchronousTask(ClearLed1Task,100,tmp,NULL);
+     OSCreateTask(SetLed1Task,0,500,500,tmp);
      tmp = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLed2Task,2000,tmp,NULL);
-     OSCreateTask(SetLed2Task,0,10000,10000,tmp);
+     OSCreateSynchronousTask(ClearLed2Task,10,tmp,NULL);
+     OSCreateTask(SetLed2Task,0,1000,1000,tmp);
   #elif defined(ZOTTAOS_VERSION_SOFT)
      tmp = OSCreateEventDescriptor();
      OSCreateSynchronousTask(ClearLed1Task,0,1000,0,tmp,NULL);
@@ -80,7 +80,7 @@ int main(void)
 void SetLed1Task(void *argument)
 {
   SetFlag(1);
-  OSScheduleTimerEvent(argument,1000,OS_IO_PORT1_6);
+  OSScheduleTimerEvent(argument,100,OS_IO_PORT1_6);
   OSEndTask();
 } /* end of SetLed1Task */
 
@@ -88,8 +88,12 @@ void SetLed1Task(void *argument)
 /* SetLed2Task: . */
 void SetLed2Task(void *argument)
 {
+  static UINT16 delay = 10;
   SetFlag(2);
-  OSScheduleTimerEvent(argument,2000,OS_IO_PORT1_6);
+  OSScheduleTimerEvent(argument,delay,OS_IO_PORT1_6);
+  delay += 1;
+  if (delay > 900)
+     delay = 10;
   OSEndTask();
 } /* end of SetLed2Task */
 
@@ -106,6 +110,7 @@ void ClearLed1Task(void *argument)
 void ClearLed2Task(void *argument)
 {
   ClearFlag(2);
+  P1IFG |= 0x40;
   OSSuspendSynchronousTask();
 } /* end of ClearLed2Task */
 
