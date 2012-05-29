@@ -106,7 +106,7 @@ BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 softwareInterruptIndex, UINT8 overflow
   UINT8 i;
   SOFTWARE_TIMER_ISR_DATA *softwareDevice;
   if ((softwareDevice = SetSoftwareInterrupt(softwareInterruptIndex)) != NULL)
-     if (SetTimerInterrupts(softwareDevice,overflowInterruptIndex) {
+     if (SetTimerInterrupts(softwareDevice,overflowInterruptIndex)) {
         softwareDevice->Time = 0;
         softwareDevice->PendingQueueOperation = NULL;
         /* Initialize event queue */
@@ -117,7 +117,7 @@ BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 softwareInterruptIndex, UINT8 overflow
            softwareDevice->FreeNodes[i].Next = &softwareDevice->FreeNodes[i+1];
         softwareDevice->FreeNodes[i].Next = NULL;
         /* Allow software timer interrupts */
-        softwareDevice->PortIE |= softwareDevice->PortPinBit;
+        *softwareDevice->PortIE |= softwareDevice->PortPinBit;
         return TRUE;
      }
   return FALSE;
@@ -133,7 +133,7 @@ SOFTWARE_TIMER_ISR_DATA *SetSoftwareInterrupt(UINT8 softwareInterruptIndex)
   softwareDevice->TimerIntHandler = SoftwareTimerIntHandler;
   softwareDevice->OverflowInterruptFlag = FALSE;
   softwareDevice->ComparatorInterruptFlag = FALSE;
-  switch (softwareDevice) {  // Specific Port device configuration
+  switch (softwareInterruptIndex) {  // Specific Port device configuration
      #ifdef OS_IO_PORT1_0
         case OS_IO_PORT1_0:
            softwareDevice->PortIFG = (UINT8 *)&P1IFG;
@@ -371,7 +371,7 @@ SOFTWARE_TIMER_ISR_DATA *SetSoftwareInterrupt(UINT8 softwareInterruptIndex)
 ** software timer. Note that the CC1 is used as comparator. */
 BOOL SetTimerInterrupts(SOFTWARE_TIMER_ISR_DATA *softwareDevice, UINT8 overflowInterruptIndex)
 {
-  UINT8 clockSourceSelect;
+  UINT16 clockSourceSelect;
   TIMER_ISR_DATA *comparatorDevice;
   TIMER_ISR_DATA *overflowDevice = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
   overflowDevice->TimerIntHandler = TimerIntHandler;
@@ -521,8 +521,8 @@ BOOL SetTimerInterrupts(SOFTWARE_TIMER_ISR_DATA *softwareDevice, UINT8 overflowI
   }
   OSSetISRDescriptor(overflowInterruptIndex,overflowDevice);
   /* Start the timer */
-  comparatorDevice->TimerControl |= comparatorDevice->TimerEnableBit;
-  overflowDevice->TimerControl |= clockSourceSelect | overflowDevice->TimerEnableBit | MC_2;
+  *comparatorDevice->TimerControl |= comparatorDevice->TimerEnableBit;
+  *overflowDevice->TimerControl |= clockSourceSelect | overflowDevice->TimerEnableBit | MC_2;
   return TRUE;
 } /* end of SetTimerInterrupts */
 
