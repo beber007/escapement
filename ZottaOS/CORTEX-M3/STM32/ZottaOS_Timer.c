@@ -275,11 +275,15 @@ typedef struct TIMER_ISR_DATA {
 #endif
 
 
-/* System wall clock. This variable stores the most-significant 16 bits of the current
-** time. The lower 16 bits are directly taken from the timer counter register. To get
-** the current time, use _OSTimerGet. */
-static volatile INT32 Time;
+#ifdef ZOTTAOS_TIMER_16
+   /* System wall clock. This variable stores the most-significant 16 bits of the current
+   ** time. The lower 16 bits are directly taken from the timer counter register. To get
+   ** the current time, use OSGetActualTime. */
+   static volatile INT16 Time;
+#endif
 
+volatile BOOL _OSOverflowInterruptFlag = FALSE;
+volatile BOOL _OSComparatorInterruptFlag = FALSE;
 
 /* _OSInitializeTimer: Initializes the timer which starts counting as soon as ZottaOS is
 ** ready to process the first arrival. When the kernel, i.e. when OSStartMultitasking()
@@ -436,29 +440,9 @@ void _OSInitializeTimer(void)
 ** called only once when the kernel is ready to schedule the first application task. */
 void _OSStartTimer(void)
 {
-  TIM_CONTROL1 |= 1;       // Enable the TIM Counter
-  TIM_EVENT_GENERATION |= (UINT16)2; // Generate the first comparator interrupt
+  TIM_CONTROL1 |= 1;                          // Enable the TIM Counter
+  TIM_EVENT_GENERATION |= COMPARATOR_INT_BIT; // Generate the first comparator interrupt
 } /* end of _OSStartTimer */
-
-
-/* _OSTimerShift: Shifts the global Time variable. This is a value greater than 2^16. */
-void _OSTimerShift(INT32 shiftTimeLimit)
-{
-  Time -= shiftTimeLimit;
-} /* end of _OSTimerShift */
-
-
-/* OSGetActualTime: Retrieve the current time. Combines the 16 bits of the timer counter
-** with the global variable Time to yield the current time. */
-INT32 OSGetActualTime(void)
-{
-  INT32 currentTime, tmp;
-  do {
-     currentTime = Time;
-     tmp = currentTime | TIM_COUNTER;
-  } while (currentTime != Time);
-  return tmp;
-} /* end of OSGetActualTime */
 
 
 /* _TimerHandler: Catches STM-32 Timer interrupts and generates a software timer
@@ -469,35 +453,38 @@ INT32 OSGetActualTime(void)
 #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
    void TimerHandler_up(struct TIMER_ISR_DATA *descriptor)
    {
-     TIM_COMPARATOR = 0;            // Disable timer comparator
      TIM_STATUS &= ~UPDATE_INT_BIT; // Clear interrupt flag
-     Time += 0x10000;               // Increment most significant word of Time
+     #ifdef ZOTTAOS_TIMER_16
+        Time += 1; // Increment most significant word of Time
+     #endif
+     _OSOverflowInterruptFlag = TRUE;
      _OSGenerateSoftTimerInterrupt();
    } /* end of TimerHandler_up */
 
-
    void TimerHandler_cc(struct TIMER_ISR_DATA *descriptor)
    {
-     TIM_COMPARATOR = 0;                // Disable timer comparator
      TIM_STATUS &= ~COMPARATOR_INT_BIT; // Clear interrupt flag
+     TIM_COMPARATOR = 0;                // Disable timer comparator
+     _OSComparatorInterruptFlag = TRUE;
      _OSGenerateSoftTimerInterrupt();
    } /* end of TimerHandler_cc */
 #else
    void TimerHandler(struct TIMER_ISR_DATA *descriptor)
    {
-     TIM_COMPARATOR = 0; // Disable timer comparator
-     /* Test interrupt source */
-     if (TIM_STATUS & COMPARATOR_INT_BIT)  // Is comparator interrupt pending?
-        TIM_STATUS &= ~COMPARATOR_INT_BIT; // Clear interrupt flag
      if (TIM_STATUS & UPDATE_INT_BIT) {    // Is timer overflow interrupt?
         TIM_STATUS &= ~UPDATE_INT_BIT;     // Clear interrupt flag
-        #ifdef ZOTTAOS_TIMER_32
-           Time += 0x40000000; // Increment most significant part of Time
-        #elif defined(ZOTTAOS_TIMER_16)
-           Time += 0x10000; // Increment most significant word of Time
+        #ifdef ZOTTAOS_TIMER_16
+           Time += 1; // Increment most significant word of Time
         #endif
+        _OSOverflowInterruptFlag = TRUE;
+        _OSGenerateSoftTimerInterrupt();
      }
-     _OSGenerateSoftTimerInterrupt();
+     if (TIM_STATUS & COMPARATOR_INT_BIT) { // Is comparator interrupt pending?
+        TIM_STATUS &= ~COMPARATOR_INT_BIT; // Clear interrupt flag
+        TIM_COMPARATOR = 0; // Disable timer comparator
+        _OSComparatorInterruptFlag = TRUE;
+        _OSGenerateSoftTimerInterrupt();
+     }
    } /* end of TimerHandler */
 #endif
 
@@ -528,39 +515,65 @@ void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect)
 } /* end of _OSTimerSelectorHandler */
 
 
-/* Because the timer continues ticking, when we wish set a new value for the timer compa-
-** rator, the difference in time between the new value and the previous must be such that
-** when the assignment is done, the timer has not passed the comparator value. This is
-** guaranteed by TIMER_OFFSET. */
-/* The number of core cycles to considered in order to obtain TIMER_OFFSET are given in
-** function _OSSetTimerComparator, and comprised between markers START_TIMER_OFFSET and
-** END_TIMER_OFFSET. */
-#define TIMER_OFFSET 5
-
 /* _OSSetTimer: Sets the timer comparator to the next time event interval. This function
  * is called by the software timer interrupt handler when it finishes processing the cur-
  * rent interrupt and prepares its next interrupt. */
-void _OSSetTimer(INT32 nextArrival)
+BOOL _OSSetTimer(INT32 nextArrival)
 {
-#ifdef ZOTTAOS_TIMER_32
-  do {
-     OSUINT32_LL(&TIM_COMPARATOR);
-     if (nextArrival - TIMER_OFFSET < TIM_COUNTER) {
-        TIM_EVENT_GENERATION |= 2;
-        break;
+  #ifdef ZOTTAOS_TIMER_32
+     TIM_COMPARATOR = nextArrival;
+     return TIM_COMPARATOR > TIM_COUNTER;
+  #elif defined(ZOTTAOS_TIMER_16)
+     if (nextArrival >> 16 == Time) {
+        TIM_COMPARATOR = (UINT16)nextArrival;
+        return TIM_COMPARATOR > TIM_COUNTER;
      }
-  } while (!OSUINT32_SC(&TIM_COMPARATOR,nextArrival));
-#elif defined(ZOTTAOS_TIMER_16)
-  UINT16 time16;
-  if ((nextArrival & 0xFFFF0000) == Time) {
-     time16 = (UINT16)nextArrival;
-     do {
-        OSUINT16_LL(&TIM_COMPARATOR);
-        if (time16 - TIMER_OFFSET < TIM_COUNTER) {
-           TIM_EVENT_GENERATION |= 2;
-           break;
-        }
-     } while (!OSUINT16_SC(&TIM_COMPARATOR,time16));
-  }
+     else
+        return TRUE;
 #endif
 } /* end of _OSSetTimer */
+
+
+/* _OSTimerIsOverflow: return true if a timer overflow occurs. */
+BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
+{
+  #ifdef ZOTTAOS_TIMER_32
+     if (_OSOverflowInterruptFlag) {
+        _OSOverflowInterruptFlag = FALSE;
+        return TRUE;
+     }
+     else
+        return FALSE;
+  #elif defined(ZOTTAOS_TIMER_16)
+     INT16 tmp, time;
+     if (_OSOverflowInterruptFlag) {
+        _OSOverflowInterruptFlag = FALSE;
+        if ((tmp = shiftTimeLimit >> 16) < Time) {
+           do {
+              time = OSINT16_LL((INT16 *)&Time);
+              time -= tmp;
+           } while (!OSINT16_SC((INT16 *)&Time,time));
+           return TRUE;
+        }
+     }
+     return FALSE;
+  #endif
+} /* end of _OSTimerIsOverflow */
+
+
+/* OSGetActualTime: Retrieve the current time. Combines the 16 bits of the timer counter
+** with the global variable Time to yield the current time. */
+INT32 OSGetActualTime(void)
+{
+  #ifdef ZOTTAOS_TIMER_32
+     return TIM_COUNTER;
+  #elif defined(ZOTTAOS_TIMER_16)
+     INT16 currentTime;
+     INT32 tmp;
+     do {
+        currentTime = Time;
+        tmp = (INT32)currentTime << 16 | TIM_COUNTER;
+     } while (currentTime != Time);
+     return tmp;
+  #endif
+} /* end of OSGetActualTime */

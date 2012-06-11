@@ -23,7 +23,6 @@
 ** Version identifier: May 2012
 ** Authors: MIS-TIC */
 
-#include "msp430.h"  /* Hardware specifics */
 #include "ZottaOS.h"
 #include "ZottaOS_TimerEvent.h"
 

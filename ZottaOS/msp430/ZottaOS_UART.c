@@ -22,7 +22,6 @@
 ** Version identifier: March 2012
 ** Authors: MIS-TIC */
 
-#include "msp430.h"
 #include "ZottaOS.h"
 #include "ZottaOS_UART.h"
 

@@ -105,7 +105,7 @@ int main(void)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIOx = FLAG_PORT;
      TaskParameters->GPIO_Pin = FLAG3_PIN;
-     TaskParameters->Delay = 5000;
+     TaskParameters->Delay = 4000;
      OSCreateTask(VariableDelayTask,0,600,600,TaskParameters);
   #elif defined(ZOTTAOS_VERSION_SOFT)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
@@ -121,7 +121,7 @@ int main(void)
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIOx = FLAG_PORT;
      TaskParameters->GPIO_Pin = FLAG3_PIN;
-     TaskParameters->Delay = 5000;
+     TaskParameters->Delay = 4000;
      OSCreateTask(VariableDelayTask,470,0,600,600,1,1,0,TaskParameters);
   #endif
   /* Start the OS so that it starts scheduling the user tasks */

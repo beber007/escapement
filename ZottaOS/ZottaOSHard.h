@@ -113,20 +113,6 @@
 #ifndef ZOTTAOS_H
 #define ZOTTAOS_H
 
-/* DEBUGGING HELP -------------------------------------------------------------------- */
-/* There are 3 error sources that are not trivial to locate when developing an applica-
-** tion. The first is detecting when an application runs out of memory with function
-** OSMalloc, and the second is when a (periodic or event-driven) task overruns its period
-** (under Deadline Monotonic Scheduling) or its allotted load (under EDF) and is immedi-
-** ately rescheduled. This last case is caused when the instantaneous load of a processor
-** is higher than 100% and can be corrected by increasing the task's period. The third
-** and final error source is caused when an interrupt for a peripheral device occurs for
-** which no ISR handler was configured.
-** To help the developer, these errors go into an infinite loop if DEBUG_MODE is defined;
-** the developer may then tap into the error source with a JTAG. */
-#define DEBUG_MODE
-
-
 /* REAL-TIME SCHEDULING MODE --------------------------------------------------------- */
 /* ZottaOS can operate under 2 possible scheduling algorithms. Under EDF, tasks are sche-
 ** duled according to their deadlines, the earliest one being placed in the ready queue
@@ -137,11 +123,9 @@
 #define DEADLINE_MONOTONIC_SCHEDULING  2
 
 /* The following define sets the scheduling algorithm to use. */
-#define SCHEDULER_REAL_TIME_MODE DEADLINE_MONOTONIC_SCHEDULING
+#define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
 
 #ifndef _ASM_
-
-#include "ZottaOS_Types.h"
 
 /* MISCELLANEOUS FUNCTIONS: LAUNCHING OF ZOTTAOS, MEMORY MANAGEMENT ------------------ */
 /* OSStartMultitasking: This is the last function to call in main and it gives control of
@@ -278,9 +262,7 @@ void OSScheduleSuspendedTask(void *event);
 ** Parameters:
 **   (1) (UINT8) entry: entry to the internal ISR interrupt vector;
 **   (2) (void *) descriptor: ISR descriptor for the interrupt. */
-//void OSSetISRDescriptor(UINT8 entry, void *descriptor);
 void OSSetISRDescriptor(UINT8 entry, void *descriptor);
-
 
 /* OSGetISRDescriptor: Returns the ISR descriptor associated with the internal table of
 ** the kernel. This function is made available to application tasks so that the inserted
@@ -291,7 +273,6 @@ void OSSetISRDescriptor(UINT8 entry, void *descriptor);
 ** Returned value: (void *) The requested ISR descriptor is returned. If no previous call
 **    to OSSetISRDescriptor was previously made for the specified entry, the returned
 **    value is undefined. */
-//void *OSGetISRDescriptor(UINT8 entry);
 void *OSGetISRDescriptor(UINT8 entry);
 
 

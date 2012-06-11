@@ -139,6 +139,30 @@
 #elif defined (__MSP430F2616__) || defined (__MSP430F2617__) || defined (__MSP430F2618__) || defined (__MSP430F2619__)
 #include "ZottaOS_msp430x26x.h"
 
+#elif defined (__MSP430G2302__) || defined (__MSP430G2402__)
+#include "ZottaOS_msp430g2x02.h"
+
+#elif defined (__MSP430G2303__) || defined (__MSP430G2403__)
+#include "ZottaOS_msp430g2x03.h"
+
+#elif defined (__MSP430G2312__) || defined (__MSP430G2412__)
+#include "ZottaOS_msp430g2x12.h"
+
+#elif defined (__MSP430G2313__) || defined (__MSP430G2413__) || defined (__MSP430G2513__)
+#include "ZottaOS_msp430g2x13.h"
+
+#elif defined (__MSP430G2332__) || defined (__MSP430G2432__)
+#include "ZottaOS_msp430g2x32.h"
+
+#elif defined (__MSP430G2333__) || defined (__MSP430G2433__) || defined (__MSP430G2533__)
+#include "ZottaOS_msp430g2x33.h"
+
+#elif defined (__MSP430G2352__) || defined (__MSP430G2452__)
+#include "ZottaOS_msp430g2x52.h"
+
+#elif defined (__MSP430G2353__) || defined (__MSP430G2453__) || defined (__MSP430G2553__)
+#include "ZottaOS_msp430g2x53.h"
+
 #elif defined (__MSP430F412__) || defined (__MSP430F413__)
 #include "ZottaOS_msp430x41x.h"
 

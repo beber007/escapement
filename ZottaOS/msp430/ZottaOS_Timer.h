@@ -60,19 +60,14 @@ void _OSStartTimer(void);
 ** This function is defined as INT32 OSGetActualTime(void) and is defined in the user API
 ** for kernel version. */
 
-/* _OSGenerateSoftTimerInterrupt: Provokes a software timer interrupt. This function is
-** called when an event occurs and should be scheduled. */
-void _OSGenerateSoftTimerInterrupt(void);
+/* _OSTimerIsOverflow: return true if a timer overflow occurs. */
+BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit);
 
 /* _OSSetTimer: Sets the timer to interrupt at a specified value. This function is called
 ** by the software timer ISR to set the next time event.
 ** Parameter: (INT32) nextTimeInterval: time duration until the next hardware timer in-
-**                    terrupt, i.e. the time of the next event minus the current time. */
-void _OSSetTimer(INT32 nextTimeInterval);
-
-/* _OSTimerShift: Shifts the encapsulated wall clock variable to avoid its overflow. This
-** function is called by the software timer ISR whenever it shifts all the system temporal
-** variables. */
-void _OSTimerShift(INT32 shiftTimeLimit);
+**                    terrupt, i.e. the time of the next event minus the current time.
+** Return: claude             */
+BOOL _OSSetTimer(INT32 nextArrivalTime);
 
 #endif /* ZOTTAOS_TIMER_H */
