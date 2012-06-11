@@ -26,8 +26,8 @@
 #define ZOTTAOS_CONFIG_H_
 
 /* Selects which version to be used ZottaOS */
-#define ZOTTAOS_VERSION_HARD
-//#define ZOTTAOS_VERSION_SOFT
+//#define ZOTTAOS_VERSION_HARD
+#define ZOTTAOS_VERSION_SOFT
 
 
 /* The following symbol defines the maximum size of permanent allocations performed by
@@ -154,7 +154,7 @@
 //#define STM32F103C8_CB_R8_RB_V8_VB
 
 /* STM32F103RC, STM32F103RD and STM32F103RE */
-#define STM32F103RC_RD_RE
+//#define STM32F103RC_RD_RE
 
 /* STM32F103VC, STM32F103VD, STM32F103VE, STM32F103ZC, STM32F103ZD and STM32F103ZE */
 //#define STM32F103VC_VD_VE_ZC_ZD_ZE
@@ -201,7 +201,7 @@
 //#define STM32F405VG_ZG
 
 /* STM32F407VE, STM32F407VG, STM32F407Ze, STM32F407ZG, STM32F407LE and STM32F407LG */
-//#define STM32F407XX
+#define STM32F407XX
 
 //#define STM32F415RG
 

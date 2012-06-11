@@ -20,25 +20,33 @@
 **          functions needed by ZottaOS so that these can easily be ported from one MSP to
 **          another and also to other microcontrollers.
 ** Platform version: All MSP430 and CC430 microcontrollers.
-** Version identifier: March 2012
+** Version identifier: June 2012
 ** Authors: MIS-TIC
 */
-#include "msp430.h"        /* Hardware specifics */
-#include "ZottaOS_Types.h" /* Type definitions */
 #include "ZottaOS.h"       /* Needed for the definitions of OSUINT16_LL and OSUINT16_SC */
 #include "ZottaOS_Timer.h"
 
-/* The kernel keeps track of the relative time in a variable called _OSTime. This time
-** serves as the basis to guarantee all temporal constraints. This variable is shared
-** with the hardware timer ISR which updates it whenever it triggers. */
-INT32 _OSTime = 0; /* System wall clock */
+/* System wall clock. This variable stores the most-significant 16 bits of the current
+** time. The lower 16 bits are directly taken from the timer counter register. To get
+** the current time, use OSGetActualTime. */
+volatile INT16 _OSTime = 0;
 
+
+/* Claude */
+volatile BOOL _OSOverflowInterruptFlag = FALSE;
+volatile BOOL _OSComparatorInterruptFlag = FALSE;
+
+
+/* Claude à revoir */
 /* Although the MSP430 and CC430 provides several 16-bit timers/counters with multiple
 ** modes and features, only one timer is used to keep track of the task arrivals. This
-** timer is configured in up mode with interrupts and continuously counts up until it
-** equals to the value specified in its compare register at which time an interrupt is
-** generated and the counter restarts counting from zero. The timer never stops once it
-** has begun counting. According to the MSP430 Family User's Guides (e.g. SLAU208), when
+** timer is configured in continuous mode with interrupts and continuously counts up until
+** it equals to the value of 2^16 - 1 at which time an interrupt is generated and the
+** counter restarts counting from zero. The timer never stops once it has begun counting.
+
+
+
+** According to the MSP430 Family User's Guides (e.g. SLAU208), when
 ** setting a new value in the comparator register and if that value is greater or equal
 ** to the current counter count, the timer continues to count until it reaches the new
 ** comparator value. However, if the new value is smaller, the timer restarts counting
@@ -63,13 +71,10 @@ void _OSInitializeTimer(void)
   /* _OSEnableSoftTimerInterrupt enables software timer interrupts. This function is
   ** defined in the generated assembler file because the port pin can be chosen by the
   ** user. */
-  extern void _OSEnableSoftTimerInterrupt(void);
-  // Assure that the first interrupt sets _OSTime to CC register+1=0
-  OSTimerCompareRegister = 0xFFFF;
-  // Create an interrupt as soon as the timer runs
-  OSTimerCounter = 0xFFFE;
   // Select timer clock source and divider, and enable timer interrupts
   OSTimerControlRegister |= OSTimerSourceEnable;
+  // Enable comparator timer interrupt
+  OSTimerCompareControlRegister |= OSTimerCompareInterruptEnable;
   #ifdef OSTimerSourceDivider
      OSTimerSourceDivider;
   #endif
@@ -81,80 +86,48 @@ void _OSInitializeTimer(void)
 ** called only once when the kernel is ready to schedule the first application task. */
 void _OSStartTimer(void)
 {
-  OSTimerControlRegister |= MC_1;
+  OSTimerControlRegister |= MC_2; // Start timer in continuous mode
+  _OSGenerateSoftTimerInterrupt();
 } /* end of _OSStartTimer */
 
-
-/* To force a timer interrupt, setting the comparator to TAR does not immediately gene-
-** rate the expected interrupt. To do so, we need to set the comparator TAR + TARDELAY,
-** where TARDELAY is a delay that depends on the speed ratio between the timer clock and
-** the core clock.
-** Because the timer continues ticking, when we wish set a new value for the timer compa-
-** rator, the difference in time between the new value and the previous must be such that
-** when the assignment is done, the timer has not passed the comparator value. This is
-** guaranteed by TAROFFSET. */
-#define TARDELAY   2
-#define TAROFFSET  2
-/* The comparator register only has 16 bits, so the maximum value that is can hold is
-** 0x0000FFFF. */
-#define INFINITY32 0x0000FFFE
 
 /* _OSSetTimer: Sets the timer comparator to the next time event interval. This function
  * is called by the software timer interrupt handler when it finishes processing the cur-
  * rent interrupt and prepares its next interrupt. */
-void _OSSetTimer(INT32 nextTimeInterval)
+BOOL _OSSetTimer(INT32 nextArrivalTime)
 {
-  UINT16 newTime;
-  nextTimeInterval -= _OSTime;
-  if (nextTimeInterval < INFINITY32) {
-     newTime = (UINT16)nextTimeInterval;
-     while (TRUE) {
-        OSUINT16_LL((UINT16 *)&OSTimerCompareRegister);
-        if (newTime > OSTimerCounter + TAROFFSET)
-           newTime -= 1;
-        else
-           newTime = OSTimerCounter + TARDELAY;
-        if (OSUINT16_SC((UINT16 *)&OSTimerCompareRegister,newTime))
-           break;
-        /* If the timer gets here, there must have been an interrupt other than from a
-        ** nested timer source. Before calling this function, the software timer inter-
-        ** rupt sets the _OSNoSaveContext flag to indicate that it cannot return from a
-        ** nested call and that the new software timer interrupt will restart from its
-        ** beginning. The new software timer interrupt effectively wipes out the current
-        ** handler. All other interrupt sources save the context of the caller, and when
-        ** the caller resumes, it is possible that TAR has changed. The SC instruction
-        ** fails in this case. */
-     }
+  if (nextArrivalTime >> 16 == _OSTime) {
+     OSTimerCompareRegister = (UINT16)nextArrivalTime;
+     return OSTimerCompareRegister > OSTimerCounter;
   }
+  else
+     return TRUE;
 } /* end of _OSSetTimer */
 
 
-/* _OSGenerateSoftTimerInterrupt: Generates an internal software-initiated interrupt. */
-void _OSGenerateSoftTimerInterrupt(void)
+/* _OSTimerIsOverflow: return true if a timer overflow occurs. */
+BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
 {
-  do {
-     OSUINT16_LL((UINT16 *)&OSTimerCompareRegister);
-     if (OSTimerCounter >= 0xFFFC) // 0xFFFE - TARDELAY
-        break;
-  } while (!OSUINT16_SC((UINT16 *)&OSTimerCompareRegister,OSTimerCounter + TAROFFSET));
-} /* end of _OSGenerateSoftTimerInterrupt */
+  INT16 tmp;
+  _OSOverflowInterruptFlag = FALSE;
+  if ((tmp = shiftTimeLimit >> 16) < _OSTime) {
+     _OSTime -= tmp; // No need LL/SC because word subtraction is one assembly instruction
+     return TRUE;
+  }
+  else
+     return FALSE;
+} /* end of _OSTimerIsOverflow */
 
 
 /* OSGetActualTime: Returns the current value of the wall clock. Combines the 16 bits of
 ** the timer counter with the global variable Time to yield the current time.*/
 INT32 OSGetActualTime(void)
 {
-  INT32 currentTime, tmp;
+  INT16 currentTime;
+  INT32 tmp;
   do {
      currentTime = _OSTime;
-     tmp = currentTime + OSTimerCounter;
+     tmp = (INT32)_OSTime << 16 | OSTimerCounter;
   } while (currentTime != _OSTime);
   return tmp;
 } /* end of OSGetActualTime */
-
-
-/* _OSTimerShift: Shifts the global Time variable. This is a value greater than 2^16. */
-void _OSTimerShift(INT32 shiftTimeLimit)
-{
-  _OSTime -= shiftTimeLimit;
-} /* end of _OSTimerShift */

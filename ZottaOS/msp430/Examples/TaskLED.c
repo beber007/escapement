@@ -47,7 +47,6 @@
 ** Authors: MIS-TIC */
 
 #include "../ZottaOS.h"
-#include "msp430.h"
 
 
 typedef struct TaskParametersDef {
@@ -106,7 +105,7 @@ int main(void)
 
      TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
      TaskParameters->GPIO_Pin = 0x4;
-     TaskParameters->Delay = 2200;
+     TaskParameters->Delay = 2150;
      OSCreateTask(VariableDelayTask,45,0,60,60,1,1,0,TaskParameters);
   #else
      #error Wrong kernel version

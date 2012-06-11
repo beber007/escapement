@@ -28,6 +28,19 @@
 
 #include "ZottaOS_Config.h"     /* Import the kernel version */
 
+/* DEBUGGING HELP -------------------------------------------------------------------- */
+/* There are 3 error sources that are not trivial to locate when developing an applica-
+** tion. The first is detecting when an application runs out of memory with function
+** OSMalloc, and the second is when a (periodic or event-driven) task overruns its period
+** (under Deadline Monotonic Scheduling) or its allotted load (under EDF) and is immedi-
+** ately rescheduled. This last case is caused when the instantaneous load of a processor
+** is higher than 100% and can be corrected by increasing the task's period. The third
+** and final error source is caused when an interrupt for a peripheral device occurs for
+** which no ISR handler was configured.
+** To help the developer, these errors go into an infinite loop if DEBUG_MODE is defined;
+** the developer may then tap into the error source with a JTAG. */
+#define DEBUG_MODE
+
 #ifndef _ASM_
 
 #include "ZottaOS_Types.h"      /* Type definitions */

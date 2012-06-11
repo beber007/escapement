@@ -18,7 +18,7 @@
 */
 /* File ZottaOSSoft.c: Generic kernel implementation of soft real-time with (m,k)-firm
 **                     guarantees.
-** Version date: March 2012
+** Version date: June 2012
 ** Authors: MIS-TIC
 */
 #include "ZottaOS.h"           /* Insert the user API with the specific kernel */
@@ -232,31 +232,6 @@ static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30 (i = 14)
 
 
 /* INTERNAL FUNCTION PROTOTYPES AND MACROS */
-/* Addresses in a waitfree or non-blocking algorithm can also contain a marker so that an
-** atomic operation can be done. The following define macros to test, insert and remove a
-** marker. Note that these macros could have been defined as in-line functions but macros
-** are as simple.
-** The marker value is processor dependent. When using the MSB of an address, all these
-** addresses must be in the lower half memory locations. For markers using the LSB, all
-** addresses must be aligned on modulo 2 word boundaries. */
-
-/* IsMarkedReference: Determines whether an address is marked.
-** Parameter: Address to test.
-** Returned value: Non-zero for TRUE and 0 for FALSE. */
-#define IsMarkedReference(node) ((UINTPTR)node & MARKEDBIT)
-
-/* GetMarkedReference: Inserts a marker into an address and returns it.
-** Parameter: Address to mark.
-** Returned value: Marked address. */
-#define GetMarkedReference(node) (UINTPTR)((UINTPTR)node | MARKEDBIT)
-
-/* GetUnmarkedReference: Returns a valid address from a marked one. When using an address
-** that can be marked, it is necessary to first remove the marker before referring to
-** that address.
-** Parameter: An address, usually a node in some data structure.
-** Returned value: (UINTPTR) a valid address. */
-#define GetUnmarkedReference(node) (UINTPTR)((UINTPTR)node & UNMARKEDBIT)
-
 static BOOL Initialize(void);
 static void IdleTask(void *);
 static void Multiply46_16(UINT16 a0, INT32 a1, UINT16 b, UINT32 *c0, INT32 *c1);
@@ -605,10 +580,9 @@ void _OSTimerInterruptHandler(void)
   ETCB *etcb;
   TCB *arrival, *tmp;
   UINT16 nextMandatoryInstance;
+  extern BOOL _OSOverflowInterruptFlag;
+  extern BOOL _OSComparatorInterruptFlag;
   #ifdef NESTED_TIMER_INTERRUPT
-     /* _OSEnableSoftTimerInterrupt re-enables software timer interrupt. This function is
-     ** called when the current software timer ISR is complete and may be re-invoked. */
-     extern void _OSEnableSoftTimerInterrupt(void);
      /* At this point there can only be one current timer interrupt under way. */
      #ifdef DEBUG_MODE
         static UINT8 nesting = 0;
@@ -617,160 +591,171 @@ void _OSTimerInterruptHandler(void)
            while (TRUE); // If you get here, call us!
         }
      #endif
-     /* Mark that a software timer interrupt is under way so that new interrupts will not be
-     ** generated (see EnqueueRescheduleQueue). */
-     while (!OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,
-          GetMarkedReference(OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList))));
   #endif
-  currentTime = OSGetActualTime();
-  /* Transfer all new arrivals to the ready queue. */
-  arrival = _OSQueueHead->Next[ARRIVALQ];
-  while (arrival->NextArrivalTimeLow <= currentTime &&
-       ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {
-     _OSQueueHead->Next[ARRIVALQ] = arrival->Next[ARRIVALQ];
-     /* The previous task instance may still be in ready queue if it is an optional one
-     ** and did not get a chance to run. */
-     if (!(arrival->TaskState & STATE_ZOMBIE)) { // Is task still in the ready queue?
-        /* At this point an arriving task should not be in state STATE_RUNNING */
-        #ifdef DEBUG_MODE
-           if (arrival->TaskState & STATE_RUNNING)
-              while (TRUE); // If we get here, the processor utilization > 100%.
-        #endif
-        /* Remove the optional instance */
-        #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-           for (tmp = _OSQueueHead; tmp->Next[READYQ] != arrival; tmp = tmp->Next[READYQ]);
-           tmp->Next[READYQ] = arrival->Next[READYQ];
-        #else
-           /* Optional EDF instances are always after _OSQueueTail. However in case of an
-           ** overload, the non-zombie instance may also be mandatory and should be de-
-           ** tectable while testing the application. */
-           #ifdef DEBUG_MODE
-              for (tmp = _OSQueueHead; tmp != (TCB *)_OSQueueTail; tmp = tmp->Next[READYQ])
-                 if (tmp == arrival)
-                    while (TRUE); // If we get here, the processor utilization > 100%.
-           #endif
-           for (tmp = (TCB *)_OSQueueTail; tmp->Next[READYQ] != NULL; tmp = tmp->Next[READYQ])
-              if (tmp->Next[READYQ] == arrival) {
-                 tmp->Next[READYQ] = arrival->Next[READYQ];
-                 break;
-              }
-        #endif
-        /* Pretend that this instance finished in case the current instance is optional
-        ** and it is not inserted into the ready queue. This avoids taking this branch
-        ** and simplifies the above costly for loop. */
-        arrival->TaskState |= STATE_ZOMBIE;
-     }
-     /* Set task to INIT while keeping flag TASKTYPE_BLOCKING */
-     arrival->TaskState &= TASKTYPE_BLOCKING;
-     #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-        /* Under DM, all tasks are inserted into the ready queue, with optional tasks
-        ** having the lowest priority */
-        arrival->Priority = arrival->StaticPriority;
-        if (!(arrival->TaskState & TASKTYPE_BLOCKING) && !arrival->NextInstanceMandatory)
-           arrival->Priority += _OSQueueTail->StaticPriority;
-        ReadyQueueInsert(arrival);
-     #else
-        /* All tasks are also inserted into the ready queue under EDF, but optional tasks
-        ** are inserted after the sentinel as to mimic a two-level multiqueue. */
-        if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0)
-           arrival->NextDeadline = arrival->NextArrivalTimeLow + arrival->Deadline;
-        else
-           ((ETCB *)arrival)->NextDeadline =
-                              GetSuspendedSchedulingDeadline((ETCB *)arrival,currentTime);
-        if ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextInstanceMandatory)
-           ReadyQueueInsert(arrival);
-        else
-           OptionalReadyQueueInsert(arrival);
-     #endif
-     /* Prepare the next instance arrival */
-     if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0) {
-        /* Compute instance number of this arrival returned by GetTaskInstance. */
-        if ((arrival->Instance += 1) >= arrival->K)
-           arrival->Instance = 0;
-        if (arrival->NextInstanceMandatory) {
-           /* Compute next mandatory instance number */
-           nextMandatoryInstance = arrival->NextMandatoryInstance + 1;
-           nextMandatoryInstance = (nextMandatoryInstance * arrival->M + arrival->K - 1)
-                                                  / arrival->K * arrival->K / arrival->M;
-           /* Compute next mandatory instance arrival time */
-           Multiply46_16(arrival->PeriodHigh,arrival->PeriodLow,
-               nextMandatoryInstance - arrival->NextMandatoryInstance,
-               &arrival->NextMandatoryArrivalTimeHigh,&arrival->NextMandatoryArrivalTimeLow);
-           arrival->NextMandatoryArrivalTimeLow += arrival->NextArrivalTimeLow;
-           if (arrival->NextMandatoryArrivalTimeLow > 0x3FFFFFFF) {
-              arrival->NextMandatoryArrivalTimeHigh += 1;
-              arrival->NextMandatoryArrivalTimeLow &= 0x3FFFFFFF;
+  do {
+     if (_OSTimerIsOverflow(ShiftTimeLimit)) {   // Is timer overflow
+        /* To avoid overflow of the wall clock _OSTime, a time shift is done on all temporal
+        ** variables. Because all these variables are signed, their relative values are pre-
+        ** served. */
+        /* Time shift all deadlines of periodic tasks in the ready queue. */
+        for (arrival = _OSQueueHead; (arrival = arrival->Next[READYQ]) != (TCB *)_OSQueueTail; )
+           if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0)
+              arrival->NextDeadline -= ShiftTimeLimit;
+        /* Time shift all tasks in the arrival queue. */
+        for (arrival = _OSQueueHead; (arrival = arrival->Next[ARRIVALQ]) != (TCB *)_OSQueueTail; ) {
+           if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0) {
+              if (arrival->NextArrivalTimeHigh > 0)
+                 arrival->NextArrivalTimeHigh--;
+              else
+                 arrival->NextArrivalTimeLow -= ShiftTimeLimit;
+              if (arrival->NextMandatoryArrivalTimeHigh > 0)
+                 arrival->NextMandatoryArrivalTimeHigh--;
+              else
+                 arrival->NextMandatoryArrivalTimeLow -= ShiftTimeLimit;
            }
-           if (nextMandatoryInstance >= arrival->K)
-              arrival->NextMandatoryInstance = 0;
-           else
-              arrival->NextMandatoryInstance = (UINT8)nextMandatoryInstance;
+           #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
+              else
+                 arrival->NextArrivalTimeLow -= ShiftTimeLimit;
+           #endif
         }
-        #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-           else
-              arrival->NextDeadline = arrival->NextArrivalTimeLow + arrival->Deadline;
-        #endif
-        if (arrival->Instance + 1 >= arrival->K)
-           arrival->NextInstanceMandatory = arrival->NextMandatoryInstance == 0;
-        else
-           arrival->NextInstanceMandatory =
-                                 arrival->NextMandatoryInstance == arrival->Instance + 1;
-        arrival->NextArrivalTimeHigh = arrival->PeriodHigh;
-        arrival->NextArrivalTimeLow += arrival->PeriodLow;
-        if (arrival->NextArrivalTimeLow > 0x3FFFFFFF) {
-           arrival->NextArrivalTimeHigh += 1;
-           arrival->NextArrivalTimeLow &= 0x3FFFFFFF;
-        }
-        ArrivalQueueInsert(arrival);
-     }
-     #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-     else
-        arrival->NextArrivalTimeLow += ((ETCB *)arrival)->PeriodLow;
-     #endif
-     arrival = _OSQueueHead->Next[ARRIVALQ];
-  }
-  /* To avoid overflow of the wall clock _OSTime, a time shift is done on all temporal
-  ** variables. Because all these variables are signed, their relative values are pre-
-  ** served. */
-  if (currentTime >= ShiftTimeLimit) {
-     /* Time shift all deadlines of periodic tasks in the ready queue. */
-     for (arrival = _OSQueueHead; (arrival = arrival->Next[READYQ]) != (TCB *)_OSQueueTail; )
-        if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0)
-           arrival->NextDeadline -= ShiftTimeLimit;
-     /* Time shift all tasks in the arrival queue. */
-     for (arrival = _OSQueueHead; (arrival = arrival->Next[ARRIVALQ]) != (TCB *)_OSQueueTail; ) {
-        if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0) {
-           if (arrival->NextArrivalTimeHigh > 0)
-              arrival->NextArrivalTimeHigh--;
-           else
-              arrival->NextArrivalTimeLow -= ShiftTimeLimit;
-           if (arrival->NextMandatoryArrivalTimeHigh > 0)
-              arrival->NextMandatoryArrivalTimeHigh--;
-           else
-              arrival->NextMandatoryArrivalTimeLow -= ShiftTimeLimit;
+        /* Time shift all event-driven tasks. */
+        for (etcb = SynchronousTaskList; etcb != NULL; etcb = etcb->NextETCB) {
+           #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+              SubOrZeroIfNeg(etcb->NextArrivalTimeLow,ShiftTimeLimit);
+           #else
+              SubOrZeroIfNeg(etcb->NextDeadline,ShiftTimeLimit);
+           #endif
         }
         #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
-           else
-              arrival->NextArrivalTimeLow -= ShiftTimeLimit;
+           SubOrZeroIfNeg(SynchronousTaskDeadlines,ShiftTimeLimit);
         #endif
      }
-     /* Time shift all event-driven tasks. */
-     for (etcb = SynchronousTaskList; etcb != NULL; etcb = etcb->NextETCB) {
-        #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-           SubOrZeroIfNeg(etcb->NextArrivalTimeLow,ShiftTimeLimit);
-        #else
-           SubOrZeroIfNeg(etcb->NextDeadline,ShiftTimeLimit);
-        #endif
+     while (TRUE) {
+        _OSComparatorInterruptFlag = FALSE;
+        /* Transfer all new arrivals to the ready queue. */
+        currentTime = OSGetActualTime();
+        arrival = _OSQueueHead->Next[ARRIVALQ];
+        while (arrival->NextArrivalTimeLow <= currentTime &&
+             ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {
+           _OSQueueHead->Next[ARRIVALQ] = arrival->Next[ARRIVALQ];
+           /* The previous task instance may still be in ready queue if it is an optional one
+           ** and did not get a chance to run. */
+           if (!(arrival->TaskState & STATE_ZOMBIE)) { // Is task still in the ready queue?
+              /* At this point an arriving task should not be in state STATE_RUNNING */
+              #ifdef DEBUG_MODE
+                 if (arrival->TaskState & STATE_RUNNING) {
+                    _OSDisableInterrupts();
+                    while (TRUE); // If we get here, the processor utilization > 100%.
+                 }
+              #endif
+              /* Remove the optional instance */
+              #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+                 for (tmp = _OSQueueHead; tmp->Next[READYQ] != arrival; tmp = tmp->Next[READYQ]);
+                 tmp->Next[READYQ] = arrival->Next[READYQ];
+              #else
+                 /* Optional EDF instances are always after _OSQueueTail. However in case of an
+                 ** overload, the non-zombie instance may also be mandatory and should be de-
+                 ** tectable while testing the application. */
+                 #ifdef DEBUG_MODE
+                    for (tmp = _OSQueueHead; tmp != (TCB *)_OSQueueTail; tmp = tmp->Next[READYQ])
+                       if (tmp == arrival)
+                          while (TRUE); // If we get here, the processor utilization > 100%.
+                 #endif
+                 for (tmp = (TCB *)_OSQueueTail; tmp->Next[READYQ] != NULL; tmp = tmp->Next[READYQ])
+                    if (tmp->Next[READYQ] == arrival) {
+                       tmp->Next[READYQ] = arrival->Next[READYQ];
+                       break;
+                    }
+              #endif
+              /* Pretend that this instance finished in case the current instance is optional
+              ** and it is not inserted into the ready queue. This avoids taking this branch
+              ** and simplifies the above costly for loop. */
+              arrival->TaskState |= STATE_ZOMBIE;
+           }
+           /* Set task to INIT while keeping flag TASKTYPE_BLOCKING */
+           arrival->TaskState &= TASKTYPE_BLOCKING;
+           #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+              /* Under DM, all tasks are inserted into the ready queue, with optional tasks
+              ** having the lowest priority */
+              arrival->Priority = arrival->StaticPriority;
+              if (!(arrival->TaskState & TASKTYPE_BLOCKING) && !arrival->NextInstanceMandatory)
+                 arrival->Priority += _OSQueueTail->StaticPriority;
+              ReadyQueueInsert(arrival);
+           #else
+              /* All tasks are also inserted into the ready queue under EDF, but optional tasks
+              ** are inserted after the sentinel as to mimic a two-level multiqueue. */
+              if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0)
+                 arrival->NextDeadline = arrival->NextArrivalTimeLow + arrival->Deadline;
+              else
+                 ((ETCB *)arrival)->NextDeadline =
+                                    GetSuspendedSchedulingDeadline((ETCB *)arrival,currentTime);
+              if ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextInstanceMandatory)
+                 ReadyQueueInsert(arrival);
+              else
+                 OptionalReadyQueueInsert(arrival);
+           #endif
+           /* Prepare the next instance arrival */
+           if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0) {
+              /* Compute instance number of this arrival returned by GetTaskInstance. */
+              if ((arrival->Instance += 1) >= arrival->K)
+                 arrival->Instance = 0;
+              if (arrival->NextInstanceMandatory) {
+                 /* Compute next mandatory instance number */
+                 nextMandatoryInstance = arrival->NextMandatoryInstance + 1;
+                 nextMandatoryInstance = (nextMandatoryInstance * arrival->M + arrival->K - 1)
+                                                  / arrival->K * arrival->K / arrival->M;
+                 /* Compute next mandatory instance arrival time */
+                 Multiply46_16(arrival->PeriodHigh,arrival->PeriodLow,
+                     nextMandatoryInstance - arrival->NextMandatoryInstance,
+                     &arrival->NextMandatoryArrivalTimeHigh,&arrival->NextMandatoryArrivalTimeLow);
+                 arrival->NextMandatoryArrivalTimeLow += arrival->NextArrivalTimeLow;
+                 if (arrival->NextMandatoryArrivalTimeLow > 0x3FFFFFFF) {
+                    arrival->NextMandatoryArrivalTimeHigh += 1;
+                    arrival->NextMandatoryArrivalTimeLow &= 0x3FFFFFFF;
+                 }
+                 if (nextMandatoryInstance >= arrival->K)
+                    arrival->NextMandatoryInstance = 0;
+                 else
+                    arrival->NextMandatoryInstance = (UINT8)nextMandatoryInstance;
+              }
+              #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+                 else
+                    arrival->NextDeadline = arrival->NextArrivalTimeLow + arrival->Deadline;
+              #endif
+              if (arrival->Instance + 1 >= arrival->K)
+                 arrival->NextInstanceMandatory = arrival->NextMandatoryInstance == 0;
+              else
+                 arrival->NextInstanceMandatory =
+                                 arrival->NextMandatoryInstance == arrival->Instance + 1;
+              arrival->NextArrivalTimeHigh = arrival->PeriodHigh;
+              arrival->NextArrivalTimeLow += arrival->PeriodLow;
+              if (arrival->NextArrivalTimeLow > 0x3FFFFFFF) {
+                 arrival->NextArrivalTimeHigh += 1;
+                 arrival->NextArrivalTimeLow &= 0x3FFFFFFF;
+              }
+              ArrivalQueueInsert(arrival);
+           }
+           #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+              else
+                 arrival->NextArrivalTimeLow += ((ETCB *)arrival)->PeriodLow;
+           #endif
+           arrival = _OSQueueHead->Next[ARRIVALQ];
+        }
+        /* Process pending event-driven tasks found in the RescheduleSynchronousTaskList. */
+        EmptyRescheduleSynchronousTaskList(currentTime);
+        /* Set arrival timer to the next arrival time. */
+        arrival = _OSQueueHead->Next[ARRIVALQ];
+        if (arrival != (TCB *)_OSQueueTail &&
+               ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {
+           /* Set the timer comparator to the next periodic task arrival time. */
+           if (_OSSetTimer(arrival->NextArrivalTimeLow))
+               break; // break if NextArrivalTimeLow > current time
+        }
+        else
+           break;
      }
-     #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
-        SubOrZeroIfNeg(SynchronousTaskDeadlines,ShiftTimeLimit);
-     #endif
-     /* Finally shift the wall clock. */
-     _OSTimerShift(ShiftTimeLimit);
-     currentTime -= ShiftTimeLimit;
-  }
-  /* Process pending event-driven tasks found in the RescheduleSynchronousTaskList. */
-  EmptyRescheduleSynchronousTaskList(currentTime);
+     _OSClearSoftTimerInterrupt();
+  } while (_OSOverflowInterruptFlag || _OSComparatorInterruptFlag);
   #ifdef NESTED_TIMER_INTERRUPT
      /* If we get a timer interrupt, there's no point saving the context of the current ISR
      ** since we will have to restart it anyways. */
@@ -779,15 +764,9 @@ void _OSTimerInterruptHandler(void)
         --nesting;
      #endif
      _OSEnableSoftTimerInterrupt();
+     /* At this point another software timer can preempt and not save the current context as
+     ** this interrupt restarts from the beginning. */
   #endif
-  /* At this point another software timer can preempt and not save the current context as
-  ** this interrupt restarts from the beginning. */
-  /* Set arrival timer to the next arrival time. */
-  arrival = _OSQueueHead->Next[ARRIVALQ];
-  if (arrival != (TCB *)_OSQueueTail &&
-         ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0))
-     /* Set the timer comparator to the next periodic task arrival time. */
-     _OSSetTimer(arrival->NextArrivalTimeLow);
   /* Return to the task with highest priority or start a new instance. */
   ScheduleNextTask();
 } /* end of _OSTimerInterruptHandler */
@@ -1020,31 +999,12 @@ void OSScheduleSuspendedTask(void *eq)
 ** terrupt. */
 void EnqueueRescheduleQueue(ETCB *etcb)
 {
-#ifdef NESTED_TIMER_INTERRUPT
-     UINTPTR tmp;
-  #endif
   while (TRUE) {
-     #ifdef NESTED_TIMER_INTERRUPT
-        tmp = OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList);
-        if (IsMarkedReference(tmp)) {
-           etcb->Next[BLOCKQ] = (ETCB *)GetUnmarkedReference(tmp);
-           if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,GetMarkedReference(etcb)))
-              return;
-        }
-        else {
-           etcb->Next[BLOCKQ] = (ETCB *)tmp;
-           if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb)) {
-              _OSGenerateSoftTimerInterrupt(); // Generate a soft timer interrupt
-              return;
-           }
-        }
-     #else
-        etcb->Next[BLOCKQ] = (ETCB *)OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList);
-        if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb)) {
-           _OSGenerateSoftTimerInterrupt(); // Generate a soft timer interrupt
-           return;
-        }
-     #endif
+     etcb->Next[BLOCKQ] = (ETCB *)OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList);
+     if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb)) {
+        _OSGenerateSoftTimerInterrupt(); // Generate a soft timer interrupt
+        return;
+     }
   }
 } /* end of EnqueueRescheduleQueue */
 
@@ -1057,13 +1017,8 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
   BOOL wait;
   ETCB *etcb;
   do {
-     #ifdef NESTED_TIMER_INTERRUPT
-        while ((etcb = (ETCB *)GetUnmarkedReference(OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList))) != NULL) {
-           if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,GetMarkedReference(etcb->Next[BLOCKQ]))) {
-     #else
-        while ((etcb = (ETCB *)OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList)) != NULL) {
-           if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb->Next[BLOCKQ])) {
-     #endif
+     while ((etcb = (ETCB *)OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList)) != NULL) {
+        if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb->Next[BLOCKQ])) {
            #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
               /* Under EDF, the task that is to process the event cannot execute until it
               ** has finished its previous deadline. */
@@ -1135,7 +1090,7 @@ BOOL OSStartMultitasking(void)
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      TCB *tcb;
   #endif
-   /* Assert that ZottaOS begins with disabled maskable interruptions. */
+  /* Assert that ZottaOS begins with disabled maskable interruptions. */
   _OSDisableInterrupts();
   if (_OSQueueHead == NULL)
      Initialize();
@@ -1210,6 +1165,32 @@ void *OSGetISRDescriptor(UINT8 entry)
 
 
 /* WAITFREE FIFO QUEUE IMPLEMENTATION THAT IS USED INTERNALLY */
+/* Addresses in a waitfree or non-blocking algorithm can also contain a marker so that an
+** atomic operation can be done. The following define macros to test, insert and remove a
+** marker. Note that these macros could have been defined as in-line functions but macros
+** are as simple.
+** The marker value is processor dependent. When using the MSB of an address, all these
+** addresses must be in the lower half memory locations. For markers using the LSB, all
+** addresses must be aligned on modulo 2 word boundaries. */
+
+/* IsMarkedReference: Determines whether an address is marked.
+** Parameter: Address to test.
+** Returned value: Non-zero for TRUE and 0 for FALSE. */
+#define IsMarkedReference(node) ((UINTPTR)node & MARKEDBIT)
+
+/* GetMarkedReference: Inserts a marker into an address and returns it.
+** Parameter: Address to mark.
+** Returned value: Marked address. */
+#define GetMarkedReference(node) (UINTPTR)((UINTPTR)node | MARKEDBIT)
+
+/* GetUnmarkedReference: Returns a valid address from a marked one. When using an address
+** that can be marked, it is necessary to first remove the marker before referring to
+** that address.
+** Parameter: An address, usually a node in some data structure.
+** Returned value: (UINTPTR) a valid address. */
+#define GetUnmarkedReference(node) (UINTPTR)((UINTPTR)node & UNMARKEDBIT)
+
+
 /* GetFIFOArrayMaxIndex: Given the size, say S, of a FIFO array, this function returns
 ** the largest natural number A such that A mod S = 0 and A != 2^n - 1 for any n > 0. */
 UINT16 GetFIFOArrayMaxIndex(UINT16 queueSize)
