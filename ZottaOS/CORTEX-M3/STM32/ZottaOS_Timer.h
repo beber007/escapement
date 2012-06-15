@@ -54,15 +54,15 @@ void _OSStartTimer(void);
 ** This function is defined as INT32 OSGetActualTime(void) and is defined in the user API
 ** for kernel version. */
 
+/* _OSTimerIsOverflow: return true if a timer overflow occurs. */
+BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit);
+
 /* _OSSetTimer: Sets the timer to interrupt at a specified value. This function is called
 ** by the software timer ISR to set the next time event.
-** Parameter: (INT32) nextArrival: . */
-void _OSSetTimer(INT32 nextArrival);
-
-/* _OSTimerShift: Shifts the global Time variable.
-** Parameter: (INT32) shiftTimeLimit: The value will be subtract to the wall clock This is
-** a value greater than 2^16. */
-void _OSTimerShift(INT32 shiftTimeLimit);
+** Parameter: (INT32) nextTimeInterval: time duration until the next hardware timer in-
+**                    terrupt, i.e. the time of the next event minus the current time.
+** Return: claude             */
+BOOL _OSSetTimer(INT32 nextArrivalTime);
 
 /* Claude */
 /* Lors de son initialisation, une structure TIMERSELECT est déclarée pour chaque entrée de la table

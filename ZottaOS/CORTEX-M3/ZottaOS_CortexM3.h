@@ -51,7 +51,11 @@ void _OSIOHandler(void);
 
 /* _OSGenerateSoftTimerInterrupt: Called by the timer peripheral to generate a SysTick
 ** exception which will interrupt and continue with a smaller priority to handler Timer-
-** InterruptHandler defined in NTRTOS_CortexM3.c. */
+** InterruptHandler defined in ZottaOSHard.c or ZottaOSSoft.c. */
 #define _OSGenerateSoftTimerInterrupt() (*((UINT32 *)0xE000ED04) = 0x4000000)
+
+
+/* _OSClearSoftTimerInterrupt: . */
+#define _OSClearSoftTimerInterrupt() (*((UINT32 *)0xE000ED04) = 0x2000000)
 
 #endif /* _ZOTTAOS_CORTEXM3_H_ */
