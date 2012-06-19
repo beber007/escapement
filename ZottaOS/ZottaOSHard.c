@@ -195,8 +195,7 @@ void *_OSStackBasePointer;
 /* To avoid overflow of temporal variables, periodically these variables are shifted once
 ** _OSTime is greater or equal to a given value. This value must be equal to 2^(16+i)
 ** where i > 0 (2^16 = 65536). The recommended value is i = 14. */
-//static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30 (i = 14)
-static const INT32 ShiftTimeLimit = 0x00020000; // = 2^30 (i = 14)
+static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30 (i = 14)
 /* The while loop that empties the arrival uses a condition that simply depends upon the
 ** current time. To avoid crossing the tail sentinel, the arrival time of the sentinel
 ** must be unreachable (unattainable arrival time). */

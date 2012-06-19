@@ -92,7 +92,6 @@ static void DeleteQueueHelper(DELETEQUEUE_OP *des);
 static TIMER_EVENT_NODE *GetFreeNode(SOFTWARE_TIMER_ISR_DATA *device);
 static void ReleaseNode(SOFTWARE_TIMER_ISR_DATA *device, TIMER_EVENT_NODE *node);
 static void SoftwareTimerIntHandler(SOFTWARE_TIMER_ISR_DATA *device);
-static void TimerIntHandler(TIMER_ISR_DATA *device);
 
 
 /* OSInitTimerEvent: Creates all the interrupt handlers needed to manage an event queue
@@ -370,6 +369,18 @@ SOFTWARE_TIMER_ISR_DATA *SetSoftwareInterrupt(UINT8 softwareInterruptIndex)
 ** software timer. Note that the CC1 is used as comparator. */
 BOOL SetTimerInterrupts(SOFTWARE_TIMER_ISR_DATA *softwareDevice, UINT8 overflowInterruptIndex)
 {
+#if defined(OS_IO_TIMER0_A1_TA) && defined(OS_IO_TIMER0_A1_CC1) || \
+    defined(OS_IO_TIMER1_A1_TA) && defined(OS_IO_TIMER1_A1_CC1) || \
+    defined(OS_IO_TIMER2_A1_TA) && defined(OS_IO_TIMER2_A1_CC1) || \
+    defined(OS_IO_TIMER3_A1_TA) && defined(OS_IO_TIMER3_A1_CC1) || \
+    defined(OS_IO_TIMERA1_TA) && defined(OS_IO_TIMERA1_CC1) || \
+    defined(OS_IO_TIMER0_B1_TB) && defined(OS_IO_TIMER0_B1_CC1) || \
+    defined(OS_IO_TIMER1_B1_TB) && defined(OS_IO_TIMER1_B1_CC1) || \
+    defined(OS_IO_TIMER2_B1_TB) && defined(OS_IO_TIMER2_B1_CC1) || \
+    defined(OS_IO_TIMERB1_TB) && defined(OS_IO_TIMERB1_CC1) || \
+    defined(OS_IO_TIMER0_D1_TD) && defined(OS_IO_TIMER0_D1_CC1) || \
+    defined(OS_IO_TIMER1_D1_TD) && defined(OS_IO_TIMER1_D1_CC1)
+  void TimerIntHandler(TIMER_ISR_DATA *device);
   UINT16 clockSourceSelect;
   TIMER_ISR_DATA *comparatorDevice;
   TIMER_ISR_DATA *overflowDevice = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
@@ -523,6 +534,9 @@ BOOL SetTimerInterrupts(SOFTWARE_TIMER_ISR_DATA *softwareDevice, UINT8 overflowI
   *comparatorDevice->TimerControl |= comparatorDevice->TimerEnableBit;
   *overflowDevice->TimerControl |= clockSourceSelect | overflowDevice->TimerEnableBit | MC_2;
   return TRUE;
+#else
+  return FALSE;
+#endif
 } /* end of SetTimerInterrupts */
 
 
