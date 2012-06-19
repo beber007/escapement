@@ -48,13 +48,8 @@ BOOL _OSLLReserveBit;
 ** of the memory location that is to be reserved and returned. */
 UINT8 OSUINT8_LL(UINT8 *memory)
 {
-  UINT16 tmp,state;
-  state = _get_interrupt_state(); // Save interrupt enable bit value
-  _disable_interrupts();
   _OSLLReserveBit = TRUE;         // Mark reserved
-  tmp = *memory;                  // Return the contents of the memory location
-  _set_interrupt_state(state);    // Restore previous interrupt enable bit value
-  return tmp;
+  return *memory;                 // Return the contents of the memory location
 } /* end of OSUINT8_LL */
 
 
@@ -83,13 +78,8 @@ BOOL OSUINT8_SC(UINT8 *memory, UINT8 newValue)
 /* OSUINT16_LL: Same as OSUINT8_LL but applied to unsigned 16-bit quantities. */
 UINT16 OSUINT16_LL(UINT16 *memory)
 {
-  UINT16 tmp,state;
-  state = _get_interrupt_state(); // Save interrupt enable bit value
-  _disable_interrupts();
   _OSLLReserveBit = TRUE;         // Mark reserved
-  tmp = *memory;                  // Return the contents of the memory location
-  _set_interrupt_state(state);    // Restore previous interrupt enable bit value
-  return tmp;
+  return *memory;                 // Return the contents of the memory location
 } /* end of OSUINT16_LL */
 
 
@@ -115,14 +105,8 @@ BOOL OSUINT16_SC(UINT16 *memory, UINT16 newValue)
 /* OSINT16_LL: Same as OSUINT16_LL but for signed integers. */
 INT16 OSINT16_LL(INT16 *memory)
 {
-  INT16 tmp;
-  UINT16 state;
-  state = _get_interrupt_state(); // Save interrupt enable bit value
-  _disable_interrupts();
   _OSLLReserveBit = TRUE;         // Mark reserved
-  tmp = *memory;                  // Return the contents of the memory location
-  _set_interrupt_state(state);    // Restore previous interrupt enable bit value
-  return tmp;
+  return *memory;                 // Return the contents of the memory location
 } /* end of OSINT16_LL */
 
 
@@ -151,8 +135,8 @@ UINT32 OSUINT32_LL(UINT32 *memory)
   UINT32 tmp;
   UINT16 state;
   state = _get_interrupt_state(); // Save interrupt enable bit value
-  _disable_interrupts();
   _OSLLReserveBit = TRUE;         // Mark reserved
+  _disable_interrupts();
   tmp = *memory;                  // Return the contents of the memory location
   _set_interrupt_state(state);    // Restore previous interrupt enable bit value
   return tmp;
@@ -184,8 +168,8 @@ INT32 OSINT32_LL(INT32 *memory)
   INT32 tmp;
   UINT16 state;
   state = _get_interrupt_state(); // Save interrupt enable bit value
-  _disable_interrupts();
   _OSLLReserveBit = TRUE;         // Mark reserved
+  _disable_interrupts();
   tmp = *memory;                  // Return the contents of the memory location
   _set_interrupt_state(state);    // Restore previous interrupt enable bit value
   return tmp;
