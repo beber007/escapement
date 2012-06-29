@@ -484,7 +484,7 @@ BOOL IsTaskSchedulable(void)
   /* Because _OSActiveTask->NextDeadline - _OSTime is <= 0x3FFFFFFF, the amount of work
   ** that can be done in this interval is also <= 0x3FFFFFFF. */
   totalWork = _OSActiveTask->WCET;
-  for (tcb = _OSQueueHead; tcb != NULL; tcb = tcb->Next[ARRIVALQ]) {
+  for (tcb = _OSQueueHead; (tcb = tcb->Next[ARRIVALQ]) != (TCB *)_OSQueueTail; ) {
      if (tcb->TaskState & TASKTYPE_BLOCKING)
         continue;
      if (tcb->NextArrivalTimeHigh > deadlineHigh ||
@@ -1133,7 +1133,7 @@ BOOL OSStartMultitasking(void)
   _OSActiveTask = _OSQueueHead->Next[READYQ];
   _OSScheduleTask();     // Start the Idle task
   _OSEnableInterrupts(); // Necessary for microcontrollers that return from _OSSchedule-
-  return FALSE;          // Task, e.g. CORTEX-M3
+  return FALSE;          // Task, e.g. CORTEX-Mx
 } /* end of OSStartMultitasking */
 
 
