@@ -813,7 +813,7 @@ BOOL OSStartMultitasking(void)
   _OSActiveTask = _OSQueueHead->Next[READYQ];
   _OSScheduleTask();     // Start the Idle task
   _OSEnableInterrupts(); // Necessary for microcontrollers that return from _OSSchedule-
-  return FALSE;          // Task, e.g. CORTEX-M3
+  return FALSE;          // Task, e.g. CORTEX-Mx
 } /* end of OSStartMultitasking */
 
 
