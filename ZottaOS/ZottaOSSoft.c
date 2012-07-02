@@ -245,7 +245,7 @@ static void InsertQueue(SEARCHFUNCTION TestKey, UINT8 offsetNext, TCB *newNode);
 static BOOL ReadyQueueInsertTestKey(const TCB *searchKey, const TCB *node);
 #define ReadyQueueInsert(node) InsertQueue(ReadyQueueInsertTestKey,READYQ,node)
 static BOOL ArrivalQueueInsertTestKey(const TCB *searchKey, const TCB *node);
-#define ArrivalQueueInsert(node) InsertQueue(ArrivalQueueInsertTestKey,ARRIVALQ,node)
+#define ArrivalQueueInsert(node) InsertQueue(ArrivalQueueInsertTestKey, ARRIVALQ,node)
 #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
    static void OptionalReadyQueueInsert(TCB *newNode);
 #endif
