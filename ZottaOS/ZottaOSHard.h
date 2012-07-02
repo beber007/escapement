@@ -20,13 +20,11 @@
 ** Version identifier: March 2012
 ** Authors: MIS-TIC
 */
-/* TODO ajouter specificite OSMalloc pour Cortex */
-/* TODO ajouter specificite OSSetISRDescriptor/OSGetISRDescriptor pour Cortex */
 /* Building an application typically involves 5 steps:
 ** (1) Initialize processor specifics.
 ** (2) Perform application specific initializations.
 ** (3) Create application tasks.
-** (4) Set the timer and chip core source and frequency settings.
+** (4) Set the timer and core clock source and frequency settings.
 ** (5) Start the application.
 ** Step (2) can be scattered throughout the code and intertwined between task creations,
 ** and steps (4) and (5) are the very last instructions executed in the main function.
@@ -47,9 +45,9 @@
 **          OSCreateTask(Task1,0,10000,10000,(void *)34);
 **          // Do other initializations, e.g. configure peripheral hardware modules to
 **          // the requirements of the application.
-**          // Step 3: Set the timer and chip core source and frequency settings. See
+**          // Step 3: Set the timer and core clock source and frequency settings. See
 **          // one of the sample programs provided with this distribution.
-**          return OSStartMultitasking();
+**          return OSStartMultitasking(NULL,NULL);
 **       } // end of main
 **
 **       void Task1(void *argument)
@@ -91,7 +89,7 @@
 **          OSCreateSynchronousTask(AperiodicTask,2000,Event,NULL);
 **          // Set the system clock characteristics
 **          // Start the OS so that it starts scheduling the user tasks
-**          return OSStartMultitasking();
+**          return OSStartMultitasking(NULL,NULL);
 **       } // end of main
 **
 **       void SignalerTask(void *argument)
@@ -134,8 +132,14 @@
 ** between the user tasks. When no application task is created, the idle task gets the
 ** control of the processor, and the only means by which an application can be executed
 ** is solely by an interrupt approach.
+** An optional function may be provided to enable user-defined interrupts or schedule an
+** event. This function is called immediately prior to starting the scheduler.
+** Parameters:
+**   (1) Pointer to a function having prototype void f(void *), and which is called imme-
+**       diately prior to starting the scheduler. This parameter may be null.
+**   (2) (void *) argument: argument passed on to f.
 ** Returned value: Returns FALSE when an error occurs. */
-BOOL OSStartMultitasking(void);
+BOOL OSStartMultitasking(void (*f)(void *), void *argument);
 
 /* OSMalloc: This function replaces the regular malloc when used before calling OSStart-
 ** Multitasking. Memory allocations performed by this function can never be freed once
@@ -152,7 +156,7 @@ BOOL OSStartMultitasking(void);
 ** ZottaOSconf.exe. */
 void *OSMalloc(UINT16 size);
 
-/* OSGetActualTime: Returns the current value of the wall clock
+/* OSGetActualTime: Returns the current value of the wall clock.
 ** Parameters: Node
 ** Returned value: (INT32) current time. */
 INT32 OSGetActualTime(void);
@@ -185,9 +189,9 @@ BOOL OSCreateTask(void task(void *), UINT16 periodCycles, INT32 periodOffset,
 void OSEndTask(void);
 
 
-/* EVENT-DRIVEN (BLOCKING OR SYNCHRONOUS) TASK FUNCTIONS ----------------------------- */
+/* EVENT-DRIVEN (SPORADIC OR SYNCHRONOUS) TASK FUNCTIONS ----------------------------- */
 /* OSCreateEventDescriptor: Creates and returns a descriptor with all the needed informa-
-** tion to block and wake-up an aperiodic or event-driven task instance.
+** tion to block and wake-up an sporadic or event-driven task instance.
 ** Returned value: NULL when a memory failure occurs, or a valid descriptor. */
 void *OSCreateEventDescriptor(void);
 
@@ -216,7 +220,30 @@ void OSSuspendSynchronousTask(void);
 ** event and schedules it. This function acts as a memorized signal. If there are no sus-
 ** pended tasks at the moment of the call, the signal is stored and when an aperiodic
 ** task terminates, it is immediately rescheduled. An aperiodic task can therefore signal
-** itself.
+** itself. This function should only be called once the kernel is completely initialized,
+** i.e. after OSStartMultitasking. To create an initial event, you should provide a func-
+** tion to OSStartMultitasking that calls OSScheduleSuspendedTask(). For instance,
+**       void EventDrivenTask(void *event)
+**       {
+**          // do something useful here, i.e. what this task was designed for
+**          OSScheduleSuspendedTask(event); // reschedule itself
+**          OSSuspendSynchronousTask();
+**       } // end of EventDrivenTask
+**
+**       void StartApplication(void *event)
+**       {
+**          OSScheduleSuspendedTask(event); // schedule first event
+**       } // end of StartApplication
+**
+**       int main(void)
+**       {
+**          void *event = OSCreateEventDescriptor();
+**          // Create an sporadic task that processes event
+**          OSCreateSynchronousTask(EventDrivenTask,2000,event,event);
+**          // Other initializations
+**          return OSStartMultitasking(StartApplication,event);
+**       } // end of main
+**
 ** Parameter: (void *) event descriptor holding the blocked tasks. */
 void OSScheduleSuspendedTask(void *event);
 

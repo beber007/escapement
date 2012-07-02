@@ -374,7 +374,7 @@ void _OSTimerInterruptHandler(void)
      #endif
   #endif
   do {
-     if (_OSTimerIsOverflow(ShiftTimeLimit)) {   // Is timer overflow
+     if (_OSTimerIsOverflow(ShiftTimeLimit)) {   // Has timer overflowed?
         /* To avoid overflow of the wall clock _OSTime, a time shift is done on all temporal
         ** variables. Because all these variables are signed, their relative values are pre-
         ** served. */
@@ -774,7 +774,7 @@ INT32 GetSuspendedSchedulingDeadline(ETCB *etcb, INT32 currentTime)
 ** all user tasks. When these terminate, an idle task runs with the lowest priority to
 ** keep the processor busy until the next task arrives. This function also creates a
 ** timer handler when there are tasks to be scheduled. */
-BOOL OSStartMultitasking(void)
+BOOL OSStartMultitasking(void (*f)(void *), void *arg)
 {
   ETCB *etcb;
   FIFOQUEUE *eq;
@@ -811,9 +811,11 @@ BOOL OSStartMultitasking(void)
      _OSInitializeTimer();
   /* Start the first task in the ready queue, i.e. the Idle task. */
   _OSActiveTask = _OSQueueHead->Next[READYQ];
+  /* Finalize the application initializations if any */
+  if (f != NULL) f(arg);
   _OSScheduleTask();     // Start the Idle task
   _OSEnableInterrupts(); // Necessary for microcontrollers that return from _OSSchedule-
-  return FALSE;          // Task, e.g. CORTEX-Mx
+  return FALSE;          // Task, e.g. CORTEX-M3
 } /* end of OSStartMultitasking */
 
 
