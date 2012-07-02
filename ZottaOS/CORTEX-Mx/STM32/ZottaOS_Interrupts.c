@@ -1157,7 +1157,7 @@ void (* const STM32VectorTable[])(void) =
   #else
      NULL,
   #endif
------------------------------- STM32F1 --------------------------------------------- */
+/* ------------------------------ STM32F1 --------------------------------------------- */
 #elif defined(STM32F1XXXX)
   #if defined(STM32F100X4_X6) || defined(STM32F100X8_XB) || \
       defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE) || \
