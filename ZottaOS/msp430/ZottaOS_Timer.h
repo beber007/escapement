@@ -18,7 +18,7 @@
 */
 /* File ZottaOS_Timer.h: Defines the interface between the hardware timer and ZottaOS.
 ** Platform version: All MSP430 and CC430 microcontrollers.
-** Version identifier: March 2012
+** Version identifier: June 2012
 ** Authors: MIS-TIC
 */
 
@@ -43,7 +43,9 @@
 ** process.
 ** This scheme provides 2 main advantages:
 ** (1) The latency associated with the time events can be kept to a minimal (18 machine
-**     cycles for MSP430) as only the keeping of time executes in a critical section.
+**     cycles for MSP430 with CPUX and 19 with CPU, from the instant that the interrupts
+**     are implicitly disabled to when they are again active) as only the keeping of time
+**     executes in a critical section.
 ** (2) The scheme can be ported to any microcontroller independently of whether it has
 **     prioritized interrupts or not. */
 
@@ -58,16 +60,23 @@ void _OSStartTimer(void);
 /* OSGetActualTime: Retrieves the current time.
 ** Returned value: (INT32) current time.
 ** This function is defined as INT32 OSGetActualTime(void) and is defined in the user API
-** for kernel version. */
+** for the selected kernel version. */
 
-/* _OSTimerIsOverflow: return true if a timer overflow occurs. */
+/* _OSTimerIsOverflow: Called by the timer ISR _OSTimerInterruptHandler to determine
+** whether temporal values should be shifted or not.
+** Parameter: (INT32) shiftTimeLimit: maximum value of the system wall clock.
+** Returned value: True if the last timer overflow incrementing _OSTime caused _OSTime
+** to overflow, and false otherwise. */
 BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit);
 
 /* _OSSetTimer: Sets the timer to interrupt at a specified value. This function is called
 ** by the software timer ISR to set the next time event.
-** Parameter: (INT32) nextTimeInterval: time duration until the next hardware timer in-
-**                    terrupt, i.e. the time of the next event minus the current time.
-** Return: claude             */
+** Parameter: (INT32) nextArrivalTime: next compare register time interrupt. This is the
+**                    earliest time at which the timer ISR should again acquire the proc-
+**                    essor so that it can schedule the next task arrival.
+** Returned value: (BOOL) true if the compare register has been correctly assigned, and
+** false if the nextArrivalTime has been passed and missed. In this last case, the ISR
+** should consider that the event has occurred and process it. */
 BOOL _OSSetTimer(INT32 nextArrivalTime);
 
 #endif /* ZOTTAOS_TIMER_H */

@@ -38,7 +38,7 @@ static void ClearLed2Task(void *argument);
 
 int main(void)
 {
-  void *tmp;
+  void *event;
 
   WDTCTL = WDTPW + WDTHOLD;  // Disable watchdog timer
 
@@ -51,25 +51,25 @@ int main(void)
   if (!OSInitTimerEvent(2,OS_IO_PORT1_6,OS_IO_TIMER1_A1_TA))
      while (TRUE); // Initialization problem
 
+  event = OSCreateEventDescriptor();
   #if defined(ZOTTAOS_VERSION_HARD)
-     tmp = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLed1Task,100,tmp,NULL);
-     OSCreateTask(SetLed1Task,0,500,500,tmp);
-     tmp = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLed2Task,10,tmp,NULL);
-     OSCreateTask(SetLed2Task,0,1000,1000,tmp);
+     OSCreateSynchronousTask(ClearLed1Task,100,event,NULL);
+     OSCreateTask(SetLed1Task,0,500,500,event);
+     event = OSCreateEventDescriptor();
+     OSCreateSynchronousTask(ClearLed2Task,10,event,NULL);
+     OSCreateTask(SetLed2Task,0,1000,1000,event);
   #elif defined(ZOTTAOS_VERSION_SOFT)
-     tmp = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLed1Task,0,1000,0,tmp,NULL);
-     OSCreateTask(SetLed1Task,0,0,10000,10000,1,1,0,tmp);
-     tmp = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLed2Task,0,2000,0,tmp,NULL);
-     OSCreateTask(SetLed2Task,0,0,20000,20000,1,1,0,tmp);
+     OSCreateSynchronousTask(ClearLed1Task,0,1000,0,event,NULL);
+     OSCreateTask(SetLed1Task,0,0,10000,10000,1,1,0,event);            // beber???????? pourquoi pas comme hard?
+     event = OSCreateEventDescriptor();
+     OSCreateSynchronousTask(ClearLed2Task,0,2000,0,event,NULL);
+     OSCreateTask(SetLed2Task,0,0,20000,20000,1,1,0,event);
   #endif
 
   /* Start the OS so that it starts scheduling the user tasks */
-  return OSStartMultitasking();
+  return OSStartMultitasking(NULL,NULL);
 } /* end of main */
+
 
 /* SetLed1Task: Sets a LED and triggers its clear after 100 clock ticks. */
 void SetLed1Task(void *argument)
@@ -106,7 +106,7 @@ void SetLed2Task(void *argument)
 void ClearLed2Task(void *argument)
 {
   ClearFlag(2);
-  P1IFG |= 0x40;
+  P1IFG |= 0x40; // beber?????????????????????
   OSSuspendSynchronousTask();
 } /* end of ClearLed2Task */
 
