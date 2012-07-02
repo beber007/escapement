@@ -23,54 +23,42 @@
 ** Version identifier: June 2012
 ** Authors: MIS-TIC
 */
-#include "ZottaOS.h"       /* Needed for the definitions of OSUINT16_LL and OSUINT16_SC */
+#include "ZottaOS.h"
 #include "ZottaOS_Timer.h"
 
-/* System wall clock. This variable stores the most-significant 16 bits of the current
-** time. The lower 16 bits are directly taken from the timer counter register. To get
-** the current time, use OSGetActualTime. */
-volatile INT16 _OSTime = 0;
-
-
-/* Claude */
-volatile BOOL _OSOverflowInterruptFlag = FALSE;
-volatile BOOL _OSComparatorInterruptFlag = FALSE;
-
-
-/* Claude à revoir */
 /* Although the MSP430 and CC430 provides several 16-bit timers/counters with multiple
 ** modes and features, only one timer is used to keep track of the task arrivals. This
 ** timer is configured in continuous mode with interrupts and continuously counts up until
 ** it equals to the value of 2^16 - 1 at which time an interrupt is generated and the
 ** counter restarts counting from zero. The timer never stops once it has begun counting.
+** Task arrivals are programmed with comparator register CCR1 that sets an interrupt when-
+** ever the timer's internal counter register matches CCR1. According to the MSP430 Family
+** User's Guides (e.g. SLAU208), an interrupt is generated only if the comparator register
+** holds a value that is greater than the current timer's internal counter. Hence, when
+** setting a new comparator, care must be exerted to avoid setting a value smaller than or
+** equal to the current counter count.
 
+/* System wall clock. This variable stores the most-significant 16 bits of the current
+** time, and it is incremented every time the timer overflows (transits from 2^16 - 1 to
+** 0). To get the current time, use OSGetActualTime, which concatenates the lower 16 bits
+** taken from the timer counter register with the number of overflows. */
+volatile INT16 _OSTime = 0;
 
-
-** According to the MSP430 Family User's Guides (e.g. SLAU208), when
-** setting a new value in the comparator register and if that value is greater or equal
-** to the current counter count, the timer continues to count until it reaches the new
-** comparator value. However, if the new value is smaller, the timer restarts counting
-** from zero, and an additional timer increment may occur before the count begins.
-** Also, the hardware timer triggers when its comparator register CCR is equal to its
-** counter at which time it rolls back to 0, but the actual number of timer ticks that
-** has elapsed is equal to CCR + 1. */
+/* Global interrupt source flags positioned by the timer ISR. These are defined here so
+** that they may be (1) correctly typed, and (2) architecturally dependent. */
+volatile BOOL _OSOverflowInterruptFlag = FALSE;
+volatile BOOL _OSComparatorInterruptFlag = FALSE;
 
 
 /* _OSInitializeTimer: Initializes the timer which starts counting as soon as ZottaOS is
 ** ready to process the first arrival. When the kernel, i.e. when OSStartMultitasking()
 ** is called, the last operation that is done is to set the timer handler and then start
-** the idle task which is the only ready task in the system at that time. The first time
-** the idle task executes, it calls _OSStartTimer().
+** the idle task which is the only ready task in the system at that time, and the first
+** time the idle task executes, it calls _OSStartTimer().
 ** After _OSInitializeTimer() is called the timer's input divider is selected but it is
-** halted.
-** Note that the timer ISR updates the wall clock _OSTime with the current value of its
-** comparator register CCR and adds 1, and at the very first interrupt, _OSTime must be
-** set 0. This is done by initializing CCR with 0 - 1 = 0xFFFF. */
+** halted. */
 void _OSInitializeTimer(void)
 {
-  /* _OSEnableSoftTimerInterrupt enables software timer interrupts. This function is
-  ** defined in the generated assembler file because the port pin can be chosen by the
-  ** user. */
   // Select timer clock source and divider, and enable timer interrupts
   OSTimerControlRegister |= OSTimerSourceEnable;
   // Enable comparator timer interrupt
@@ -78,6 +66,8 @@ void _OSInitializeTimer(void)
   #ifdef OSTimerSourceDivider
      OSTimerSourceDivider;
   #endif
+  // _OSEnableSoftTimerInterrupt enables software timer interrupts. This function is de-
+  // fined in the generated assembler file because the port pin can be chosen by the user.
   _OSEnableSoftTimerInterrupt();
 } /* end of _OSInitializeTimer */
 
@@ -86,32 +76,37 @@ void _OSInitializeTimer(void)
 ** called only once when the kernel is ready to schedule the first application task. */
 void _OSStartTimer(void)
 {
-  OSTimerControlRegister |= MC_2; // Start timer in continuous mode
-  _OSGenerateSoftTimerInterrupt();
+  OSTimerControlRegister |= MC_2;  // Start timer in continuous mode
+  _OSGenerateSoftTimerInterrupt(); // Schedule all periodic tasks arriving at time 0
 } /* end of _OSStartTimer */
 
 
-/* _OSSetTimer: Sets the timer comparator to the next time event interval. This function
- * is called by the software timer interrupt handler when it finishes processing the cur-
- * rent interrupt and prepares its next interrupt. */
+/* _OSSetTimer: Sets the timer comparator to the next time event, i.e. to the next task
+** arrival time. This function is called by the software timer interrupt handler when it
+** finishes processing the current interrupt and prepares its next interrupt.
+** Returned value: False when the event has been missed and should be processed before
+** calling this function one more time but with the next task arrival time; otherwise the
+** function returns true. */
 BOOL _OSSetTimer(INT32 nextArrivalTime)
-{
+{ /* Check if the interrupt time is in the range of the timer's counter; otherwise, wait
+  ** until the next timer overflow. (The comparator is set to 0 in the ISR.) */
   if (nextArrivalTime >> 16 == _OSTime) {
      OSTimerCompareRegister = (UINT16)nextArrivalTime;
-     return OSTimerCompareRegister > OSTimerCounter;
+     return OSTimerCompareRegister > OSTimerCounter;   // Missed the interrupt
   }
   else
      return TRUE;
 } /* end of _OSSetTimer */
 
 
-/* _OSTimerIsOverflow: return true if a timer overflow occurs. */
+/* _OSTimerIsOverflow: Returns true if the increment to internal system wall clock over-
+** flows and all time related values should be shifted. */
 BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
 {
   INT16 tmp;
   _OSOverflowInterruptFlag = FALSE;
   if ((tmp = shiftTimeLimit >> 16) < _OSTime) {
-     _OSTime -= tmp; // No need LL/SC because word subtraction is one assembly instruction
+     _OSTime -= tmp; // No need for LL/SC because word subtraction is one assembly instruction
      return TRUE;
   }
   else
