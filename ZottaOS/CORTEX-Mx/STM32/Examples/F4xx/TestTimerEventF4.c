@@ -109,7 +109,7 @@ int main(void)
   #endif
 
   /* Start the OS so that it starts scheduling the user tasks */
-  return OSStartMultitasking();
+  return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 
 

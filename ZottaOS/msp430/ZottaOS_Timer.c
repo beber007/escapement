@@ -38,7 +38,7 @@
 ** setting a new comparator, care must be exerted to avoid setting a value smaller than or
 ** equal to the current counter count.
 
-/* System wall clock. This variable stores the most-significant 16 bits of the current
+** System wall clock. This variable stores the most-significant 16 bits of the current
 ** time, and it is incremented every time the timer overflows (transits from 2^16 - 1 to
 ** 0). To get the current time, use OSGetActualTime, which concatenates the lower 16 bits
 ** taken from the timer counter register with the number of overflows. */
@@ -66,9 +66,6 @@ void _OSInitializeTimer(void)
   #ifdef OSTimerSourceDivider
      OSTimerSourceDivider;
   #endif
-  // _OSEnableSoftTimerInterrupt enables software timer interrupts. This function is de-
-  // fined in the generated assembler file because the port pin can be chosen by the user.
-  _OSEnableSoftTimerInterrupt();
 } /* end of _OSInitializeTimer */
 
 
@@ -78,6 +75,9 @@ void _OSStartTimer(void)
 {
   OSTimerControlRegister |= MC_2;  // Start timer in continuous mode
   _OSGenerateSoftTimerInterrupt(); // Schedule all periodic tasks arriving at time 0
+  // _OSEnableSoftTimerInterrupt enables software timer interrupts. This function is de-
+  // fined in the generated assembler file because the port pin can be chosen by the user.
+  _OSEnableSoftTimerInterrupt();
 } /* end of _OSStartTimer */
 
 

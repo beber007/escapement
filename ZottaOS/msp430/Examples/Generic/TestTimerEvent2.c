@@ -56,11 +56,11 @@ int main(void)
   event[0] = OSCreateEventDescriptor();
   event[1] = OSCreateEventDescriptor();
   #if defined(ZOTTAOS_VERSION_HARD)
-     OSCreateSynchronousTask(ToggleLed1Task,100,event[0],event[0]);
-     OSCreateSynchronousTask(ToggleLed2Task,10,event[1],event[1]);
+     OSCreateSynchronousTask(ToggleLed1Task,1000,event[0],event[0]);
+     OSCreateSynchronousTask(ToggleLed2Task,100,event[1],event[1]);
   #elif defined(ZOTTAOS_VERSION_SOFT)
-     OSCreateSynchronousTask(ToggleLed1Task,0,100,0,event[0],event[0]);
-     OSCreateSynchronousTask(ToggleLed2Task,0,10,0,event[1],event[1]);
+     OSCreateSynchronousTask(ToggleLed1Task,0,1000,0,event[0],event[0]);
+     OSCreateSynchronousTask(ToggleLed2Task,0,100,0,event[1],event[1]);
   #endif
 
   /* Start the OS so that it starts scheduling the user tasks */
@@ -77,7 +77,7 @@ void InitApplication(void *argument)
 } /* end of InitApplication */
 
 
-/* ToggleLed1Task: Sets a LED every 500 clock ticks and then clears it after 100 clock
+/* ToggleLed1Task: Sets a LED every 5000 clock ticks and then clears it after 1000 clock
 ** ticks. */
 void ToggleLed1Task(void *argument)
 {
@@ -85,36 +85,36 @@ void ToggleLed1Task(void *argument)
   switch (state) {
      case 0:
         SetFlag(1);
-        OSScheduleTimerEvent(argument,100,OS_IO_PORT1_6);
+        OSScheduleTimerEvent(argument,1000,OS_IO_PORT1_6);
         break;
      case 1:
      default:
         ClearFlag(1);
-        OSScheduleTimerEvent(argument,400,OS_IO_PORT1_6);
+        OSScheduleTimerEvent(argument,4000,OS_IO_PORT1_6);
   }
   state = !state;
   OSSuspendSynchronousTask();
 } /* end of ToggleLed1Task */
 
 
-/* ToggleLed2Task: Sets a LED every 1000 clock ticks and triggers its clearing after a
-** variable delay comprised between 10 and 900 clock ticks. */
+/* ToggleLed2Task: Sets a LED every 10000 clock ticks and triggers its clearing after a
+** variable delay comprised between 1000 and 9000 clock ticks. */
 void ToggleLed2Task(void *argument)
 {
-  static UINT16 delay = 10;
+  static UINT16 delay = 1000;
   static UINT8 state = 0;
   switch (state) {
      case 0:
         SetFlag(2);
         OSScheduleTimerEvent(argument,delay,OS_IO_PORT1_6);
-        delay += 1;
-        if (delay > 900)
-           delay = 10;
+        delay += 100;
+        if (delay > 9000)
+           delay = 1000;
         break;
      case 1:
      default:
-        ClearFlag(1);
-        OSScheduleTimerEvent(argument,1000-delay,OS_IO_PORT1_6);
+        ClearFlag(2);
+        OSScheduleTimerEvent(argument,10000-delay,OS_IO_PORT1_6);
   }
   state = !state;
   OSSuspendSynchronousTask();

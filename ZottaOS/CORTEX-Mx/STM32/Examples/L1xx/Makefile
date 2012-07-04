@@ -35,7 +35,7 @@ CC = /root/CodeSourcery/Sourcery_CodeBench_Lite_for_ARM_EABI/bin/arm-none-eabi-g
 
 CPU = cortex-m3
 
-all: build/TaskLEDL1.elf build/UARTSimpleEchoL1.elf build/TestTimerEventL1.elf build/IccMeasure.elf
+all: build/TaskLEDL1.elf build/UARTSimpleEchoL1.elf build/TestTimerEventL1.elf build/TestTimerEventL1b.elf build/IccMeasure.elf
 
 clean: 
 	rm -f build/*.o build/*.elf
@@ -150,6 +150,8 @@ build/UARTSimpleEchoL1.o : UARTSimpleEchoL1.c
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ZOTTAOS) -o $@ $<
 build/TestTimerEventL1.o : TestTimerEventL1.c 
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ZOTTAOS) -o $@ $<
+build/TestTimerEventL1b.o : TestTimerEventL1b.c 
+	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ZOTTAOS) -o $@ $<
 build/IccMeasure.o : IccMeasure.c 
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ZOTTAOS) -o $@ $<
 
@@ -159,6 +161,8 @@ build/UARTSimpleEchoL1.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/UARTSimpleE
 	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/UARTSimpleEchoL1.o -T${LINKERFILE}
 build/TestTimerEventL1.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TestTimerEventL1.o
 	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TestTimerEventL1.o -T${LINKERFILE}
+build/TestTimerEventL1b.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TestTimerEventL1b.o
+	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TestTimerEventL1b.o -T${LINKERFILE}
 build/IccMeasure.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/IccMeasure.o
 	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/IccMeasure.o -T${LINKERFILE}
 	

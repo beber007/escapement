@@ -20,6 +20,8 @@
 ** Version identifier: March 2012
 ** Authors: MIS-TIC
 */
+/* TODO ajouter specificite OSMalloc pour Cortex */
+/* TODO ajouter specificite OSSetISRDescriptor/OSGetISRDescriptor pour Cortex */
 /* Building an application typically involves 5 steps:
 ** (1) Initialize processor specifics.
 ** (2) Perform application specific initializations.
