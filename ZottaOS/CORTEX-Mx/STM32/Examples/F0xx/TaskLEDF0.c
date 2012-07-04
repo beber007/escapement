@@ -119,7 +119,7 @@ int main(void)
      OSCreateTask(VariableDelayTask,2400,0,3000,3000,1,1,0,TaskParameters);
   #endif
   /* Start the OS so that it starts scheduling the user tasks */
-  return OSStartMultitasking();
+  return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 
 

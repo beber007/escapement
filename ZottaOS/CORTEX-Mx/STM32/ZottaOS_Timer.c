@@ -359,8 +359,8 @@ void _OSInitializeTimer(void)
   /*** Initialize Cortex-Mx Nested Vectored Interrupt Controller ***/
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
      /* Compute the priority (Only 4 bits are used for priority on STM32) */
-     tmppriority = TIMER_PRIORITY << (PRIGROUP - 3); // (PRIGROUP - 3) is the number of sub priorty bits
-     tmppriority |=  TIMER_SUB_PRIORITY & (0x0F >> (7 - PRIGROUP)); // (7 - PRIGROUP) is the number priorty bits
+     tmppriority = TIMER_PRIORITY << (PRIGROUP - 3); // (PRIGROUP - 3) is the number of sub priority bits
+     tmppriority |=  TIMER_SUB_PRIORITY & (0x0F >> (7 - PRIGROUP)); // (7 - PRIGROUP) is the number priority bits
   #endif
   /* Set the IRQ priority */
   intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + ZOTTAOS_TIMER);
@@ -376,7 +376,7 @@ void _OSInitializeTimer(void)
   #elif defined(CORTEX_M0)
      *(UINT32 *)IRQ_SET_ENABLE_REGISTER |= 0x01 << ZOTTAOS_TIMER;
   #endif
-  /* Initialise ZottaOS internal interrupt structure */
+  /* Initialize ZottaOS internal interrupt structure */
   #if ZOTTAOS_TIMER == OS_IO_TIM1
      /* Comparator interrupt */
      device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));

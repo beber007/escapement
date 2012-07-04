@@ -16,8 +16,13 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File TestTimerEvent.c:
-** Version date: March 2012
+/* File TestTimerEvent.c: Shows how to use API ZottaOS_TimerEvent. This simple program
+** periodically turns LEDS on and then schedules a event to turn them off.
+** Prior to using this API, you should run ZottaOSconf.exe to define a timer with two
+** interrupt sources (one for the overflow and its corresponding capture/compare regis-
+** ter 1, e.g. OS_IO_TIMER1_A1_TA and OS_IO_TIMER1_A1_CC1 for Timer1 A), and also a port
+** pin interrupt to act as a software interrupt (e.g. port 1 pin 6 OS_IO_PORT1_6).
+** Version identifier: May 2012
 ** Authors: MIS-TIC */
 
 #include "ZottaOS.h"
@@ -81,7 +86,7 @@ int main(void)
   #endif
 
   /* Start the OS so that it starts scheduling the user tasks */
-  return OSStartMultitasking();
+  return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 
 

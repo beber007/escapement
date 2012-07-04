@@ -16,8 +16,15 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File TestTimerEvent.c:
-** Version date: March 2012
+/* File TestTimerEvent2.c: Shows how to use API ZottaOS_TimerEvent. This program is based
+** on TestTimerEvent.c but uses a single event-driven task per LED and shows how to ini-
+** tiate 2 events.
+** Prior to using the ZottaOS_TimerEvent API, you should run ZottaOSconf.exe to define a
+** timer with two interrupt sources (one for the overflow and its corresponding capture
+** compare register 1, e.g. OS_IO_TIMER1_A1_TA and OS_IO_TIMER1_A1_CC1 for Timer1 A), and
+** also a port pin interrupt to act as a software interrupt (e.g. on port 1 pin 6 defined
+** as OS_IO_PORT1_6).
+** Version identifier: June 2012
 ** Authors: MIS-TIC */
 
 #include "ZottaOS.h"
@@ -26,10 +33,10 @@
 
 
 #define FLAG_PORT GPIOB
-#define FLAG1_PIN GPIO_Pin_13
-#define FLAG2_PIN GPIO_Pin_14
+#define FLAG1_PIN GPIO_Pin_1
+#define FLAG2_PIN GPIO_Pin_2
 
-#define EVENT_TIMER_INDEX OS_IO_TIM14
+#define EVENT_TIMER_INDEX OS_IO_TIM2
 
 static void SetLed1Task(void *argument);
 static void SetLed2Task(void *argument);
@@ -63,7 +70,7 @@ int main(void)
   SystemInit();
   InitializeFlags(FLAG1_PIN | FLAG2_PIN);
 
-  OSInitTimerEvent(2,83,0,EVENT_TIMER_INDEX);
+  OSInitTimerEvent(2,47,0,EVENT_TIMER_INDEX);
 
   #if defined(ZOTTAOS_VERSION_HARD)
      tmp = OSCreateEventDescriptor();
@@ -75,15 +82,14 @@ int main(void)
   #elif defined(ZOTTAOS_VERSION_SOFT)
      tmp = OSCreateEventDescriptor();
      OSCreateSynchronousTask(ClearLed1Task,0,1000,0,tmp,NULL);
-     OSCreateTask(SetLed1Task,0,0,10000,10000,1,1,0,tmp);
-
+     OSCreateTask(SetLed1Task,0,0,5000,5000,1,1,0,tmp);
      tmp = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLed2Task,0,2000,0,tmp,NULL);
-     OSCreateTask(SetLed2Task,0,0,20000,20000,1,1,0,tmp);
+     OSCreateSynchronousTask(ClearLed2Task,0,1000,0,tmp,NULL);
+     OSCreateTask(SetLed2Task,0,0,10000,10000,1,1,0,tmp);
   #endif
 
   /* Start the OS so that it starts scheduling the user tasks */
-  return OSStartMultitasking();
+  return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 
 

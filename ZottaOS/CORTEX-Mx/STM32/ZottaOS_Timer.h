@@ -41,6 +41,10 @@
 ** (2) The scheme can be ported to any microcontroller independently of whether it has
 **     prioritized interrupts or not. */
 
+/* Must be defined if the platform does not offer the option to disable the software
+** interrupt timer. Used only prior to starting task scheduling. */
+#define NonMaskableSoftwareTimer
+
 /* _OSInitializeTimer: Sets up the hardware timer to count in up mode without starting
 ** it. After the call, the timer is ready to produce an interrupt as soon as it is order-
 ** ed to start counting and at the first interrupt, the current wall clock is set to 0. */

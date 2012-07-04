@@ -56,14 +56,14 @@ int main(void)
      OSCreateSynchronousTask(ClearLed1Task,100,event,NULL);
      OSCreateTask(SetLed1Task,0,500,500,event);
      event = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLed2Task,10,event,NULL);
+     OSCreateSynchronousTask(ClearLed2Task,100,event,NULL);
      OSCreateTask(SetLed2Task,0,1000,1000,event);
   #elif defined(ZOTTAOS_VERSION_SOFT)
-     OSCreateSynchronousTask(ClearLed1Task,0,1000,0,event,NULL);
-     OSCreateTask(SetLed1Task,0,0,10000,10000,1,1,0,event);            // beber???????? pourquoi pas comme hard?
+     OSCreateSynchronousTask(ClearLed1Task,0,100,0,event,NULL);
+     OSCreateTask(SetLed1Task,0,0,500,500,1,1,0,event);
      event = OSCreateEventDescriptor();
-     OSCreateSynchronousTask(ClearLed2Task,0,2000,0,event,NULL);
-     OSCreateTask(SetLed2Task,0,0,20000,20000,1,1,0,event);
+     OSCreateSynchronousTask(ClearLed2Task,0,100,0,event,NULL);
+     OSCreateTask(SetLed2Task,0,0,1000,1000,1,1,0,event);
   #endif
 
   /* Start the OS so that it starts scheduling the user tasks */
@@ -89,15 +89,15 @@ void ClearLed1Task(void *argument)
 
 
 /* SetLed2Task: Sets a LED and triggers its clear after a variable delay comprised between
-** 10 and 900 clock ticks. */
+** 100 and 800 clock ticks. */
 void SetLed2Task(void *argument)
 {
-  static UINT16 delay = 10;
+  static UINT16 delay = 100;
   SetFlag(2);
   OSScheduleTimerEvent(argument,delay,OS_IO_PORT1_6);
   delay += 1;
-  if (delay > 900)
-     delay = 10;
+  if (delay > 800)
+     delay = 100;
   OSEndTask();
 } /* end of SetLed2Task */
 
@@ -106,7 +106,6 @@ void SetLed2Task(void *argument)
 void ClearLed2Task(void *argument)
 {
   ClearFlag(2);
-  P1IFG |= 0x40; // beber?????????????????????
   OSSuspendSynchronousTask();
 } /* end of ClearLed2Task */
 

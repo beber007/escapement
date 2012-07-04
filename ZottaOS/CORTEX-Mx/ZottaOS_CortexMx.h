@@ -30,7 +30,6 @@
 #define MARKEDBIT    0x80000000u
 #define UNMARKEDBIT  0x7FFFFFFFu
 
-
 /* _OSIOHandler: Routine de traitement générique des interruptions. A noter que si
 ** plusieurs timer utilisant le même vecteur sont utilisé, alors c'est la routine
 ** _OSIOHandlerMultiTimer qui est utilisée. _OSIOHandlerMultiTimer est definit dans
@@ -46,16 +45,17 @@ void _OSIOHandler(void);
 
 /* _OSScheduleTask: Generates a PendSV exception which will interrupt and proceed with the
 ** lowest interrupt priority to handler _OSContextSwapHandler (defined in assembler in
-** ZottaOS_CortexMx_a.S). */
+** ZottaOS_CortexMx_a.S). 0xE000ED04 is address of ICSR register. */
 #define _OSScheduleTask() (*((UINT32 *)0xE000ED04) = 0x10000000)
 
 /* _OSGenerateSoftTimerInterrupt: Called by the timer peripheral to generate a SysTick
 ** exception which will interrupt and continue with a smaller priority to handler Timer-
-** InterruptHandler defined in ZottaOSHard.c or ZottaOSSoft.c. */
+** InterruptHandler defined in ZottaOSHard.c or ZottaOSSoft.c. 0xE000ED04 is address of
+** ICSR register. */
 #define _OSGenerateSoftTimerInterrupt() (*((UINT32 *)0xE000ED04) = 0x4000000)
 
 
-/* _OSClearSoftTimerInterrupt: . */
+/* _OSClearSoftTimerInterrupt: . 0xE000ED04 is address of ICSR register. */
 #define _OSClearSoftTimerInterrupt() (*((UINT32 *)0xE000ED04) = 0x2000000)
 
 #endif /* _ZOTTAOS_CORTEXMX_H_ */
