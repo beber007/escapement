@@ -213,8 +213,8 @@
 
 
 /* Selects which version to be used ZottaOS */
-//#define ZOTTAOS_VERSION_HARD
-#define ZOTTAOS_VERSION_SOFT
+#define ZOTTAOS_VERSION_HARD
+//#define ZOTTAOS_VERSION_SOFT
 
 
 /* The following symbol defines the maximum size of permanent allocations performed by

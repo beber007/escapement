@@ -96,7 +96,9 @@ int main(void)
   /* */
   Current = Current_Measurement();
   Current = (Current * Vdd_appli() / ADC_CONV) * 20L; // Convert measured value in uA
-  while(1);
+  while(1) {
+
+  }
 
   /* Start the OS so that it starts scheduling the user tasks */
   return OSStartMultitasking(NULL,NULL);
