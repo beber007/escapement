@@ -77,7 +77,11 @@ void _OSStartTimer(void)
   _OSGenerateSoftTimerInterrupt(); // Schedule all periodic tasks arriving at time 0
   // _OSEnableSoftTimerInterrupt enables software timer interrupts. This function is de-
   // fined in the generated assembler file because the port pin can be chosen by the user.
-  _OSEnableSoftTimerInterrupt();
+  // For PA kernel version, the software timer interrupt is enable in _OSSleep function
+  // after idle task stack pointer backup operation.
+  #if !defined(ZOTTAOS_VERSION_HARD_PA) && !defined(ZOTTAOS_VERSION_SOFT_PA)
+    _OSEnableSoftTimerInterrupt();
+  #endif
 } /* end of _OSStartTimer */
 
 
