@@ -53,6 +53,8 @@
    #include "ZottaOSHard.h"
 #elif defined(ZOTTAOS_VERSION_SOFT)
    #include "ZottaOSSoft.h"
+#elif defined(ZOTTAOS_VERSION_HARD_PA)
+   #include "ZottaOSHardPA.h"
 #else
    #error ZOTTAOS_VERSION undefined!
 #endif

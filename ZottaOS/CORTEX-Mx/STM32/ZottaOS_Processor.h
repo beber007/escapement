@@ -29,4 +29,20 @@
 #include "ZottaOS_Config.h"
 #include "ZottaOS_CortexMx.h"
 
+#ifdef ZOTTAOS_VERSION_HARD_PA
+
+#define OS_4MHZ_SPEED  0
+#define OS_16MHZ_SPEED 1
+#define OS_32MHZ_SPEED 2
+
+#define OS_MAX_SPEED 2
+
+/* OSInitProcessorSpeed: */
+void OSInitProcessorSpeed(void);
+
+/* OSGetCurrentSpeed: */
+UINT8 OSGetProcessorSpeed(void);
+
+#endif /* ZOTTAOS_VERSION_HARD_PA */
+
 #endif /* ZOTTAOS_PROCESSOR_H_ */
