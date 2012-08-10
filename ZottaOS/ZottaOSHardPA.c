@@ -27,12 +27,11 @@
 
 #ifdef ZOTTAOS_VERSION_HARD_PA
 
+
 /* Table of speed slowdowns * 256 for all frequency settings except for the maximum one.
 ** These values are computed using the relation Speed/Max_Speed = A/256, where A is the
-** number in the table. To compensate for frequency jitter A is chosen to be 7, 11 and 19
-** instead of 11.5, 11.5 and 19.5. */
+** number in the table. */
 #if POWER_MANAGEMENT != NONE
-   #define MAX_SPEED 3 /* equal to last index of FreqTabs */
    extern const UINT8 _OSSlowdownRatios[];
 #endif
 
@@ -442,7 +441,7 @@ TCB *CreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 period
   ptcb->PeriodHigh = periodCycles;
   ptcb->NextArrivalTimeHigh = 0;
   #ifdef STATIC_POWER_MANAGEMENT
-     ptcb->FrequencyIndex = MAX_SPEED; // Run the task at the highest frequency
+     ptcb->FrequencyIndex = OS_MAX_SPEED; // Run the task at the highest frequency
   #endif
   #if POWER_MANAGEMENT != NONE
      ptcb->WCET = wcet;
@@ -606,11 +605,11 @@ void _OSTimerInterruptHandler(void)
   #if POWER_MANAGEMENT != NONE
      if (!ResetProcessorSpeed) { // Keep the first processor speed if not already saved
         SavedCurrentSpeed = OSGetProcessorSpeed(); // Save the current speed before modifying it
-        OSSetProcessorSpeed(MAX_SPEED);
+        OSSetProcessorSpeed(OS_MAX_SPEED);
         ResetProcessorSpeed = TRUE;
      }
   #elif defined(STATIC_POWER_MANAGEMENT)
-     OSSetProcessorSpeed(MAX_SPEED);
+     OSSetProcessorSpeed(OS_MAX_SPEED);
   #endif
   #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
      /* Finish any pending CAS2 which may modify the simulation queue before we insert a
@@ -658,9 +657,6 @@ void _OSTimerInterruptHandler(void)
         for (etcb = SynchronousTaskList; etcb != NULL; etcb = etcb->NextETCB) {
            #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
               SubOrZeroIfNeg(etcb->NextArrivalTimeLow,ShiftTimeLimit);
-              #if POWER_MANAGEMENT != NONE 
-                 etcb->NextDeadline -= ShiftTimeLimit;
-              #endif
            #else
               SubOrZeroIfNeg(etcb->NextDeadline,ShiftTimeLimit);
            #endif
@@ -997,7 +993,7 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
   etcb->TaskCodePtr = task;
   etcb->Argument = arg;
   #ifdef STATIC_POWER_MANAGEMENT
-     etcb->FrequencyIndex = MAX_SPEED;
+     etcb->FrequencyIndex = OS_MAX_SPEED;
   #endif
   #if POWER_MANAGEMENT != NONE && POWER_MANAGEMENT != OTE
      etcb->WCET = wcet;
@@ -1245,7 +1241,7 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
 void UpdateRemainingWork(TCB *task, UINT8 currentSpeed, INT32 newTime)
 {
   INT32 completed = newTime - LastRemainingWorkUpdate;
-  if (currentSpeed != MAX_SPEED) {
+  if (currentSpeed != OS_MAX_SPEED) {
      completed *= _OSSlowdownRatios[currentSpeed];
      completed >>= 8;
   }
@@ -1276,7 +1272,7 @@ void DMSlackCalculateSlack(TCB *task, UINT8 currentSpeed, INT32 newTime)
   do {
      OSUINT8_LL(&DMSlackInterrupt);
      dmRemaindingWork = newTime - LastRemainingWorkUpdate;
-     if (currentSpeed != MAX_SPEED) {
+     if (currentSpeed != OS_MAX_SPEED) {
         dmRemaindingWork *= _OSSlowdownRatios[currentSpeed];
         dmRemaindingWork >>= 8;
      }
@@ -1507,7 +1503,7 @@ UINT8 GetProcessorSpeed(INT32 time)
                  #ifdef STATIC_POWER_MANAGEMENT
                     return _OSActiveTask->FrequencyIndex;
                  #else
-                    return MAX_SPEED;
+                    return OS_MAX_SPEED;
                  #endif
               else
                  completionTime = tmp;
@@ -1519,14 +1515,14 @@ UINT8 GetProcessorSpeed(INT32 time)
               #ifdef STATIC_POWER_MANAGEMENT
                  return _OSActiveTask->FrequencyIndex;
               #else
-                 return MAX_SPEED;
+                 return OS_MAX_SPEED;
               #endif
         }
         else
            #ifdef STATIC_POWER_MANAGEMENT
               return _OSActiveTask->FrequencyIndex;
            #else
-              return MAX_SPEED;
+              return OS_MAX_SPEED;
            #endif
      #elif POWER_MANAGEMENT == DR_OTE
         /* Check if we can apply OTE: Get next arrival time and correct for deadlines that
@@ -1542,7 +1538,7 @@ UINT8 GetProcessorSpeed(INT32 time)
                  #ifdef STATIC_POWER_MANAGEMENT
                     return _OSActiveTask->FrequencyIndex;
                  #else
-                    return MAX_SPEED;
+                    return OS_MAX_SPEED;
                  #endif
               else
                  oteCompletionTime = tmp;
@@ -1556,7 +1552,7 @@ UINT8 GetProcessorSpeed(INT32 time)
               #ifdef STATIC_POWER_MANAGEMENT
                  return _OSActiveTask->FrequencyIndex;
               #else
-                 return MAX_SPEED;
+                 return OS_MAX_SPEED;
               #endif
         }
      #elif POWER_MANAGEMENT == DRA
@@ -1574,7 +1570,7 @@ UINT8 GetProcessorSpeed(INT32 time)
                  #ifdef STATIC_POWER_MANAGEMENT
                     return _OSActiveTask->FrequencyIndex;
                  #else
-                    return MAX_SPEED;
+                    return OS_MAX_SPEED;
                  #endif
               else
                  completionTime = tmp;
@@ -1586,7 +1582,7 @@ UINT8 GetProcessorSpeed(INT32 time)
               #ifdef STATIC_POWER_MANAGEMENT
                  return _OSActiveTask->FrequencyIndex;
               #else
-                 return MAX_SPEED;
+                 return OS_MAX_SPEED;
               #endif
         }
         else if (_OSActiveTask->Priority < DMSlackPriority && DMSlackAmount > 0)
@@ -1595,7 +1591,7 @@ UINT8 GetProcessorSpeed(INT32 time)
            #ifdef STATIC_POWER_MANAGEMENT
               return _OSActiveTask->FrequencyIndex;
            #else
-              return MAX_SPEED;
+              return OS_MAX_SPEED;
            #endif
      #endif
      /* Find the speed to apply to the task. */
@@ -1603,7 +1599,7 @@ UINT8 GetProcessorSpeed(INT32 time)
      #ifdef STATIC_POWER_MANAGEMENT
         speed = _OSActiveTask->FrequencyIndex;  // first frequency setting
      #else
-        speed = MAX_SPEED;                      // first frequency setting
+        speed = OS_MAX_SPEED;                      // first frequency setting
      #endif
      while ((speed -= 1) >= MinimalProcessorSpeed) {
         tmp = _OSSlowdownRatios[speed] * completionTime;
@@ -1615,7 +1611,7 @@ UINT8 GetProcessorSpeed(INT32 time)
      #ifdef STATIC_POWER_MANAGEMENT
         return _OSActiveTask->FrequencyIndex;
      #else
-        return MAX_SPEED;
+        return OS_MAX_SPEED;
      #endif
 } /* end of GetProcessorSpeed */
 #endif

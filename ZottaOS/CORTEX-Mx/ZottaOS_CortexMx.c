@@ -159,12 +159,10 @@ void NMIException(void)
   while (TRUE);
 } /* end of NMIException */
 
-int beber;
 
 void HardFaultException(void)
 {
-	beber++;
-  //while (TRUE);
+  while (TRUE);
 } /* end of HardFaultException */
 
 

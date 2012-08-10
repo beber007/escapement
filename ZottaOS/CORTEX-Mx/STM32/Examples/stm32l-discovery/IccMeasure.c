@@ -17,88 +17,53 @@
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
 /* File icc_measure.c:
-** Version date: June 2012
+** Version date: July 2012
 ** Authors: MIS-TIC */
 
 #include "ZottaOS.h"
 #include "stm32l1xx.h"
 
-#define VREF 		        1.224L // Theoretically BandGAP 1.224 Volt
-#define ADC_CONV 	        4096   // ADC Converter LSBIdeal = VREF/4096 or VDA/4096
-#define IDD_MEASURE_PORT	GPIOA
-#define IDD_MEASURE         GPIO_Pin_4
-
-static void Init_ADC(void);
-
-static UINT16 Current_Measurement (void);
-static float Vdd_appli(void);
-
-/* Function to return the VDD measurement */
-float Vdd_appli(void)
-{
-  UINT8 i;
-  UINT16 MeasurINT = 0;
-  float f_Vdd_appli ;
-  /* Read the BandGap value on ADC converter*/
-  ADC_TempSensorVrefintCmd(ENABLE);
-  /* ADC1 regular channel 17 for VREF configuration */
-  ADC_RegularChannelConfig(ADC1,ADC_Channel_17,1,ADC_SampleTime_192Cycles);
-  for(i = 4; i > 0; i--) {
-     ADC_SoftwareStartConv(ADC1);
-     while (ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == 0);
-     MeasurINT += ADC_GetConversionValue(ADC1);
-  }
-  ADC_TempSensorVrefintCmd(DISABLE);
-  /* We use the Theoretically value */
-  f_Vdd_appli = (VREF / (MeasurINT >> 2)) * ADC_CONV;
-  f_Vdd_appli *= 1000L; // convert Vdd_appli into mV
-  return f_Vdd_appli;
-}
-
-/* Current measurement */
-UINT16 Current_Measurement (void)
-{
-  UINT16 i, res = 0;
-  for (i = 4; i > 0; i--) {
-     ADC_SoftwareStartConv(ADC1);
-     while( ADC_GetFlagStatus(ADC1,ADC_FLAG_EOC) == 0);
-     res += ADC_GetConversionValue(ADC1);
-  }
-  return (res >> 2);
-}
+static void InitCurrentMeasurement(void);
+static UINT16 GetCurrentMeasurement (void);
 
 
 int main(void)
 {
-  UINT16 Current;
-  /* Stop timer during debugger connection */
-  #if ZOTTAOS_TIMER == OS_IO_TIM11
-     DBGMCU_APB2PeriphConfig(DBGMCU_TIM11_STOP,ENABLE);
-  #elif ZOTTAOS_TIMER == OS_IO_TIM10
-     DBGMCU_APB2PeriphConfig(DBGMCU_TIM10_STOP,ENABLE);
-  #elif ZOTTAOS_TIMER == OS_IO_TIM9
-     DBGMCU_APB2PeriphConfig(DBGMCU_TIM9_STOP,ENABLE);
-  #elif ZOTTAOS_TIMER == OS_IO_TIM5
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM5_STOP,ENABLE);
-  #elif ZOTTAOS_TIMER == OS_IO_TIM4
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM4_STOP,ENABLE);
-  #elif ZOTTAOS_TIMER == OS_IO_TIM3
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM3_STOP,ENABLE);
-  #elif ZOTTAOS_TIMER == OS_IO_TIM2
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM2_STOP,ENABLE);
-#endif
+  UINT16 Current[4];
+  UINT32 i;
+
   /* Keep debugger connection during sleep mode */
   DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
+
   /* Initialize Hardware */
   SystemInit();
-  /* Init ADC channel 24 */
-  Init_ADC();
-  /* */
-  Current = Current_Measurement();
-  Current = (Current * Vdd_appli() / ADC_CONV) * 20L; // Convert measured value in uA
-  while(1) {
+  InitCurrentMeasurement();
 
+  OSInitProcessorSpeed();
+ _OSEnableInterrupts();
+
+  while(1) {
+	  // Set Vcore to 1.8V and SYSCLK to 32 MHz
+	  OSSetProcessorSpeed(OS_32MHZ_SPEED);
+      for (i = 0; i < 100000; i++);
+      Current[0] = GetCurrentMeasurement();
+
+      // Set Vcore to 1.5V and SYSCLK to 16 MHz
+	  OSSetProcessorSpeed(OS_16MHZ_SPEED);
+      for (i = 0; i < 100000; i++);
+      Current[1] = GetCurrentMeasurement();
+
+	  // Set Vcore to 1.2V and SYSCLK to 4 MHz
+  	  OSSetProcessorSpeed(OS_4MHZ_SPEED);
+      for (i = 0; i < 100000; i++);
+      Current[2] = GetCurrentMeasurement();
+
+      // Set Vcore to 1.5V and SYSCLK to 16 MHz
+	  OSSetProcessorSpeed(OS_16MHZ_SPEED);
+      for (i = 0; i < 100000; i++);
+      Current[3] = GetCurrentMeasurement();
   }
+
 
   /* Start the OS so that it starts scheduling the user tasks */
   return OSStartMultitasking(NULL,NULL);
@@ -106,22 +71,24 @@ int main(void)
 
 
 /* ADC initialization (ADC_Channel_4) */
-void Init_ADC(void)
+void InitCurrentMeasurement(void)
 {
   ADC_InitTypeDef ADC_InitStructure;
   GPIO_InitTypeDef GPIO_InitStructure;
-  /* Configure ADC (IDD_MEASURE) pin as analog */
-  GPIO_InitStructure.GPIO_Pin = IDD_MEASURE  ;
+  /* Enable GPIOA clock */
+  RCC_AHBPeriphClockCmd(GPIOA, ENABLE);
+  /* Configure ADC (GPIO_Pin_4) pin as analog */
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4  ;
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
-  GPIO_Init( IDD_MEASURE_PORT, &GPIO_InitStructure);
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE); // Enable ADC clock
-  ADC_DeInit(ADC1); /* de-initialize ADC */
-  /*  ADC configured as follow:
-    - NbrOfChannel = 1 - ADC_Channel_4
-    - Mode = Single ConversionMode(ContinuousConvMode disabled)
-    - Resolution = 12Bits
-    - Prescaler = /1
-    - sampling time 192 */
+  GPIO_Init( GPIOA, &GPIO_InitStructure);
+  /* Enable HSI Clock */
+  RCC_HSICmd(ENABLE);
+  /*!< Wait till HSI is ready */
+  while (RCC_GetFlagStatus(RCC_FLAG_HSIRDY) == RESET);
+  /* Enable ADC clock */
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
+ /*  de-initialize ADC */
+  ADC_DeInit(ADC1);
   /* ADC Configuration */
   ADC_StructInit(&ADC_InitStructure);
   ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b;
@@ -134,8 +101,17 @@ void Init_ADC(void)
   /* ADC1 regular channel4 configuration */
   ADC_RegularChannelConfig(ADC1, ADC_Channel_4, 1, ADC_SampleTime_192Cycles);
   ADC_DelaySelectionConfig(ADC1, ADC_DelayLength_Freeze);
-  ADC_PowerDownCmd(ADC1, ADC_PowerDown_Idle_Delay, ENABLE);
-  ADC_Cmd(ADC1, ENABLE); /* Enable ADC1 */
+  /* Enable ADC1 */
+  ADC_Cmd(ADC1, ENABLE);
   /* Wait until ADC1 ON status */
   while (ADC_GetFlagStatus(ADC1, ADC_FLAG_ADONS) == RESET);
-} /* end of Init_ADC */
+} /* end of InitCurrentMeasurement */
+
+
+/* Current measurement */
+UINT16 GetCurrentMeasurement (void)
+{
+  ADC_SoftwareStartConv(ADC1);
+  while( ADC_GetFlagStatus(ADC1,ADC_FLAG_EOC) == 0);
+  return ADC_GetConversionValue(ADC1) >> 2;
+} /* end of GetCurrentMeasurement */

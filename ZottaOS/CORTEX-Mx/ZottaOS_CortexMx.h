@@ -41,7 +41,14 @@ void _OSIOHandler(void);
 #define _OSDisableInterrupts() __asm("CPSID i;")
 
 /* _OSSleep: Sets the processor to its lowest possible sleep mode. */
-#define _OSSleep() while (TRUE) { __asm("WFI"); } // Request Wait For Interrupt
+#ifdef ZOTTAOS_VERSION_HARD_PA
+   #define _OSSleep() while (TRUE) { \
+                                     OSSetProcessorSpeed(OS_MAX_SPEED); \
+                                     __asm("WFI"); \
+                                   };
+#else
+   #define _OSSleep() while (TRUE) { __asm("WFI"); };
+#endif
 
 /* _OSScheduleTask: Generates a PendSV exception which will interrupt and proceed with the
 ** lowest interrupt priority to handler _OSContextSwapHandler (defined in assembler in

@@ -147,7 +147,7 @@
 #define DEADLINE_MONOTONIC_SCHEDULING  3
 
 /* The following define sets the scheduling algorithm to use. */
-#define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST_STAR
+#define SCHEDULER_REAL_TIME_MODE DEADLINE_MONOTONIC_SCHEDULING
 
 /* Correct or adjust the scheduling algorithm to be coherent with the power management
 ** choice. */
