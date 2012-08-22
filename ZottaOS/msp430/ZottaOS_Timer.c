@@ -96,8 +96,11 @@ BOOL _OSSetTimer(INT32 nextArrivalTime)
   ** until the next timer overflow. (The comparator is set to 0 in the ISR.) */
   if (nextArrivalTime >> 16 == _OSTime) {
      OSTimerCompareRegister = (UINT16)nextArrivalTime;
-     return OSTimerCompareRegister > OSTimerCounter;   // Missed the interrupt
-  }
+     if (OSTimerCompareRegister > OSTimerCounter) // Missed the interrupt?
+        return TRUE;
+     OSTimerCompareRegister = 0;
+     return FALSE;
+ }
   else
      return TRUE;
 } /* end of _OSSetTimer */

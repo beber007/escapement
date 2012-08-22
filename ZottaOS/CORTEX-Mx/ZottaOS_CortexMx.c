@@ -29,9 +29,8 @@
 
 
 /* SYSTEM INTERRUPTS ----------------------------------------------------------------- */
-extern void *_OSEndRAM; // Last address of the RAM memory (defined in linker file)
-   beber: Last valid address of the RAM memory
-   ou:    First invalid address marking the end of the RAM memory
+extern void *_OSEndRAM; // First invalid address marking the end of the RAM memory
+                        // (defined in linker file).
 extern void _OSContextSwapHandler(void); // defined in ZottaOS_CortexMx_a.S
 
 void _OSResetHandler(void); // Must be accessible by the linker file
@@ -283,12 +282,12 @@ void FinalizeContextSwitchPreparation(void)
 {
   #define READYQ        0
   #define STATE_ZOMBIE  0x02
-  #if defined(ZOTTAOS_VERSION_SOFT)
+  #if defined(ZOTTAOS_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
      #define STATE_INIT          0x00
      #define STATE_ACTIVATE      0x10
   #endif
   extern MinimalTCB *_OSQueueHead;
-  #if defined(ZOTTAOS_VERSION_SOFT) // beber: && SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
+  #if defined(ZOTTAOS_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
      extern MinimalTCB *_OSQueueTail;
   #endif
   extern BOOL _OSNoSaveContext;
@@ -303,7 +302,7 @@ void FinalizeContextSwitchPreparation(void)
      _OSActiveTask = _OSQueueHead->Next[READYQ] = _OSActiveTask->Next[READYQ];
      _OSNoSaveContext = TRUE; /* Don't save the context of the interrupted task */
   }
-  #if defined(ZOTTAOS_VERSION_SOFT) // beber: && SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
+  #if defined(ZOTTAOS_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
      else if (_OSActiveTask->TaskState & STATE_ACTIVATE) {
         /* Yes: The operations done by the task doing the promotion are
         **   (1)   OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];
@@ -347,7 +346,7 @@ void _OSIOHandler(void)
   #endif
   /* Call the specific handler */
   peripheralIODescriptor->PeripheralInterruptHandler(peripheralIODescriptor);
-  if (_OSActiveTask != NULL) { /* Has the kernel started? */ claude? qui sauve r4-r11? pourquoi revenir a la tache?
+  if (_OSActiveTask != NULL) { /* Has the kernel started? */ //claude? qui sauve r4-r11? pourquoi revenir a la tache?
      FinalizeContextSwitchPreparation(); // Return to the preempted task
      _OSScheduleTask();  // and generate context swap software interrupt
   }

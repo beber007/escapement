@@ -767,7 +767,7 @@ void _OSTimerInterruptHandler(void)
            break;
      }
      _OSClearSoftTimerInterrupt();
-  } while (_OSOverflowInterruptFlag || _OSComparatorInterruptFlag);
+  } while (_OSOverflowInterruptFlag || _OSComparatorInterruptFlag || RescheduleSynchronousTaskList != NULL);
   #ifdef NESTED_TIMER_INTERRUPT
      /* If we get a timer interrupt, there's no point saving the context of the current ISR
      ** since we will have to restart it anyways. */
