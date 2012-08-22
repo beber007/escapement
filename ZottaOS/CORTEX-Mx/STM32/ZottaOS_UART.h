@@ -16,7 +16,7 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File UART.h: Contains the interface to the API implementation allowing message
+/* File ZottaOS_UART.h: Contains the interface to the API implementation allowing message
 **              transmissions and easy access to the receiver part of a UART.
 ** Platform version: All STM32 microcontrollers.
 ** Version date: March 2012
@@ -52,7 +52,8 @@
 **       a message that the UART can transmit.
 **   (3) (BOOL (*)(UINT8)) ReceiveHandler: ISR function that is called when the
 **        UART receives a new byte from its input port.
-**   (4) (UINT8) interruptIndex: Port number corresponding to a specific UART.
+**   (4) (UINT8) interruptIndex: Port number corresponding to a specific UART. This should
+**        be one of OS_IO_USART1 through OS_IO_USART6.
 ** Returned value: (BOOL) TRUE on success and FALSE if there's insufficient memory to
 **   create the descriptor or the buffers that will be used in connection with the UART.
 ** Note: Although the implementation is fully concurrent, the UART does not prevent mes-

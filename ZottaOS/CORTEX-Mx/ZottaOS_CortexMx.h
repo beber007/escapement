@@ -16,8 +16,9 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOS_CortexMx.c: Contains functions that are common to any specific Cortex-Mx
-** microcontroller.
+/* File ZottaOS_CortexMx.c: Contains macros and defines that are common to any specific
+** Cortex-Mx microcontroller.
+** Platform version: All Cortex-Mx based microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */
@@ -36,33 +37,36 @@
 **  ZottaOS_Timer.c */
 void _OSIOHandler(void);
 
-/* _OSEnableInterrupts and _OSDisableInterrupts: . */
+/* _OSEnableInterrupts and _OSDisableInterrupts: Macros changing the state of the special
+** register PRIMASK.These are provided to allow portable code between different microcon-
+** trollers. */
 #define _OSEnableInterrupts()  __asm("CPSIE i;")
 #define _OSDisableInterrupts() __asm("CPSID i;")
 
 /* _OSSleep: Sets the processor to its lowest possible sleep mode. */
 #ifdef ZOTTAOS_VERSION_HARD_PA
    #define _OSSleep() while (TRUE) { \
-                                     OSSetProcessorSpeed(OS_MAX_SPEED); \
-                                     __asm("WFI"); \
-                                   };
+                         OSSetProcessorSpeed(OS_MAX_SPEED); \
+                         __asm("WFI"); \
+                      };
 #else
    #define _OSSleep() while (TRUE) { __asm("WFI"); };
 #endif
 
-/* _OSScheduleTask: Generates a PendSV exception which will interrupt and proceed with the
+/* _OSScheduleTask: Generates a PendSV exception, which will interrupt and proceed at the
 ** lowest interrupt priority to handler _OSContextSwapHandler (defined in assembler in
-** ZottaOS_CortexMx_a.S). 0xE000ED04 is address of ICSR register. */
-#define _OSScheduleTask() (*((UINT32 *)0xE000ED04) = 0x10000000)
+** ZottaOS_CortexMx_a.S). Sets bit PENDSVSET of ICSR (0xE000ED04). */
+#define _OSScheduleTask() (*((UINT32 *)0xE000ED04) |= 0x10000000)         beber: devrait etre |= pour ne pas ecraser les autres bits, n'y a t-il pas un bis?
 
 /* _OSGenerateSoftTimerInterrupt: Called by the timer peripheral to generate a SysTick
-** exception which will interrupt and continue with a smaller priority to handler Timer-
-** InterruptHandler defined in ZottaOSHard.c or ZottaOSSoft.c. 0xE000ED04 is address of
-** ICSR register. */
+** exception, which will interrupt and continue with a smaller priority to handler
+** _OSTimerInterruptHandler defined in ZottaOSHard.c or ZottaOSSoft.c. Sets bit PENDSTSET
+** of ICSR (0xE000ED04). */
 #define _OSGenerateSoftTimerInterrupt() (*((UINT32 *)0xE000ED04) = 0x4000000)
 
-
-/* _OSClearSoftTimerInterrupt: . 0xE000ED04 is address of ICSR register. */
+/* _OSClearSoftTimerInterrupt: Called by _OSTimerInterruptHandler binded to the SysTick
+** exception to remove its interrupt pending status. In other words, a new SysTick excep-
+** tion can be raised. Sets bit PENDSTCLR of ICSR (0xE000ED04). */
 #define _OSClearSoftTimerInterrupt() (*((UINT32 *)0xE000ED04) = 0x2000000)
 
 #endif /* _ZOTTAOS_CORTEXMX_H_ */

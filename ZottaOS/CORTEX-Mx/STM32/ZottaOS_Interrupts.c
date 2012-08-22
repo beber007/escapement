@@ -16,7 +16,9 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOS_Interrupts.c:
+/* File ZottaOS_Interrupts.c: Defines the internal vector interruption table that binds
+**   peripheral device handlers to a particular entry and that can be manipulated via
+**   functions OSSetTimerISRDescriptor and OSGetTimerISRDescriptor.
 ** Platform version: All STM32 microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
@@ -26,7 +28,10 @@
 #include "ZottaOS_Timer.h"
 
 /* Table of devices used by the interrupt handler and the peripheral devices to obtain
-** the appropriate I/O routine. */
+** the appropriate I/O routine.
+** These peripherals are
+**   in fact the IRQs defined for Cortex-Mx and are appended to the 15 system exceptions
+**   defined in ZottaOS_CortexMx.c. */ claude pas fini
 
 /* Chaque entrées est initialisées NULL ou pointe sur un structure de type TIMERSELECT dans le
 ** cas ou l'entrée correspond à un vecteur ayant comme source plusieurs timer. TIMERSELECT
@@ -34,61 +39,62 @@
 
 #if defined(STM32F050XX)
    void *_OSTabDevice[28] = {
-      NULL, /* OS_IO_WWDG           0  Window WatchDog */
-      NULL, /* OS_IO_PVD            1  PVD through EXTI Line detection */
-      NULL, /* OS_IO_RTC            2  RTC through EXTI Line */
-      NULL, /* OS_IO_FLASH          3  FLASH */
-      NULL, /* OS_IO_RCC            4  RCC */
-      NULL, /* OS_IO_EXTI0_1        5  EXTI Line 0 and 1 */
-      NULL, /* OS_IO_EXTI2_3        6  EXTI Line 2 and 3 */
-      NULL, /* OS_IO_EXTI4_15       7  EXTI Line 4 to 15 */
-      NULL, /* OS_IO_TS             8  TS */
-      NULL, /* OS_IO_DMA1_Channel1  9  DMA1 Channel 1 */
-      NULL, /* OS_IO_DMA1_Channel2_3 10  DMA1 Channel 2 and Channel 3 */
-      NULL, /* DMA1_Channel4_5     11  DMA1 Channel 4 and Channel 5 */
-      NULL, /* ADC1_COMP           12  ADC1, COMP1 and COMP2 */
-      NULL, /* TIM1_BRK_UP_TRG_COM 13  TIM1 Break, Update, Trigger and Commutation */
-      NULL, /* TIM1_CC             14  TIM1 Capture Compare */
-      NULL, /* TIM2                15  TIM2 */
-      NULL, /* TIM3                16  TIM3 */
+      NULL, /* OS_IO_WWDG
+         0  Window watchdog */
+      NULL, /* OS_IO_PVD              1  Programmable voltage detector through EXTI line */
+      NULL, /* OS_IO_RTC              2  RTC through EXTI line */
+      NULL, /* OS_IO_FLASH            3  Flash */
+      NULL, /* OS_IO_RCC              4  RCC */
+      NULL, /* OS_IO_EXTI0_1          5  EXTI lines 0 and 1 */
+      NULL, /* OS_IO_EXTI2_3          6  EXTI lines 2 and 3 */
+      NULL, /* OS_IO_EXTI4_15         7  EXTI lines 4 to 15 */
+      NULL, /* OS_IO_TS               8  TS */
+      NULL, /* OS_IO_DMA1_Channel1    9  DMA1 channel 1 */
+      NULL, /* OS_IO_DMA1_Channel2_3 10  DMA1 channels 2 and 3 */
+      NULL, /* OS_IO_DMA1_Channel4_5 11  DMA1 channels 4 and 5 */
+      NULL, /* ADC1_COMP             12  ADC1, COMP1 and COMP2 */
+      NULL, /* TIM1_BRK_UP_TRG_COM   13  TIM1 Break, Update, Trigger and Commutation */
+      NULL, /* TIM1_CC               14  TIM1 Capture Compare */
+      NULL, /* TIM2                  15  TIM2 */
+      NULL, /* TIM3                  16  TIM3 */
       NULL,
       NULL,
-      NULL, /* OS_IO_TIM14         19  TIM14 */
+      NULL, /* OS_IO_TIM14          19  TIM14 */
       NULL,
-      NULL, /* OS_IO_TIM16         21  TIM16 */
-      NULL, /* OS_IO_TIM17         22  TIM17 */
-      NULL, /* OS_IO_I2C1          23  I2C1 */
+      NULL, /* OS_IO_TIM16          21  TIM16 */
+      NULL, /* OS_IO_TIM17          22  TIM17 */
+      NULL, /* OS_IO_I2C1           23  I2C1 */
       NULL,
-      NULL, /* OS_IO_SPI1          25  SPI1 */
+      NULL, /* OS_IO_SPI1           25  SPI1 */
       NULL,
-      NULL  /* OS_IO_USART1        27  USART1 */
+      NULL  /* OS_IO_USART1         27  USART1 */
    };
 #elif defined(STM32F051X4) || defined(STM32F051K6_K8_C6_R6) || defined(STM32F051C8_R8)
    void *_OSTabDevice[31] = {
-      NULL, /* OS_IO_WWDG           0  Window WatchDog */
-      NULL, /* OS_IO_PVD            1  PVD through EXTI Line detection */
-      NULL, /* OS_IO_RTC            2  RTC through EXTI Line */
-      NULL, /* OS_IO_FLASH          3  FLASH */
-      NULL, /* OS_IO_RCC            4  RCC */
-      NULL, /* OS_IO_EXTI0_1        5  EXTI Line 0 and 1 */
-      NULL, /* OS_IO_EXTI2_3        6  EXTI Line 2 and 3 */
-      NULL, /* OS_IO_EXTI4_15       7  EXTI Line 4 to 15 */
-      NULL, /* OS_IO_TS             8  TS */
-      NULL, /* OS_IO_DMA1_Channel1  9  DMA1 Channel 1 */
-      NULL, /* OS_IO_DMA1_Channel2_3 10  DMA1 Channel 2 and Channel 3 */
-      NULL, /* DMA1_Channel4_5     11  DMA1 Channel 4 and Channel 5 */
-      NULL, /* ADC1_COMP           12  ADC1, COMP1 and COMP2 */
-      NULL, /* TIM1_BRK_UP_TRG_COM 13  TIM1 Break, Update, Trigger and Commutation */
-      NULL, /* TIM1_CC             14  TIM1 Capture Compare */
-      NULL, /* TIM2                15  TIM2 */
-      NULL, /* TIM3                16  TIM3 */
-      NULL, /* TIM6_DAC            17  TIM6 and DAC */
+      NULL, /* OS_IO_WWDG             0  Window watchDog */
+      NULL, /* OS_IO_PVD              1  Programmable voltage detector through EXTI line */
+      NULL, /* OS_IO_RTC              2  RTC through EXTI line */
+      NULL, /* OS_IO_FLASH            3  Flash */
+      NULL, /* OS_IO_RCC              4  RCC */
+      NULL, /* OS_IO_EXTI0_1          5  EXTI lines 0 and 1 */
+      NULL, /* OS_IO_EXTI2_3          6  EXTI lines 2 and 3 */
+      NULL, /* OS_IO_EXTI4_15         7  EXTI lines 4 to 15 */
+      NULL, /* OS_IO_TS               8  TS */
+      NULL, /* OS_IO_DMA1_Channel1    9  DMA1 channel 1 */
+      NULL, /* OS_IO_DMA1_Channel2_3 10  DMA1 channels 2 and 3 */
+      NULL, /* OS_IO_DMA1_Channel4_5 11  DMA1 channels 4 and 5 */
+      NULL, /* ADC1_COMP             12  ADC1, COMP1 and COMP2 */
+      NULL, /* TIM1_BRK_UP_TRG_COM   13  TIM1 Break, Update, Trigger and Commutation */
+      NULL, /* TIM1_CC               14  TIM1 Capture Compare */
+      NULL, /* TIM2                  15  TIM2 */
+      NULL, /* TIM3                  16  TIM3 */
+      NULL, /* TIM6_DAC              17  TIM6 and DAC */
       NULL,
-      NULL, /* OS_IO_TIM14         19  TIM14 */
-      NULL, /* OS_IO_TIM15         20  TIM15 */
-      NULL, /* OS_IO_TIM16         21  TIM16 */
-      NULL, /* OS_IO_TIM17         22  TIM17 */
-      NULL, /* OS_IO_I2C1          23  I2C1 */
+      NULL, /* OS_IO_TIM14           19  TIM14 */
+      NULL, /* OS_IO_TIM15           20  TIM15 */
+      NULL, /* OS_IO_TIM16           21  TIM16 */
+      NULL, /* OS_IO_TIM17           22  TIM17 */
+      NULL, /* OS_IO_I2C1            23  I2C1 */
       #if defined(STM32F051C8_R8)
          NULL, /* OS_IO_I2C2       24  I2C2 */
       #else
@@ -111,30 +117,30 @@
    };
 #elif defined(STM32L151X6_X8_XB) || defined(STM32L152X6_X8_XB)
    void *_OSTabDevice[45] = {
-      NULL, /* OS_IO_WWDG           0  Window WatchDog */
-      NULL, /* OS_IO_PVD            1  PVD through EXTI Line detection */
+      NULL, /* OS_IO_WWDG           0  Window watchDog */
+      NULL, /* OS_IO_PVD            1  Programmable voltage detector through EXTI line */
       NULL, /* OS_IO_TAMP_STAMP     2  Tamper and TimeStamp through the EXTI line*/
-      NULL, /* OS_IO_RTC_WKUP       3  RTC Wakeup through the EXTI line */
-      NULL, /* OS_IO_FLASH          4  FLASH global */
-      NULL, /* OS_IO_RCC            5  RCC global */
-      NULL, /* OS_IO_EXTI0          6  EXTI Line0 */
-      NULL, /* OS_IO_EXTI1          7  EXTI Line1 */
-      NULL, /* OS_IO_EXTI2          8  EXTI Line2 */
-      NULL, /* OS_IO_EXTI3          9  EXTI Line3 */
-      NULL, /* OS_IO_EXTI4         10  EXTI Line4 */
-      NULL, /* OS_IO_DMA1_Channel1 11  DMA1 Channel 1 global */
-      NULL, /* OS_IO_DMA1_Channel2 12  DMA1 Channel 2 global */
-      NULL, /* OS_IO_DMA1_Channel3 13  DMA1 Channel 3 global */
-      NULL, /* OS_IO_DMA1_Channel4 14  DMA1 Channel 4 global */
-      NULL, /* OS_IO_DMA1_Channel5 15  DMA1 Channel 5 global */
-      NULL, /* OS_IO_DMA1_Channel6 16  DMA1 Channel 6 global */
-      NULL, /* OS_IO_DMA1_Channel7 17  DMA1 Channel 7 global */
+      NULL, /* OS_IO_RTC_WKUP       3  RTC wakeup through the EXTI line */
+      NULL, /* OS_IO_FLASH          4  Flash global */
+      NULL, /* OS_IO_RCC            5  RCC globa l */
+      NULL, /* OS_IO_EXTI0          6  EXTI line 0 */
+      NULL, /* OS_IO_EXTI1          7  EXTI line 1 */
+      NULL, /* OS_IO_EXTI2          8  EXTI line 2 */
+      NULL, /* OS_IO_EXTI3          9  EXTI line 3 */
+      NULL, /* OS_IO_EXTI4         10  EXTI line 4 */
+      NULL, /* OS_IO_DMA1_Channel1 11  DMA1 channel 1 global */
+      NULL, /* OS_IO_DMA1_Channel2 12  DMA1 channel 2 global */
+      NULL, /* OS_IO_DMA1_Channel3 13  DMA1 channel 3 global */
+      NULL, /* OS_IO_DMA1_Channel4 14  DMA1 channel 4 global */
+      NULL, /* OS_IO_DMA1_Channel5 15  DMA1 channel 5 global */
+      NULL, /* OS_IO_DMA1_Channel6 16  DMA1 channel 6 global */
+      NULL, /* OS_IO_DMA1_Channel7 17  DMA1 channel 7 global */
       NULL, /* OS_IO_ADC1          18  ADC1 global */
       NULL, /* OS_IO_USB_HP        19  USB High Priority */
       NULL, /* OS_IO_USB_LP        20  USB Low Priority */
       NULL, /* OS_IO_DAC           21  DAC */
-      NULL, /* OS_IO_COMP          22  Comparator through EXTI Line  */
-      NULL, /* OS_IO_EXTI9_5       23  External Line[9:5] */
+      NULL, /* OS_IO_COMP          22  Comparator through EXTI line */
+      NULL, /* OS_IO_EXTI9_5       23  External line [9:5] */
       #if defined(STM32L152X6_X8_XB)
          NULL, /* OS_IO_LCD        24  LCD */
       #else
@@ -146,48 +152,48 @@
       NULL, /* OS_IO_TIM2          28  TIM2 global */
       NULL, /* OS_IO_TIM3          29  TIM3 global */
       NULL, /* OS_IO_TIM4          30  TIM4 global */
-      NULL, /* OS_IO_I2C1_EV       31  I2C1 Event */
-      NULL, /* OS_IO_I2C1_ER       32  I2C1 Error */
-      NULL, /* OS_IO_I2C2_EV       33  I2C2 Event */
-      NULL, /* OS_IO_I2C2_ER       34  I2C2 Error */
+      NULL, /* OS_IO_I2C1_EV       31  I2C1 event */
+      NULL, /* OS_IO_I2C1_ER       32  I2C1 error */
+      NULL, /* OS_IO_I2C2_EV       33  I2C2 event */
+      NULL, /* OS_IO_I2C2_ER       34  I2C2 error */
       NULL, /* OS_IO_SPI1          35  SPI1 global */
       NULL, /* OS_IO_SPI2          36  SPI2 global */
       NULL, /* OS_IO_USART1        37  USART1 global */
       NULL, /* OS_IO_USART2        38  USART2 global */
       NULL, /* OS_IO_USART3        39  USART3 global */
-      NULL, /* OS_IO_EXTI15_10     40  External Line[15:10]  */
-      NULL, /* OS_IO_RTC_Alarm     41  RTC Alarm through EXTI Line */
-      NULL, /* OS_IO_USB_FS_WKUP   42  USB FS WakeUp from suspend through EXTI Line */
+      NULL, /* OS_IO_EXTI15_10     40  External line [15:10]  */
+      NULL, /* OS_IO_RTC_Alarm     41  RTC alarm through EXTI line */
+      NULL, /* OS_IO_USB_FS_WKUP   42  USB FS wakeUp from suspend through EXTI line */
       NULL, /* OS_IO_TIM6          43  TIM6 global */
       NULL  /* OS_IO_TIM7          44  TIM7 global */
    };
 #elif defined(STM32L151XC) || defined(STM32L152XC) || defined(STM32L151XD) || \
       defined(STM32L152XD) || defined(STM32L162XD)
    void *_OSTabDevice[57] = {
-      NULL, /* OS_IO_WWDG           0  Window WatchDog */
-      NULL, /* OS_IO_PVD            1  PVD through EXTI Line detection */
+      NULL, /* OS_IO_WWDG           0  Window watchDog */
+      NULL, /* OS_IO_PVD            1  Programmable voltage detector through EXTI line */
       NULL, /* OS_IO_TAMP_STAMP     2  Tamper and TimeStamp through the EXTI line*/
-      NULL, /* OS_IO_RTC_WKUP       3  RTC Wakeup through the EXTI line */
-      NULL, /* OS_IO_FLASH          4  FLASH global */
+      NULL, /* OS_IO_RTC_WKUP       3  RTC wakeup through the EXTI line */
+      NULL, /* OS_IO_FLASH          4  Flash global */
       NULL, /* OS_IO_RCC            5  RCC global */
-      NULL, /* OS_IO_EXTI0          6  EXTI Line0 */
-      NULL, /* OS_IO_EXTI1          7  EXTI Line1 */
-      NULL, /* OS_IO_EXTI2          8  EXTI Line2 */
-      NULL, /* OS_IO_EXTI3          9  EXTI Line3 */
-      NULL, /* OS_IO_EXTI4         10  EXTI Line4 */
-      NULL, /* OS_IO_DMA1_Channel1 11  DMA1 Channel 1 global */
-      NULL, /* OS_IO_DMA1_Channel2 12  DMA1 Channel 2 global */
-      NULL, /* OS_IO_DMA1_Channel3 13  DMA1 Channel 3 global */
-      NULL, /* OS_IO_DMA1_Channel4 14  DMA1 Channel 4 global */
-      NULL, /* OS_IO_DMA1_Channel5 15  DMA1 Channel 5 global */
-      NULL, /* OS_IO_DMA1_Channel6 16  DMA1 Channel 6 global */
-      NULL, /* OS_IO_DMA1_Channel7 17  DMA1 Channel 7 global */
+      NULL, /* OS_IO_EXTI0          6  EXTI line 0 */
+      NULL, /* OS_IO_EXTI1          7  EXTI line 1 */
+      NULL, /* OS_IO_EXTI2          8  EXTI line 2 */
+      NULL, /* OS_IO_EXTI3          9  EXTI line 3 */
+      NULL, /* OS_IO_EXTI4         10  EXTI line 4 */
+      NULL, /* OS_IO_DMA1_Channel1 11  DMA1 channel 1 global */
+      NULL, /* OS_IO_DMA1_Channel2 12  DMA1 channel 2 global */
+      NULL, /* OS_IO_DMA1_Channel3 13  DMA1 channel 3 global */
+      NULL, /* OS_IO_DMA1_Channel4 14  DMA1 channel 4 global */
+      NULL, /* OS_IO_DMA1_Channel5 15  DMA1 channel 5 global */
+      NULL, /* OS_IO_DMA1_Channel6 16  DMA1 channel 6 global */
+      NULL, /* OS_IO_DMA1_Channel7 17  DMA1 channel 7 global */
       NULL, /* OS_IO_ADC1          18  ADC1 global */
-      NULL, /* OS_IO_USB_HP        19  USB High Priority */
-      NULL, /* OS_IO_USB_LP        20  USB Low Priority */
+      NULL, /* OS_IO_USB_HP        19  USB high priority */
+      NULL, /* OS_IO_USB_LP        20  USB low priority */
       NULL, /* OS_IO_DAC           21  DAC */
-      NULL, /* OS_IO_COMP_CA       22  Comparator and Channel acquisition through EXTI Line */
-      NULL, /* OS_IO_EXTI9_5       23  External Line[9:5] */
+      NULL, /* OS_IO_COMP_CA       22  Comparator and channel acquisition through EXTI line */
+      NULL, /* OS_IO_EXTI9_5       23  External line [9:5] */
       #if defined(STM32L152XC) || defined(STM32L152XD) || defined(STM32L162XD)
          NULL, /* OS_IO_LCD        24  LCD */
       #else
@@ -199,18 +205,18 @@
       NULL, /* OS_IO_TIM2          28  TIM2 global */
       NULL, /* OS_IO_TIM3          29  TIM3 global */
       NULL, /* OS_IO_TIM4          30  TIM4 global */
-      NULL, /* OS_IO_I2C1_EV       31  I2C1 Event */
-      NULL, /* OS_IO_I2C1_ER       32  I2C1 Error */
-      NULL, /* OS_IO_I2C2_EV       33  I2C2 Event */
-      NULL, /* OS_IO_I2C2_ER       34  I2C2 Error */
+      NULL, /* OS_IO_I2C1_EV       31  I2C1 event */
+      NULL, /* OS_IO_I2C1_ER       32  I2C1 error */
+      NULL, /* OS_IO_I2C2_EV       33  I2C2 event */
+      NULL, /* OS_IO_I2C2_ER       34  I2C2 error */
       NULL, /* OS_IO_SPI1          35  SPI1 global */
       NULL, /* OS_IO_SPI2          36  SPI2 global */
       NULL, /* OS_IO_USART1        37  USART1 global */
       NULL, /* OS_IO_USART2        38  USART2 global */
       NULL, /* OS_IO_USART3        39  USART3 global */
-      NULL, /* OS_IO_EXTI15_10     40  External Line[15:10]  */
-      NULL, /* OS_IO_RTC_Alarm     41  RTC Alarm through EXTI Line */
-      NULL, /* OS_IO_USB_FS_WKUP   42  USB FS WakeUp from suspend through EXTI Line */
+      NULL, /* OS_IO_EXTI15_10     40  External line [15:10]  */
+      NULL, /* OS_IO_RTC_Alarm     41  RTC alarm through EXTI line */
+      NULL, /* OS_IO_USB_FS_WKUP   42  USB FS WakeUp from suspend through EXTI line */
       NULL, /* OS_IO_TIM6          43  TIM6 global */
       NULL, /* OS_IO_TIM7          44  TIM7 global */
       #if defined(STM32L151XD) || defined(STM32L152XD) || defined(STM32L162XD)
@@ -227,11 +233,11 @@
          NULL,
          NULL,
       #endif
-      NULL, /* OS_IO_DMA2_Channel1 50  DMA2 Channel 1 global */
-      NULL, /* OS_IO_DMA2_Channel2 51  DMA2 Channel 2 global */
-      NULL, /* OS_IO_DMA2_Channel3 52  DMA2 Channel 3 global */
-      NULL, /* OS_IO_DMA2_Channel4 53  DMA2 Channel 4 global */
-      NULL, /* OS_IO_DMA2_Channel5 54  DMA2 Channel 5 global */
+      NULL, /* OS_IO_DMA2_Channel1 50  DMA2 channel 1 global */
+      NULL, /* OS_IO_DMA2_Channel2 51  DMA2 channel 2 global */
+      NULL, /* OS_IO_DMA2_Channel3 52  DMA2 channel 3 global */
+      NULL, /* OS_IO_DMA2_Channel4 53  DMA2 channel 4 global */
+      NULL, /* OS_IO_DMA2_Channel5 54  DMA2 channel 5 global */
       #if defined(STM32L162XD)
          NULL, /* OS_IO_AES        55  AES global */
       #else
@@ -242,30 +248,30 @@
 #elif defined(STM32F101T8_TB) || defined(STM32F101C8_CB_R8_RB_V8_VB) || \
       defined(STM32F101X4_X6)
    void *_OSTabDevice[42] = {
-      NULL, /* OS_IO_WWDG           0 Window WatchDog */
-      NULL, /* OS_IO_PVD            1 PVD through EXTI Line detection */
+      NULL, /* OS_IO_WWDG           0 Window watchDog */
+      NULL, /* OS_IO_PVD            1 Programmable voltage detector through EXTI line */
       NULL, /* OS_IO_TAMPER         2 Tamper */
       NULL, /* OS_IO_RTC            3 RTC global */
-      NULL, /* OS_IO_FLASH          4 FLASH global */
+      NULL, /* OS_IO_FLASH          4 Flash global */
       NULL, /* OS_IO_RCC            5 RCC global */
-      NULL, /* OS_IO_EXTI0          6 EXTI Line0 */
-      NULL, /* OS_IO_EXTI1          7 EXTI Line1 */
-      NULL, /* OS_IO_EXTI2          8 EXTI Line2 */
-      NULL, /* OS_IO_EXTI3          9 EXTI Line3 */
-      NULL, /* OS_IO_EXTI4         10 EXTI Line4 */
-      NULL, /* OS_IO_DMA1_Channel1 11 DMA1 Channel 1 global */
-      NULL, /* OS_IO_DMA1_Channel2 12 DMA1 Channel 2 global */
-      NULL, /* OS_IO_DMA1_Channel3 13 DMA1 Channel 3 global */
-      NULL, /* OS_IO_DMA1_Channel4 14 DMA1 Channel 4 global */
-      NULL, /* OS_IO_DMA1_Channel5 15 DMA1 Channel 5 global */
-      NULL, /* OS_IO_DMA1_Channel6 16 DMA1 Channel 6 global */
-      NULL, /* OS_IO_DMA1_Channel7 17 DMA1 Channel 7 global */
+      NULL, /* OS_IO_EXTI0          6 EXTI line 0 */
+      NULL, /* OS_IO_EXTI1          7 EXTI line 1 */
+      NULL, /* OS_IO_EXTI2          8 EXTI line 2 */
+      NULL, /* OS_IO_EXTI3          9 EXTI line 3 */
+      NULL, /* OS_IO_EXTI4         10 EXTI line 4 */
+      NULL, /* OS_IO_DMA1_Channel1 11 DMA1 channel 1 global */
+      NULL, /* OS_IO_DMA1_Channel2 12 DMA1 channel 2 global */
+      NULL, /* OS_IO_DMA1_Channel3 13 DMA1 channel 3 global */
+      NULL, /* OS_IO_DMA1_Channel4 14 DMA1 channel 4 global */
+      NULL, /* OS_IO_DMA1_Channel5 15 DMA1 channel 5 global */
+      NULL, /* OS_IO_DMA1_Channel6 16 DMA1 channel 6 global */
+      NULL, /* OS_IO_DMA1_Channel7 17 DMA1 channel 7 global */
       NULL, /* OS_IO_ADC1          18 ADC1 global */
       NULL,
       NULL,
       NULL,
       NULL,
-      NULL, /* OS_IO_EXTI9_5       23 External Line[9:5] */
+      NULL, /* OS_IO_EXTI9_5       23 External line [9:5] */
       NULL,
       NULL,
       NULL,
@@ -277,11 +283,11 @@
       #else
          NULL,
       #endif
-      NULL, /* OS_IO_I2C1_EV       31 I2C1 Event */
-      NULL, /* OS_IO_I2C1_ER       32 I2C1 Error */
+      NULL, /* OS_IO_I2C1_EV       31 I2C1 event */
+      NULL, /* OS_IO_I2C1_ER       32 I2C1 error */
       #if defined(STM32F101C8_CB_R8_RB_V8_VB)
-         NULL, /* OS_IO_I2C2_EV    33 I2C2 Event */
-         NULL, /* OS_IO_I2C2_ER    34 I2C2 Error */
+         NULL, /* OS_IO_I2C2_EV    33 I2C2 event */
+         NULL, /* OS_IO_I2C2_ER    34 I2C2 error */
       #else
          NULL,
          NULL,
@@ -299,31 +305,31 @@
       #else
          NULL,
       #endif
-      NULL, /* OS_IO_EXTI15_10     40 External Line[15:10] */
-      NULL  /* OS_IO_RTCAlarm      41 RTC Alarm through EXTI Line */
+      NULL, /* OS_IO_EXTI15_10     40 External line [15:10] */
+      NULL  /* OS_IO_RTCAlarm      41 RTC alarm through EXTI line */
    };
 #elif defined(STM32F103X4_X6) || defined(STM32F103T8_TB) || \
       defined(STM32F103C8_CB_R8_RB_V8_VB) || defined(STM32F102X4_X6) || \
       defined(STM32F102X8_XB)
    void *_OSTabDevice[43] = {
-      NULL, /* OS_IO_WWDG             0 Window WatchDog */
-      NULL, /* OS_IO_PVD              1 PVD through EXTI Line detection */
+      NULL, /* OS_IO_WWDG             0 Window watchDog */
+      NULL, /* OS_IO_PVD              1 Programmable voltage detector through EXTI line */
       NULL, /* OS_IO_TAMPER           2 Tamper */
       NULL, /* OS_IO_RTC              3 RTC global */
-      NULL, /* OS_IO_FLASH            4 FLASH global */
+      NULL, /* OS_IO_FLASH            4 Flash global */
       NULL, /* OS_IO_RCC              5 RCC global */
-      NULL, /* OS_IO_EXTI0            6 EXTI Line0 */
-      NULL, /* OS_IO_EXTI1            7 EXTI Line1 */
-      NULL, /* OS_IO_EXTI2            8 EXTI Line2 */
-      NULL, /* OS_IO_EXTI3            9 EXTI Line3 */
-      NULL, /* OS_IO_EXTI4           10 EXTI Line4 */
-      NULL, /* OS_IO_DMA1_Channel1   11 DMA1 Channel 1 global */
-      NULL, /* OS_IO_DMA1_Channel2   12 DMA1 Channel 2 global */
-      NULL, /* OS_IO_DMA1_Channel3   13 DMA1 Channel 3 global */
-      NULL, /* OS_IO_DMA1_Channel4   14 DMA1 Channel 4 global */
-      NULL, /* OS_IO_DMA1_Channel5   15 DMA1 Channel 5 global */
-      NULL, /* OS_IO_DMA1_Channel6   16 DMA1 Channel 6 global */
-      NULL, /* OS_IO_DMA1_Channel7   17 DMA1 Channel 7 global */
+      NULL, /* OS_IO_EXTI0            6 EXTI line 0 */
+      NULL, /* OS_IO_EXTI1            7 EXTI line 1 */
+      NULL, /* OS_IO_EXTI2            8 EXTI line 2 */
+      NULL, /* OS_IO_EXTI3            9 EXTI line 3 */
+      NULL, /* OS_IO_EXTI4           10 EXTI line 4 */
+      NULL, /* OS_IO_DMA1_Channel1   11 DMA1 channel 1 global */
+      NULL, /* OS_IO_DMA1_Channel2   12 DMA1 channel 2 global */
+      NULL, /* OS_IO_DMA1_Channel3   13 DMA1 channel 3 global */
+      NULL, /* OS_IO_DMA1_Channel4   14 DMA1 channel 4 global */
+      NULL, /* OS_IO_DMA1_Channel5   15 DMA1 channel 5 global */
+      NULL, /* OS_IO_DMA1_Channel6   16 DMA1 channel 6 global */
+      NULL, /* OS_IO_DMA1_Channel7   17 DMA1 channel 7 global */
       NULL, /* OS_IO_ADC1            18 ADC1 global */
       NULL,
       #if defined(STM32F103X4_X6) || defined(STM32F103T8_TB) || \
@@ -351,11 +357,11 @@
       #else
          NULL,
       #endif
-      NULL, /* OS_IO_EXTI9_5         23 External Line[9:5] */
+      NULL, /* OS_IO_EXTI9_5         23 External line [9:5] */
       #if defined(STM32F103X4_X6) || defined(STM32F103T8_TB) || \
           defined(STM32F103C8_CB_R8_RB_V8_VB)
-         NULL, /* OS_IO_TIM1_BRK     24 TIM1 Break */
-         NULL, /* OS_IO_TIM1_UP      25 TIM1 Update */
+         NULL, /* OS_IO_TIM1_BRK     24 TIM1 break */
+         NULL, /* OS_IO_TIM1_UP      25 TIM1 update */
          NULL, /* OS_IO_TIM1_TRG_COM 26 TIM1 Trigger and Commutation */
          NULL, /* OS_IO_TIM1_CC      27 TIM1 Capture Compare */
       #else
@@ -372,11 +378,11 @@
       #else
          NULL,
       #endif
-      NULL, /* OS_IO_I2C1_EV         31 I2C1 Event */
-      NULL, /* OS_IO_I2C1_ER         32 I2C1 Error */
+      NULL, /* OS_IO_I2C1_EV         31 I2C1 event */
+      NULL, /* OS_IO_I2C1_ER         32 I2C1 error */
       #if defined(STM32F102X8_XB) || defined(STM32F103C8_CB_R8_RB_V8_VB)
-         NULL, /* OS_IO_I2C2_EV      33 I2C2 Event */
-         NULL, /* OS_IO_I2C2_ER      34 I2C2 Error */
+         NULL, /* OS_IO_I2C2_EV      33 I2C2 event */
+         NULL, /* OS_IO_I2C2_ER      34 I2C2 error */
       #else
          NULL,
          NULL,
@@ -394,55 +400,55 @@
       #else
          NULL,
       #endif
-      NULL, /* OS_IO_EXTI15_10       40 External Line[15:10] */
-      NULL, /* OS_IO_RTCAlarm        41 RTC Alarm through EXTI Line */
-      NULL  /* OS_IO_USBWakeUp       42 USB Device WakeUp from suspend through EXTI Line */
+      NULL, /* OS_IO_EXTI15_10       40 External line [15:10] */
+      NULL, /* OS_IO_RTCAlarm        41 RTC alarm through EXTI line */
+      NULL  /* OS_IO_USBWakeUp       42 USB device wakeup from suspend through EXTI line */
    };
 #elif defined(STM32F100X4_X6) || defined(STM32F100X8_XB)
    static TIMERSELECT Timer15ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40012C00,0x40014000},0x80};
    static TIMERSELECT Timer16ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40012C00,0x40014400},0x01};
    static TIMERSELECT Timer17ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40012C00,0x40014800},0x40};
    void *_OSTabDevice[56] = {
-      NULL, /* OS_IO_WWDG             0 Window WatchDog */
-      NULL, /* OS_IO_PVD              1 PVD through EXTI Line detection */
+      NULL, /* OS_IO_WWDG             0 Window watchDog */
+      NULL, /* OS_IO_PVD              1 Programmable voltage detector through EXTI line */
       NULL, /* OS_IO_TAMPER           2 Tamper */
       NULL, /* OS_IO_RTC              3 RTC global */
-      NULL, /* OS_IO_FLASH            4 FLASH global */
+      NULL, /* OS_IO_FLASH            4 Flash global */
       NULL, /* OS_IO_RCC              5 RCC global */
-      NULL, /* OS_IO_EXTI0            6 EXTI Line0 */
-      NULL, /* OS_IO_EXTI1            7 EXTI Line1 */
-      NULL, /* OS_IO_EXTI2            8 EXTI Line2 */
-      NULL, /* OS_IO_EXTI3            9 EXTI Line3 */
-      NULL, /* OS_IO_EXTI4           10 EXTI Line4 */
-      NULL, /* OS_IO_DMA1_Channel1   11 DMA1 Channel 1 global */
-      NULL, /* OS_IO_DMA1_Channel2   12 DMA1 Channel 2 global */
-      NULL, /* OS_IO_DMA1_Channel3   13 DMA1 Channel 3 global */
-      NULL, /* OS_IO_DMA1_Channel4   14 DMA1 Channel 4 global */
-      NULL, /* OS_IO_DMA1_Channel5   15 DMA1 Channel 5 global */
-      NULL, /* OS_IO_DMA1_Channel6   16 DMA1 Channel 6 global */
-      NULL, /* OS_IO_DMA1_Channel7   17 DMA1 Channel 7 global */
+      NULL, /* OS_IO_EXTI0            6 EXTI line 0 */
+      NULL, /* OS_IO_EXTI1            7 EXTI line 1 */
+      NULL, /* OS_IO_EXTI2            8 EXTI line 2 */
+      NULL, /* OS_IO_EXTI3            9 EXTI line 3 */
+      NULL, /* OS_IO_EXTI4           10 EXTI line 4 */
+      NULL, /* OS_IO_DMA1_Channel1   11 DMA1 channel 1 global */
+      NULL, /* OS_IO_DMA1_Channel2   12 DMA1 channel 2 global */
+      NULL, /* OS_IO_DMA1_Channel3   13 DMA1 channel 3 global */
+      NULL, /* OS_IO_DMA1_Channel4   14 DMA1 channel 4 global */
+      NULL, /* OS_IO_DMA1_Channel5   15 DMA1 channel 5 global */
+      NULL, /* OS_IO_DMA1_Channel6   16 DMA1 channel 6 global */
+      NULL, /* OS_IO_DMA1_Channel7   17 DMA1 channel 7 global */
       NULL, /* OS_IO_ADC1            18 ADC1 global */
       NULL,
       NULL,
       NULL,
       NULL,
-      NULL, /* OS_IO_EXTI9_5         23 External Line[9:5] */
+      NULL, /* OS_IO_EXTI9_5         23 External line [9:5] */
       Timer15ISRSelect, /* OS_IO_TIM1_BRK_TIM15     24 TIM1 Break and TIM15 */
       Timer16ISRSelect, /* OS_IO_TIM1_UP_TIM16      25 TIM1 Update and TIM16 */
       Timer17ISRSelect, /* OS_IO_TIM1_TRG_COM_TIM17 26 TIM1 Trigger and Commutation and TIM17 */
       NULL, /* OS_IO_TIM1_CC         27 TIM1 Capture Compare */
-      NULL, /* OS_IO_TIM2            28  TIM2 global */
-      NULL, /* OS_IO_TIM3            29  TIM3 global */
+      NULL, /* OS_IO_TIM2            28 TIM2 global */
+      NULL, /* OS_IO_TIM3            29 TIM3 global */
       #if defined (STM32F100X8_XB)
          NULL, /* OS_IO_TIM4         30 TIM4 global */
       #else
          NULL,
       #endif
-      NULL, /* OS_IO_I2C1_EV         31 I2C1 Event */
-      NULL, /* OS_IO_I2C1_ER         32 I2C1 Error */
+      NULL, /* OS_IO_I2C1_EV         31 I2C1 event */
+      NULL, /* OS_IO_I2C1_ER         32 I2C1 error */
       #if defined(STM32F100X8_XB)
-         NULL, /* OS_IO_I2C2_EV      33 I2C2 Event */
-         NULL, /* OS_IO_I2C2_ER      34 I2C2 Error */
+         NULL, /* OS_IO_I2C2_EV      33 I2C2 event */
+         NULL, /* OS_IO_I2C2_ER      34 I2C2 error */
       #else
          NULL,
          NULL,
@@ -460,8 +466,8 @@
       #else
           NULL,
       #endif
-      NULL, /* OS_IO_EXTI15_10       40 External Line[15:10] */
-      NULL, /* OS_IO_RTCAlarm        41 RTC Alarm through EXTI Line */
+      NULL, /* OS_IO_EXTI15_10       40 External line [15:10] */
+      NULL, /* OS_IO_RTCAlarm        41 RTC alarm through EXTI line */
       NULL, /* OS_IO_CEC             42 HDMI-CEC */
       NULL,
       NULL,
@@ -490,30 +496,30 @@
       static TIMERSELECT Timer14ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40013400,0x40002000},0x40};
    #endif
    void *_OSTabDevice[60] = {
-      NULL, /* OS_IO_WWDG             0 Window WatchDog */
-      NULL, /* OS_IO_PVD              1 PVD through EXTI Line detection */
+      NULL, /* OS_IO_WWDG             0 Window watchDog */
+      NULL, /* OS_IO_PVD              1 Programmable voltage detector through EXTI line */
       NULL, /* OS_IO_TAMPER           2 Tamper */
       NULL, /* OS_IO_RTC              3 RTC global */
-      NULL, /* OS_IO_FLASH            4 FLASH global */
+      NULL, /* OS_IO_FLASH            4 Flash global */
       NULL, /* OS_IO_RCC              5 RCC global */
-      NULL, /* OS_IO_EXTI0            6 EXTI Line0 */
-      NULL, /* OS_IO_EXTI1            7 EXTI Line1 */
-      NULL, /* OS_IO_EXTI2            8 EXTI Line2 */
-      NULL, /* OS_IO_EXTI3            9 EXTI Line3 */
-      NULL, /* OS_IO_EXTI4           10 EXTI Line4 */
-      NULL, /* OS_IO_DMA1_Channel1   11 DMA1 Channel 1 global */
-      NULL, /* OS_IO_DMA1_Channel2   12 DMA1 Channel 2 global */
-      NULL, /* OS_IO_DMA1_Channel3   13 DMA1 Channel 3 global */
-      NULL, /* OS_IO_DMA1_Channel4   14 DMA1 Channel 4 global */
-      NULL, /* OS_IO_DMA1_Channel5   15 DMA1 Channel 5 global */
-      NULL, /* OS_IO_DMA1_Channel6   16 DMA1 Channel 6 global */
-      NULL, /* OS_IO_DMA1_Channel7   17 DMA1 Channel 7 global */
+      NULL, /* OS_IO_EXTI0            6 EXTI line 0 */
+      NULL, /* OS_IO_EXTI1            7 EXTI line 1 */
+      NULL, /* OS_IO_EXTI2            8 EXTI line 2 */
+      NULL, /* OS_IO_EXTI3            9 EXTI line 3 */
+      NULL, /* OS_IO_EXTI4           10 EXTI line 4 */
+      NULL, /* OS_IO_DMA1_Channel1   11 DMA1 channel 1 global */
+      NULL, /* OS_IO_DMA1_Channel2   12 DMA1 channel 2 global */
+      NULL, /* OS_IO_DMA1_Channel3   13 DMA1 channel 3 global */
+      NULL, /* OS_IO_DMA1_Channel4   14 DMA1 channel 4 global */
+      NULL, /* OS_IO_DMA1_Channel5   15 DMA1 channel 5 global */
+      NULL, /* OS_IO_DMA1_Channel6   16 DMA1 channel 6 global */
+      NULL, /* OS_IO_DMA1_Channel7   17 DMA1 channel 7 global */
       NULL, /* OS_IO_ADC1            18 ADC1 global */
-      NULL, /* OS_IO_USB_HP_CAN1_TX  19 USB Device High Priority or CAN1 TX */
-      NULL, /* OS_IO_USB_LP_CAN1_RX0 20 USB Device Low Priority or CAN1 RX0 */
+      NULL, /* OS_IO_USB_HP_CAN1_TX  19 USB device high priority or CAN1 TX */
+      NULL, /* OS_IO_USB_LP_CAN1_RX0 20 USB device low priority or CAN1 RX0 */
       NULL, /* OS_IO_CAN1_RX1        21 CAN1 RX1 */
       NULL, /* OS_IO_CAN1_SCE        22 CAN1 SCE */
-      NULL, /* OS_IO_EXTI9_5         23 External Line[9:5] */
+      NULL, /* OS_IO_EXTI9_5         23 External line [9:5] */
       #if defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE)
          NULL, /* OS_IO_TIM1_BRK     24 TIM1 Break */
          NULL, /* OS_IO_TIM1_UP      25 TIM1 Update */
@@ -535,21 +541,21 @@
          NULL,
          NULL,
       #endif
-      NULL, /* OS_IO_TIM2            28  TIM2 global */
-      NULL, /* OS_IO_TIM3            29  TIM3 global */
+      NULL, /* OS_IO_TIM2            28 TIM2 global */
+      NULL, /* OS_IO_TIM3            29 TIM3 global */
       NULL, /* OS_IO_TIM4            30 TIM4 global */
-      NULL, /* OS_IO_I2C1_EV         31 I2C1 Event */
-      NULL, /* OS_IO_I2C1_ER         32 I2C1 Error */
-      NULL, /* OS_IO_I2C2_EV         33 I2C2 Event */
-      NULL, /* OS_IO_I2C2_ER         34 I2C2 Error */
+      NULL, /* OS_IO_I2C1_EV         31 I2C1 event */
+      NULL, /* OS_IO_I2C1_ER         32 I2C1 error */
+      NULL, /* OS_IO_I2C2_EV         33 I2C2 event */
+      NULL, /* OS_IO_I2C2_ER         34 I2C2 error */
       NULL, /* OS_IO_SPI1            35 SPI1 global */
       NULL, /* OS_IO_SPI2            36 SPI2 global */
       NULL, /* OS_IO_USART1          37 USART1 global */
       NULL, /* OS_IO_USART2          38 USART2 global */
       NULL, /* OS_IO_USART3          39 USART3 global */
-      NULL, /* OS_IO_EXTI15_10       40 External Line[15:10] */
-      NULL, /* OS_IO_RTCAlarm        41 RTC Alarm through EXTI Line */
-      NULL, /* OS_IO_USBWakeUp       42 USB Device WakeUp from suspend through EXTI Line */
+      NULL, /* OS_IO_EXTI15_10       40 External line [15:10] */
+      NULL, /* OS_IO_RTCAlarm        41 RTC alarm through EXTI line */
+      NULL, /* OS_IO_USBWakeUp       42 USB device wakeup from suspend through EXTI line */
       #if defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE)
          NULL, /* OS_IO_TIM8_BRK     43 TIM8 Break */
          NULL, /* OS_IO_TIM8_UP      44 TIM8 Update */
@@ -580,58 +586,58 @@
       NULL, /* OS_IO_UART5           53 UART5 global */
       NULL, /* OS_IO_TIM6            54 TIM6 global */
       NULL, /* OS_IO_TIM7            55 TIM7 */
-      NULL, /* OS_IO_DMA2_Channel1   56 DMA2 Channel 1 global */
-      NULL, /* OS_IO_DMA2_Channel2   57 DMA2 Channel 2 global */
-      NULL, /* OS_IO_DMA2_Channel3   58 DMA2 Channel 3 global */
-      NULL  /* OS_IO_DMA2_Channel4_5 59 DMA2 Channel 4 and Channel 5 global */
+      NULL, /* OS_IO_DMA2_Channel1   56 DMA2 channel 1 global */
+      NULL, /* OS_IO_DMA2_Channel2   57 DMA2 channel 2 global */
+      NULL, /* OS_IO_DMA2_Channel3   58 DMA2 channel 3 global */
+      NULL  /* OS_IO_DMA2_Channel4_5 59 DMA2 channels 4 and 5 global */
    };
 #elif defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE)
    static TIMERSELECT Timer15ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40012C00,0x40014000},0x80};
    static TIMERSELECT Timer16ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40012C00,0x40014400},0x01};
    static TIMERSELECT Timer17ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40012C00,0x40014800},0x40};
    void *_OSTabDevice[61] = {
-      NULL, /* OS_IO_WWDG             0  Window WatchDog */
-      NULL, /* OS_IO_PVD              1  PVD through EXTI Line detection */
+      NULL, /* OS_IO_WWDG             0  Window watchDog */
+      NULL, /* OS_IO_PVD              1  Programmable voltage detector through EXTI line */
       NULL, /* OS_IO_TAMPER           2  Tamper*/
       NULL, /* OS_IO_RTC              3  RTC global */
-      NULL, /* OS_IO_FLASH            4  FLASH global */
+      NULL, /* OS_IO_FLASH            4  Flash global */
       NULL, /* OS_IO_RCC              5  RCC global */
-      NULL, /* OS_IO_EXTI0            6  EXTI Line0 */
-      NULL, /* OS_IO_EXTI1            7  EXTI Line1 */
-      NULL, /* OS_IO_EXTI2            8  EXTI Line2 */
-      NULL, /* OS_IO_EXTI3            9  EXTI Line3 */
-      NULL, /* OS_IO_EXTI4           10  EXTI Line4 */
-      NULL, /* OS_IO_DMA1_Channel1   11  DMA1 Channel 1 global */
-      NULL, /* OS_IO_DMA1_Channel2   12  DMA1 Channel 2 global */
-      NULL, /* OS_IO_DMA1_Channel3   13  DMA1 Channel 3 global */
-      NULL, /* OS_IO_DMA1_Channel4   14  DMA1 Channel 4 global */
-      NULL, /* OS_IO_DMA1_Channel5   15  DMA1 Channel 5 global */
-      NULL, /* OS_IO_DMA1_Channel6   16  DMA1 Channel 6 global */
-      NULL, /* OS_IO_DMA1_Channel7   17  DMA1 Channel 7 global */
+      NULL, /* OS_IO_EXTI0            6  EXTI line 0 */
+      NULL, /* OS_IO_EXTI1            7  EXTI line 1 */
+      NULL, /* OS_IO_EXTI2            8  EXTI line 2 */
+      NULL, /* OS_IO_EXTI3            9  EXTI line 3 */
+      NULL, /* OS_IO_EXTI4           10  EXTI line 4 */
+      NULL, /* OS_IO_DMA1_Channel1   11  DMA1 channel 1 global */
+      NULL, /* OS_IO_DMA1_Channel2   12  DMA1 channel 2 global */
+      NULL, /* OS_IO_DMA1_Channel3   13  DMA1 channel 3 global */
+      NULL, /* OS_IO_DMA1_Channel4   14  DMA1 channel 4 global */
+      NULL, /* OS_IO_DMA1_Channel5   15  DMA1 channel 5 global */
+      NULL, /* OS_IO_DMA1_Channel6   16  DMA1 channel 6 global */
+      NULL, /* OS_IO_DMA1_Channel7   17  DMA1 channel 7 global */
       NULL, /* OS_IO_ADC1            18 ADC1 global */
       NULL,
       NULL,
       NULL,
       NULL,
-      NULL, /* OS_IO_EXTI9_5        23 External Line[9:5] */
+      NULL, /* OS_IO_EXTI9_5         23 External line [9:5] */
       Timer15ISRSelect, /* OS_IO_TIM1_BRK_TIM15     24 TIM1 Break and TIM15 */
       Timer16ISRSelect, /* OS_IO_TIM1_UP_TIM16      25 TIM1 Update and TIM16 */
       Timer17ISRSelect, /* OS_IO_TIM1_TRG_COM_TIM17 26 TIM1 Trigger and Commutation and TIM17 */
       NULL, /* OS_IO_TIM1_CC         27 TIM1 Capture Compare */
-      NULL, /* OS_IO_TIM2            28  TIM2 global */
-      NULL, /* OS_IO_TIM3            29  TIM3 global */
+      NULL, /* OS_IO_TIM2            28 TIM2 global */
+      NULL, /* OS_IO_TIM3            29 TIM3 global */
       NULL, /* OS_IO_TIM4            30 TIM4 global */
-      NULL, /* OS_IO_I2C1_EV         31 I2C1 Event */
-      NULL, /* OS_IO_I2C1_ER         32 I2C1 Error */
-      NULL, /* OS_IO_I2C2_EV         33 I2C2 Event */
-      NULL, /* OS_IO_I2C2_ER         34 I2C2 Error */
+      NULL, /* OS_IO_I2C1_EV         31 I2C1 event */
+      NULL, /* OS_IO_I2C1_ER         32 I2C1 error */
+      NULL, /* OS_IO_I2C2_EV         33 I2C2 event */
+      NULL, /* OS_IO_I2C2_ER         34 I2C2 error */
       NULL, /* OS_IO_SPI1            35 SPI1 global */
       NULL, /* OS_IO_SPI2            36 SPI2 global */
       NULL, /* OS_IO_USART1          37 USART1 global */
       NULL, /* OS_IO_USART2          38 USART2 global */
       NULL, /* OS_IO_USART3          39 USART3 global */
-      NULL, /* OS_IO_EXTI15_10       40 External Line[15:10] */
-      NULL, /* OS_IO_RTCAlarm        41 RTC Alarm through EXTI Line */
+      NULL, /* OS_IO_EXTI15_10       40 External line [15:10] */
+      NULL, /* OS_IO_RTCAlarm        41 RTC alarm through EXTI line */
       NULL, /* OS_IO_CEC             42 HDMI-CEC */
       NULL, /* OS_IO_TIM12           43 TIM12 global */
       NULL, /* OS_IO_TIM13           44 TIM13 global */
@@ -646,60 +652,59 @@
       NULL, /* OS_IO_UART5           53 UART5 global */
       NULL, /* OS_IO_TIM6_DAC        54 TIM6 and DAC underrun */
       NULL, /* OS_IO_TIM7            55 TIM7 */
-      NULL, /* OS_IO_DMA2_Channel1   56 DMA2 Channel 1 global */
-      NULL, /* OS_IO_DMA2_Channel2   57 DMA2 Channel 2 global */
-      NULL, /* OS_IO_DMA2_Channel3   58 DMA2 Channel 3 global */
-      NULL, /* OS_IO_DMA2_Channel4_5 59 DMA2 Channel 4 and Channel 5 global */
-      NULL, /* OS_IO_DMA2_Channel5   60 DMA2 Channel 5 global  (DMA2 Channel 5
-                                        is mapped at position 60 only if the
-                                        MISC_REMAP bit in the AFIO_MAPR2
-                                        register is set) */
+      NULL, /* OS_IO_DMA2_Channel1   56 DMA2 channel 1 global */
+      NULL, /* OS_IO_DMA2_Channel2   57 DMA2 channel 2 global */
+      NULL, /* OS_IO_DMA2_Channel3   58 DMA2 channel 3 global */
+      NULL, /* OS_IO_DMA2_Channel4_5 59 DMA2 channels 4 and 5 global */
+      NULL, /* OS_IO_DMA2_Channel5   60 DMA2 channel 5 global  (DMA2 Channel 5 is mapped
+                                        at position 60 only if the MISC_REMAP bit in the
+                                        AFIO_MAPR2 register is set) */
    };
 #elif defined(STM32F105XX) || defined(STM32F107XX)
    void *_OSTabDevice[68] = {
-      NULL, /* OS_IO_WWDG           0  Window WatchDog */
-      NULL, /* OS_IO_PVD            1  PVD through EXTI Line detection */
-      NULL, /* OS_IO_TAMPER         2  Tamper*/
-      NULL, /* OS_IO_RTC            3  RTC global */
-      NULL, /* OS_IO_FLASH          4  FLASH global */
-      NULL, /* OS_IO_RCC            5  RCC global */
-      NULL, /* OS_IO_EXTI0          6  EXTI Line0 */
-      NULL, /* OS_IO_EXTI1          7  EXTI Line1 */
-      NULL, /* OS_IO_EXTI2          8  EXTI Line2 */
-      NULL, /* OS_IO_EXTI3          9  EXTI Line3 */
-      NULL, /* OS_IO_EXTI4         10  EXTI Line4 */
-      NULL, /* OS_IO_DMA1_Channel1 11  DMA1 Channel 1 global */
-      NULL, /* OS_IO_DMA1_Channel2 12  DMA1 Channel 2 global */
-      NULL, /* OS_IO_DMA1_Channel3 13  DMA1 Channel 3 global */
-      NULL, /* OS_IO_DMA1_Channel4 14  DMA1 Channel 4 global */
-      NULL, /* OS_IO_DMA1_Channel5 15  DMA1 Channel 5 global */
-      NULL, /* OS_IO_DMA1_Channel6 16  DMA1 Channel 6 global */
-      NULL, /* OS_IO_DMA1_Channel7 17  DMA1 Channel 7 global */
+      NULL, /* OS_IO_WWDG           0 Window watchDog */
+      NULL, /* OS_IO_PVD            1 Programmable voltage detector through EXTI line */
+      NULL, /* OS_IO_TAMPER         2 Tamper */
+      NULL, /* OS_IO_RTC            3 RTC global */
+      NULL, /* OS_IO_FLASH          4 Flash global */
+      NULL, /* OS_IO_RCC            5 RCC global */
+      NULL, /* OS_IO_EXTI0          6 EXTI line 0 */
+      NULL, /* OS_IO_EXTI1          7 EXTI line 1 */
+      NULL, /* OS_IO_EXTI2          8 EXTI line 2 */
+      NULL, /* OS_IO_EXTI3          9 EXTI line 3 */
+      NULL, /* OS_IO_EXTI4         10 EXTI line 4 */
+      NULL, /* OS_IO_DMA1_Channel1 11 DMA1 channel 1 global */
+      NULL, /* OS_IO_DMA1_Channel2 12 DMA1 channel 2 global */
+      NULL, /* OS_IO_DMA1_Channel3 13 DMA1 channel 3 global */
+      NULL, /* OS_IO_DMA1_Channel4 14 DMA1 channel 4 global */
+      NULL, /* OS_IO_DMA1_Channel5 15 DMA1 channel 5 global */
+      NULL, /* OS_IO_DMA1_Channel6 16 DMA1 channel 6 global */
+      NULL, /* OS_IO_DMA1_Channel7 17 DMA1 channel 7 global */
       NULL, /* OS_IO_ADC1_2        18 ADC1 and ADC2 global */
       NULL, /* OS_IO_CAN1_TX       19 CAN1 TX */
       NULL, /* OS_IO_CAN1_RX0      20 CAN1 RX0 */
       NULL, /* OS_IO_CAN1_RX1      21 CAN1 RX1 */
       NULL, /* OS_IO_CAN1_SCE      22 CAN1 SCE */
-      NULL, /* OS_IO_EXTI9_5       23 External Line[9:5] */
+      NULL, /* OS_IO_EXTI9_5       23 External line [9:5] */
       NULL, /* OS_IO_TIM1_BRK      24 TIM1 Break */
       NULL, /* OS_IO_TIM1_UP       25 TIM1 Update */
       NULL, /* OS_IO_TIM1_TRG_COM  26 TIM1 Trigger and Commutation */
       NULL, /* OS_IO_TIM1_CC       27 TIM1 Capture Compare */
-      NULL, /* OS_IO_TIM2          28  TIM2 global */
-      NULL, /* OS_IO_TIM3          29  TIM3 global */
+      NULL, /* OS_IO_TIM2          28 TIM2 global */
+      NULL, /* OS_IO_TIM3          29 TIM3 global */
       NULL, /* OS_IO_TIM4          30 TIM4 global */
-      NULL, /* OS_IO_I2C1_EV       31 I2C1 Event */
-      NULL, /* OS_IO_I2C1_ER       32 I2C1 Error */
-      NULL, /* OS_IO_I2C2_EV       33 I2C2 Event */
-      NULL, /* OS_IO_I2C2_ER       34 I2C2 Error */
+      NULL, /* OS_IO_I2C1_EV       31 I2C1 event */
+      NULL, /* OS_IO_I2C1_ER       32 I2C1 error */
+      NULL, /* OS_IO_I2C2_EV       33 I2C2 event */
+      NULL, /* OS_IO_I2C2_ER       34 I2C2 error */
       NULL, /* OS_IO_SPI1          35 SPI1 global */
       NULL, /* OS_IO_SPI2          36 SPI2 global */
       NULL, /* OS_IO_USART1        37 USART1 global */
       NULL, /* OS_IO_USART2        38 USART2 global */
       NULL, /* OS_IO_USART3        39 USART3 global */
-      NULL, /* OS_IO_EXTI15_10     40 External Line[15:10] */
-      NULL, /* OS_IO_RTCAlarm      41 RTC Alarm through EXTI Line */
-      NULL, /* OS_IO_OTG_FS_WKUP   42 USB OTG FS WakeUp from suspend through EXTI Line */
+      NULL, /* OS_IO_EXTI15_10     40 External line[ 15:10] */
+      NULL, /* OS_IO_RTCAlarm      41 RTC alarm through EXTI line */
+      NULL, /* OS_IO_OTG_FS_WKUP   42 USB OTG FS wakeup from suspend through EXTI line */
       NULL,
       NULL,
       NULL,
@@ -713,13 +718,13 @@
       NULL, /* OS_IO_UART5         53 UART5 global */
       NULL, /* OS_IO_TIM6          54 TIM6 global */
       NULL, /* OS_IO_TIM7          55 TIM7 */
-      NULL, /* OS_IO_DMA2_Channel1 56 DMA2 Channel 1 global */
-      NULL, /* OS_IO_DMA2_Channel2 57 DMA2 Channel 2 global */
-      NULL, /* OS_IO_DMA2_Channel3 58 DMA2 Channel 3 global */
-      NULL, /* OS_IO_DMA2_Channel4 59 DMA2 Channel 4 global */
-      NULL, /* OS_IO_DMA2_Channel5 60 DMA2 Channel 5 global */
+      NULL, /* OS_IO_DMA2_Channel1 56 DMA2 channel 1 global */
+      NULL, /* OS_IO_DMA2_Channel2 57 DMA2 channel 2 global */
+      NULL, /* OS_IO_DMA2_Channel3 58 DMA2 channel 3 global */
+      NULL, /* OS_IO_DMA2_Channel4 59 DMA2 channel 4 global */
+      NULL, /* OS_IO_DMA2_Channel5 60 DMA2 channel 5 global */
       NULL, /* OS_IO_ETH           61 Ethernet global */
-      NULL, /* OS_IO_ETH_WKUP      62 Ethernet Wakeup through EXTI line */
+      NULL, /* OS_IO_ETH_WKUP      62 Ethernet wakeup through EXTI line */
       NULL, /* OS_IO_CAN2_TX       63 CAN2 TX */
       NULL, /* OS_IO_CAN2_RX0      64 CAN2 RX0 */
       NULL, /* OS_IO_CAN2_RX1      65 CAN2 RX1 */
@@ -734,30 +739,30 @@
    static TIMERSELECT Timer13ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40010400,0x40001C00},0x01};
    static TIMERSELECT Timer14ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40010400,0x40002000},0x40};
    void *_OSTabDevice[81] = {
-      NULL, /* OS_IO_WWDG             0  Window WatchDog */
-      NULL, /* OS_IO_PVD              1  PVD through EXTI Line detection */
+      NULL, /* OS_IO_WWDG             0  Window watchdog */
+      NULL, /* OS_IO_PVD              1  Programmable voltage detector through EXTI line */
       NULL, /* OS_IO_TAMP_STAMP       2  Tamper and TimeStamp through the EXTI line*/
-      NULL, /* OS_IO_RTC_WKUP         3  RTC Wakeup through the EXTI line */
-      NULL, /* OS_IO_FLASH            4  FLASH global */
+      NULL, /* OS_IO_RTC_WKUP         3  RTC wakeup through the EXTI line */
+      NULL, /* OS_IO_FLASH            4  Flash global */
       NULL, /* OS_IO_RCC              5  RCC global */
-      NULL, /* OS_IO_EXTI0            6  EXTI Line0 */
-      NULL, /* OS_IO_EXTI1            7  EXTI Line1 */
-      NULL, /* OS_IO_EXTI2            8  EXTI Line2 */
-      NULL, /* OS_IO_EXTI3            9  EXTI Line3 */
-      NULL, /* OS_IO_EXTI4           10  EXTI Line4 */
-      NULL, /* OS_IO_DMA1_Stream0    11  DMA1 Stream 0 global */
-      NULL, /* OS_IO_DMA1_Stream1    12  DMA1 Stream 1 global */
-      NULL, /* OS_IO_DMA1_Stream2    13  DMA1 Stream 2 global */
-      NULL, /* OS_IO_DMA1_Stream3    14  DMA1 Stream 3 global */
-      NULL, /* OS_IO_DMA1_Stream4    15  DMA1 Stream 4 global */
-      NULL, /* OS_IO_DMA1_Stream5    16  DMA1 Stream 5 global */
-      NULL, /* OS_IO_DMA1_Stream6    17  DMA1 Stream 6 global */
-      NULL,  /* OS_IO_ADC            18  ADC1, ADC2 and ADC3 global  */
+      NULL, /* OS_IO_EXTI0            6  EXTI line 0 */
+      NULL, /* OS_IO_EXTI1            7  EXTI line 1 */
+      NULL, /* OS_IO_EXTI2            8  EXTI line 2 */
+      NULL, /* OS_IO_EXTI3            9  EXTI line 3 */
+      NULL, /* OS_IO_EXTI4           10  EXTI line 4 */
+      NULL, /* OS_IO_DMA1_Stream0    11  DMA1 stream 0 global */
+      NULL, /* OS_IO_DMA1_Stream1    12  DMA1 stream 1 global */
+      NULL, /* OS_IO_DMA1_Stream2    13  DMA1 stream 2 global */
+      NULL, /* OS_IO_DMA1_Stream3    14  DMA1 stream 3 global */
+      NULL, /* OS_IO_DMA1_Stream4    15  DMA1 stream 4 global */
+      NULL, /* OS_IO_DMA1_Stream5    16  DMA1 stream 5 global */
+      NULL, /* OS_IO_DMA1_Stream6    17  DMA1 stream 6 global */
+      NULL,  /* OS_IO_ADC            18  ADC1, ADC2 and ADC3 global */
       NULL,  /* OS_IO_CAN1_TX        19  CAN1 TX */
       NULL,  /* OS_IO_CAN1_RX0       20  CAN1 RX0 */
       NULL,  /* OS_IO_CAN1_RX1       21  CAN1 RX1 */
       NULL,  /* OS_IO_CAN1_SCE       22  CAN1 SCE */
-      NULL,  /* OS_IO_EXTI9_5        23  External Line[9:5]  */
+      NULL,  /* OS_IO_EXTI9_5        23  External line [9:5] */
       &Timer9ISRSelect,  /* OS_IO_TIM1_BRK_TIM9      24  TIM1 Break and TIM9 global */
       &Timer10ISRSelect, /* OS_IO_TIM1_UP_TIM10      25  TIM1 Update and TIM10 global */
       &Timer11ISRSelect, /* OS_IO_TIM1_TRG_COM_TIM11 26  TIM1 Trigger and Commutation and TIM11 global */
@@ -765,46 +770,46 @@
       NULL,  /* OS_IO_TIM2           28  TIM2 global */
       NULL,  /* OS_IO_TIM3           29  TIM3 global */
       NULL,  /* OS_IO_TIM4           30  TIM4 global */
-      NULL,  /* OS_IO_I2C1_EV        31  I2C1 Event */
-      NULL,  /* OS_IO_I2C1_ER        32  I2C1 Error */
-      NULL,  /* OS_IO_I2C2_EV        33  I2C2 Event */
-      NULL,  /* OS_IO_I2C2_ER        34  I2C2 Error */
+      NULL,  /* OS_IO_I2C1_EV        31  I2C1 event */
+      NULL,  /* OS_IO_I2C1_ER        32  I2C1 error */
+      NULL,  /* OS_IO_I2C2_EV        33  I2C2 event */
+      NULL,  /* OS_IO_I2C2_ER        34  I2C2 error */
       NULL,  /* OS_IO_SPI1           35  SPI1 global */
       NULL,  /* OS_IO_SPI2           36  SPI2 global */
       NULL,  /* OS_IO_USART1         37  USART1 global */
       NULL,  /* OS_IO_USART2         38  USART2 global */
       NULL,  /* OS_IO_USART3         39  USART3 global */
-      NULL,  /* OS_IO_EXTI15_10      40  External Line[15:10]  */
-      NULL,  /* OS_IO_RTC_Alarm      41  RTC Alarm (A and B) through EXTI Line */
+      NULL,  /* OS_IO_EXTI15_10      40  External line [15:10] */
+      NULL,  /* OS_IO_RTC_Alarm      41  RTC alarm (A and B) through EXTI line */
       NULL,  /* OS_IO_OTG_FS_WKUP    42  USB OTG FS Wakeup through EXTI line */
       &Timer12ISRSelect, /* OS_IO_TIM8_BRK_TIM12     43  TIM8 Break and TIM12 global */
       &Timer13ISRSelect, /* OS_IO_TIM8_UP_TIM13      44  TIM8 Update and TIM13 global */
       &Timer14ISRSelect, /* OS_IO_TIM8_TRG_COM_TIM14 45  TIM8 Trigger and Commutation and TIM14 global */
       NULL,  /* OS_IO_TIM8_CC        46  TIM8 Capture Compare */
-      NULL,  /* OS_IO_DMA1_Stream7   47  DMA1 Stream7 */
+      NULL,  /* OS_IO_DMA1_Stream7   47  DMA1 stream 7 */
       NULL,  /* OS_IO_FSMC           48  FSMC global */
       NULL,  /* OS_IO_SDIO           49  SDIO global */
       NULL,  /* OS_IO_TIM5           50  TIM5 global */
       NULL,  /* OS_IO_SPI3           51  SPI3 global */
       NULL,  /* OS_IO_UART4          52  UART4 global */
       NULL,  /* OS_IO_UART5          53  UART5 global */
-      NULL,  /* OS_IO_TIM6_DAC       54  TIM6 global and DAC1&2 underrun error */
+      NULL,  /* OS_IO_TIM6_DAC       54  TIM6 global and DAC 1 & 2 underrun error */
       NULL,  /* OS_IO_TIM7           55  TIM7 global */
-      NULL,  /* OS_IO_DMA2_Stream0   56  DMA2 Stream 0 global */
-      NULL,  /* OS_IO_DMA2_Stream1   57  DMA2 Stream 1 global */
-      NULL,  /* OS_IO_DMA2_Stream2   58  DMA2 Stream 2 global */
-      NULL,  /* OS_IO_DMA2_Stream3   59  DMA2 Stream 3 global */
-      NULL,  /* OS_IO_DMA2_Stream4   60  DMA2 Stream 4 global */
+      NULL,  /* OS_IO_DMA2_Stream0   56  DMA2 stream 0 global */
+      NULL,  /* OS_IO_DMA2_Stream1   57  DMA2 stream 1 global */
+      NULL,  /* OS_IO_DMA2_Stream2   58  DMA2 stream 2 global */
+      NULL,  /* OS_IO_DMA2_Stream3   59  DMA2 stream 3 global */
+      NULL,  /* OS_IO_DMA2_Stream4   60  DMA2 stream 4 global */
       NULL,  /* OS_IO_ETH            61  Ethernet global */
-      NULL,  /* OS_IO_ETH_WKUP       62  Ethernet Wakeup through EXTI line */
+      NULL,  /* OS_IO_ETH_WKUP       62  Ethernet wakeup through EXTI line */
       NULL,  /* OS_IO_CAN2_TX        63  CAN2 TX */
       NULL,  /* OS_IO_CAN2_RX0       64  CAN2 RX0 */
       NULL,  /* OS_IO_CAN2_RX1       65  CAN2 RX1 */
       NULL,  /* OS_IO_CAN2_SCE       66  CAN2 SCE */
       NULL,  /* OS_IO_OTG_FS         67  USB OTG FS global */
-      NULL,  /* OS_IO_DMA2_Stream5   68  DMA2 Stream 5 global */
-      NULL,  /* OS_IO_DMA2_Stream6   69  DMA2 Stream 6 global */
-      NULL,  /* OS_IO_DMA2_Stream7   70  DMA2 Stream 7 global */
+      NULL,  /* OS_IO_DMA2_Stream5   68  DMA2 stream 5 global */
+      NULL,  /* OS_IO_DMA2_Stream6   69  DMA2 stream 6 global */
+      NULL,  /* OS_IO_DMA2_Stream7   70  DMA2 stream 7 global */
       NULL,  /* OS_IO_USART6         71  USART6 global */
       NULL,  /* OS_IO_I2C3_EV        72  I2C3 event */
       NULL,  /* OS_IO_I2C3_ER        73  I2C3 error */
@@ -824,25 +829,25 @@
    static TIMERSELECT Timer13ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40010400,0x40001C00},0x01};
    static TIMERSELECT Timer14ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40010400,0x40002000},0x40};
    void *_OSTabDevice[82] = {
-      NULL, /* OS_IO_WWDG             0  Window WatchDog */
-      NULL, /* OS_IO_PVD              1  PVD through EXTI Line detection */
+      NULL, /* OS_IO_WWDG             0  Window watchDog */
+      NULL, /* OS_IO_PVD              1  Programmable voltage detector through EXTI line */
       NULL, /* OS_IO_TAMP_STAMP       2  Tamper and TimeStamp through the EXTI line*/
-      NULL, /* OS_IO_RTC_WKUP         3  RTC Wakeup through the EXTI line */
-      NULL, /* OS_IO_FLASH            4  FLASH global */
+      NULL, /* OS_IO_RTC_WKUP         3  RTC wakeup through the EXTI line */
+      NULL, /* OS_IO_FLASH            4  Flash global */
       NULL, /* OS_IO_RCC              5  RCC global */
-      NULL, /* OS_IO_EXTI0            6  EXTI Line0 */
-      NULL, /* OS_IO_EXTI1            7  EXTI Line1 */
-      NULL, /* OS_IO_EXTI2            8  EXTI Line2 */
-      NULL, /* OS_IO_EXTI3            9  EXTI Line3 */
-      NULL, /* OS_IO_EXTI4           10  EXTI Line4 */
-      NULL, /* OS_IO_DMA1_Stream0    11  DMA1 Stream 0 global */
-      NULL, /* OS_IO_DMA1_Stream1    12  DMA1 Stream 1 global */
-      NULL, /* OS_IO_DMA1_Stream2    13  DMA1 Stream 2 global */
-      NULL, /* OS_IO_DMA1_Stream3    14  DMA1 Stream 3 global */
-      NULL, /* OS_IO_DMA1_Stream4    15  DMA1 Stream 4 global */
-      NULL, /* OS_IO_DMA1_Stream5    16  DMA1 Stream 5 global */
-      NULL, /* OS_IO_DMA1_Stream6    17  DMA1 Stream 6 global */
-      NULL,  /* OS_IO_ADC            18  ADC1, ADC2 and ADC3 global  */
+      NULL, /* OS_IO_EXTI0            6  EXTI line 0 */
+      NULL, /* OS_IO_EXTI1            7  EXTI line 1 */
+      NULL, /* OS_IO_EXTI2            8  EXTI line 2 */
+      NULL, /* OS_IO_EXTI3            9  EXTI line 3 */
+      NULL, /* OS_IO_EXTI4           10  EXTI line 4 */
+      NULL, /* OS_IO_DMA1_Stream0    11  DMA1 stream 0 global */
+      NULL, /* OS_IO_DMA1_Stream1    12  DMA1 stream 1 global */
+      NULL, /* OS_IO_DMA1_Stream2    13  DMA1 stream 2 global */
+      NULL, /* OS_IO_DMA1_Stream3    14  DMA1 stream 3 global */
+      NULL, /* OS_IO_DMA1_Stream4    15  DMA1 stream 4 global */
+      NULL, /* OS_IO_DMA1_Stream5    16  DMA1 stream 5 global */
+      NULL, /* OS_IO_DMA1_Stream6    17  DMA1 stream 6 global */
+      NULL,  /* OS_IO_ADC            18  ADC1, ADC2 and ADC3 global */
       NULL,  /* OS_IO_CAN1_TX        19  CAN1 TX */
       NULL,  /* OS_IO_CAN1_RX0       20  CAN1 RX0 */
       NULL,  /* OS_IO_CAN1_RX1       21  CAN1 RX1 */
@@ -855,18 +860,18 @@
       NULL,  /* OS_IO_TIM2           28  TIM2 global */
       NULL,  /* OS_IO_TIM3           29  TIM3 global */
       NULL,  /* OS_IO_TIM4           30  TIM4 global */
-      NULL,  /* OS_IO_I2C1_EV        31  I2C1 Event */
-      NULL,  /* OS_IO_I2C1_ER        32  I2C1 Error */
-      NULL,  /* OS_IO_I2C2_EV        33  I2C2 Event */
-      NULL,  /* OS_IO_I2C2_ER        34  I2C2 Error */
+      NULL,  /* OS_IO_I2C1_EV        31  I2C1 event */
+      NULL,  /* OS_IO_I2C1_ER        32  I2C1 error */
+      NULL,  /* OS_IO_I2C2_EV        33  I2C2 event */
+      NULL,  /* OS_IO_I2C2_ER        34  I2C2 error */
       NULL,  /* OS_IO_SPI1           35  SPI1 global */
       NULL,  /* OS_IO_SPI2           36  SPI2 global */
       NULL,  /* OS_IO_USART1         37  USART1 global */
       NULL,  /* OS_IO_USART2         38  USART2 global */
       NULL,  /* OS_IO_USART3         39  USART3 global */
-      NULL,  /* OS_IO_EXTI15_10      40  External Line[15:10]  */
-      NULL,  /* OS_IO_RTC_Alarm      41  RTC Alarm (A and B) through EXTI Line */
-      NULL,  /* OS_IO_OTG_FS_WKUP    42  USB OTG FS Wakeup through EXTI line */
+      NULL,  /* OS_IO_EXTI15_10      40  External line [15:10] */
+      NULL,  /* OS_IO_RTC_Alarm      41  RTC alarm (A and B) through EXTI line */
+      NULL,  /* OS_IO_OTG_FS_WKUP    42  USB OTG FS wakeup through EXTI line */
       &Timer12ISRSelect, /* OS_IO_TIM8_BRK_TIM12     43  TIM8 Break and TIM12 global */
       &Timer13ISRSelect, /* OS_IO_TIM8_UP_TIM13      44  TIM8 Update and TIM13 global */
       &Timer14ISRSelect, /* OS_IO_TIM8_TRG_COM_TIM14 45  TIM8 Trigger and Commutation and TIM14 global */
@@ -900,7 +905,7 @@
       NULL,  /* OS_IO_I2C3_ER        73  I2C3 error */
       NULL,  /* OS_IO_OTG_HS_EP1_OUT 74  USB OTG HS End Point 1 Out global */
       NULL,  /* OS_IO_OTG_HS_EP1_IN  75  USB OTG HS End Point 1 In global */
-      NULL,  /* OS_IO_OTG_HS_WKUP    76  USB OTG HS Wakeup through EXTI */
+      NULL,  /* OS_IO_OTG_HS_WKUP    76  USB OTG HS wakeup through EXTI */
       NULL,  /* OS_IO_OTG_HS         77  USB OTG HS global */
       NULL,  /* OS_IO_DCMI           78  DCMI global */
       NULL,  /* OS_IO_CRYP           79  CRYP crypto global */
@@ -927,19 +932,19 @@ static void UndefinedInterrupt(void)
 
 
 /* STM32 specific interrupt vector table, which is added by the linker at the end of table
-** CortextM3VectorTable which is defined in ZottaOS_CortexM3.c. */
+** CortexM3VectorTable which is defined in ZottaOS_CortexM3.c. */
 __attribute__ ((section(".isr_vector_specific")))
 void (* const STM32VectorTable[])(void) =
 {
-  _OSIOHandler, /* OS_IO_WWDG                   0  Window WatchDog */
-  _OSIOHandler, /* OS_IO_PVD                    1  PVD through EXTI Line detection */
+  _OSIOHandler, /* OS_IO_WWDG                   0  Window watchDog */
+  _OSIOHandler, /* OS_IO_PVD                    1  Programmable voltage detector through EXTI line */
 #if defined(STM32F05XXX)
-  _OSIOHandler, /* OS_IO_RTC                    2  RTC through EXTI Line */
-  _OSIOHandler, /* OS_IO_FLASH                  3  FLASH */
+  _OSIOHandler, /* OS_IO_RTC                    2  RTC through EXTI line */
+  _OSIOHandler, /* OS_IO_FLASH                  3  Flash */
 #elif defined(STM32L1XXXX) || defined(STM32F2XXXX) || defined(STM32F4XXXX)
   _OSIOHandler, /* OS_IO_TAMP_STAMP             2  Tamper and TimeStamp through the EXTI
                                                    line*/
-  _OSIOHandler, /* OS_IO_RTC_WKUP               3  RTC Wakeup through the EXTI line */
+  _OSIOHandler, /* OS_IO_RTC_WKUP               3  RTC wakeup through the EXTI line */
 #elif defined(STM32F1XXXX)
   _OSIOHandler, /* OS_IO_TAMPER                 2  Tamper*/
   _OSIOHandler, /* OS_IO_RTC                    3  RTC global */
@@ -948,25 +953,25 @@ void (* const STM32VectorTable[])(void) =
 #endif
 #if defined(STM32F05XXX)
   _OSIOHandler, /* OS_IO_RCC                    4  RCC */
-  _OSIOHandler, /* OS_IO_EXTI0_1                5  EXTI Line 0 and 1 */
-  _OSIOHandler, /* OS_IO_EXTI2_3                6  EXTI Line 2 and 3 */
-  _OSIOHandler, /* OS_IO_EXTI4_15               7  EXTI Line 4 to 15 */
+  _OSIOHandler, /* OS_IO_EXTI0_1                5  EXTI line 0 and 1 */
+  _OSIOHandler, /* OS_IO_EXTI2_3                6  EXTI line 2 and 3 */
+  _OSIOHandler, /* OS_IO_EXTI4_15               7  EXTI line 4 to 15 */
   _OSIOHandler, /* OS_IO_TS                     8  TS */
-  _OSIOHandler, /* OS_IO_DMA1_Channel1          9  DMA1 Channel 1 */
-  _OSIOHandler, /* OS_IO_DMA1_Channel2_3       10  DMA1 Channel 2 and Channel 3 */
+  _OSIOHandler, /* OS_IO_DMA1_Channel1          9  DMA1 channel 1 */
+  _OSIOHandler, /* OS_IO_DMA1_Channel2_3       10  DMA1 channel 2 and Channel 3 */
 #elif defined(STM32L1XXXX) || defined(STM32F1XXXX) || defined(STM32F2XXXX) || defined(STM32F4XXXX)
-  _OSIOHandler, /* OS_IO_FLASH                  4  FLASH global */
+  _OSIOHandler, /* OS_IO_FLASH                  4  Flash global */
   _OSIOHandler, /* OS_IO_RCC                    5  RCC global */
-  _OSIOHandler, /* OS_IO_EXTI0                  6  EXTI Line0 */
-  _OSIOHandler, /* OS_IO_EXTI1                  7  EXTI Line1 */
-  _OSIOHandler, /* OS_IO_EXTI2                  8  EXTI Line2 */
-  _OSIOHandler, /* OS_IO_EXTI3                  9  EXTI Line3 */
-  _OSIOHandler, /* OS_IO_EXTI4                 10  EXTI Line4 */
+  _OSIOHandler, /* OS_IO_EXTI0                  6  EXTI line 0 */
+  _OSIOHandler, /* OS_IO_EXTI1                  7  EXTI line 1 */
+  _OSIOHandler, /* OS_IO_EXTI2                  8  EXTI line 2 */
+  _OSIOHandler, /* OS_IO_EXTI3                  9  EXTI line 3 */
+  _OSIOHandler, /* OS_IO_EXTI4                 10  EXTI line 4 */
 #else
    #error STM32 version undefined
 #endif
 #if defined(STM32F05XXX)
-  _OSIOHandler, /* DMA1_Channel4_5             11  DMA1 Channel 4 and Channel 5 */
+  _OSIOHandler, /* OS_IO_DMA1_Channel4_5       11  DMA1 channels 4 and 5 */
   _OSIOHandler, /* ADC1_COMP                   12  ADC1, COMP1 and COMP2 */
   _OSIOHandler, /* TIM1_BRK_UP_TRG_COM         13  TIM1 Break, Update, Trigger and Commutation */
   _OSIOHandler, /* TIM1_CC                     14  TIM1 Capture Compare */
@@ -980,21 +985,21 @@ void (* const STM32VectorTable[])(void) =
      NULL,
   #endif
 #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
-  _OSIOHandler, /* OS_IO_DMA1_Stream0          11  DMA1 Stream 0 global */
-  _OSIOHandler, /* OS_IO_DMA1_Stream1          12  DMA1 Stream 1 global */
-  _OSIOHandler, /* OS_IO_DMA1_Stream2          13  DMA1 Stream 2 global */
-  _OSIOHandler, /* OS_IO_DMA1_Stream3          14  DMA1 Stream 3 global */
-  _OSIOHandler, /* OS_IO_DMA1_Stream4          15  DMA1 Stream 4 global */
-  _OSIOHandler, /* OS_IO_DMA1_Stream5          16  DMA1 Stream 5 global */
-  _OSIOHandler, /* OS_IO_DMA1_Stream6          17  DMA1 Stream 6 global */
+  _OSIOHandler, /* OS_IO_DMA1_Stream0          11  DMA1 stream 0 global */
+  _OSIOHandler, /* OS_IO_DMA1_Stream1          12  DMA1 stream 1 global */
+  _OSIOHandler, /* OS_IO_DMA1_Stream2          13  DMA1 stream 2 global */
+  _OSIOHandler, /* OS_IO_DMA1_Stream3          14  DMA1 stream 3 global */
+  _OSIOHandler, /* OS_IO_DMA1_Stream4          15  DMA1 stream 4 global */
+  _OSIOHandler, /* OS_IO_DMA1_Stream5          16  DMA1 stream 5 global */
+  _OSIOHandler, /* OS_IO_DMA1_Stream6          17  DMA1 stream 6 global */
 #elif defined(STM32L1XXXX) || defined(STM32F1XXXX)
-  _OSIOHandler, /* OS_IO_DMA1_Channel1         11  DMA1 Channel 1 global */
-  _OSIOHandler, /* OS_IO_DMA1_Channel2         12  DMA1 Channel 2 global */
-  _OSIOHandler, /* OS_IO_DMA1_Channel3         13  DMA1 Channel 3 global */
-  _OSIOHandler, /* OS_IO_DMA1_Channel4         14  DMA1 Channel 4 global */
-  _OSIOHandler, /* OS_IO_DMA1_Channel5         15  DMA1 Channel 5 global */
-  _OSIOHandler, /* OS_IO_DMA1_Channel6         16  DMA1 Channel 6 global */
-  _OSIOHandler, /* OS_IO_DMA1_Channel7         17  DMA1 Channel 7 global */
+  _OSIOHandler, /* OS_IO_DMA1_Channel1         11  DMA1 channel 1 global */
+  _OSIOHandler, /* OS_IO_DMA1_Channel2         12  DMA1 channel 2 global */
+  _OSIOHandler, /* OS_IO_DMA1_Channel3         13  DMA1 channel 3 global */
+  _OSIOHandler, /* OS_IO_DMA1_Channel4         14  DMA1 channel 4 global */
+  _OSIOHandler, /* OS_IO_DMA1_Channel5         15  DMA1 channel 5 global */
+  _OSIOHandler, /* OS_IO_DMA1_Channel6         16  DMA1 channel 6 global */
+  _OSIOHandler, /* OS_IO_DMA1_Channel7         17  DMA1 channel 7 global */
 #else
    #error STM32 version undefined
 #endif
@@ -1054,17 +1059,17 @@ void (* const STM32VectorTable[])(void) =
 /* ------------------------------ STM32L1 --------------------------------------------- */
 #elif defined(STM32L1XXXX)
   _OSIOHandler, /* OS_IO_ADC1                  18  ADC1 global */
-  _OSIOHandler, /* OS_IO_USB_HP                19  USB High Priority */
-  _OSIOHandler, /* OS_IO_USB_LP                20  USB Low Priority */
+  _OSIOHandler, /* OS_IO_USB_HP                19  USB high priority */
+  _OSIOHandler, /* OS_IO_USB_LP                20  USB low priority */
   _OSIOHandler, /* OS_IO_DAC                   21  DAC */
   #if defined(STM32L151XC) || defined(STM32L152XC) || defined(STM32L151XD) || \
       defined(STM32L152XD) || defined(STM32L162XD)
      _OSIOHandler, /* OS_IO_COMP_CA            22  Comparator and Channel acquisition
                                                    through EXTI Line */
   #else
-     _OSIOHandler, /* OS_IO_COMP               22  Comparator through EXTI Line  */
+     _OSIOHandler, /* OS_IO_COMP               22  Comparator through EXTI line */
   #endif
-  _OSIOHandler, /* OS_IO_EXTI9_5               23  External Line[9:5] */
+  _OSIOHandler, /* OS_IO_EXTI9_5               23  External line [9:5] */
   #if defined(STM32L152X6_X8_XB) || defined(STM32L152XC) || defined(STM32L152XD) || \
       defined(STM32L162XD)
      _OSIOHandler, /* OS_IO_LCD                24  LCD */
@@ -1079,19 +1084,19 @@ void (* const STM32VectorTable[])(void) =
   _OSIOHandler, /* OS_IO_TIM2                  28  TIM2 global */
   _OSIOHandler, /* OS_IO_TIM3                  29  TIM3 global */
   _OSIOHandler, /* OS_IO_TIM4                  30  TIM4 global */
-  _OSIOHandler, /* OS_IO_I2C1_EV               31  I2C1 Event */
-  _OSIOHandler, /* OS_IO_I2C1_ER               32  I2C1 Error */
-  _OSIOHandler, /* OS_IO_I2C2_EV               33  I2C2 Event */
-  _OSIOHandler, /* OS_IO_I2C2_ER               34  I2C2 Error */
+  _OSIOHandler, /* OS_IO_I2C1_EV               31  I2C1 event */
+  _OSIOHandler, /* OS_IO_I2C1_ER               32  I2C1 error */
+  _OSIOHandler, /* OS_IO_I2C2_EV               33  I2C2 event */
+  _OSIOHandler, /* OS_IO_I2C2_ER               34  I2C2 error */
   _OSIOHandler, /* OS_IO_SPI1                  35  SPI1 global */
   _OSIOHandler, /* OS_IO_SPI2                  36  SPI2 global */
   _OSIOHandler, /* OS_IO_USART1                37  USART1 global */
   _OSIOHandler, /* OS_IO_USART2                38  USART2 global */
   _OSIOHandler, /* OS_IO_USART3                39  USART3 global */
-  _OSIOHandler, /* OS_IO_EXTI15_10             40  External Line[15:10]  */
-  _OSIOHandler, /* OS_IO_RTC_Alarm             41  RTC Alarm through EXTI Line */
-  _OSIOHandler, /* OS_IO_USB_FS_WKUP           42  USB FS WakeUp from suspend through EXTI
-                                                   Line */
+  _OSIOHandler, /* OS_IO_EXTI15_10             40  External line [15:10] */
+  _OSIOHandler, /* OS_IO_RTC_Alarm             41  RTC alarm through EXTI line */
+  _OSIOHandler, /* OS_IO_USB_FS_WKUP           42  USB FS wakeUp from suspend through EXTI
+                                                   line */
   _OSIOHandler, /* OS_IO_TIM6                  43  TIM6 global */
   _OSIOHandler, /* OS_IO_TIM7                  44  TIM7 global */
   #if defined(STM32L151XD) || defined(STM32L152XD) || defined(STM32L162XD)
@@ -1124,11 +1129,11 @@ void (* const STM32VectorTable[])(void) =
   #endif
   #if defined(STM32L151XC) || defined(STM32L152XC) || defined(STM32L151XD) || \
       defined(STM32L152XD) || defined(STM32L162XD)
-     _OSIOHandler, /* OS_IO_DMA2_Channel1      50  DMA2 Channel 1 global */
-     _OSIOHandler, /* OS_IO_DMA2_Channel2      51  DMA2 Channel 2 global */
-     _OSIOHandler, /* OS_IO_DMA2_Channel3      52  DMA2 Channel 3 global */
-     _OSIOHandler, /* OS_IO_DMA2_Channel4      53  DMA2 Channel 4 global */
-     _OSIOHandler, /* OS_IO_DMA2_Channel5      54  DMA2 Channel 5 global */
+     _OSIOHandler, /* OS_IO_DMA2_Channel1      50  DMA2 channel 1 global */
+     _OSIOHandler, /* OS_IO_DMA2_Channel2      51  DMA2 channel 2 global */
+     _OSIOHandler, /* OS_IO_DMA2_Channel3      52  DMA2 channel 3 global */
+     _OSIOHandler, /* OS_IO_DMA2_Channel4      53  DMA2 channel 4 global */
+     _OSIOHandler, /* OS_IO_DMA2_Channel5      54  DMA2 channel 5 global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
      UndefinedInterrupt,
@@ -1151,7 +1156,7 @@ void (* const STM32VectorTable[])(void) =
   #endif
   #if defined(STM32L151XC) || defined(STM32L152XC) || defined(STM32L151XD) || \
       defined(STM32L152XD) || defined(STM32L162XD)
-     _OSIOHandler, /* OS_IO_COMP_ACQ           56  Comparator Channel Acquisition global */
+     _OSIOHandler, /* OS_IO_COMP_ACQ           56  Comparator channel acquisition global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
   #else
@@ -1180,9 +1185,9 @@ void (* const STM32VectorTable[])(void) =
       defined(STM32F103C8_CB_R8_RB_V8_VB) || defined(STM32F103RC_RD_RE) || \
       defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || defined(STM32F103RF_RG) || \
       defined(STM32F103VF_VG_ZF_ZG)
-     _OSIOHandler, /* OS_IO_USB_HP_CAN1_TX     19 USB Device High Priority or CAN1 TX */
+     _OSIOHandler, /* OS_IO_USB_HP_CAN1_TX     19 USB device high priority or CAN1 TX */
   #elif defined(STM32F102X4_X6) || defined(STM32F102X8_XB)
-     _OSIOHandler, /* OS_IO_USB_HP             19 USB Device High Priority */
+     _OSIOHandler, /* OS_IO_USB_HP             19 USB device high priority */
   #elif defined(STM32F105XX) || defined(STM32F107XX)
      _OSIOHandler, /* OS_IO_CAN1_TX            19 CAN1 TX */
   #elif defined(DEBUG_MODE)
@@ -1194,9 +1199,9 @@ void (* const STM32VectorTable[])(void) =
       defined(STM32F103C8_CB_R8_RB_V8_VB) || defined(STM32F103RC_RD_RE) || \
       defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || defined(STM32F103RF_RG) || \
       defined(STM32F103VF_VG_ZF_ZG)
-     _OSIOHandler, /* OS_IO_USB_LP_CAN1_RX0    20 USB Device Low Priority or CAN1 RX0 */
+     _OSIOHandler, /* OS_IO_USB_LP_CAN1_RX0    20 USB device low priority or CAN1 RX0 */
   #elif defined(STM32F102X4_X6) || defined(STM32F102X8_XB)
-     _OSIOHandler, /* OS_IO_USB_LP             20 USB Device Low Priority */
+     _OSIOHandler, /* OS_IO_USB_LP             20 USB device low priority */
   #elif defined(STM32F105XX) || defined(STM32F107XX)
      _OSIOHandler, /* OS_IO_CAN1_RX0           20 CAN1 RX0 */
   #elif defined(DEBUG_MODE)
@@ -1224,33 +1229,33 @@ void (* const STM32VectorTable[])(void) =
   #else
      NULL,
   #endif
-  _OSIOHandler, /* OS_IO_EXTI9_5               23 External Line[9:5] */
+  _OSIOHandler, /* OS_IO_EXTI9_5               23 External line [9:5] */
   #if defined(STM32F103X4_X6) || defined(STM32F103T8_TB) || \
       defined(STM32F103C8_CB_R8_RB_V8_VB) || defined(STM32F103RC_RD_RE) || \
       defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || defined(STM32F105XX) || defined(STM32F107XX)
-     _OSIOHandler, /* OS_IO_TIM1_BRK     24 TIM1 Break */
-     _OSIOHandler, /* OS_IO_TIM1_UP      25 TIM1 Update */
-     _OSIOHandler, /* OS_IO_TIM1_TRG_COM 26 TIM1 Trigger and Commutation */
-     _OSIOHandler, /* OS_IO_TIM1_CC      27 TIM1 Capture Compare */
+     _OSIOHandler, /* OS_IO_TIM1_BRK           24 TIM1 Break */
+     _OSIOHandler, /* OS_IO_TIM1_UP            25 TIM1 Update */
+     _OSIOHandler, /* OS_IO_TIM1_TRG_COM       26 TIM1 Trigger and Commutation */
+     _OSIOHandler, /* OS_IO_TIM1_CC            27 TIM1 Capture Compare */
   #elif defined(STM32F100X4_X6) || defined(STM32F100X8_XB) || \
         defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE)
-        _OSIOHandler, /* OS_IO_TIM1_BRK_TIM15     24 TIM1 Break and TIM15 */
-        _OSIOHandler, /* OS_IO_TIM1_UP_TIM16      25 TIM1 Update and TIM16 */
-        _OSIOHandler, /* OS_IO_TIM1_TRG_COM_TIM17 26 TIM1 Trigger and Commutation and TIM17 */
-        _OSIOHandler, /* OS_IO_TIM1_CC            27 TIM1 Capture Compare */
+     _OSIOHandler, /* OS_IO_TIM1_BRK_TIM15     24 TIM1 Break and TIM15 */
+     _OSIOHandler, /* OS_IO_TIM1_UP_TIM16      25 TIM1 Update and TIM16 */
+     _OSIOHandler, /* OS_IO_TIM1_TRG_COM_TIM17 26 TIM1 Trigger and Commutation and TIM17 */
+     _OSIOHandler, /* OS_IO_TIM1_CC            27 TIM1 Capture Compare */
   #elif defined (STM32F101RF_RG)|| defined(STM32F101VF_VG_ZF_ZG)
-     _OSIOHandler, /* OS_IO_TIM9       24 TIM9 global */
-     _OSIOHandler, /* OS_IO__TIM10     25 TIM10 global */
-     _OSIOHandler, /* OS_IO_TIM11      26 TIM11 */
+     _OSIOHandler, /* OS_IO_TIM9               24 TIM9 global */
+     _OSIOHandler, /* OS_IO__TIM10             25 TIM10 global */
+     _OSIOHandler, /* OS_IO_TIM11              26 TIM11 */
      #if defined(DEBUG_MODE)
         UndefinedInterrupt,
      #else
         NULL,
      #endif
   #elif defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
-     _OSIOHandler, /* OS_IO_TIM1_BRK_TIM9      24 TIM1 Break  and TIM9 global */
+     _OSIOHandler, /* OS_IO_TIM1_BRK_TIM9      24 TIM1 Break and TIM9 global */
      _OSIOHandler, /* OS_IO_TIM1_UP_TIM10      25 TIM1 Update and TIM10 global */
-     _OSIOHandler, /* OS_IO_TIM1_TRG_COM_TIM11 26 TIM1 Trigger and Commutation  and TIM11 */
+     _OSIOHandler, /* OS_IO_TIM1_TRG_COM_TIM11 26 TIM1 Trigger and Commutation and TIM11 */
      _OSIOHandler, /* OS_IO_TIM1_CC            27 TIM1 Capture Compare */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
@@ -1280,8 +1285,8 @@ void (* const STM32VectorTable[])(void) =
   #else
      NULL,
   #endif
-  _OSIOHandler, /* OS_IO_I2C1_EV               31 I2C1 Event */
-  _OSIOHandler, /* OS_IO_I2C1_ER               32 I2C1 Error */
+  _OSIOHandler, /* OS_IO_I2C1_EV               31 I2C1 event */
+  _OSIOHandler, /* OS_IO_I2C1_ER               32 I2C1 error */
   #if defined(STM32F100X8_XB) || defined(STM32F100RC_RD_RE) || \
       defined(STM32F100VC_VD_VE_ZC_ZD_ZE) || defined(STM32F101C8_CB_R8_RB_V8_VB) || \
       defined(STM32F101RC_RD_RE) || defined(STM32F101VC_VD_VE_ZC_ZD_ZE) || \
@@ -1290,8 +1295,8 @@ void (* const STM32VectorTable[])(void) =
       defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
       defined(STM32F105XX) || defined(STM32F107XX)
-     _OSIOHandler, /* OS_IO_I2C2_EV            33 I2C2 Event */
-     _OSIOHandler, /* OS_IO_I2C2_ER            34 I2C2 Error */
+     _OSIOHandler, /* OS_IO_I2C2_EV            33 I2C2 event */
+     _OSIOHandler, /* OS_IO_I2C2_ER            34 I2C2 error */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
      UndefinedInterrupt,
@@ -1330,8 +1335,8 @@ void (* const STM32VectorTable[])(void) =
   #else
      NULL,
   #endif
-  _OSIOHandler, /* OS_IO_EXTI15_10             40 External Line[15:10] */
-  _OSIOHandler, /* OS_IO_RTCAlarm              41 RTC Alarm through EXTI Line */
+  _OSIOHandler, /* OS_IO_EXTI15_10             40 External line [15:10] */
+  _OSIOHandler, /* OS_IO_RTCAlarm              41 RTC alarm through EXTI line */
   #if defined(STM32F103X4_X6) || defined(STM32F103T8_TB) || \
       defined(STM32F103C8_CB_R8_RB_V8_VB) || defined(STM32F103RC_RD_RE) || \
       defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || defined(STM32F103RF_RG) || \
@@ -1342,8 +1347,8 @@ void (* const STM32VectorTable[])(void) =
         defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE)
      _OSIOHandler, /* OS_IO_CEC                42 HDMI-CEC */
   #elif defined(STM32F105XX) || defined(STM32F107XX)
-     _OSIOHandler, /* OS_IO_OTG_FS_WKUP        42 USB OTG FS WakeUp from suspend through
-                                                  EXTI Line */
+     _OSIOHandler, /* OS_IO_OTG_FS_WKUP        42 USB OTG FS wakeup from suspend through
+                                                  EXTI line */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
   #else
@@ -1382,7 +1387,7 @@ void (* const STM32VectorTable[])(void) =
   #endif
   #if defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
-     _OSIOHandler, /* OS_IO_ADC3               47 ADC3 global */
+     _OSIOHandler, /* OS_IO_ADC3                  47 ADC3 global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
   #else
@@ -1391,7 +1396,7 @@ void (* const STM32VectorTable[])(void) =
   #if defined(STM32F100VC_VD_VE_ZC_ZD_ZE) || defined(STM32F101VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F101VF_VG_ZF_ZG) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F103VF_VG_ZF_ZG)
-     _OSIOHandler, /* OS_IO_FSMC               48 FSMC global */
+     _OSIOHandler, /* OS_IO_FSMC                  48 FSMC global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
   #else
@@ -1399,7 +1404,7 @@ void (* const STM32VectorTable[])(void) =
   #endif
   #if defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
-     _OSIOHandler, /* OS_IO_SDIO               49 SDIO global */
+     _OSIOHandler, /* OS_IO_SDIO                  49 SDIO global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
   #else
@@ -1411,8 +1416,8 @@ void (* const STM32VectorTable[])(void) =
       defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
       defined(STM32F105XX) || defined(STM32F107XX)
-     _OSIOHandler, /* OS_IO_TIM5               50 TIM5 global */
-     _OSIOHandler, /* OS_IO_SPI3               51 SPI3 global */
+     _OSIOHandler, /* OS_IO_TIM5                  50 TIM5 global */
+     _OSIOHandler, /* OS_IO_SPI3                  51 SPI3 global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
      UndefinedInterrupt,
@@ -1426,8 +1431,8 @@ void (* const STM32VectorTable[])(void) =
       defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
       defined(STM32F105XX) || defined(STM32F107XX)
-     _OSIOHandler, /* OS_IO_UART4              52 UART4 global */
-     _OSIOHandler, /* OS_IO_UART5              53 UART5 global */
+     _OSIOHandler, /* OS_IO_UART4                 52 UART4 global */
+     _OSIOHandler, /* OS_IO_UART5                 53 UART5 global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
      UndefinedInterrupt,
@@ -1437,13 +1442,13 @@ void (* const STM32VectorTable[])(void) =
   #endif
   #if defined(STM32F100X4_X6) || defined(STM32F100X8_XB) || \
       defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE)
-     _OSIOHandler, /* OS_IO_TIM6_DAC           54 TIM6 and DAC underrun */
+     _OSIOHandler, /* OS_IO_TIM6_DAC              54 TIM6 and DAC underrun */
   #elif defined(STM32F101RC_RD_RE) || defined(STM32F101VC_VD_VE_ZC_ZD_ZE) || \
         defined(STM32F101RF_RG) || defined(STM32F101VF_VG_ZF_ZG) || \
         defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
         defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
         defined(STM32F105XX) || defined(STM32F107XX)
-     _OSIOHandler, /* OS_IO_TIM6               54 TIM6 global */
+     _OSIOHandler, /* OS_IO_TIM6                  54 TIM6 global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
   #else
@@ -1456,7 +1461,7 @@ void (* const STM32VectorTable[])(void) =
       defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
       defined(STM32F105XX) || defined(STM32F107XX)
-     _OSIOHandler, /* OS_IO_TIM7               55 TIM7 */
+     _OSIOHandler, /* OS_IO_TIM7                  55 TIM7 */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
   #else
@@ -1468,9 +1473,9 @@ void (* const STM32VectorTable[])(void) =
       defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG) || \
       defined(STM32F105XX) || defined(STM32F107XX)
-     _OSIOHandler, /* OS_IO_DMA2_Channel1      56 DMA2 Channel 1 global */
-     _OSIOHandler, /* OS_IO_DMA2_Channel2      57 DMA2 Channel 2 global */
-     _OSIOHandler, /* OS_IO_DMA2_Channel3      58 DMA2 Channel 3 global */
+     _OSIOHandler, /* OS_IO_DMA2_Channel1         56 DMA2 channel 1 global */
+     _OSIOHandler, /* OS_IO_DMA2_Channel2         57 DMA2 channel 2 global */
+     _OSIOHandler, /* OS_IO_DMA2_Channel3         58 DMA2 channel 3 global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
      UndefinedInterrupt,
@@ -1485,21 +1490,21 @@ void (* const STM32VectorTable[])(void) =
       defined(STM32F101RF_RG) || defined(STM32F101VF_VG_ZF_ZG) || \
       defined(STM32F103RC_RD_RE) || defined(STM32F103VC_VD_VE_ZC_ZD_ZE) || \
       defined(STM32F103RF_RG) || defined(STM32F103VF_VG_ZF_ZG)
-     _OSIOHandler, /* OS_IO_DMA2_Channel4_5    59 DMA2 Channel 4 and Channel 5 global */
+     _OSIOHandler, /* OS_IO_DMA2_Channel4_5       59 DMA2 channels 4 and 5 global */
   #elif defined(STM32F105XX) || defined(STM32F107XX)
-     _OSIOHandler, /* OS_IO_DMA2_Channel4      59 DMA2 Channel 4 global */
+     _OSIOHandler, /* OS_IO_DMA2_Channel4         59 DMA2 channel 4 global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
   #else
      NULL,
   #endif
   #if defined(STM32F100RC_RD_RE) || defined(STM32F100VC_VD_VE_ZC_ZD_ZE)
-     _OSIOHandler, /* OS_IO_DMA2_Channel5      60 DMA2 Channel 5 global  (DMA2 Channel 5
+     _OSIOHandler, /* OS_IO_DMA2_Channel5         60 DMA2 channel 5 global (channel is
                                                   is mapped at position 60 only if the
                                                   MISC_REMAP bit in the AFIO_MAPR2
                                                   register is set) */
   #elif defined(STM32F105XX) || defined(STM32F107XX)
-     _OSIOHandler, /* OS_IO_DMA2_Channel5      60 DMA2 Channel 5 global */
+     _OSIOHandler, /* OS_IO_DMA2_Channel5         60 DMA2 channel 5 global */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
   #else
@@ -1507,7 +1512,7 @@ void (* const STM32VectorTable[])(void) =
   #endif
   #if defined(STM32F107XX)
      _OSIOHandler, /* OS_IO_ETH                61 Ethernet global */
-     _OSIOHandler, /* OS_IO_ETH_WKUP           62 Ethernet Wakeup through EXTI line */
+     _OSIOHandler, /* OS_IO_ETH_WKUP           62 Ethernet wakeup through EXTI line */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
      UndefinedInterrupt,
@@ -1549,17 +1554,17 @@ void (* const STM32VectorTable[])(void) =
   _OSIOHandler, /* OS_IO_TIM2                  28  TIM2 global */
   _OSIOHandler, /* OS_IO_TIM3                  29  TIM3 global */
   _OSIOHandler, /* OS_IO_TIM4                  30  TIM4 global */
-  _OSIOHandler, /* OS_IO_I2C1_EV               31  I2C1 Event */
-  _OSIOHandler, /* OS_IO_I2C1_ER               32  I2C1 Error */
-  _OSIOHandler, /* OS_IO_I2C2_EV               33  I2C2 Event */
-  _OSIOHandler, /* OS_IO_I2C2_ER               34  I2C2 Error */
+  _OSIOHandler, /* OS_IO_I2C1_EV               31  I2C1 event */
+  _OSIOHandler, /* OS_IO_I2C1_ER               32  I2C1 error */
+  _OSIOHandler, /* OS_IO_I2C2_EV               33  I2C2 event */
+  _OSIOHandler, /* OS_IO_I2C2_ER               34  I2C2 error */
   _OSIOHandler, /* OS_IO_SPI1                  35  SPI1 global */
   _OSIOHandler, /* OS_IO_SPI2                  36  SPI2 global */
   _OSIOHandler, /* OS_IO_USART1                37  USART1 global */
   _OSIOHandler, /* OS_IO_USART2                38  USART2 global */
   _OSIOHandler, /* OS_IO_USART3                39  USART3 global */
   _OSIOHandler, /* OS_IO_EXTI15_10             40  External Line[15:10]  */
-  _OSIOHandler, /* OS_IO_RTC_Alarm             41  RTC Alarm (A and B) through EXTI Line */
+  _OSIOHandler, /* OS_IO_RTC_Alarm             41  RTC alarm (A and B) through EXTI line */
   _OSIOHandler, /* OS_IO_OTG_FS_WKUP           42  USB OTG FS Wakeup through EXTI line */
   _OSIOHandler, /* OS_IO_TIM8_BRK_TIM12        43  TIM8 Break and TIM12 global */
   _OSIOHandler, /* OS_IO_TIM8_UP_TIM13         44  TIM8 Update and TIM13 global */
@@ -1576,21 +1581,21 @@ void (* const STM32VectorTable[])(void) =
      NULL,
   #endif
   _OSIOHandler, /* OS_IO_SDIO                  49  SDIO global */
-  _OSIOHandler, /* OS_IO_TIM5               50  TIM5 global */
+  _OSIOHandler, /* OS_IO_TIM5                  50  TIM5 global */
   _OSIOHandler, /* OS_IO_SPI3                  51  SPI3 global */
   _OSIOHandler, /* OS_IO_UART4                 52  UART4 global */
   _OSIOHandler, /* OS_IO_UART5                 53  UART5 global */
-  _OSIOHandler, /* OS_IO_TIM6_DAC              54  TIM6 global and DAC1&2 underrun error */
+  _OSIOHandler, /* OS_IO_TIM6_DAC              54  TIM6 global and DAC 1 & 2 underrun error */
   _OSIOHandler, /* OS_IO_TIM7                  55  TIM7 global */
-  _OSIOHandler, /* OS_IO_DMA2_Stream0          56  DMA2 Stream 0 global */
-  _OSIOHandler, /* OS_IO_DMA2_Stream1          57  DMA2 Stream 1 global */
-  _OSIOHandler, /* OS_IO_DMA2_Stream2          58  DMA2 Stream 2 global */
-  _OSIOHandler, /* OS_IO_DMA2_Stream3          59  DMA2 Stream 3 global */
-  _OSIOHandler, /* OS_IO_DMA2_Stream4          60  DMA2 Stream 4 global */
+  _OSIOHandler, /* OS_IO_DMA2_Stream0          56  DMA2 stream 0 global */
+  _OSIOHandler, /* OS_IO_DMA2_Stream1          57  DMA2 stream 1 global */
+  _OSIOHandler, /* OS_IO_DMA2_Stream2          58  DMA2 stream 2 global */
+  _OSIOHandler, /* OS_IO_DMA2_Stream3          59  DMA2 stream 3 global */
+  _OSIOHandler, /* OS_IO_DMA2_Stream4          60  DMA2 stream 4 global */
   #if defined(STM32F207XX) || defined(STM32F217XX) || defined(STM32F407XX) || \
       defined(STM32F417XX)
      _OSIOHandler, /* OS_IO_ETH                61  Ethernet global */
-     _OSIOHandler, /* OS_IO_ETH_WKUP           62  Ethernet Wakeup through EXTI line */
+     _OSIOHandler, /* OS_IO_ETH_WKUP           62  Ethernet wakeup through EXTI line */
   #elif defined(DEBUG_MODE)
      UndefinedInterrupt,
      UndefinedInterrupt,
@@ -1610,9 +1615,9 @@ void (* const STM32VectorTable[])(void) =
   #else
      NULL,
   #endif
-  _OSIOHandler, /* OS_IO_DMA2_Stream5          68  DMA2 Stream 5 global */
-  _OSIOHandler, /* OS_IO_DMA2_Stream6          69  DMA2 Stream 6 global */
-  _OSIOHandler, /* OS_IO_DMA2_Stream7          70  DMA2 Stream 7 global */
+  _OSIOHandler, /* OS_IO_DMA2_Stream5          68  DMA2 stream 5 global */
+  _OSIOHandler, /* OS_IO_DMA2_Stream6          69  DMA2 stream 6 global */
+  _OSIOHandler, /* OS_IO_DMA2_Stream7          70  DMA2 stream 7 global */
   _OSIOHandler, /* OS_IO_USART6                71  USART6 global */
   _OSIOHandler, /* OS_IO_I2C3_EV               72  I2C3 event */
   _OSIOHandler, /* OS_IO_I2C3_ER               73  I2C3 error */
@@ -1650,7 +1655,7 @@ void (* const STM32VectorTable[])(void) =
 };
 
 
-/* OSSetTimerISRDescriptor: Associates an timer ISR descriptor with an _OSTabDevice
+/* OSSetTimerISRDescriptor: Associates a timer ISR descriptor with an _OSTabDevice
 ** sub-entry. */
 void OSSetTimerISRDescriptor(UINT8 entry, UINT8 subentry, void *descriptor)
 {

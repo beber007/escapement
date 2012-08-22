@@ -18,7 +18,7 @@
 */
 /* File ZottaOS.h: User API for all ZottaOS kernels. The kernel selection is imported from
 **                 ZottaOS_Config.h file.
-** Platform version: All CORTEX-Mx microcontrollers.
+** Platform version: All Cortex-Mx based microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */

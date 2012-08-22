@@ -411,7 +411,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
         break;
      #endif
      default:
-     break;
+        break;
   }
   /*** Initialize Cortex-Mx Nested Vectored Interrupt Controller ***/
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
