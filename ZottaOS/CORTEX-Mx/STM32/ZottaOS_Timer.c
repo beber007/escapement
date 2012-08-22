@@ -589,11 +589,17 @@ BOOL _OSSetTimer(INT32 nextArrival)
 {
   #ifdef ZOTTAOS_TIMER_32
      TIM_COMPARATOR = nextArrival;
-     return TIM_COMPARATOR > TIM_COUNTER;
+     if (TIM_COMPARATOR > TIM_COUNTER)
+        return TRUE;
+     TIM_COMPARATOR = 0;
+     return FALSE;
   #elif defined(ZOTTAOS_TIMER_16)
      if (nextArrival >> 16 == Time) {
         TIM_COMPARATOR = (UINT16)nextArrival;
-        return TIM_COMPARATOR > TIM_COUNTER;
+        if (TIM_COMPARATOR > TIM_COUNTER)
+           return TRUE;
+        TIM_COMPARATOR = 0;
+        return FALSE;
      }
      else
         return TRUE;
