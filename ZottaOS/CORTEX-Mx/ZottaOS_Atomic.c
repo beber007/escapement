@@ -18,7 +18,7 @@
 */
 /* File ZottaOS_Atomic.h: Defines the LL/SC atomic instructions used used with the types
 **                        defined for ZottaOS kernels.
-** Platform version: All CORTEX-Mx microcontrollers.
+** Platform version: All Cortex-Mx based microcontrollers.
 ** Version identifier: June 2012
 ** Authors: MIS-TIC
 */
@@ -36,24 +36,24 @@
 ** left unchanged. */
 
 #if defined(CORTEX_M0)
-   /* Because the CORTEX_M0 core processors do not have a reservation bit, we can emulates
-   ** the validity of the last LL instruction by clearing this indicator whenever there is a
-   ** context switch. This action is done in ZottaOS_CortexMx.c and ZottaOS_CortexMx.S. */
+   /* Because the Cortex-M0 core processors do not have a reservation bit, we can emulate
+   ** the validity of the last LL instruction by clearing this indicator whenever there is
+   ** a context switch. This action is done in ZottaOS_CortexMx.c and ZottaOS_CortexMx.S. */
    BOOL _OSLLReserveBit;
 
-   /* Return PRIMASK and disable interrupts. */
-   static inline INT32 GetPrimask(void)
+   /* Return PRIMASK bit and disable interrupts. */
+   static inline INT32 GetPriMask(void)
    {
      UINT32 priMask;
-     asm volatile ("MRS %0,PRIMASK":"=r" (priMask));
-  	 return(priMask);
-   }
+     asm volatile ("MRS %0,PRIMASK":"=r"(priMask));
+     return priMask;
+   } /* end of GetPriMask */
 
-   /* Restore PRIMASK. */
-   static inline void RestorPriMask(UINT32 priMask)
+   /* Restore PRIMASK bit. */
+   static inline void RestorePriMask(UINT32 priMask)
    {
       asm volatile ("MSR PRIMASK,%0"::"r"(priMask));
-   }
+   } /* end of RestorePriMask */
 #endif
 
 
@@ -66,13 +66,8 @@ inline UINT8 OSUINT8_LL(UINT8 *memAddr)
      asm volatile ("LDREXB %0,[%1]":"=&b"(tmp):"r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
-     UINT8 tmp;
-     UINT32 priMask = GetPrimask();
-     _OSDisableInterrupts();
      _OSLLReserveBit = TRUE;     // Mark reserved
-     tmp = *memAddr;             // Return the contents of the memAddr location
-     RestorPriMask(priMask);
-     return tmp;
+     return *memAddr;            // Return the contents of the memAddr location
   #endif
 } /* end of OSUINT8_LL */
 
@@ -89,7 +84,7 @@ inline BOOL OSUINT8_SC(UINT8 *memAddr, register UINT8 newVal)
      return tmp;
   #elif defined(CORTEX_M0)
      BOOL tmp;
-     UINT32 priMask = GetPrimask();
+     UINT32 priMask = GetPriMask();
      _OSDisableInterrupts();
      if (_OSLLReserveBit) {      // Is the reservation still on?
         _OSLLReserveBit = FALSE;
@@ -98,7 +93,7 @@ inline BOOL OSUINT8_SC(UINT8 *memAddr, register UINT8 newVal)
      }
      else
         tmp = FALSE;
-     RestorPriMask(priMask);
+     RestorePriMask(priMask);
      return tmp;
   #endif
 } /* end of OSUINT8_SC */
@@ -112,13 +107,8 @@ inline UINT16 OSUINT16_LL(UINT16 *memAddr)
      asm volatile ("LDREXH %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
-     UINT16 tmp;
-     UINT32 priMask = GetPrimask();
-     _OSDisableInterrupts();
      _OSLLReserveBit = TRUE;     // Mark reserved
-     tmp = *memAddr;             // Return the contents of the memAddr location
-     RestorPriMask(priMask);
-     return tmp;
+     return *memAddr;            // Return the contents of the memAddr location
   #endif
 } /* end of OSUINT16_LL */
 
@@ -133,7 +123,7 @@ inline BOOL OSUINT16_SC(UINT16 *memAddr, register UINT16 newVal)
      return tmp;
   #elif defined(CORTEX_M0)
      BOOL tmp;
-     UINT32 priMask = GetPrimask();
+     UINT32 priMask = GetPriMask();
      _OSDisableInterrupts();
      if (_OSLLReserveBit) {      // Is the reservation still on?
         _OSLLReserveBit = FALSE;
@@ -142,7 +132,7 @@ inline BOOL OSUINT16_SC(UINT16 *memAddr, register UINT16 newVal)
      }
      else
         tmp = FALSE;
-     RestorPriMask(priMask);
+     RestorePriMask(priMask);
      return tmp;
   #endif
 } /* end of OSUINT16_SC */
@@ -156,13 +146,8 @@ inline INT16 OSINT16_LL(INT16 *memAddr)
      asm volatile ("LDREXH %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
-     INT16 tmp;
-     UINT32 priMask = GetPrimask();
-     _OSDisableInterrupts();
      _OSLLReserveBit = TRUE;     // Mark reserved
-     tmp = *memAddr;             // Return the contents of the memAddr location
-     RestorPriMask(priMask);
-     return tmp;
+     return *memAddr;            // Return the contents of the memAddr location
   #endif
 } /* end of OSINT16_LL */
 
@@ -177,7 +162,7 @@ inline BOOL OSINT16_SC(INT16 *memAddr, register INT16 newVal)
      return tmp;
   #elif defined(CORTEX_M0)
      BOOL tmp;
-     UINT32 priMask = GetPrimask();
+     UINT32 priMask = GetPriMask();
      _OSDisableInterrupts();
      if (_OSLLReserveBit) {      // Is the reservation still on?
         _OSLLReserveBit = FALSE;
@@ -186,7 +171,7 @@ inline BOOL OSINT16_SC(INT16 *memAddr, register INT16 newVal)
      }
      else
         tmp = FALSE;
-     RestorPriMask(priMask);
+     RestorePriMask(priMask);
      return tmp;
   #endif
 } /* end of OSINT16_SC */
@@ -200,13 +185,8 @@ inline UINT32 OSUINT32_LL(UINT32 *memAddr)
      asm volatile ("LDREX %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
-     UINT32 tmp;
-     UINT32 priMask = GetPrimask();
-     _OSDisableInterrupts();
      _OSLLReserveBit = TRUE;     // Mark reserved
-     tmp = *memAddr;             // Return the contents of the memAddr location
-     RestorPriMask(priMask);
-     return tmp;
+     return *memAddr;            // Return the contents of the memAddr location
   #endif
 } /* end of OSUINT32_LL */
 
@@ -221,7 +201,7 @@ inline BOOL OSUINT32_SC(UINT32 *memAddr, register UINT32 newVal)
      return tmp;
   #elif defined(CORTEX_M0)
      BOOL tmp;
-     UINT32 priMask = GetPrimask();
+     UINT32 priMask = GetPriMask();
      _OSDisableInterrupts();
      if (_OSLLReserveBit) {      // Is the reservation still on?
         _OSLLReserveBit = FALSE;
@@ -230,7 +210,7 @@ inline BOOL OSUINT32_SC(UINT32 *memAddr, register UINT32 newVal)
      }
      else
         tmp = FALSE;
-     RestorPriMask(priMask);
+     RestorePriMask(priMask);
      return tmp;
   #endif
 } /* end of OSUINT32_SC */
@@ -244,13 +224,8 @@ inline INT32 OSINT32_LL(INT32 *memAddr)
      asm volatile ("LDREX %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
-     INT32 tmp;
-     UINT32 priMask = GetPrimask();
-     _OSDisableInterrupts();
      _OSLLReserveBit = TRUE;     // Mark reserved
-     tmp = *memAddr;             // Return the contents of the memAddr location
-     RestorPriMask(priMask);
-     return tmp;
+     return *memAddr;            // Return the contents of the memAddr location
   #endif
 } /* end of OSINT32_LL */
 
@@ -265,7 +240,7 @@ inline BOOL OSINT32_SC(INT32 *memAddr, register INT32 newVal)
      return tmp;
   #elif defined(CORTEX_M0)
      BOOL tmp;
-     UINT32 priMask = GetPrimask();
+     UINT32 priMask = GetPriMask();
      _OSDisableInterrupts();
      if (_OSLLReserveBit) {      // Is the reservation still on?
         _OSLLReserveBit = FALSE;
@@ -274,7 +249,7 @@ inline BOOL OSINT32_SC(INT32 *memAddr, register INT32 newVal)
      }
      else
         tmp = FALSE;
-     RestorPriMask(priMask);
+     RestorePriMask(priMask);
      return tmp;
   #endif
 } /* end of OSINT32_SC */

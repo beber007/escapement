@@ -37,7 +37,7 @@
 ** the memory location is not reserved at the time of the call, the memory location is
 ** left unchanged. */
 
-/* Because the MSP430 line of processors do not have a reservation bit, we can emulates
+/* Because the MSP430 line of processors do not have a reservation bit, we can emulate
 ** the validity of the last LL instruction by clearing this indicator whenever there is a
 ** context switch. This action is done in ZottaOS_msp430XXX.asm or ZottaOS_cc430XXX.asm.
 **/

@@ -17,7 +17,7 @@
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
 /* File ZottaOS_Types.h: Contains common data types that are compiler specific.
-** Platform version: All CORTEX-Mx microcontrollers.
+** Platform version: All Cortex-Mx based microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
 */

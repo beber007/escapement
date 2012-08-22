@@ -262,7 +262,7 @@ void IdleTask(void *argument)
 {
   if (_OSQueueHead->Next[ARRIVALQ] != (TCB *)OSQueueTail || SynchronousTaskList != NULL) {
      #ifdef NonMaskableSoftwareTimer
-	    /* Switch to normal processing of task signaling, see EnqueueRescheduleQueue-
+        /* Switch to normal processing of task signaling, see EnqueueRescheduleQueue-
         ** BeforeBoot defined below. */
         EnqueueRescheduleQueue = EnqueueRescheduleQueueAfterBoot;
      #endif
