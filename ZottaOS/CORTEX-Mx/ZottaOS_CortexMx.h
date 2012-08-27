@@ -31,10 +31,7 @@
 #define MARKEDBIT    0x80000000u
 #define UNMARKEDBIT  0x7FFFFFFFu
 
-/* _OSIOHandler: Routine de traitement générique des interruptions. A noter que si
-** plusieurs timer utilisant le même vecteur sont utilisé, alors c'est la routine
-** _OSIOHandlerMultiTimer qui est utilisée. _OSIOHandlerMultiTimer est definit dans
-**  ZottaOS_Timer.c */
+/* _OSIOHandler: Interrupt service routine called whenever an IRQ is raised. */
 void _OSIOHandler(void);
 
 /* _OSEnableInterrupts and _OSDisableInterrupts: Macros changing the state of the special
@@ -56,17 +53,20 @@ void _OSIOHandler(void);
 /* _OSScheduleTask: Generates a PendSV exception, which will interrupt and proceed at the
 ** lowest interrupt priority to handler _OSContextSwapHandler (defined in assembler in
 ** ZottaOS_CortexMx_a.S). Sets bit PENDSVSET of ICSR (0xE000ED04). */
-#define _OSScheduleTask() (*((UINT32 *)0xE000ED04) = 0x10000000) // Claude
+#define _OSScheduleTask() (*((UINT32 *)0xE000ED04) = 0x10000000)  /* Note that the write
+** bits of ICSR take effect only if they are set, hence as assign ment is the proper way
+** to set a bit. */
 
 /* _OSGenerateSoftTimerInterrupt: Called by the timer peripheral to generate a SysTick
 ** exception, which will interrupt and continue with a smaller priority to handler
 ** _OSTimerInterruptHandler defined in ZottaOSHard.c or ZottaOSSoft.c. Sets bit PENDSTSET
-** of ICSR (0xE000ED04). */
+** of ICSR (0xE000ED04). (See note in _OSScheduleTask) */
 #define _OSGenerateSoftTimerInterrupt() (*((UINT32 *)0xE000ED04) = 0x4000000)
 
 /* _OSClearSoftTimerInterrupt: Called by _OSTimerInterruptHandler binded to the SysTick
 ** exception to remove its interrupt pending status. In other words, a new SysTick excep-
-** tion can be raised. Sets bit PENDSTCLR of ICSR (0xE000ED04). */
+** tion can be raised. Sets bit PENDSTCLR of ICSR (0xE000ED04). (See note in _OSSchedule-
+** Task) */
 #define _OSClearSoftTimerInterrupt() (*((UINT32 *)0xE000ED04) = 0x2000000)
 
 #endif /* _ZOTTAOS_CORTEXMX_H_ */
