@@ -35,12 +35,12 @@
 **      will be set to f(input)/(prescaler+1).
 **  (3) (UINT8) priority: priority level of the timer;
 **  (4) (UINT8) subpriority: subpriority level of the timer;
-**  (5) (UINT8) interruptIndex: index denoting the timer device;. */
+**  (5) (UINT16) interruptIndex: index denoting the timer device. */
 #if defined(CORTEX_M3) || defined(CORTEX_M4)
 void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 subpriority,
-                      UINT8 interruptIndex);
+                      UINT16 interruptIndex);
 #elif defined(CORTEX_M0)
-void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 interruptIndex);
+void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT16 interruptIndex);
 #endif
 
 /* OSScheduleTimerEvent: Entry point to insert an event into the event list associated
@@ -49,16 +49,16 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
 **  (1) (void *) the event to insert;
 **  (2) (UINT32) relative time of occurrence of the event, this value should be smaller
 **              than 2^30.
-**  (3) (UINT8) index denoting the timer device.
+**  (3) (UINT16) index denoting the timer device.
 ** Returned value: (BOOL) successfulness of the operation. */
-BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex);
+BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT16 interruptIndex);
 
 /* OSUnScheduleTimerEvent: Entry point to remove the first occurrence of a specified
 ** event from the list associated with a timer.
 ** Parameters:
 **  (1) (void *) the event to remove;
-**  (2) (UINT8) index denoting the timer device.
+**  (2) (UINT16) index denoting the timer device.
 ** Returned value: (BOOL) successfulness of the operation. */
-BOOL OSUnScheduleTimerEvent(void *event, UINT8 interruptIndex);
+BOOL OSUnScheduleTimerEvent(void *event, UINT16 interruptIndex);
 
 #endif /* _TIMEREVENT_ */
