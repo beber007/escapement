@@ -37,7 +37,7 @@
 ** REGISTER SAVING
 **   At the time of a Cortex-Mx interruption, the registers given below are automatically
 **   saved on the run-time stack, and when returning from an interrupt, these registers
-**   are restored in same manner.
+**   are restored in the same manner.
 **   Old SP (N)         (Previously pushed data)
 **          (N-4)   PSR (Status register)
 **          (N-8)   PC  (Program counter)
@@ -52,7 +52,7 @@
 **       task must be removed.
 **   (2) When a new task instance must be started, the above registers are explicitly
 **       placed on the run-time stack so that a return from interruption can be emulated.
-**   The other registers (R4-R11 for Cortex-M3 and -M4, and R4-R7 for Cortex-M0) must be
+**   The other registers (R4-R11 for Cortex-M3 and -M4, or R4-R7 for Cortex-M0) must be
 **   explicitly saved by the interrupt handlers if they use them. Note that when the in-
 **   terrupt handler is a C function, the compiler automatically generates the necessary
 **   code to store and restore these registers. There can be no possible corruption of
@@ -60,28 +60,33 @@
 **   application tasks, all these registers must be explicitly saved during a context
 **   switch because the registers used by the task (a C function) are never restored when
 **   the instance finishes.
-**   The actions to do depend upon on the state of _OSActiveTask and of _OSNoSaveContext
-**   which applies to the currently active entity (a task or ISR that has reached comple-
-**   tion or a task that was preempted):
-**     +--------------------------+------------------------+------------------------+
-**     | _OSActiveTask->TaskState | = STATE_RUNNING        | = STATE_INIT           |
-**     +--------------------------+------------------------+------------------------+
-**     | _OSNoSaveContext = TRUE  | wipe out the stack of  | wipe out the stack of  |
-**     |                          | thecurrent executing   | the current executing  |
-**     |                          | entityand return to a  | entity and start a new |
-**     |                          | preemptedtask          | task                   |
-**     +--------------------------+------------------------+------------------------+
-**     |_OSNoSaveContext = FALSE  | restore preempted task | impossible combinaison |
-**     +--------------------------+------------------------+------------------------+
+**   The actions to do depend upon on the state of:
+**   (1) _OSActiveTask (always refers to the task at the head of the ready queue) and
+**   (2) _OSNoSaveContext which applies to the currently active entity (a task or an ISR
+**       that has reached completion or a task that was preempted).
+**
+**     +--------------------------+-------------------------+------------------------+
+**     | _OSActiveTask->TaskState |    = STATE_RUNNING      |     = STATE_INIT       |
+**     +--------------------------+-------------------------+------------------------+
+**     | _OSNoSaveContext = TRUE  | wipe out the stack of   | wipe out the stack of  |
+**     |                          | the currently executing | the current executing  |
+**     |                          | entity and return to a  | entity and start a new |
+**     |                          | preempted task          | task                   |
+**     +--------------------------+-------------------------+------------------------+
+**     |_OSNoSaveContext = FALSE  | restore preempted task  | save manual registers  |
+**     |                          |                         | and start a new task   |
+**     +--------------------------+-------------------------+------------------------+
+**
 **   _OSContextSwapHandler basically implements the following pseudo code:
 **    1. push automatically saved registers onto the stack (done by processor at entry)
 **    2. if _OSNoSaveContext then
 **          _OSNoSaveContext := false
 **          SP := _OSStackBasePointer   (clear stack)
 **          if _OSActiveTask->TaskState = STATE_RUNNING then
+**             restore previous _OSStackBasePointer
 **             pop manually saved registers
-**             save previous _OSStackBasePointer
 **          else
+**             _OSActiveTask->TaskState := STATE_RUNNING
 **             set new LR, PC, and SR
 **             create a minimal context composed of the automatically saved registers
 **          end if
@@ -133,77 +138,72 @@
 .text
 .thumb_func
 _OSContextSwapHandler:
-  /* Check if the context must be saved. */
-  LDR R0,=_OSNoSaveContext
-  LDR R2,=_OSStackBasePointer
-  LDR R1,=_OSActiveTask
-  LDR R1,[R1]
-  LDRB R3,[R0]
-  CBNZ R3,_OSContextSwapHandler_ClearStack   /* Jump if _OSNoSaveContext = TRUE */
-  /* Check Active Task State is RUNNING?*/
-  LDRB R0,[R1,#8]
-  AND R3,R0,#1
-  CBNZ R3,_OSContextSwapHandler_End /* Jump if _OSActiveTask is RUNNING */
-  /* Save the context of the task */
-  LDR R3,[R2]
-  PUSH {R3,R4-R11}    /* R3 is previous _OSStackBasePointer */
-  MRS R3,MSP          /* Retreive SP */
-  STR R3,[R2]         /* Update _OSStackBasePointer */
+  LDR R0,=_OSNoSaveContext                 ; R0 <- addr(_OSNoSaveContext)
+  LDR R2,=_OSStackBasePointer              ; R2 <- addr(_OSStackBasePointer)
+  LDR R1,=_OSActiveTask                    ; R1 <- addr(_OSActiveTask)
+  LDR R1,[R1]                              ; R1 <- _OSActiveTask
+  /* Is caller with _OSNoSaveContext? */
+  LDRB R3,[R0]                             ; R3 <- _OSNoSaveContext
+  CBNZ R3,_OSContextSwapHandler_ClearStack ; Jump if _OSNoSaveContext = TRUE
+  /* Is active task state RUNNING?*/
+  LDRB R0,[R1,#8]                          ; R0 <- _OSActiveTask->TaskState
+  AND R3,R0,#1                             ; R3 <- R0 & STATE_RUNNING
+  CBNZ R3,_OSContextSwapHandler_End        ; Jump if _OSActiveTask is STATE_RUNNING
+  /* Save the context of the task: context switching from an active task to a new task */
+  LDR R3,[R2]                              ; R3 <- _OSStackBasePointer
+  PUSH {R3,R4-R11}                         ; push R4-R11 and _OSStackBasePointer
+  MRS R3,MSP                               ; retrieve SP: R3 <- SP
+  STR R3,[R2]                              ; _OSStackBasePointer <- SP
   B _OSContextSwapHandler_CreateNewContext
 .thumb_func
 _OSContextSwapHandler_ClearStack:
   /* Set _OSNoSaveContext to FALSE */
-  MOV R3,#0
-  STRB R3,[R0]
-  /* Clear Stack */
-  LDR R3,[R2]
-  MSR MSP,R3
-  /* Check Active Task State is RUNNING?*/
-  LDRB R0,[R1,#8]
-  AND R3,R0,#1
-  CBNZ R3,_OSContextSwapHandler_RestoreContext /* Jump if _OSActiveTask is RUNNING */
+  MOV R3,#0                                ; R3 <- FALSE
+  STRB R3,[R0]                             ; _OSNoSaveContext <- 0
+  /* Clear stack */
+  LDR R3,[R2]                              ; R3 <- _OSStackBasePointer
+  MSR MSP,R3                               ; SP <- _OSStackBasePointer
+  /* Is active task state STATE_RUNNING? */
+  LDRB R0,[R1,#8]                          ; R0 <- _OSActiveTask->TaskState
+  AND R3,R0,#1                             ; R3 <- R0 & STATE_RUNNING
+  CBNZ R3,_OSContextSwapHandler_RestoreContext ; Jump if _OSActiveTask is STATE_RUNNING
 .thumb_func
 _OSContextSwapHandler_CreateNewContext:
-  /* Set the state of the new task to RUNNING */
-  ORR R0,R0,#1
-  STRB R0,[R1,#8]
+  /* Set the state of the new task to STATE_RUNNING */
+  ORR R0,R0,#1                             ; R0 (= _OSActiveTask->TaskState) |= STATE_RUNNING
+  STRB R0,[R1,#8]                          ; _OSActiveTask->TaskState <- R0
   /* Create a new context on the stack */
-  /* Set task entry point and task argument */
 #if defined(ZOTTAOS_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-  /* Retrieve task entry point */
-  LDR R2,[R1,#20]
-  /* Retrieve task argument */
-  LDR R0,[R1,#24]
+  LDR R2,[R1,#20]                          ; R2 <- task entry point
+  LDR R0,[R1,#24]                          ; R0 <- task argument
 #else
-  /* Retrieve task entry point */
-  LDR R2,[R1,#16]
-  /* Retrieve task argument */
-  LDR R0,[R1,#20]
+  LDR R2,[R1,#16]                          ; R2 <- task entry point
+  LDR R0,[R1,#20]                          ; R0 <- task argument
 #endif
-  /* Set link register */
-  MOV R1,#0xFFFFFFF9
-  /* Set status register */
-  MOV R3,#0x01000000
-  /* Push Automatically saved registers */
-  PUSH {R1-R3}       /* R1(LR), R2(entry point), R3(PSR) */
-  PUSH {R0-R3,R12}   /* R0(task argument), R1-R3 & R12(empty) */
+  /* Set link register to return to thread mode and on return use the main stack */
+  MOV R1,#0xFFFFFFF9                       ; R1 <- new LR
+  /* Set status register to thumb state */
+  MOV R3,#0x01000000                       ; R3 <- new PSR
+  /* Push automatically saved registers */
+  PUSH {R1-R3}                             ; R1(LR), R2(entry point=PC), R3(PSR)
+  PUSH {R0-R3,R12}                         ; R0(task argument), R1-R3 & R12(empty)
   B _OSContextSwapHandler_End
 .thumb_func
 _OSContextSwapHandler_RestoreContext:
-  POP {R0,R4-R11}    /* R0 for previous StackBasePointer */
-  STR R0,[R2]        /* Update StackBasePointer */
+  /* Pop manually saved registers */
+  POP {R0,R4-R11}                          ; R0 = previous _OSStackBasePointer
+  STR R0,[R2]                              ; _OSStackBasePointer <- R0
 .thumb_func
 _OSContextSwapHandler_End:
-  /* Make all pending SC() fail */
-  CLREX
+  CLREX                                    ; Make all pending SC() fail
   BX LR
   NOP
 /* end of _OSContextSwapHandler */
 .end
 #elif defined(CORTEX_M0)
 /* _OSContextSwapHandler: Same as for Cortex-M3 and Cortex-M4 except that the manually
-** saved general purpose registers are R4 - R7 instead of R4 - R11, and MOV assembler
-** instruction becomes MOVS under Cortex-M0.
+** saved general purpose registers are R4 - R7 instead of R4 - R11, and there are minor
+** assembler changes, e.g. MOV becomes MOVS, etc.
 ** Contents of the run-time stack when this function is called:
 ** SP ->                           Local variables of the interrupted or terminated task
 **                                   ...
@@ -223,77 +223,73 @@ _OSContextSwapHandler_End:
 .text
 .thumb_func
 _OSContextSwapHandler:
-  /* Check if the context must be saved? */
-  LDR R0,=_OSNoSaveContext
-  LDR R2,=_OSStackBasePointer
-  LDR R1,=_OSActiveTask
-  LDR R1,[R1]
-  LDRB R3,[R0]
-  CMP R3,#1
-  BEQ _OSContextSwapHandler_ClearStack   /* Jump if _OSNoSaveContext = TRUE */
-  /* Check Active Task State is RUNNING?*/
-  LDRB R0,[R1,#8]
-  MOVS R3,#1
-  ANDS R0,R3
-  BNE _OSContextSwapHandler_End /* Jump if _OSActiveTask is RUNNING */
-  /* Save the context of the task */
-  LDR R3,[R2]
-  PUSH {R3,R4-R7}     /* R3 is previous _OSStackBasePointer */
-  MRS R3,MSP          /* Retreive SP */
-  STR R3,[R2]         /* Update _OSStackBasePointer */
+  LDR R0,=_OSNoSaveContext                 ; R0 <- addr(_OSNoSaveContext)
+  LDR R2,=_OSStackBasePointer              ; R2 <- addr(_OSStackBasePointer)
+  LDR R1,=_OSActiveTask                    ; R1 <- addr(_OSActiveTask)
+  LDR R1,[R1]                              ; R1 <- _OSActiveTask
+  /* Is caller with _OSNoSaveContext? */
+  LDRB R3,[R0]                             ; R3 <- _OSNoSaveContext
+  CMP R3,#1                                ; is R3 = TRUE?
+  BEQ _OSContextSwapHandler_ClearStack     ;   Yes: jump
+  /* Is active task state RUNNING?*/
+  LDRB R0,[R1,#8]                          ; R0 <- _OSActiveTask->TaskState
+  MOVS R3,#1                               ; R3 <- STATE_RUNNING (= 1)
+  ANDS R0,R3                               ; R0 <- R0 & STATE_RUNNING
+  BNE _OSContextSwapHandler_End            ; Jump if _OSActiveTask is STATE_RUNNING
+  /* Save the context of the task: context switching from an active task to a new task */
+  LDR R3,[R2]                              ; R3 <- _OSStackBasePointer
+  PUSH {R3,R4-R7}                          ; push R4-R11 and _OSStackBasePointer
+  MRS R3,MSP                               ; retrieve SP: R3 <- SP
+  STR R3,[R2]                              ; _OSStackBasePointer <- SP
   B _OSContextSwapHandler_CreateNewContext
 .thumb_func
 _OSContextSwapHandler_ClearStack:
   /* Set _OSNoSaveContext to FALSE */
-  MOVS R3,#0
-  STRB R3,[R0]
+  MOVS R3,#0                               ; R3 <- FALSE
+  STRB R3,[R0]                             ; _OSNoSaveContext <- 0
   /* Clear Stack */
-  LDR R3,[R2]
-  MSR MSP,R3
-  /* Check Active Task State is RUNNING?*/
-  LDRB R0,[R1,#8]
-  MOVS R3,#1
-  ANDS R0,R3
-  BNE _OSContextSwapHandler_RestoreContext /* Jump if _OSActiveTask is RUNNING */
+  LDR R3,[R2]                              ; R3 <- _OSStackBasePointer
+  MSR MSP,R3                               ; SP <- _OSStackBasePointer
+  /* Is active task state STATE_RUNNING? */
+  LDRB R0,[R1,#8]                          ; R0 <- _OSActiveTask->TaskState
+  MOVS R3,#1                               ; R3 <- STATE_RUNNING
+  ANDS R0,R3                               ; R0 <- R0 & STATE_RUNNING
+  BNE _OSContextSwapHandler_RestoreContext ; Jump if _OSActiveTask is STATE_RUNNING
 .thumb_func
 _OSContextSwapHandler_CreateNewContext:
-  /* Set the state of the new task to RUNNING */
-  MOVS R3,#1
-  ORRS R0,R0,R3
-  STRB R0,[R1,#8]
+  /* Set the state of the new task to STATE_RUNNING */
+  MOVS R3,#1                               ; R3 <- STATE_RUNNING
+  ORRS R0,R0,R3                            ; R0 (= _OSActiveTask->TaskState) |= STATE_RUNNING
+  STRB R0,[R1,#8]                          ; _OSActiveTask->TaskState <- R0
   /* Create a new context on the stack */
-  /* Set task entry point and task argument */
 #if defined(ZOTTAOS_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-  /* Retrieve task entry point */
-  LDR R2,[R1,#20]
-  /* Retrieve task argument */
-  LDR R0,[R1,#24]
+  LDR R2,[R1,#20]                          ; R2 <- task entry point
+  LDR R0,[R1,#24]                          ; R0 <- task argument
 #else
-  /* Retrieve task entry point */
-  LDR R2,[R1,#16]
-  /* Retrieve task argument */
-  LDR R0,[R1,#20]
+  LDR R2,[R1,#16]                          ; R2 <- task entry point
+  LDR R0,[R1,#20]                          ; R0 <- task argument
 #endif
-  /* Set link register to 0xFFFFFFF9 */
+  /* Set link register to return to thread mode and on return use the main stack (0xFFFFFFF9) */
   MOVS R1,#0
-  SUBS R1,R1,#7
-  /* Set status register to 0x01000000 */
-  MOVS r3,#1
-  LSLS r3, r3,#24
-  /* Push Automatically saved registers */
-  PUSH {R1-R3}       /* R1(LR), R2(entry point), R3(PSR) */
-  PUSH {R0-R3,R4}    /* R0(task argument), R1-R3 & R12(empty) */
+  SUBS R1,R1,#7                            ; R0 <- 0 - 7 = 0xFFFFFFF9
+  /* Set status register to thumb state (0x01000000) */
+  MOVS R3,#1
+  LSLS R3, R3,#24                          ; R3 <- 1 << 24 = 0x01000000  
+  /* Push automatically saved registers */
+  PUSH {R1-R3}                             ; R1(LR), R2(entry point=PC), R3(PSR)
+  PUSH {R0-R3,R4}                          ; R0(task argument), R1-R3 & R4(empty)
   B _OSContextSwapHandler_End
 .thumb_func
 _OSContextSwapHandler_RestoreContext:
-  POP {R0,R4-R7}     /* R0 for previous StackBasePointer */
-  STR R0,[R2]        /* Update StackBasePointer */
+  /* Pop manually saved registers */
+  POP {R0,R4-R7}                           ; R0 = previous _OSStackBasePointer
+  STR R0,[R2]                              ; _OSStackBasePointer <- R0
 .thumb_func
 _OSContextSwapHandler_End:
   /* Make all pending SC() fail */
-  LDR R0,=_OSLLReserveBit
-  MOVS R3,#0
-  STRB R3,[R0]
+  LDR R0,=_OSLLReserveBit                  ; R0 <- addr(_OSLLReserveBit)
+  MOVS R3,#0                               ; R3 <- FALSE
+  STRB R3,[R0]                             ; _OSLLReserveBit <- FALSE
   BX LR
   NOP
 /* end of _OSContextSwapHandler */
