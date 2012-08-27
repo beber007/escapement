@@ -16,8 +16,7 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOSHard_Timer.h: Defines the interface between the hardware timer and
-**                           ZottaOS-Hard.
+/* File ZottaOS_Timer.h: Defines the interface between the hardware timer and ZottaOS.
 ** Platform version: All STM32 microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC
@@ -36,8 +35,8 @@
 ** software ISR and it may be triggered any time and as often as there is an event to
 ** process.
 ** This scheme provides 2 main advantages:
-** (1) The latency associated with the time events can be kept to a minimal (18 machine
-**     cycles for MSP430) as only the keeping of time executes in a critical section.
+** (1) The latency associated with the time events can be kept to a minimal as only the
+**     keeping of time executes in a critical section.
 ** (2) The scheme can be ported to any microcontroller independently of whether it has
 **     prioritized interrupts or not. */
 
@@ -63,31 +62,12 @@ BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit);
 
 /* _OSSetTimer: Sets the timer to interrupt at a specified value. This function is called
 ** by the software timer ISR to set the next time event.
-** Parameter: (INT32) nextTimeInterval: time duration until the next hardware timer in-
-**                    terrupt, i.e. the time of the next event minus the current time.
-** Return: claude             */
+** Parameter: (INT32) nextArrivalTime: next compare register time interrupt. This is the
+**                    earliest time at which the timer ISR should again acquire the proc-
+**                    essor so that it can schedule the next task arrival.
+** Returned value: (BOOL) true if the compare register has been correctly assigned, and
+** false if the nextArrivalTime has been passed and missed. In this last case, the ISR
+** should consider that the event has occurred and process it. */
 BOOL _OSSetTimer(INT32 nextArrivalTime);
-
-/* Claude */
-/* Lors de l'initialisation, une structure TIMERSELECT est déclarée pour chaque entrée de la table
-** _OSTabDevice qui correspond à un vecteur ayant comme source plusieurs timer.
-** Ceci permet l'appel à la fonction _OSTimerSelectorHandler afin de déterminer qu'elle timer
-** est la source de l'interruption.
-**
-** Les fonction OSSetTimerISRDescriptor et OSGetTimerISRDescriptor (ZottaOS_Interrupt.h) permette de
-** modifier ou de récupèrer les handlers dans les structures TIMERSELECT. */
-
-#define TIMER_ISR_TAB_SIZE 2 // Nombre de sous-source d'un vecteur (ici tjs 2)
-
-typedef struct TIMERSELECT {
-   void (*TimerSelector)(struct TIMERSELECT *); // contient tjs _OSTimerSelector
-   void *TimerISRTab[TIMER_ISR_TAB_SIZE];       // handler pour les sous-source
-   UINT32 BaseRegisterTab[TIMER_ISR_TAB_SIZE];  // Adresse de base des registers des timers
-   UINT16 InterruptBit;                         // Valeur du bit correspond à la source d'interruption dans les registres
-} TIMERSELECT;
-
-/* _OSTimerSelector: Handler d'interruption utilisé dans le cas d'un vecteur servant plusieurs timers.
-** Parameter: (struct TIMERSELECT *) timerSelect: descripteur contenant les informations permettant de déterminer la source d'interruption et les handler à appeler. */
-void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect);
 
 #endif /* ZOTTAOS_TIMER_H */
