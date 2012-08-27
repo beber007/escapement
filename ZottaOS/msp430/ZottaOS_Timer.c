@@ -121,9 +121,9 @@ BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
 } /* end of _OSTimerIsOverflow */
 
 
-/* OSGetActualTime: Returns the current value of the wall clock. Combines the 16 bits of
+/* _OSGetActualTime: Returns the current value of the wall clock. Combines the 16 bits of
 ** the timer counter with the global variable Time to yield the current time.*/
-INT32 OSGetActualTime(void)
+INT32 _OSGetActualTime(void)
 {
   INT16 currentTime;
   INT32 tmp;
@@ -132,4 +132,4 @@ INT32 OSGetActualTime(void)
      tmp = (INT32)_OSTime << 16 | OSTimerCounter;
   } while (currentTime != _OSTime);
   return tmp;
-} /* end of OSGetActualTime */
+} /* end of _OSGetActualTime */

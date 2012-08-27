@@ -441,7 +441,7 @@ void ScheduleNextTask(void)
         /* For optional tasks, we need to check if the instance can finish its work once
         ** it begins its execution. And then if it can, promote the instance to its base
         ** priority so that higher priority optional instances cannot preempt it. */
-        if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > OSGetActualTime() &&
+        if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > _OSGetActualTime() &&
             IsTaskSchedulable()) {
            _OSActiveTask->Priority = _OSActiveTask->StaticPriority;
            break;
@@ -457,7 +457,7 @@ void ScheduleNextTask(void)
         ** sentinel marked by _OSQueueTail. */
         while ((_OSActiveTask = _OSQueueTail->Next[READYQ]) != NULL) {
            if ((_OSActiveTask->TaskState & STATE_DROP) == 0) {
-              if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > OSGetActualTime() &&
+              if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > _OSGetActualTime() &&
                   IsTaskSchedulable()) {
                  /* Move the optional to the head of the ready queue */
                  _OSActiveTask->TaskState |= STATE_ACTIVATE;
@@ -478,7 +478,7 @@ void ScheduleNextTask(void)
      }
   #endif
   if (_OSActiveTask->TaskState == TASKTYPE_BLOCKING)
-     _OSActiveTask->NextArrivalTimeLow = OSGetActualTime() + _OSActiveTask->PeriodLow;
+     _OSActiveTask->NextArrivalTimeLow = _OSGetActualTime() + _OSActiveTask->PeriodLow;
   _OSScheduleTask();
 } /* end of ScheduleNextTask */
 
@@ -532,7 +532,7 @@ BOOL IsTaskSchedulable(void)
   }
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      /* Scan through all event-driven tasks. */
-     partial = OSGetActualTime();
+     partial = _OSGetActualTime();
      for (etcb = SynchronousTaskList; etcb != NULL; etcb = etcb->NextETCB)
         if (etcb->StaticPriority < _OSActiveTask->StaticPriority) {
            if (etcb->NextArrivalTimeLow > partial)
@@ -553,7 +553,7 @@ BOOL IsTaskSchedulable(void)
      ** optional task is active, it must let a fraction of AperiodicUtilization / 256 to
      ** these tasks. */
      if (AperiodicUtilization > 0) {
-        partial = OSGetActualTime();
+        partial = _OSGetActualTime();
         if (SynchronousTaskDeadlines > partial)
            totalWork = ((totalWork << 8) - (SynchronousTaskDeadlines - partial) *
                                     AperiodicUtilization) / (256 - AperiodicUtilization);
@@ -561,7 +561,7 @@ BOOL IsTaskSchedulable(void)
            totalWork = (totalWork << 8) / (256 - AperiodicUtilization);
      }
   #endif
-  return totalWork + OSGetActualTime() < _OSActiveTask->NextDeadline;
+  return totalWork + _OSGetActualTime() < _OSActiveTask->NextDeadline;
 } /* end of IsTaskSchedulable */
 
 
@@ -645,7 +645,7 @@ void _OSTimerInterruptHandler(void)
      while (TRUE) {
         _OSComparatorInterruptFlag = FALSE;
         /* Transfer all new arrivals to the ready queue. */
-        currentTime = OSGetActualTime();
+        currentTime = _OSGetActualTime();
         arrival = _OSQueueHead->Next[ARRIVALQ];
         while (arrival->NextArrivalTimeLow <= currentTime &&
              ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {

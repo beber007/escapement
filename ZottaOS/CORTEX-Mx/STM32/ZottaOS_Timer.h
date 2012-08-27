@@ -53,10 +53,10 @@ void _OSInitializeTimer(void);
 /* _OSStartTimer: Orders the hardware timer to begin counting. */
 void _OSStartTimer(void);
 
-/* OSGetActualTime: Retrieve the current time.
-** Returned value: (INT32) current time.
-** This function is defined as INT32 OSGetActualTime(void) and is defined in the user API
-** for kernel version. */
+/* _OSGetActualTime: Returns the current value of the wall clock.
+** Parameters: Node
+** Returned value: (INT32) current time. */
+INT32 _OSGetActualTime(void);
 
 /* _OSTimerIsOverflow: return true if a timer overflow occurs. */
 BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit);

@@ -158,11 +158,6 @@ BOOL OSStartMultitasking(void (*f)(void *), void *argument);
 ** ZottaOSconf.exe. */
 void *OSMalloc(UINT16 size);
 
-/* OSGetActualTime: Returns the current value of the wall clock.
-** Parameters: Node
-** Returned value: (INT32) current time. */
-INT32 OSGetActualTime(void);
-
 
 /* PERIODIC HARD REAL-TIME TASK FUNCTIONS -------------------------------------------- */
 /* OSCreateTask: Creates a periodic task with its timing characteristics. The period of a

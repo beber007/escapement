@@ -56,7 +56,7 @@ void _OSIOHandler(void);
 /* _OSScheduleTask: Generates a PendSV exception, which will interrupt and proceed at the
 ** lowest interrupt priority to handler _OSContextSwapHandler (defined in assembler in
 ** ZottaOS_CortexMx_a.S). Sets bit PENDSVSET of ICSR (0xE000ED04). */
-#define _OSScheduleTask() (*((UINT32 *)0xE000ED04) |= 0x10000000)         beber: devrait etre |= pour ne pas ecraser les autres bits, n'y a t-il pas un bis?
+#define _OSScheduleTask() (*((UINT32 *)0xE000ED04) = 0x10000000) // Claude
 
 /* _OSGenerateSoftTimerInterrupt: Called by the timer peripheral to generate a SysTick
 ** exception, which will interrupt and continue with a smaller priority to handler

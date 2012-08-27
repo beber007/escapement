@@ -424,7 +424,7 @@ void _OSTimerInterruptHandler(void)
      while (TRUE) {
         _OSComparatorInterruptFlag = FALSE;
         /* Transfer all new arrivals to the ready queue. */
-        currentTime = OSGetActualTime();
+        currentTime = _OSGetActualTime();
         arrival = _OSQueueHead->Next[ARRIVALQ];
         while (arrival->NextArrivalTimeLow <= currentTime &&
              ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {

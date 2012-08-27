@@ -346,10 +346,6 @@ void _OSIOHandler(void)
   #endif
   /* Call the specific handler */
   peripheralIODescriptor->PeripheralInterruptHandler(peripheralIODescriptor);
-  if (_OSActiveTask != NULL) { /* Has the kernel started? */ //claude? qui sauve r4-r11? pourquoi revenir a la tache?
-     FinalizeContextSwitchPreparation(); // Return to the preempted task
-     _OSScheduleTask();  // and generate context swap software interrupt
-  }
   // Make all pending SC() fail
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
      __asm("CLREX;"); 
