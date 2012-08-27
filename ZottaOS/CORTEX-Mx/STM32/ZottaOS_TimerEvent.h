@@ -16,8 +16,8 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File TimerEvent.h: Provides an API that transforms a timer device into a manager that
-** schedules event-driven tasks.
+/* File ZottaOSTimerEvent.h: Provides an API that transforms a timer device into a manag-
+ * er that schedules event-driven tasks.
 ** Platform version: All STM32 microcontrollers.
 ** Version date: April 2012
 ** Authors: MIS-TIC
@@ -30,11 +30,12 @@
 ** device that is used as an event handler and which can schedule a list of event at
 ** their occurrence time.
 ** Parameters:
-**  (1) (UINT8) maximum number of pending events;
-**  (2) (UINT8) index denoting the timer device;
-**  (3) (UINT16) ;
-**  (4) (UINT8) ;
-**  (5) (UINT8) . */
+**  (1) (UINT8) nbNode: maximum number of pending events;
+**  (2) (UINT8) prescaler: divides the counter clock frequency, i.e. the timer frequency
+**      will be set to f(input)/(prescaler+1).
+**  (3) (UINT8) priority: priority level of the timer;
+**  (4) (UINT8) subpriority: subpriority level of the timer;
+**  (5) (UINT8) interruptIndex: index denoting the timer device;. */
 #if defined(CORTEX_M3) || defined(CORTEX_M4)
 void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 subpriority,
                       UINT8 interruptIndex);

@@ -80,7 +80,7 @@ void _OSStartTimer(void)
   // For PA kernel version, the software timer interrupt is enable in _OSSleep function
   // after idle task stack pointer backup operation.
   #if !defined(ZOTTAOS_VERSION_HARD_PA) && !defined(ZOTTAOS_VERSION_SOFT_PA)
-    _OSEnableSoftTimerInterrupt();
+     _OSEnableSoftTimerInterrupt();
   #endif
 } /* end of _OSStartTimer */
 
