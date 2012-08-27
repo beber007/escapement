@@ -777,13 +777,18 @@ void (* const STM32VectorTable[])(void) = {
 ** selves to multiple sources that have at least a timer that can be selected as the in-
 ** ternal timer for ZottaOS.) */
 
+/* Definition of a minimal peripheral descriptor to retrieve the peripheral interrupt
+** handler routine */
+typedef struct MinimalIODescriptor {
+   void (*isr)(void *);
+} MinimalIODescriptor;
+
 /* IRQ bound to 2 different timer devices */
-#define TIMER_ISR_TAB_SIZE 2   // Number of timers bound to the same IRQ value (always 2)
 typedef struct TIMERSELECT {
-   void (*TimerSelector)(struct TIMERSELECT *);  // Selector function (_OSTimerSelectorHandler)
-   void *TimerISRDescriptor[TIMER_ISR_TAB_SIZE]; // Specified ISR handlers for the sources
-   UINT32 BaseRegister[TIMER_ISR_TAB_SIZE];      // Starting address of the timer registers
-   UINT16 FirstEntryMask;                        // Interrupt enable bits of an interrupt
+   void (*TimerSelector)(struct TIMERSELECT *); // Selector function (_OSTimerSelectorHandler)
+   MinimalIODescriptor TimerISRDescriptor[2];   // Specified ISR handlers for the sources
+   UINT32 BaseRegister[2];                      // Starting address of the timer registers
+   UINT16 FirstEntryMask;                       // Interrupt enable bits of an interrupt
 } TIMERSELECT;
 static void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect);
 /* How does this work?
@@ -1097,6 +1102,7 @@ static void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect);
          NULL,             /* 19  OS_IO_USB_HP */
       #else
          NULL,
+      #endif
       #if defined(STM32F103X4_X6) || defined(STM32F103T8_TB) || \
           defined(STM32F103C8_CB_R8_RB_V8_VB)
          NULL,             /* 20  OS_IO_USB_LP_CAN1_RX0 */
@@ -1681,7 +1687,7 @@ void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect)
 {
   #define OFFSET_STATUS 0x10 // Offset to retrieve the interrupt status register
   #define OFFSET_ENABLE 0x0C // Offset to retrieve the interrupt enable bit register
-  void (*peripheralIODescriptor)void *);
+  void (*peripheralIODescriptor)(void *);
 
   /* The first timer device bound the IRQ may also be bound to one of its specific inter-
   ** rupt sources (break, update or trigger-commutation). This is why we also need to mask
@@ -1689,15 +1695,15 @@ void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect)
   if (*(UINT32 *)(timerSelect->BaseRegister[0] + OFFSET_STATUS) &
       *(UINT32 *)(timerSelect->BaseRegister[0] + OFFSET_ENABLE) &
       timerSelect->FirstEntryMask) {  // Did the first timer device raise the interrupt?
-     peripheralIODescriptor = timerSelect->TimerISRDescriptor[0];
-     peripheralIODescriptor->TimerIntHandler(peripheralIODescriptor);
+     peripheralIODescriptor = timerSelect->TimerISRDescriptor[0].isr;
+     peripheralIODescriptor(&timerSelect->TimerISRDescriptor[0]);
   }
   /* The second device bound to the IRQ is global to the device (i.e. the interrupt may
   ** be caused for any reason related to the device); no mask is therefore required. */
   if (*(UINT32 *)(timerSelect->BaseRegister[1] + OFFSET_STATUS) &
       *(UINT32 *)(timerSelect->BaseRegister[1] + OFFSET_ENABLE)) {
-     peripheralIODescriptor = timerSelect->TimerISRDescriptor[1];
-     peripheralIODescriptor->TimerIntHandler(peripheralIODescriptor);
+     peripheralIODescriptor = timerSelect->TimerISRDescriptor[1].isr;
+     peripheralIODescriptor(&timerSelect->TimerISRDescriptor[1]);
   }
 } /* end of _OSTimerSelectorHandler */
 

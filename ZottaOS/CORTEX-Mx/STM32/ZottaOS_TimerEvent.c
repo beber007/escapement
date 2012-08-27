@@ -170,16 +170,15 @@ static void DeleteQueueHelper(DELETEQUEUE_OP *des);
 static TIMER_EVENT_NODE *GetFreeNode(TIMER_ISR_DATA *device);
 static void ReleaseNode(TIMER_ISR_DATA *device, TIMER_EVENT_NODE *node);
 static void TimerIntHandler(TIMER_ISR_DATA *device);
-static UINT8 GetInterruptSubIndex(UINT8 interruptIndex);
 
 /* OSInitTimerEvent: Creates an ISR descriptor block holding the specifics of a timer
 ** device that is used as an event handler and which can schedule a list of event at
 ** their occurrence time. */
 #if defined(CORTEX_M3) || defined(CORTEX_M4)
 void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 subpriority,
-                      UINT8 interruptIndex)
+                      UINT16 interruptIndex)
 #elif defined(CORTEX_M0)
-void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 interruptIndex)
+void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT16 interruptIndex)
 #endif
 {
   #define IRQ_SET_ENABLE_REGISTER 0xE000E100 // 0xE000E100 to 0xE000E11C (see CortexMx_TRM)
@@ -190,6 +189,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
      UINT32 *intSetEnable;
   #endif
   UINT8 i, *intPriorityLevel;
+  UINT16 IRQIndex = interruptIndex & 0xFF;
   /** Initialize timer event descriptor */
   device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
   device->TimerIntHandler = TimerIntHandler;
@@ -202,7 +202,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
   for (i = 0; i < nbNode - 1; i += 1)
      device->FreeNodes[i].Next = &device->FreeNodes[i+1];
   device->FreeNodes[i].Next = NULL;
-  OSSetTimerISRDescriptor(interruptIndex,GetInterruptSubIndex(interruptIndex),device);
+  OSSetISRDescriptor(interruptIndex,device);
   /* Initialize descriptor specific timer device entry */
   switch (interruptIndex) {
      #ifdef OS_IO_TIM1
@@ -420,7 +420,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
      tmppriority |= subpriority & (0x0F >> (7 - PRIGROUP)); // (7 - PRIGROUP) is the number priorty bits
   #endif
   /* Set the IRQ priority */
-  intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + interruptIndex);
+  intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + IRQIndex);
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
      *intPriorityLevel = tmppriority << 4; // Only 4 MSB bits are used on STM32
   #elif defined(CORTEX_M0)
@@ -428,10 +428,10 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
   #endif
   /* Enable the IRQ channels */
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
-     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(interruptIndex / 32);
-     *intSetEnable |= 0x01 << (interruptIndex % 32);
+     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(IRQIndex / 32);
+     *intSetEnable |= 0x01 << (IRQIndex % 32);
   #elif defined(CORTEX_M0)
-     *(UINT32 *)IRQ_SET_ENABLE_REGISTER |= 0x01 << interruptIndex;
+     *(UINT32 *)IRQ_SET_ENABLE_REGISTER |= 0x01 << IRQIndex;
   #endif
   /*** Initialize update interruption for timer 1 and timer 8 ***/
   #if defined(OS_IO_TIM1)
@@ -507,84 +507,14 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
 } /* end of OSInitTimerEvent */
 
 
-/* GetInterruptSubIndex: returns 1 if interrupt vector is share with timer 1 or timer 8. */
-UINT8 GetInterruptSubIndex(UINT8 interruptIndex)
-{
-  switch (interruptIndex) {
-  #ifdef OS_IO_TIM9
-     case OS_IO_TIM9:
-     #ifdef OS_IO_TIM1_BRK_TIM9
-        return 1;
-     #else
-        return 0;
-     #endif
-  #endif
-  #ifdef OS_IO_TIM10
-     case OS_IO_TIM10:
-     #ifdef OS_IO_TIM1_UP_TIM10
-        return 1;
-     #else
-        return 0;
-     #endif
-  #endif
-  #ifdef OS_IO_TIM11
-     case OS_IO_TIM11:
-     #ifdef OS_IO_TIM1_TRG_COM_TIM11
-        return 1;
-     #else
-        return 0;
-     #endif
-  #endif
-  #ifdef OS_IO_TIM12
-     case OS_IO_TIM12:
-     #ifdef OS_IO_TIM8_BRK_TIM12
-        return 1;
-     #else
-        return 0;
-     #endif
-  #endif
-  #ifdef OS_IO_TIM13
-     case OS_IO_TIM13:
-     #ifdef OS_IO_TIM8_UP_TIM13
-        return 1;
-     #else
-        return 0;
-     #endif
-  #endif
-  #ifdef OS_IO_TIM14
-     case OS_IO_TIM14:
-     #ifdef OS_IO_TIM8_TRG_COM_TIM14
-        return 1;
-     #else
-        return 0;
-     #endif
-  #endif
-  #ifdef OS_IO_TIM15
-     case OS_IO_TIM15:
-        return 1;
-  #endif
-  #ifdef OS_IO_TIM16
-     case OS_IO_TIM16:
-        return 1;
-  #endif
-  #ifdef OS_IO_TIM17
-     case OS_IO_TIM17:
-        return 1;
-  #endif
-     default:
-        return 0;
-  }
-} /* end of GetInterruptSubIndex */
-
-
 /* OSScheduleTimerEvent: Entry point to insert an event into the event list associated
 ** with a timer. */
-BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
+BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT16 interruptIndex)
 {
   TIMER_EVENT_NODE *timerEventNode;
   TIMER_ISR_DATA *device;
   INSERTQUEUE_OP des, *pendingOp;
-  device = (TIMER_ISR_DATA *)OSGetTimerISRDescriptor(interruptIndex,GetInterruptSubIndex(interruptIndex));
+  device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
   if ((timerEventNode = GetFreeNode(device)) == NULL)
      return FALSE;
   /* Because the timer ISR can shift the current time, the time at which this event oc-
@@ -760,13 +690,13 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
 
 /* OSUnScheduleTimerEvent: Entry point to remove the first occurrence of a specified
 ** event from the list associated with a timer. */
-BOOL OSUnScheduleTimerEvent(void *event, UINT8 interruptIndex)
+BOOL OSUnScheduleTimerEvent(void *event, UINT16 interruptIndex)
 {
   DELETEQUEUE_OP des, *pendingOp;
   TIMER_ISR_DATA *device;
   des.EventOp = DeleteEventOp;  // Prepare the removal so that other task may complete
   des.Done = FALSE;             // it.
-  device = (TIMER_ISR_DATA *)OSGetTimerISRDescriptor(interruptIndex,GetInterruptSubIndex(interruptIndex));
+  device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
   des.Left = (TIMER_EVENT_NODE *)&device->EventQueue;
   des.Event = event;
   des.Node = (TIMER_EVENT_NODE *)&des;
