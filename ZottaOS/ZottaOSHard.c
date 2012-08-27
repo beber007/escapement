@@ -865,33 +865,6 @@ BOOL OSStartMultitasking(void (*f)(void *), void *arg)
 } /* end of OSStartMultitasking */
 
 
-/* INTERRUPT PROCESSING */
-/* Global interrupt vector with one entry per source */
-extern void *_OSTabDevice[];
-
-
-/* OSSetISRDescriptor: Associates an ISR descriptor with an _OSTabDevice entry.
-** Parameters:
-**   (1) (UINT8) index of the _OSTabDevice entry;
-**   (2) (void *) ISR descriptor for the specified interrupt.
-** Returned value: none. */
-void OSSetISRDescriptor(UINT8 entry, void *descriptor)
-{
-  _OSTabDevice[entry] = descriptor;
-} /* end of OSSetISRDescriptor */
-
-
-/* OSGetISRDescriptor: Returns the ISR descriptor associated with an _OSTabDevice entry.
-** Parameter: (UINT8) index of _OSTabDevice where the ISR descriptor is held.
-** Returned value: (void *) The requested ISR descriptor is returned. If no previous
-**    OSSetIODescriptor was previously made for the specified entry, the returned value
-**    is undefined. */
-void *OSGetISRDescriptor(UINT8 entry)
-{
-  return _OSTabDevice[entry];
-} /* end of OSGetISRDescriptor */
-
-
 /* WAITFREE FIFO QUEUE IMPLEMENTATION THAT IS USED INTERNALLY */
 /* Addresses in a waitfree or non-blocking algorithm can also contain a marker so that an
 ** atomic operation can be done. The following define macros to test, insert and remove a

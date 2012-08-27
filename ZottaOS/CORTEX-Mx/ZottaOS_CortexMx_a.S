@@ -17,9 +17,9 @@
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
 /* File ZottaOS_CortexMx_a.S: Holds assembler implemented functions for all Cortex-Mx
-**                            microcontrollers.
+**           microcontrollers. For the time being, only context switching is needed.
 ** Platform version: All Cortex-Mx based microcontrollers.
-** Version date: March 2012
+** Version date: August 2012
 ** Authors: MIS-TIC */
 
 #define _ASM_
@@ -47,20 +47,52 @@
 **          (N-24)  R2  (General-purpose register)
 **          (N-28)  R1  (General-purpose register)
 **   New SP (N-32)  R0  (General-purpose register)
-**claude
-**   Under NTRTOS, there are two particular scenarios to take care of:
+**   Under ZottaOS, there are two particular scenarios to take care of:
 **   (1) When a task instance terminates, the part of the run-time stask occupied by the
 **       task must be removed.
 **   (2) When a new task instance must be started, the above registers are explicitly
 **       placed on the run-time stack so that a return from interruption can be emulated.
-**   The other registers (R4-R11) must be explicitly saved by the interrupt handlers if
-**   they use them. Note that when the interrupt handler is a C function, the compiler
-**   automatically generates the necessary code to store and restore these registers.
-**   There can be no possible corruption of these registers because the interrupts are
-**   prioritized and cannot be aborted. For application tasks, all these registers must
-**   be explicitly saved during a context switch because the registers used by the task
-**   (a C function) are never restored when the instance finishes. */
-
+**   The other registers (R4-R11 for Cortex-M3 and -M4, and R4-R7 for Cortex-M0) must be
+**   explicitly saved by the interrupt handlers if they use them. Note that when the in-
+**   terrupt handler is a C function, the compiler automatically generates the necessary
+**   code to store and restore these registers. There can be no possible corruption of
+**   these registers because the interrupts are prioritized and cannot be aborted. For
+**   application tasks, all these registers must be explicitly saved during a context
+**   switch because the registers used by the task (a C function) are never restored when
+**   the instance finishes.
+**   The actions to do depend upon on the state of _OSActiveTask and of _OSNoSaveContext
+**   which applies to the currently active entity (a task or ISR that has reached comple-
+**   tion or a task that was preempted):
+**     +--------------------------+------------------------+------------------------+
+**     | _OSActiveTask->TaskState | = STATE_RUNNING        | = STATE_INIT           |
+**     +--------------------------+------------------------+------------------------+
+**     | _OSNoSaveContext = TRUE  | wipe out the stack of  | wipe out the stack of  |
+**     |                          | thecurrent executing   | the current executing  |
+**     |                          | entityand return to a  | entity and start a new |
+**     |                          | preemptedtask          | task                   |
+**     +--------------------------+------------------------+------------------------+
+**     |_OSNoSaveContext = FALSE  | restore preempted task | impossible combinaison |
+**     +--------------------------+------------------------+------------------------+
+**   _OSContextSwapHandler basically implements the following pseudo code:
+**    1. push automatically saved registers onto the stack (done by processor at entry)
+**    2. if _OSNoSaveContext then
+**          _OSNoSaveContext := false
+**          SP := _OSStackBasePointer   (clear stack)
+**          if _OSActiveTask->TaskState = STATE_RUNNING then
+**             pop manually saved registers
+**             save previous _OSStackBasePointer
+**          else
+**             set new LR, PC, and SR
+**             create a minimal context composed of the automatically saved registers
+**          end if
+**       else if _OSActiveTask->TaskState != STATE_RUNNING then
+**          push manually saved registers R4-R11 or R4-R7  (context of previous task)
+**          push _OSStackBasePointer           (_OSStackBasePointer of previous task)
+**          _OSStackBasePointer := SP
+**          set new LR, PC, and SR
+**          create a minimal context composed of the automatically saved registers
+**       end if
+**    3. pop automatically saved registers from the stack (done by processor at exit) */
 
 /* Exported functions */
 .global _OSContextSwapHandler
@@ -78,7 +110,7 @@
 /* _OSContextSwapHandler: Last part of a return from the timer interrupt or from the end
 ** of an application task. This interrupt is done at the lowest priority and resumes or
 ** starts executing the next task in the ready queue.
-** we always save the context of the current task before starting a new task or resuming
+** We always save the context of the current task before starting a new task or resuming
 ** it. If the _OSNoSaveContext flag is set or if the state of _OSActiveTask is not equal
 ** to STATE_INIT then there is no need to save the context of the currently active task,
 ** and in the latter case, we simply have to resume it.
@@ -101,7 +133,7 @@
 .text
 .thumb_func
 _OSContextSwapHandler:
-  /* Check if the context must be saved? */
+  /* Check if the context must be saved. */
   LDR R0,=_OSNoSaveContext
   LDR R2,=_OSStackBasePointer
   LDR R1,=_OSActiveTask
@@ -169,13 +201,9 @@ _OSContextSwapHandler_End:
 /* end of _OSContextSwapHandler */
 .end
 #elif defined(CORTEX_M0)
-/* _OSContextSwapHandler: Last part of a return from the timer interrupt or from the end
-** of an application task. This interrupt is done at the lowest priority and resumes or
-** starts executing the next task in the ready queue.
-** we always save the context of the current task before starting a new task or resuming
-** it. If the _OSNoSaveContext flag is set or if the state of _OSActiveTask is not equal
-** to STATE_INIT then there is no need to save the context of the currently active task,
-** and in the latter case, we simply have to resume it.
+/* _OSContextSwapHandler: Same as for Cortex-M3 and Cortex-M4 except that the manually
+** saved general purpose registers are R4 - R7 instead of R4 - R11, and MOV assembler
+** instruction becomes MOVS under Cortex-M0.
 ** Contents of the run-time stack when this function is called:
 ** SP ->                           Local variables of the interrupted or terminated task
 **                                   ...
