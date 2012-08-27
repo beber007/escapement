@@ -515,7 +515,7 @@ BOOL _OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 per
 void OSEndTask(void)
 {
   #if POWER_MANAGEMENT == DM_SLACK
-     DMSlackCalculateSlack(_OSActiveTask,OSGetProcessorSpeed(),OSGetActualTime());
+     DMSlackCalculateSlack(_OSActiveTask,OSGetProcessorSpeed(),_OSGetActualTime());
   #endif
   #if POWER_MANAGEMENT != NONE
      /* In case we get interrupted without returning to this task, we need to complete
@@ -529,7 +529,7 @@ void OSEndTask(void)
   _OSNoSaveContext = TRUE; // Don't save the context of this task
   #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
      /* Update the timing used up by this task in the simulation queue. */
-     DRASimUpdateElapseTime(OSGetActualTime());
+     DRASimUpdateElapseTime(_OSGetActualTime());
   #endif
   /* Remove the task from the ready queue */
   _OSQueueHead->Next[READYQ] = _OSActiveTask->Next[READYQ];
@@ -546,10 +546,10 @@ void OSEndTask(void)
            LastRemainingWorkUpdate = DRASimTime;
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #elif POWER_MANAGEMENT == OTE
-           LastRemainingWorkUpdate = OSGetActualTime();
+           LastRemainingWorkUpdate = _OSGetActualTime();
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #else /* POWER_MANAGEMENT == DM_SLACK */
-           LastRemainingWorkUpdate = OSGetActualTime();
+           LastRemainingWorkUpdate = _OSGetActualTime();
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #endif
      }
@@ -672,7 +672,7 @@ void _OSTimerInterruptHandler(void)
      while (TRUE) {
         _OSComparatorInterruptFlag = FALSE;
         /* Transfer all new arrivals to the ready queue. */
-        currentTime = OSGetActualTime();
+        currentTime = _OSGetActualTime();
         arrival = _OSQueueHead->Next[ARRIVALQ];
         while (arrival->NextArrivalTimeLow <= currentTime &&
              ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {
@@ -1040,7 +1040,7 @@ void OSSuspendSynchronousTask(void)
 {
   FIFOQUEUE *eq = ((ETCB *)_OSActiveTask)->EventQueue;
   #if POWER_MANAGEMENT == DM_SLACK
-     DMSlackCalculateSlack(_OSActiveTask,OSGetProcessorSpeed(),OSGetActualTime());
+     DMSlackCalculateSlack(_OSActiveTask,OSGetProcessorSpeed(),_OSGetActualTime());
   #endif
   /* Insert the task into the event queue as soon as possible so that a task signaling
   ** an event will detect this task. When EnqueueEventTask() returns TRUE, there is a
@@ -1064,7 +1064,7 @@ void OSSuspendSynchronousTask(void)
   _OSNoSaveContext = TRUE;    // Don't save the context of this task
   #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
      /* Update the timing used up by this task */
-     DRASimUpdateElapseTime(OSGetActualTime());
+     DRASimUpdateElapseTime(_OSGetActualTime());
   #endif
   /* Remove the task from the ready queue */
   _OSQueueHead->Next[READYQ] = _OSActiveTask->Next[READYQ];
@@ -1081,10 +1081,10 @@ void OSSuspendSynchronousTask(void)
            LastRemainingWorkUpdate = DRASimTime;
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #elif POWER_MANAGEMENT == OTE
-           LastRemainingWorkUpdate = OSGetActualTime();
+           LastRemainingWorkUpdate = _OSGetActualTime();
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #else /* POWER_MANAGEMENT == DM_SLACK */
-           LastRemainingWorkUpdate = OSGetActualTime();
+           LastRemainingWorkUpdate = _OSGetActualTime();
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #endif
      }

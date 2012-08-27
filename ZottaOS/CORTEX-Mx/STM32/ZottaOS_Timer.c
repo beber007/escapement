@@ -634,9 +634,9 @@ BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
 } /* end of _OSTimerIsOverflow */
 
 
-/* OSGetActualTime: Retrieve the current time. Combines the 16 bits of the timer counter
+/* _OSGetActualTime: Retrieve the current time. Combines the 16 bits of the timer counter
 ** with the global variable Time to yield the current time. */
-INT32 OSGetActualTime(void)
+INT32 _OSGetActualTime(void)
 {
   #ifdef ZOTTAOS_TIMER_32
      return TIM_COUNTER;
@@ -649,4 +649,4 @@ INT32 OSGetActualTime(void)
      } while (currentTime != Time);
      return tmp;
   #endif
-} /* end of OSGetActualTime */
+} /* end of _OSGetActualTime */
