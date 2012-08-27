@@ -35,7 +35,7 @@ CC = /root/CodeSourcery/Sourcery_CodeBench_Lite_for_ARM_EABI/bin/arm-none-eabi-g
 
 CPU = cortex-m3
 
-all: build/TaskLEDL1.elf build/UARTSimpleEchoL1.elf build/TestTimerEventL1.elf build/TestTimerEventL1b.elf build/IccMeasure.elf
+all: build/TaskLEDL1.elf build/UARTSimpleEchoL1.elf build/TestTimerEventL1.elf build/TestTimerEventL1b.elf
 
 clean: 
 	rm -f build/*.o build/*.elf

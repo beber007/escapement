@@ -46,11 +46,11 @@ void OSInitProcessorSpeed(void)
   /* GPIO port A clock enable */
   *(UINT32 *)(RCC_BASE + RCC_AHBENR_OFFSET) |= 0x00000001;
   /* Output the system clock on MCO pin (PA.08) */
-  *(UINT32 *)GPIOA_BASE &= 0xFFFCFFFF; // GPIO Alternate function Mode
+  *(UINT32 *)GPIOA_BASE &= 0xFFFCFFFF; // GPIO Alternate function mode
   *(UINT32 *)GPIOA_BASE |= 0x00020000;
   *(UINT32 *)(GPIOA_BASE + GPIOA_OSPEEDR_OFFSET) |= 0x00030000; // Speed mode configuration 40 MHz
   *(UINT32 *)(GPIOA_BASE + GPIOA_OTYPER_OFFSET)  &= 0xFFFFFEFF; // Output mode configuration GPIO_OType_PP
-  *(UINT32 *)(GPIOA_BASE + GPIOA_PUPDR_OFFSET) &= 0xFFFCFFFF; // Pull-up resistor configuration
+  *(UINT32 *)(GPIOA_BASE + GPIOA_PUPDR_OFFSET) &= 0xFFFCFFFF;   // Pull-up resistor configuration
   *(UINT32 *)(GPIOA_BASE + GPIOA_PUPDR_OFFSET) |= 0x00010000;
   /* HSE selected to output on MCO pin (PA.08)*/
   *(UINT32 *)(RCC_BASE + RCC_CFGR_OFFSET) &= 0x88FFFFFF;
@@ -61,7 +61,7 @@ void OSInitProcessorSpeed(void)
   OSSetISRDescriptor(OS_IO_RCC,RCCDescriptor);
   /* Enable PLL ready interrupt */
   *(UINT32 *)(RCC_BASE + RCC_CIR_OFFSET) = ((UINT32)0x00001000);
-  /* Set RCC interruptpriority */
+  /* Set RCC interrupt priority */
   *RCC_IRQ_PRIORITY_REGISTER = ((PRIORITY << (PRIGROUP - 3)) | (SUB_PRIORITY & (0x0F >> (7 - PRIGROUP)))) << 4;
   /* Set RCC interrupt pending flag */
   *IRQ_SET_PENDING_REGISTER = 0x20;

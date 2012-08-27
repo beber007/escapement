@@ -16,9 +16,9 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File TimerEvent.c: Implements an event queue that is associated with a timer device.
-** Events that are inserted into the queue are specified along with a delay, and as soon
-** as this delay has expired, the event is scheduled.
+/* File ZottaOSTimerEvent.c: Implements an event queue that is associated with a timer
+** device. Events that are inserted into the queue are specified along with a delay, and
+** as soon as this delay has expired, the event is scheduled.
 ** Platform version: All STM32 microcontrollers.
 ** Version date: April 2012
 ** Authors: MIS-TIC */
@@ -34,7 +34,7 @@
 #define SHIFT_TIME_LIMIT_16 0x00004000 // = 2^30 >> 16
 
 #ifdef OS_IO_TIM1
-   #if defined(STM32F1XXXX) ||  defined(STM32F05XXX)
+   #if defined(STM32F1XXXX) || defined(STM32F05XXX)
       #define BASE_TIM1 0x40012C00
    #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
       #define BASE_TIM1 0x40010000
@@ -133,9 +133,9 @@ typedef struct TIMER_EVENT_NODE { // Blocks that are in the event queue
 
 typedef struct TIMER_ISR_DATA {
   void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
-  UINT32 *ClkEnable;
-  UINT32 ClkEnableBit;
-  UINT32 Base;
+  UINT32 *ClkEnable;            // RCC peripheral reset register
+  UINT32 ClkEnableBit;          //     mask to above register for the event timer
+  UINT32 Base;                  // First memory mapped register of the event timer
   void *PendingQueueOperation;  // Interrupted operations that are not complete
   TIMER_EVENT_NODE *EventQueue; // List of events sorted by their time of occurrence
   TIMER_EVENT_NODE *FreeNodes;  // Pool of free nodes used to link events
@@ -170,16 +170,15 @@ static void DeleteQueueHelper(DELETEQUEUE_OP *des);
 static TIMER_EVENT_NODE *GetFreeNode(TIMER_ISR_DATA *device);
 static void ReleaseNode(TIMER_ISR_DATA *device, TIMER_EVENT_NODE *node);
 static void TimerIntHandler(TIMER_ISR_DATA *device);
-static UINT8 GetInterruptSubIndex(UINT8 interruptIndex);
 
 /* OSInitTimerEvent: Creates an ISR descriptor block holding the specifics of a timer
 ** device that is used as an event handler and which can schedule a list of event at
 ** their occurrence time. */
 #if defined(CORTEX_M3) || defined(CORTEX_M4)
 void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 subpriority,
-                      UINT8 interruptIndex)
+                      UINT16 interruptIndex)
 #elif defined(CORTEX_M0)
-void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 interruptIndex)
+void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT16 interruptIndex)
 #endif
 {
   #define IRQ_SET_ENABLE_REGISTER 0xE000E100 // 0xE000E100 to 0xE000E11C (see CortexMx_TRM)
@@ -190,7 +189,8 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
      UINT32 *intSetEnable;
   #endif
   UINT8 i, *intPriorityLevel;
-  /*** Initialize timer event descriptor ***/
+  UINT16 IRQIndex = interruptIndex & 0xFF;
+  /** Initialize timer event descriptor */
   device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
   device->TimerIntHandler = TimerIntHandler;
   device->Time = 0;
@@ -202,7 +202,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
   for (i = 0; i < nbNode - 1; i += 1)
      device->FreeNodes[i].Next = &device->FreeNodes[i+1];
   device->FreeNodes[i].Next = NULL;
-  OSSetTimerISRDescriptor(interruptIndex,GetInterruptSubIndex(interruptIndex),device);
+  OSSetISRDescriptor(interruptIndex,device);
   /* Initialize descriptor specific timer device entry */
   switch (interruptIndex) {
      #ifdef OS_IO_TIM1
@@ -417,10 +417,10 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
      /* Compute the priority (Only 4 bits are used for priority on STM32) */
      tmppriority = priority << (PRIGROUP - 3); // (PRIGROUP - 3) is the number of sub priorty bits
-     tmppriority |=  subpriority & (0x0F >> (7 - PRIGROUP)); // (7 - PRIGROUP) is the number priorty bits
+     tmppriority |= subpriority & (0x0F >> (7 - PRIGROUP)); // (7 - PRIGROUP) is the number priorty bits
   #endif
   /* Set the IRQ priority */
-  intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + interruptIndex);
+  intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + IRQIndex);
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
      *intPriorityLevel = tmppriority << 4; // Only 4 MSB bits are used on STM32
   #elif defined(CORTEX_M0)
@@ -428,10 +428,10 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
   #endif
   /* Enable the IRQ channels */
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
-     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(interruptIndex / 32);
-     *intSetEnable |= 0x01 << (interruptIndex % 32);
+     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(IRQIndex / 32);
+     *intSetEnable |= 0x01 << (IRQIndex % 32);
   #elif defined(CORTEX_M0)
-     *(UINT32 *)IRQ_SET_ENABLE_REGISTER |= 0x01 << interruptIndex;
+     *(UINT32 *)IRQ_SET_ENABLE_REGISTER |= 0x01 << IRQIndex;
   #endif
   /*** Initialize update interruption for timer 1 and timer 8 ***/
   #if defined(OS_IO_TIM1)
@@ -484,7 +484,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
   #elif defined(STM32F05XXX)
      if (interruptIndex == OS_IO_TIM2) {
   #endif
-  #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+  #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
         /* For 32-bit counter version, set the autoreload timer value to (2^30 - 1) */
         *(UINT32 *)(device->Base + OFFSET_AUTORELOAD) = SHIFT_TIME_LIMIT - 1;
      }
@@ -492,7 +492,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
   #endif
         /* For 16-bit counter version, set the autoreload timer value to (2^16 -1) */
         *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF;
-  #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+  #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
      }
   #endif
   /* Set prescaler register */
@@ -507,84 +507,14 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT8 inte
 } /* end of OSInitTimerEvent */
 
 
-/* GetInterruptSubIndex: returns 1 if interrupt vector is share with timer 1 or timer 8. */
-UINT8 GetInterruptSubIndex(UINT8 interruptIndex)
-{
-  switch (interruptIndex) {
-  #ifdef OS_IO_TIM9
-     case OS_IO_TIM9:
-     #ifdef OS_IO_TIM1_BRK_TIM9
-        return 1;
-     #else
-        return 0;
-     #endif
-  #endif
-  #ifdef OS_IO_TIM10
-     case OS_IO_TIM10:
-     #ifdef OS_IO_TIM1_UP_TIM10
-        return 1;
-     #else
-        return 0;
-     #endif
-  #endif
-  #ifdef OS_IO_TIM11
-     case OS_IO_TIM11:
-     #ifdef OS_IO_TIM1_TRG_COM_TIM11
-        return 1;
-     #else
-        return 0;
-     #endif
-  #endif
-  #ifdef OS_IO_TIM12
-     case OS_IO_TIM12:
-     #ifdef OS_IO_TIM8_BRK_TIM12
-        return 1;
-     #else
-        return 0;
-     #endif
-  #endif
-  #ifdef OS_IO_TIM13
-     case OS_IO_TIM13:
-     #ifdef OS_IO_TIM8_UP_TIM13
-        return 1;
-     #else
-        return 0;
-     #endif
-  #endif
-  #ifdef OS_IO_TIM14
-     case OS_IO_TIM14:
-     #ifdef OS_IO_TIM8_TRG_COM_TIM14
-        return 1;
-     #else
-        return 0;
-     #endif
-  #endif
-  #ifdef OS_IO_TIM15
-     case OS_IO_TIM15:
-        return 1;
-  #endif
-  #ifdef OS_IO_TIM16
-     case OS_IO_TIM16:
-        return 1;
-  #endif
-  #ifdef OS_IO_TIM17
-     case OS_IO_TIM17:
-        return 1;
-  #endif
-     default:
-     return 0;
-  }
-} /* end of GetInterruptSubIndex */
-
-
 /* OSScheduleTimerEvent: Entry point to insert an event into the event list associated
 ** with a timer. */
-BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
+BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT16 interruptIndex)
 {
   TIMER_EVENT_NODE *timerEventNode;
   TIMER_ISR_DATA *device;
   INSERTQUEUE_OP des, *pendingOp;
-  device = (TIMER_ISR_DATA *)OSGetTimerISRDescriptor(interruptIndex,GetInterruptSubIndex(interruptIndex));
+  device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
   if ((timerEventNode = GetFreeNode(device)) == NULL)
      return FALSE;
   /* Because the timer ISR can shift the current time, the time at which this event oc-
@@ -598,7 +528,7 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
   #elif defined(STM32F05XXX)
      if (interruptIndex == OS_IO_TIM2) {
   #endif
-  #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+  #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
         /* 32-bit counter version */
         do {
            des.Version = device->Time; // Save current version number to detect current time shifting
@@ -612,7 +542,7 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT8 interruptIndex)
            des.Version = device->Time; // Save current 16-bit MSB time to detect current time shifting
            des.Time = *(UINT16 *)(device->Base + OFFSET_COUNTER) + delay + (des.Version << 16);
         } while (des.Version != device->Time);
-  #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+  #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
      }
   #endif
   timerEventNode->Time = -1;   // Set at an uninitialized sentinel value
@@ -662,7 +592,7 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
   #elif defined(STM32F05XXX)
      if (device->Base == BASE_TIM2) {
   #endif
-  #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+  #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
         /* 32-bit counter version */
         if (OSINT32_LL(&des->Node->Time) == -1) {
            if (des->Version == device->Time) // If version backup is different than current a time shift occurred
@@ -686,7 +616,7 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
               if (OSINT32_SC(&des->Node->Time,scheduledTime))
                  break;
         }
-  #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+  #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
      }
   #endif
   while (TRUE) {         // Loop until done
@@ -718,7 +648,7 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
         left = des->Left = right;
   }
   /* Generate a timer comparator interrupt if the inserted event is the first one. */
-  if (genInterrupt &&  device->EventQueue == des->Node) {
+  if (genInterrupt && device->EventQueue == des->Node) {
      #if defined(STM32L1XXXX) && defined(OS_IO_TIM5)
         if (device->Base == BASE_TIM5) {
      #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
@@ -726,7 +656,7 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
      #elif defined(STM32F05XXX)
         if (device->Base == BASE_TIM2) {
      #endif
-     #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+     #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
            /* 32-bit counter version */
            do {
               OSUINT32_LL((UINT32 *)(device->Base + OFFSET_COMPARATOR));
@@ -750,7 +680,7 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
                  OSUINT16_LL((UINT16 *)(device->Base + OFFSET_EVENT_GENERATION));
                  if (des->GeneratedInterrupt) return;
               } while (!OSUINT16_SC((UINT16 *)(device->Base + OFFSET_EVENT_GENERATION),2));
-     #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+     #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
         }
      #endif
   }
@@ -760,13 +690,13 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
 
 /* OSUnScheduleTimerEvent: Entry point to remove the first occurrence of a specified
 ** event from the list associated with a timer. */
-BOOL OSUnScheduleTimerEvent(void *event, UINT8 interruptIndex)
+BOOL OSUnScheduleTimerEvent(void *event, UINT16 interruptIndex)
 {
   DELETEQUEUE_OP des, *pendingOp;
   TIMER_ISR_DATA *device;
   des.EventOp = DeleteEventOp;  // Prepare the removal so that other task may complete
   des.Done = FALSE;             // it.
-  device = (TIMER_ISR_DATA *)OSGetTimerISRDescriptor(interruptIndex,GetInterruptSubIndex(interruptIndex));
+  device = (TIMER_ISR_DATA *)OSGetISRDescriptor(interruptIndex);
   des.Left = (TIMER_EVENT_NODE *)&device->EventQueue;
   des.Event = event;
   des.Node = (TIMER_EVENT_NODE *)&des;
@@ -869,7 +799,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
         #elif defined(STM32F05XXX)
            if (device->Base == BASE_TIM2) {
         #endif
-        #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+        #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
               /* 32-bit counter version */
               eventNode = device->EventQueue;
               while (eventNode != NULL) {
@@ -890,7 +820,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
                  }
                  device->Time -= SHIFT_TIME_LIMIT_16;
               }
-        #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+        #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
            }
         #endif
      }
@@ -903,7 +833,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
         #elif defined(STM32F05XXX)
            if (device->Base == BASE_TIM2) {
         #endif
-        #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+        #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
               /* 32-bit counter version */
               *(UINT32 *)(device->Base + OFFSET_COMPARATOR) = 0;
            }
@@ -911,7 +841,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
         #endif
               /* 16-bit counter version */
               *(UINT16 *)(device->Base + OFFSET_COMPARATOR) = 0;
-        #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+        #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
            }
         #endif
         /* Clear interrupt flag */
@@ -923,8 +853,8 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
         #elif defined(STM32F05XXX)
            if (device->Base == BASE_TIM2) {
         #endif
-        #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
-               /* 32-bit counter version */
+        #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+              /* 32-bit counter version */
               /* Schedule events that now occur */
               while ((eventNode = device->EventQueue) != NULL && eventNode->Time <= *(UINT32 *)(device->Base + OFFSET_COUNTER)) {
                  OSScheduleSuspendedTask(eventNode->Event);
@@ -960,7 +890,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
               }
               else
                  break;
-        #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) ||  defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
+        #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
            }
         #endif
      }
