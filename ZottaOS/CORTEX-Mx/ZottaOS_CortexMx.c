@@ -91,7 +91,7 @@ void (* const CortexMxVectorTable[])(void) =
 **   HIGHEST PRIORITY LEVEL
 **      Peripheral interrupt handlers (whose execution time cannot be longer than the
 **           to wraparound the timer counter, otherwise the temporal basis will be lost.)
-**      Timer interrupt handler (Fixed by TIMER_PRIORITY in NTRTOS_CortexMx.c) beber/claude
+**      Timer interrupt handler (Fixed by TIMER_PRIORITY in ZottaOS_Config.h)
 **      Peripheral interrupt handlers (whose execution time can be longer than the wrap-
 **           around of the timer. The latency of these interrupts is increased because of
 **           possible interrupt executions.)
@@ -346,10 +346,6 @@ void _OSIOHandler(void)
   #endif
   /* Call the specific handler */
   peripheralIODescriptor->PeripheralInterruptHandler(peripheralIODescriptor);
-  if (_OSActiveTask != NULL) { /* Has the kernel started? */ //claude? qui sauve r4-r11? pourquoi revenir a la tache?
-     FinalizeContextSwitchPreparation(); // Return to the preempted task
-     _OSScheduleTask();  // and generate context swap software interrupt
-  }
   // Make all pending SC() fail
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
      __asm("CLREX;"); 
@@ -399,8 +395,8 @@ void *OSMalloc(UINT16 size)
   if (_OSStackBasePointer <= (void *)((UINTPTR)&_OSEndRAM - OSMALLOC_INTERNAL_HEAP_SIZE)) {
      _OSStackBasePointer = (UINT8 *)_OSStackBasePointer + size;
      #ifdef DEBUG_MODE
-        while (TRUE); // Memory overflow: increase OSMALLOC_INTERNAL_HEAP_SIZE in the
-        return 0;     // linker file. (You can retrieve this file name from the makefile)
+        while (TRUE); // Memory overflow: increase OSMALLOC_INTERNAL_HEAP_SIZE in
+        return 0;     // ZottaOS_Config.h
      #else
         return NULL;
      #endif
