@@ -107,7 +107,7 @@
 .extern _OSStackBasePointer
 .extern _OSActiveTask
 #if defined(CORTEX_M0)
-.extern _OSLLReserveBit;
+.extern _OSLLReserveBit
 #endif
 
 
@@ -138,64 +138,64 @@
 .text
 .thumb_func
 _OSContextSwapHandler:
-  LDR R0,=_OSNoSaveContext                 ; R0 <- addr(_OSNoSaveContext)
-  LDR R2,=_OSStackBasePointer              ; R2 <- addr(_OSStackBasePointer)
-  LDR R1,=_OSActiveTask                    ; R1 <- addr(_OSActiveTask)
-  LDR R1,[R1]                              ; R1 <- _OSActiveTask
+  LDR R0,=_OSNoSaveContext                 // R0 <- addr(_OSNoSaveContext)
+  LDR R2,=_OSStackBasePointer              // R2 <- addr(_OSStackBasePointer)
+  LDR R1,=_OSActiveTask                    // R1 <- addr(_OSActiveTask)
+  LDR R1,[R1]                              // R1 <- _OSActiveTask
   /* Is caller with _OSNoSaveContext? */
-  LDRB R3,[R0]                             ; R3 <- _OSNoSaveContext
-  CBNZ R3,_OSContextSwapHandler_ClearStack ; Jump if _OSNoSaveContext = TRUE
+  LDRB R3,[R0]                             // R3 <- _OSNoSaveContext
+  CBNZ R3,_OSContextSwapHandler_ClearStack // Jump if _OSNoSaveContext = TRUE
   /* Is active task state RUNNING?*/
-  LDRB R0,[R1,#8]                          ; R0 <- _OSActiveTask->TaskState
-  AND R3,R0,#1                             ; R3 <- R0 & STATE_RUNNING
-  CBNZ R3,_OSContextSwapHandler_End        ; Jump if _OSActiveTask is STATE_RUNNING
+  LDRB R0,[R1,#8]                          // R0 <- _OSActiveTask->TaskState
+  AND R3,R0,#1                             // R3 <- R0 & STATE_RUNNING
+  CBNZ R3,_OSContextSwapHandler_End        // Jump if _OSActiveTask is STATE_RUNNING
   /* Save the context of the task: context switching from an active task to a new task */
-  LDR R3,[R2]                              ; R3 <- _OSStackBasePointer
-  PUSH {R3,R4-R11}                         ; push R4-R11 and _OSStackBasePointer
-  MRS R3,MSP                               ; retrieve SP: R3 <- SP
-  STR R3,[R2]                              ; _OSStackBasePointer <- SP
+  LDR R3,[R2]                              // R3 <- _OSStackBasePointer
+  PUSH {R3,R4-R11}                         // push R4-R11 and _OSStackBasePointer
+  MRS R3,MSP                               // retrieve SP: R3 <- SP
+  STR R3,[R2]                              // _OSStackBasePointer <- SP
   B _OSContextSwapHandler_CreateNewContext
 .thumb_func
 _OSContextSwapHandler_ClearStack:
   /* Set _OSNoSaveContext to FALSE */
-  MOV R3,#0                                ; R3 <- FALSE
-  STRB R3,[R0]                             ; _OSNoSaveContext <- 0
+  MOV R3,#0                                // R3 <- FALSE
+  STRB R3,[R0]                             // _OSNoSaveContext <- 0
   /* Clear stack */
-  LDR R3,[R2]                              ; R3 <- _OSStackBasePointer
-  MSR MSP,R3                               ; SP <- _OSStackBasePointer
+  LDR R3,[R2]                              // R3 <- _OSStackBasePointer
+  MSR MSP,R3                               // SP <- _OSStackBasePointer
   /* Is active task state STATE_RUNNING? */
-  LDRB R0,[R1,#8]                          ; R0 <- _OSActiveTask->TaskState
-  AND R3,R0,#1                             ; R3 <- R0 & STATE_RUNNING
-  CBNZ R3,_OSContextSwapHandler_RestoreContext ; Jump if _OSActiveTask is STATE_RUNNING
+  LDRB R0,[R1,#8]                          // R0 <- _OSActiveTask->TaskState
+  AND R3,R0,#1                             // R3 <- R0 & STATE_RUNNING
+  CBNZ R3,_OSContextSwapHandler_RestoreContext // Jump if _OSActiveTask is STATE_RUNNING
 .thumb_func
 _OSContextSwapHandler_CreateNewContext:
   /* Set the state of the new task to STATE_RUNNING */
-  ORR R0,R0,#1                             ; R0 (= _OSActiveTask->TaskState) |= STATE_RUNNING
-  STRB R0,[R1,#8]                          ; _OSActiveTask->TaskState <- R0
+  ORR R0,R0,#1                             // R0 (= _OSActiveTask->TaskState) |= STATE_RUNNING
+  STRB R0,[R1,#8]                          // _OSActiveTask->TaskState <- R0
   /* Create a new context on the stack */
 #if defined(ZOTTAOS_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-  LDR R2,[R1,#20]                          ; R2 <- task entry point
-  LDR R0,[R1,#24]                          ; R0 <- task argument
+  LDR R2,[R1,#20]                          // R2 <- task entry point
+  LDR R0,[R1,#24]                          // R0 <- task argument
 #else
-  LDR R2,[R1,#16]                          ; R2 <- task entry point
-  LDR R0,[R1,#20]                          ; R0 <- task argument
+  LDR R2,[R1,#16]                          // R2 <- task entry point
+  LDR R0,[R1,#20]                          // R0 <- task argument
 #endif
   /* Set link register to return to thread mode and on return use the main stack */
-  MOV R1,#0xFFFFFFF9                       ; R1 <- new LR
+  MOV R1,#0xFFFFFFF9                       // R1 <- new LR
   /* Set status register to thumb state */
-  MOV R3,#0x01000000                       ; R3 <- new PSR
+  MOV R3,#0x01000000                       // R3 <- new PSR
   /* Push automatically saved registers */
-  PUSH {R1-R3}                             ; R1(LR), R2(entry point=PC), R3(PSR)
-  PUSH {R0-R3,R12}                         ; R0(task argument), R1-R3 & R12(empty)
+  PUSH {R1-R3}                             // R1(LR), R2(entry point=PC), R3(PSR)
+  PUSH {R0-R3,R12}                         // R0(task argument), R1-R3 & R12(empty)
   B _OSContextSwapHandler_End
 .thumb_func
 _OSContextSwapHandler_RestoreContext:
   /* Pop manually saved registers */
-  POP {R0,R4-R11}                          ; R0 = previous _OSStackBasePointer
-  STR R0,[R2]                              ; _OSStackBasePointer <- R0
+  POP {R0,R4-R11}                          // R0 = previous _OSStackBasePointer
+  STR R0,[R2]                              // _OSStackBasePointer <- R0
 .thumb_func
 _OSContextSwapHandler_End:
-  CLREX                                    ; Make all pending SC() fail
+  CLREX                                    // Make all pending SC() fail
   BX LR
   NOP
 /* end of _OSContextSwapHandler */
@@ -223,73 +223,73 @@ _OSContextSwapHandler_End:
 .text
 .thumb_func
 _OSContextSwapHandler:
-  LDR R0,=_OSNoSaveContext                 ; R0 <- addr(_OSNoSaveContext)
-  LDR R2,=_OSStackBasePointer              ; R2 <- addr(_OSStackBasePointer)
-  LDR R1,=_OSActiveTask                    ; R1 <- addr(_OSActiveTask)
-  LDR R1,[R1]                              ; R1 <- _OSActiveTask
+  LDR R0,=_OSNoSaveContext                 // R0 <- addr(_OSNoSaveContext)
+  LDR R2,=_OSStackBasePointer              // R2 <- addr(_OSStackBasePointer)
+  LDR R1,=_OSActiveTask                    // R1 <- addr(_OSActiveTask)
+  LDR R1,[R1]                              // R1 <- _OSActiveTask
   /* Is caller with _OSNoSaveContext? */
-  LDRB R3,[R0]                             ; R3 <- _OSNoSaveContext
-  CMP R3,#1                                ; is R3 = TRUE?
-  BEQ _OSContextSwapHandler_ClearStack     ;   Yes: jump
+  LDRB R3,[R0]                             // R3 <- _OSNoSaveContext
+  CMP R3,#1                                // is R3 = TRUE?
+  BEQ _OSContextSwapHandler_ClearStack     //   Yes: jump
   /* Is active task state RUNNING?*/
-  LDRB R0,[R1,#8]                          ; R0 <- _OSActiveTask->TaskState
-  MOVS R3,#1                               ; R3 <- STATE_RUNNING (= 1)
-  ANDS R0,R3                               ; R0 <- R0 & STATE_RUNNING
-  BNE _OSContextSwapHandler_End            ; Jump if _OSActiveTask is STATE_RUNNING
+  LDRB R0,[R1,#8]                          // R0 <- _OSActiveTask->TaskState
+  MOVS R3,#1                               // R3 <- STATE_RUNNING (= 1)
+  ANDS R0,R3                               // R0 <- R0 & STATE_RUNNING
+  BNE _OSContextSwapHandler_End            // Jump if _OSActiveTask is STATE_RUNNING
   /* Save the context of the task: context switching from an active task to a new task */
-  LDR R3,[R2]                              ; R3 <- _OSStackBasePointer
-  PUSH {R3,R4-R7}                          ; push R4-R11 and _OSStackBasePointer
-  MRS R3,MSP                               ; retrieve SP: R3 <- SP
-  STR R3,[R2]                              ; _OSStackBasePointer <- SP
+  LDR R3,[R2]                              // R3 <- _OSStackBasePointer
+  PUSH {R3,R4-R7}                          // push R4-R11 and _OSStackBasePointer
+  MRS R3,MSP                               // retrieve SP: R3 <- SP
+  STR R3,[R2]                              // _OSStackBasePointer <- SP
   B _OSContextSwapHandler_CreateNewContext
 .thumb_func
 _OSContextSwapHandler_ClearStack:
   /* Set _OSNoSaveContext to FALSE */
-  MOVS R3,#0                               ; R3 <- FALSE
-  STRB R3,[R0]                             ; _OSNoSaveContext <- 0
+  MOVS R3,#0                               // R3 <- FALSE
+  STRB R3,[R0]                             // _OSNoSaveContext <- 0
   /* Clear Stack */
-  LDR R3,[R2]                              ; R3 <- _OSStackBasePointer
-  MSR MSP,R3                               ; SP <- _OSStackBasePointer
+  LDR R3,[R2]                              // R3 <- _OSStackBasePointer
+  MSR MSP,R3                               // SP <- _OSStackBasePointer
   /* Is active task state STATE_RUNNING? */
-  LDRB R0,[R1,#8]                          ; R0 <- _OSActiveTask->TaskState
-  MOVS R3,#1                               ; R3 <- STATE_RUNNING
-  ANDS R0,R3                               ; R0 <- R0 & STATE_RUNNING
-  BNE _OSContextSwapHandler_RestoreContext ; Jump if _OSActiveTask is STATE_RUNNING
+  LDRB R0,[R1,#8]                          // R0 <- _OSActiveTask->TaskState
+  MOVS R3,#1                               // R3 <- STATE_RUNNING
+  ANDS R0,R3                               // R0 <- R0 & STATE_RUNNING
+  BNE _OSContextSwapHandler_RestoreContext // Jump if _OSActiveTask is STATE_RUNNING
 .thumb_func
 _OSContextSwapHandler_CreateNewContext:
   /* Set the state of the new task to STATE_RUNNING */
-  MOVS R3,#1                               ; R3 <- STATE_RUNNING
-  ORRS R0,R0,R3                            ; R0 (= _OSActiveTask->TaskState) |= STATE_RUNNING
-  STRB R0,[R1,#8]                          ; _OSActiveTask->TaskState <- R0
+  MOVS R3,#1                               // R3 <- STATE_RUNNING
+  ORRS R0,R0,R3                            // R0 (= _OSActiveTask->TaskState) |= STATE_RUNNING
+  STRB R0,[R1,#8]                          // _OSActiveTask->TaskState <- R0
   /* Create a new context on the stack */
 #if defined(ZOTTAOS_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-  LDR R2,[R1,#20]                          ; R2 <- task entry point
-  LDR R0,[R1,#24]                          ; R0 <- task argument
+  LDR R2,[R1,#20]                          // R2 <- task entry point
+  LDR R0,[R1,#24]                          // R0 <- task argument
 #else
-  LDR R2,[R1,#16]                          ; R2 <- task entry point
-  LDR R0,[R1,#20]                          ; R0 <- task argument
+  LDR R2,[R1,#16]                          // R2 <- task entry point
+  LDR R0,[R1,#20]                          // R0 <- task argument
 #endif
   /* Set link register to return to thread mode and on return use the main stack (0xFFFFFFF9) */
   MOVS R1,#0
-  SUBS R1,R1,#7                            ; R0 <- 0 - 7 = 0xFFFFFFF9
+  SUBS R1,R1,#7                            // R0 <- 0 - 7 = 0xFFFFFFF9
   /* Set status register to thumb state (0x01000000) */
   MOVS R3,#1
-  LSLS R3, R3,#24                          ; R3 <- 1 << 24 = 0x01000000  
+  LSLS R3, R3,#24                          // R3 <- 1 << 24 = 0x01000000  
   /* Push automatically saved registers */
-  PUSH {R1-R3}                             ; R1(LR), R2(entry point=PC), R3(PSR)
-  PUSH {R0-R3,R4}                          ; R0(task argument), R1-R3 & R4(empty)
+  PUSH {R1-R3}                             // R1(LR), R2(entry point=PC), R3(PSR)
+  PUSH {R0-R3,R4}                          // R0(task argument), R1-R3 & R4(empty)
   B _OSContextSwapHandler_End
 .thumb_func
 _OSContextSwapHandler_RestoreContext:
   /* Pop manually saved registers */
-  POP {R0,R4-R7}                           ; R0 = previous _OSStackBasePointer
-  STR R0,[R2]                              ; _OSStackBasePointer <- R0
+  POP {R0,R4-R7}                           // R0 = previous _OSStackBasePointer
+  STR R0,[R2]                              // _OSStackBasePointer <- R0
 .thumb_func
 _OSContextSwapHandler_End:
   /* Make all pending SC() fail */
-  LDR R0,=_OSLLReserveBit                  ; R0 <- addr(_OSLLReserveBit)
-  MOVS R3,#0                               ; R3 <- FALSE
-  STRB R3,[R0]                             ; _OSLLReserveBit <- FALSE
+  LDR R0,=_OSLLReserveBit                  // R0 <- addr(_OSLLReserveBit)
+  MOVS R3,#0                               // R3 <- FALSE
+  STRB R3,[R0]                             // _OSLLReserveBit <- FALSE
   BX LR
   NOP
 /* end of _OSContextSwapHandler */

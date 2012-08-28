@@ -437,7 +437,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT16 int
   #if defined(OS_IO_TIM1)
      if (interruptIndex == OS_IO_TIM1) {
          /* Register timer descriptor */
-         OSSetTimerISRDescriptor(OS_IO_TIM1_UP,0,device);
+         OSSetISRDescriptor(OS_IO_TIM1_UP,device);
          /* Set the IRQ priority */
          intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + OS_IO_TIM1_UP);
          #if defined(CORTEX_M3) || defined(CORTEX_M4)
@@ -457,7 +457,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT16 int
   #if defined(OS_IO_TIM8)
      if (interruptIndex == OS_IO_TIM8) {
          /* Register timer descriptor */
-         OSSetTimerISRDescriptor(OS_IO_TIM8_UP,0,device);
+         OSSetISRDescriptor(OS_IO_TIM8_UP,device);
          /* Set the IRQ priority */
          intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + OS_IO_TIM8_UP);
          #if defined(CORTEX_M3) || defined(CORTEX_M4)
