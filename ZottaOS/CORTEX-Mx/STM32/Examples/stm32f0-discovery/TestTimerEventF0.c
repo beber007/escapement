@@ -82,7 +82,6 @@ int main(void)
      OSCreateSynchronousTask(ClearLed2Task,0,1000,0,tmp,NULL);
      OSCreateTask(SetLed2Task,0,0,10000,10000,1,1,0,tmp);
   #endif
-
   /* Start the OS so that it starts scheduling the user tasks */
   return OSStartMultitasking(NULL,NULL);
 } /* end of main */
