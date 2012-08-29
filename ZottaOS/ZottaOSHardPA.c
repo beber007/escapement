@@ -587,8 +587,8 @@ void _OSTimerInterruptHandler(void)
   INT32 currentTime;
   ETCB *etcb;
   TCB *arrival;
-  extern BOOL _OSOverflowInterruptFlag;
-  extern BOOL _OSComparatorInterruptFlag;
+  extern volatile BOOL _OSOverflowInterruptFlag;
+  extern volatile BOOL _OSComparatorInterruptFlag;
   #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
      BOOL doSimUpdateElapseTime = TRUE;
   #endif
