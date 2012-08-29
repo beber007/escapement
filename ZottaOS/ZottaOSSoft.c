@@ -592,8 +592,8 @@ void _OSTimerInterruptHandler(void)
   ETCB *etcb;
   TCB *arrival, *tmp;
   UINT16 nextMandatoryInstance;
-  extern BOOL _OSOverflowInterruptFlag;
-  extern BOOL _OSComparatorInterruptFlag;
+  extern volatile BOOL _OSOverflowInterruptFlag;
+  extern volatile BOOL _OSComparatorInterruptFlag;
   #ifdef NESTED_TIMER_INTERRUPT
      /* At this point there can only be one current timer interrupt under way. */
      #ifdef DEBUG_MODE
