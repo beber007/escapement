@@ -89,12 +89,13 @@ inline BOOL OSUINT8_SC(UINT8 *memAddr, register UINT8 newVal)
      if (_OSLLReserveBit) {      // Is the reservation still on?
         _OSLLReserveBit = FALSE;
         *memAddr = newVal;
-        tmp = TRUE;
+        RestorePriMask(priMask);
+        return TRUE;
      }
-     else
-        tmp = FALSE;
-     RestorePriMask(priMask);
-     return tmp;
+     else {
+        RestorePriMask(priMask);
+        return FALSE;
+     }
   #endif
 } /* end of OSUINT8_SC */
 
@@ -128,12 +129,13 @@ inline BOOL OSUINT16_SC(UINT16 *memAddr, register UINT16 newVal)
      if (_OSLLReserveBit) {      // Is the reservation still on?
         _OSLLReserveBit = FALSE;
         *memAddr = newVal;
-        tmp = TRUE;
+        RestorePriMask(priMask);
+        return TRUE;
      }
-     else
-        tmp = FALSE;
-     RestorePriMask(priMask);
-     return tmp;
+     else {
+        RestorePriMask(priMask);
+        return FALSE;
+     }
   #endif
 } /* end of OSUINT16_SC */
 
@@ -167,12 +169,13 @@ inline BOOL OSINT16_SC(INT16 *memAddr, register INT16 newVal)
      if (_OSLLReserveBit) {      // Is the reservation still on?
         _OSLLReserveBit = FALSE;
         *memAddr = newVal;
-        tmp = TRUE;
+        RestorePriMask(priMask);
+        return TRUE;
      }
-     else
-        tmp = FALSE;
-     RestorePriMask(priMask);
-     return tmp;
+     else {
+        RestorePriMask(priMask);
+        return FALSE;
+     }
   #endif
 } /* end of OSINT16_SC */
 
@@ -206,12 +209,13 @@ inline BOOL OSUINT32_SC(UINT32 *memAddr, register UINT32 newVal)
      if (_OSLLReserveBit) {      // Is the reservation still on?
         _OSLLReserveBit = FALSE;
         *memAddr = newVal;
-        tmp = TRUE;
+        RestorePriMask(priMask);
+        return TRUE;
      }
-     else
-        tmp = FALSE;
-     RestorePriMask(priMask);
-     return tmp;
+     else {
+        RestorePriMask(priMask);
+        return FALSE;
+     }
   #endif
 } /* end of OSUINT32_SC */
 
@@ -245,11 +249,12 @@ inline BOOL OSINT32_SC(INT32 *memAddr, register INT32 newVal)
      if (_OSLLReserveBit) {      // Is the reservation still on?
         _OSLLReserveBit = FALSE;
         *memAddr = newVal;
-        tmp = TRUE;
+        RestorePriMask(priMask);
+        return TRUE;
      }
-     else
-        tmp = FALSE;
-     RestorePriMask(priMask);
-     return tmp;
+     else {
+        RestorePriMask(priMask);
+        return FALSE;
+     }
   #endif
 } /* end of OSINT32_SC */

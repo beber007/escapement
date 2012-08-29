@@ -66,12 +66,13 @@ BOOL OSUINT8_SC(UINT8 *memory, UINT8 newValue)
   if (_OSLLReserveBit) {          // Is the reservation still on?
      _OSLLReserveBit = FALSE;
      *memory = newValue;
-     tmp = TRUE;
+     _set_interrupt_state(state); // Restore previous interrupt enable bit value
+     return TRUE;
   }
-  else
-     tmp = FALSE;
-  _set_interrupt_state(state);    // Restore previous interrupt enable bit value
-  return tmp;
+  else {
+     _set_interrupt_state(state); // Restore previous interrupt enable bit value
+     return FALSE;
+  }
 } /* end of OSUINT8_SC */
 
 
@@ -93,12 +94,13 @@ BOOL OSUINT16_SC(UINT16 *memory, UINT16 newValue)
   if (_OSLLReserveBit) {          // Is the reservation still on?
      _OSLLReserveBit = FALSE;
      *memory = newValue;
-     tmp = TRUE;
+     _set_interrupt_state(state); // Restore previous interrupt enable bit value
+     return TRUE;
   }
-  else
-     tmp = FALSE;
-  _set_interrupt_state(state);    // Restore previous interrupt enable bit value
-  return tmp;
+  else {
+     _set_interrupt_state(state); // Restore previous interrupt enable bit value
+     return FALSE;
+  }
 } /* end of OSUINT16_SC */
 
 
@@ -120,12 +122,13 @@ BOOL OSINT16_SC(INT16 *memory, INT16 newValue)
   if (_OSLLReserveBit) {          // Is the reservation still on?
      _OSLLReserveBit = FALSE;
      *memory = newValue;
-     tmp = TRUE;
+     _set_interrupt_state(state); // Restore previous interrupt enable bit value
+     return TRUE;
   }
-  else
-     tmp = FALSE;
-  _set_interrupt_state(state);    // Restore previous interrupt enable bit value
-  return tmp;
+  else {
+     _set_interrupt_state(state); // Restore previous interrupt enable bit value
+     return FALSE;
+  }
 } /* end of OSINT16_SC */
 
 
@@ -153,12 +156,13 @@ BOOL OSUINT32_SC(UINT32 *memory, UINT32 newValue)
   if (_OSLLReserveBit) {          // Is the reservation still on?
      _OSLLReserveBit = FALSE;
      *memory = newValue;
-     tmp = TRUE;
+     _set_interrupt_state(state); // Restore previous interrupt enable bit value
+     return TRUE;
   }
-  else
-     tmp = FALSE;
-  _set_interrupt_state(state);    // Restore previous interrupt enable bit value
-  return tmp;
+  else {
+     _set_interrupt_state(state); // Restore previous interrupt enable bit value
+     return FALSE;
+  }
 } /* end of OSUINT32_SC */
 
 
@@ -186,10 +190,11 @@ BOOL OSINT32_SC(INT32 *memory, INT32 newValue)
   if (_OSLLReserveBit) {          // Is the reservation still on?
      _OSLLReserveBit = FALSE;
      *memory = newValue;
-     tmp = TRUE;
+     _set_interrupt_state(state); // Restore previous interrupt enable bit value
+     return TRUE;
   }
-  else
-     tmp = FALSE;
-  _set_interrupt_state(state);    // Restore previous interrupt enable bit value
-  return tmp;
+  else {
+     _set_interrupt_state(state); // Restore previous interrupt enable bit value
+     return FALSE;
+  }
 } /* end of OSUINT32_SC */
