@@ -16,7 +16,7 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File TaskLED.c: Illustrates 3 simple periodic tasks that toggle an output GPIO port.
+/* File TaskLEDF1.c: Illustrates 3 simple periodic tasks that toggle an output GPIO port.
 ** Two of these tasks do a constant number of iterations in a loop, while the third does
 ** a variable number of iterations, which increases at each invocation until this number
 ** reaches a maximum value, at which time it restarts with a iteration of 1.
@@ -37,9 +37,9 @@ typedef struct TaskParametersDef {
    UINT32 Delay;        // Number of iterations done in the task's loop
 } TaskParametersDef;
 
+static void InitializeFlags(u16 GPIO_Pin);
 static void FixedDelayTask(void *argument);
 static void VariableDelayTask(void *argument);
-static void InitializeFlags(u16 GPIO_Pin);
 
 
 int main(void)
@@ -123,6 +123,20 @@ int main(void)
 } /* end of main */
 
 
+/* InitializeFlag: .*/
+void InitializeFlags(u16 GPIO_Pin)
+{
+  GPIO_InitTypeDef GPIO_InitStructure;
+  /* Enable GPIO_LED clock */
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+  /* Configure GPIO_LED Pin as Output push-pull */
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+  GPIO_Init(GPIOB, &GPIO_InitStructure);
+} /* end of InitializeFlag */
+
+
 /* FixedDelayTask: Changes the state of the task's attributed output I/O port before and
 ** after executing a fixed number of loop iterations The number of iterations is a param-
 ** eter transfered by main. */
@@ -156,17 +170,3 @@ void VariableDelayTask(void *argument)
   GPIO_ResetBits(TaskParameters->GPIOx,TaskParameters->GPIO_Pin);
   OSEndTask();
 } /* end of VariableDelayTask */
-
-
-/* InitializeFlag: .*/
-void InitializeFlags(u16 GPIO_Pin)
-{
-  GPIO_InitTypeDef GPIO_InitStructure;
-  /* Enable GPIO_LED clock */
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-  /* Configure GPIO_LED Pin as Output push-pull */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-  GPIO_Init(GPIOB, &GPIO_InitStructure);
-} /* end of InitializeFlag */

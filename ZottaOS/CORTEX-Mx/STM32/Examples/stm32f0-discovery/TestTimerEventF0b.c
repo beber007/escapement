@@ -16,14 +16,9 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File TestTimerEvent2.c: Shows how to use API ZottaOS_TimerEvent. This program is based
-** on TestTimerEvent.c but uses a single event-driven task per LED and shows how to ini-
-** tiate 2 events.
-** Prior to using the ZottaOS_TimerEvent API, you should run ZottaOSconf.exe to define a
-** timer with two interrupt sources (one for the overflow and its corresponding capture
-** compare register 1, e.g. OS_IO_TIMER1_A1_TA and OS_IO_TIMER1_A1_CC1 for Timer1 A), and
-** also a port pin interrupt to act as a software interrupt (e.g. on port 1 pin 6 defined
-** as OS_IO_PORT1_6).
+/* File TestTimerEventF0b.c: Shows how to use API ZottaOS_TimerEvent. This program is
+** based on TestTimerEventF0.c but uses a single event-driven task per LED and shows
+** how to initiate 2 events.
 ** Version identifier: June 2012
 ** Authors: MIS-TIC */
 
@@ -47,8 +42,11 @@ void ToggleLed2Task(void *argument);
 int main(void)
 {
   void *event[2];
+  #if ZOTTAOS_TIMER == EVENT_TIMER_INDEX
+     #error Event timer device must be different from the internal timer used by ZottaOS
+  #endif
   // Enable debug module clock
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_DBGMCU, ENABLE);
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_DBGMCU,ENABLE);
   /* Stop timer during debugger connection */
   #if ZOTTAOS_TIMER == OS_IO_TIM17
      DBGMCU_APB2PeriphConfig(DBGMCU_TIM17_STOP,ENABLE);
@@ -79,10 +77,25 @@ int main(void)
      OSCreateSynchronousTask(ToggleLed1Task,0,1000,0,event[0],event[0]);
      OSCreateSynchronousTask(ToggleLed2Task,0,100,0,event[1],event[1]);
   #endif
-
   /* Start the OS so that it starts scheduling the user tasks */
   return OSStartMultitasking(InitApplication,event);
 } /* end of main */
+
+
+/* InitializeFlags: Initialize input/output pin for flags.*/
+void InitializeFlags(UINT16 GPIO_Pin)
+{
+  GPIO_InitTypeDef GPIO_InitStructure;
+  /* Enable GPIO_LED clock */
+  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+  /* Configure GPIO_LED Pin as Output push-pull */
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_Level_3;
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+  GPIO_Init(GPIOB, &GPIO_InitStructure);
+} /* end of InitializeFlags */
 
 
 /* InitApplication: Triggers event-driven tasks ToggleLed1Task and ToggleLed2Task. */
@@ -136,19 +149,3 @@ void ToggleLed2Task(void *argument)
   state = !state;
   OSSuspendSynchronousTask();
 } /* end of ToggleLed2Task */
-
-
-/* InitializeFlags: Initialize input/output pin for flags.*/
-void InitializeFlags(UINT16 GPIO_Pin)
-{
-  GPIO_InitTypeDef GPIO_InitStructure;
-  /* Enable GPIO_LED clock */
-  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
-  /* Configure GPIO_LED Pin as Output push-pull */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_Level_3;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOB, &GPIO_InitStructure);
-} /* end of InitializeFlags */

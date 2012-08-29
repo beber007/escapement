@@ -222,7 +222,7 @@ int main(void)
   /* Restore default UART interrupt handler */
   UARTDescriptor->InterruptHandler = UARTHandler;
   /* Start the OS so that it starts scheduling the user task */
-  return OSStartMultitasking();
+  return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 
 

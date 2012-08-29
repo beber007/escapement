@@ -117,10 +117,10 @@ int main(void)
      OSCreateTask(VariableDelayTask,2400,0,30000,30000,1,1,0,TaskParameters);
   #else
      #error Wrong kernel version
-  #endif  
+  #endif
 
   /* Start the OS so that it starts scheduling the user tasks */
-  return OSStartMultitasking();
+  return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 
 

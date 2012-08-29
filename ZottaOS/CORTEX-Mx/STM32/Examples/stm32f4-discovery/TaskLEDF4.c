@@ -37,9 +37,9 @@ typedef struct TaskParametersDef {
    UINT32 Delay;        // Number of iterations done in the task's loop
 } TaskParametersDef;
 
+static void InitializeFlags(UINT16 GPIO_Pin);
 static void FixedDelayTask(void *argument);
 static void VariableDelayTask(void *argument);
-static void InitializeFlags(UINT16 GPIO_Pin);
 
 
 int main(void)
@@ -47,40 +47,28 @@ int main(void)
   TaskParametersDef *TaskParameters;
   /* Stop timer during debugger connection */
   #if ZOTTAOS_TIMER == OS_IO_TIM14
-     DBGMCU_Config(DBGMCU_TIM14_STOP,ENABLE);
      DBGMCU_APB1PeriphConfig(DBGMCU_TIM14_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM13
-     DBGMCU_Config(DBGMCU_TIM13_STOP,ENABLE);
      DBGMCU_APB1PeriphConfig(DBGMCU_TIM13_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM12
-     DBGMCU_Config(DBGMCU_TIM12_STOP,ENABLE);
      DBGMCU_APB1PeriphConfig(DBGMCU_TIM12_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM11
-     DBGMCU_Config(DBGMCU_TIM11_STOP,ENABLE);
      DBGMCU_APB2PeriphConfig(DBGMCU_TIM11_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM10
-     DBGMCU_Config(DBGMCU_TIM10_STOP,ENABLE);
      DBGMCU_APB2PeriphConfig(DBGMCU_TIM10_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM9
-     DBGMCU_Config(DBGMCU_TIM9_STOP,ENABLE);
      DBGMCU_APB2PeriphConfig(DBGMCU_TIM9_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM8
-     DBGMCU_Config(DBGMCU_TIM8_STOP,ENABLE);
      DBGMCU_APB2PeriphConfig(DBGMCU_TIM8_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM5
-     DBGMCU_Config(DBGMCU_TIM5_STOP,ENABLE);
      DBGMCU_APB1PeriphConfig(DBGMCU_TIM5_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM4
-     DBGMCU_Config(DBGMCU_TIM4_STOP,ENABLE);
      DBGMCU_APB1PeriphConfig(DBGMCU_TIM4_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM3
-     DBGMCU_Config(DBGMCU_TIM3_STOP,ENABLE);
      DBGMCU_APB1PeriphConfig(DBGMCU_TIM3_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM2
-     DBGMCU_Config(DBGMCU_TIM2_STOP,ENABLE);
      DBGMCU_APB1PeriphConfig(DBGMCU_TIM2_STOP,ENABLE);
   #elif ZOTTAOS_TIMER == OS_IO_TIM1
-     DBGMCU_Config(DBGMCU_TIM1_STOP,ENABLE);
      DBGMCU_APB2PeriphConfig(DBGMCU_TIM1_STOP,ENABLE);
   #endif
   /* Keep debugger connection during sleep mode */
@@ -129,6 +117,22 @@ int main(void)
 } /* end of main */
 
 
+/* InitializeFlags: Initialize input/output pin for flags.*/
+void InitializeFlags(UINT16 GPIO_Pin)
+{
+  GPIO_InitTypeDef GPIO_InitStructure;
+  /* Enable GPIO_LED clock */
+  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+  /* Configure GPIO_LED Pin as Output push-pull */
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+  GPIO_Init(GPIOB, &GPIO_InitStructure);
+} /* end of InitializeFlags */
+
+
 /* FixedDelayTask: Changes the state of the task's attributed output I/O port before and
 ** after executing a fixed number of loop iterations The number of iterations is a param-
 ** eter transfered by main. */
@@ -160,19 +164,3 @@ void VariableDelayTask(void *argument)
   GPIO_ResetBits(TaskParameters->GPIOx,TaskParameters->GPIO_Pin);
   OSEndTask();
 } /* end of VariableDelayTask */
-
-
-/* InitializeFlags: Initialize input/output pin for flags.*/
-void InitializeFlags(UINT16 GPIO_Pin)
-{
-  GPIO_InitTypeDef GPIO_InitStructure;
-  /* Enable GPIO_LED clock */
-  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
-  /* Configure GPIO_LED Pin as Output push-pull */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOB, &GPIO_InitStructure);
-} /* end of InitializeFlags */

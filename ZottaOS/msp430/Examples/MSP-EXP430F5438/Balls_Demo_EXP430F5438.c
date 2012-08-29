@@ -269,7 +269,7 @@ int main(void)
   InitBalls();   // Also draws the initial positions of the balls
   InitTrackpointButton(InitADC12());
   /* Start the OS so that it starts scheduling the application tasks */
-  return OSStartMultitasking();
+  return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 
 
