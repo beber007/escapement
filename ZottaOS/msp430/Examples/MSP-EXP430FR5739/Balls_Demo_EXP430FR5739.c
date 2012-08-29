@@ -157,7 +157,7 @@ int main(void)
      OSEnqueueUART(freeNode,strlen(freeNode),OS_IO_USCI_A0_TX);
   }
   /* Start the OS so that it starts scheduling the user tasks */
-  return OSStartMultitasking();
+  return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 
 

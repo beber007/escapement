@@ -16,7 +16,7 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOSTimerEvent.h: Provides an API that transforms a timer device into a manag-
+/* File ZottaOS_TimerEvent.h: Provides an API that transforms a timer device into a manag-
  * er that schedules event-driven tasks.
 ** Platform version: All STM32 microcontrollers.
 ** Version date: April 2012

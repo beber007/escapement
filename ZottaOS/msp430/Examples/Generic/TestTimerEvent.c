@@ -17,7 +17,7 @@
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
 /* File TestTimerEvent.c: Shows how to use API ZottaOS_TimerEvent. This simple program
-** periodically turns LEDS on and then schedules a event to turn them off.
+** periodically turns LEDS on and then schedules an event to turn them off.
 ** Prior to using this API, you should run ZottaOSconf.exe to define a timer with two
 ** interrupt sources (one for the overflow and its corresponding capture/compare regis-
 ** ter 1, e.g. OS_IO_TIMER1_A1_TA and OS_IO_TIMER1_A1_CC1 for Timer1 A), and also a port

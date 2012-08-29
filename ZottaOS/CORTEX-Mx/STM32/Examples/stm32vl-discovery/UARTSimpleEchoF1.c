@@ -16,7 +16,8 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File UARTSimpleEcho.c: Receives characters that are then forwarded back to the sender.
+/* File UARTSimpleEchoF1.c: Receives characters that are then forwarded back to the
+** sender.
 ** Version identifier: February 2012
 ** Authors: MIS-TIC */
 
@@ -39,16 +40,12 @@ int main(void)
   DBGMCU_Config(DBGMCU_TIM4_STOP,ENABLE);
   /* Keep debugger connection during sleep mode */
   DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
-
   SystemInit();
-
   /* Initialize ZottaOS I/O UART drivers */
   OSInitUART(UART_TRANSMIT_FIFO_NB_NODE,UART_TRANSMIT_FIFO_NODE_SIZE,
              UARTUserReceiveInterruptHandler, UART_VECTOR);
-
   /* Initialize USART or USCI 0 hardware */
   InitializeUARTHardware();
-
   /* Start the OS so that it runs the idle task, which puts the processor to sleep when
   ** there are no interrupts. */
   return OSStartMultitasking();
@@ -87,7 +84,7 @@ void InitializeUARTHardware(void)
   USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
   USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
   /* Configure USART1 */
-  USART_Init(USART1, &USART_InitStructure);
+  USART_Init(USART1,&USART_InitStructure);
   /* Enable USART1 Receive and Transmit interrupts */
   USART_ITConfig(USART1,USART_IT_RXNE,ENABLE);
   //USART_ITConfig(USART1,USART_IT_TXE,ENABLE);

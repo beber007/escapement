@@ -16,7 +16,8 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File UARTSimpleEcho.c: Receives characters that are then forwarded back to the sender.
+/* File UARTSimpleEchoL1.c: Receives characters that are then forwarded back to the
+** sender.
 ** Version identifier: February 2012
 ** Authors: MIS-TIC */
 
@@ -68,19 +69,20 @@ int main(void)
 } /* end of main */
 
 
-/* InitializeUART2Hardware: Initializes USART2 hardware. Tx is connected to PA2 and Rx is connected to PA3*/
+/* InitializeUART2Hardware: Initializes USART2 hardware. Tx is connected to PA2 and Rx
+**  is connected to PA 3*/
 void InitializeUART2Hardware(void)
 {
   USART_InitTypeDef USART_InitStructure;
   GPIO_InitTypeDef GPIO_InitStructure;
   NVIC_InitTypeDef NVIC_InitStructure;
   /* Enable USART2 and GPIOA clocks */
-  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
-  RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
+  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA,ENABLE);
+  RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2,ENABLE);
   /* Connect PA2 to USART2_Tx*/
-  //GPIO_PinAFConfig(GPIOA, GPIO_PinSource2, GPIO_AF_USART2);
+  //GPIO_PinAFConfig(GPIOA,GPIO_PinSource2,GPIO_AF_USART2);
   /* Connect PA3 to USART2_Rx*/
-  //GPIO_PinAFConfig(GPIOA, GPIO_PinSource3, GPIO_AF_USART2);
+  //GPIO_PinAFConfig(GPIOA,GPIO_PinSource3,GPIO_AF_USART2);
   /* Configure USART2 Tx (PA2) as alternate function push-pull */
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
@@ -107,7 +109,7 @@ void InitializeUART2Hardware(void)
   USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
   USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
   /* Configure USART2 */
-  USART_Init(USART2, &USART_InitStructure);
+  USART_Init(USART2,&USART_InitStructure);
   /* Enable USART2 Receive and Transmit interrupts */
   USART_ITConfig(USART2,USART_IT_RXNE,ENABLE);
   //USART_ITConfig(USART2,USART_IT_TXE,ENABLE);

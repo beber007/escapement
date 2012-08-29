@@ -16,7 +16,7 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOSTimerEvent.c: Implements an event queue that is associated with a timer
+/* File ZottaOS_TimerEvent.c: Implements an event queue that is associated with a timer
 ** device. Events that are inserted into the queue are specified along with a delay, and
 ** as soon as this delay has expired, the event is scheduled.
 ** Platform version: All STM32 microcontrollers.
