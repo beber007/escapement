@@ -40,7 +40,7 @@
 
 ** System wall clock. This variable stores the most-significant 16 bits of the current
 ** time, and it is incremented every time the timer overflows (transits from 2^16 - 1 to
-** 0). To get the current time, use OSGetActualTime, which concatenates the lower 16 bits
+** 0). To get the current time, use _OSGetActualTime, which concatenates the lower 16 bits
 ** taken from the timer counter register with the number of overflows. */
 volatile INT16 _OSTime = 0;
 
@@ -122,7 +122,8 @@ BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
 
 
 /* _OSGetActualTime: Returns the current value of the wall clock. Combines the 16 bits of
-** the timer counter with the global variable Time to yield the current time.*/
+** the timer counter with the global variable Time to yield the current time. This func-
+** tion should never be called when interrupts are disabled. */
 INT32 _OSGetActualTime(void)
 {
   INT16 currentTime;

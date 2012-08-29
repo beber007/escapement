@@ -58,7 +58,6 @@ void _OSInitializeTimer(void);
 void _OSStartTimer(void);
 
 /* _OSGetActualTime: Returns the current value of the wall clock.
-** Parameters: Node
 ** Returned value: (INT32) current time. */
 INT32 _OSGetActualTime(void);
 

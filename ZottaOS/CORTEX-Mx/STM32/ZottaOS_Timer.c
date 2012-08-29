@@ -318,7 +318,7 @@ typedef struct TIMER_ISR_DATA {
 #ifdef ZOTTAOS_TIMER_16
    /* System wall clock. This variable stores the most-significant 16 bits of the current
    ** time. The lower 16 bits are directly taken from the timer counter register. To get
-   ** the current time, use OSGetActualTime. */
+   ** the current time, use _OSGetActualTime. */
    static volatile INT16 Time;
 #endif
 
@@ -546,8 +546,10 @@ BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
 } /* end of _OSTimerIsOverflow */
 
 
-/* _OSGetActualTime: Retrieve the current time. Combines the 16 bits of the timer counter
-** with the global variable Time to yield the current time. */
+/* _OSGetActualTime: Retrieves the current time. When ZottaOS' interval timer is confi-
+** gured for 16-bit timer, this function combines the 16 bits of the timer counter with
+** the global variable Time to yield the current time. This function should never be
+** called from an ISR having higher priority than ZOTTAOS_TIMER_16. */
 INT32 _OSGetActualTime(void)
 {
   #ifdef ZOTTAOS_TIMER_32
