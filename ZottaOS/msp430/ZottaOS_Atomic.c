@@ -59,7 +59,6 @@ UINT8 OSUINT8_LL(UINT8 *memory)
 ** turns a boolean indicating whether or not the memory location was modified or not. */
 BOOL OSUINT8_SC(UINT8 *memory, UINT8 newValue)
 {
-  BOOL tmp;
   UINT16 state;
   state = _get_interrupt_state(); // Save interrupt enable bit value
   _disable_interrupts();
@@ -87,7 +86,6 @@ UINT16 OSUINT16_LL(UINT16 *memory)
 /* OSUINT16_SC: Same as OSUINT8_SC but applied to unsigned 16-bit integers. */
 BOOL OSUINT16_SC(UINT16 *memory, UINT16 newValue)
 {
-  BOOL tmp;
   UINT16 state;
   state = _get_interrupt_state(); // Save interrupt enable bit value
   _disable_interrupts();
@@ -115,7 +113,6 @@ INT16 OSINT16_LL(INT16 *memory)
 /* OSINT16_SC: Same as OSUINT16_SC but for signed integers. */
 BOOL OSINT16_SC(INT16 *memory, INT16 newValue)
 {
-  BOOL tmp;
   INT16 state;
   state = _get_interrupt_state(); // Save interrupt enable bit value
   _disable_interrupts();
@@ -149,7 +146,6 @@ UINT32 OSUINT32_LL(UINT32 *memory)
 /* OSUINT32_SC: Same as OSUINT8_SC but for 32-bit unsigned integers. */
 BOOL OSUINT32_SC(UINT32 *memory, UINT32 newValue)
 {
-  BOOL tmp;
   UINT16 state;
   state = _get_interrupt_state(); // Save interrupt enable bit value
   _disable_interrupts();
@@ -183,7 +179,6 @@ INT32 OSINT32_LL(INT32 *memory)
 /* OSINT32_SC: Same as OSUINT32_SC but for signed integers. */
 BOOL OSINT32_SC(INT32 *memory, INT32 newValue)
 {
-  BOOL tmp;
   UINT16 state;
   state = _get_interrupt_state(); // Save interrupt enable bit value
   _disable_interrupts();
