@@ -28,7 +28,7 @@
 /* Uncomment the line below that corresponds to your target STM32 device while leaving
 ** the others commented. */
 
-/*------------------------------------- STM32F05XXX ------------------------------------*/
+/*------------------------------------- STM32F05XXX ----------------------------------*/
 
 /* STM32F050K4, STM32F050K6, STM32F050C4 and STM32F050C6 */
 //#define STM32F050XX
@@ -42,13 +42,13 @@
 /* STM32F051C8 and STM32F051R8 */
 #define STM32F051C8_R8
 
-/*------------------------------------- STM32L1XXXX ------------------------------------*/
+/*------------------------------------- STM32L1XXXX ----------------------------------*/
 
 /* STM32L151C6, STM32L151R6, STM32L151V6, STM32L151C8, STM32L151R8, STM32L151V8,
 ** STM32L151CB, STM32L151RB and STM32L151VB */
 //#define STM32L151X6_X8_XB
 
-/* STM32L152C6, STM32L152R6, STM32L152V6, STM32L152C8, STM32L152R8, STM32L152V8, \
+/* STM32L152C6, STM32L152R6, STM32L152V6, STM32L152C8, STM32L152R8, STM32L152V8,
 ** STM32L152CB, STM32L152RB and STM32L152VB */
 //#define STM32L152X6_X8_XB
 
@@ -67,7 +67,7 @@
 /* STM32L162RD, STM32L162VD, STM32L162ZD and STM32L162QD */
 //#define STM32L162XD
 
-/*------------------------------------- STM32F10XXX ------------------------------------*/
+/*------------------------------------- STM32F10XXX ----------------------------------*/
 
  /* STM32F100C4, STM32F100C6, STM32F100R4 and STM32F100R6 */
 //#define STM32F100X4_X6
@@ -108,7 +108,7 @@
 /* STM32F102C8, STM32F102CB, STM32F102R8 and STM32F102RB */
 //#define STM32F102X8_XB
 
-/* STM32F103T4, STM32F103T6, STM32F103C4, STM32F103C6, STM32F103R4 and STM32F103R6*/
+/* STM32F103T4, STM32F103T6, STM32F103C4, STM32F103C6, STM32F103R4 and STM32F103R6 */
 //#define STM32F103X4_X6
 
 /* STM32F103T8 and STM32F103TB*/
@@ -135,16 +135,16 @@
 /* STM32F107R8, STM32F107RB, STM32F107RB, STM32F107V8, STM32F107VB and STM32F107RB */
 //#define STM32F107XX
 
-/*------------------------------------- STM32F2XXXX ------------------------------------*/
+/*------------------------------------- STM32F2XXXX ----------------------------------*/
 
 /* STM32F205RB, STM32F205RC, STM32F205RE, STM32F205RF and STM32F205RG */
 //#define STM32F205RX
 
-/* STM32F205VB, STM32F205VC, STM32F205VE, STM32F205VF, STM32F205VG, STM32F205ZC, \
+/* STM32F205VB, STM32F205VC, STM32F205VE, STM32F205VF, STM32F205VG, STM32F205ZC,
 ** STM32F205ZE, STM32F205ZF and STM32F205ZG */
 //#define STM32F205VX_ZX
 
-/* STM32F207RC, STM32F207RE, STM32F207RF, STM32F207RG, STM32F207VC, STM32F207VE, \
+/* STM32F207RC, STM32F207RE, STM32F207RF, STM32F207RG, STM32F207VC, STM32F207VE,
 ** STM32F207VF, STM32F207VG, STM32F207ZC, STM32F207ZE, STM32F207ZF and STM32F207ZG */
 //#define STM32F207XX
 
@@ -157,7 +157,7 @@
 /* STM32F217VE, STM32F217VG, STM32F217ZE, STM32F217ZG, STM32F217LE and STM32F217LG */
 //#define STM32F217XX
 
-/*------------------------------------- STM32F4XXXX ------------------------------------*/
+/*------------------------------------- STM32F4XXXX ----------------------------------*/
 
 //#define STM32F405RG
 
@@ -175,8 +175,8 @@
 /* STM32F417VE, STM32F417VG, STM32F417ZE, STM32F417ZG, STM32F417LE and STM32F417LG */
 //#define STM32F417XX
 
-/* Define STM32 series (family) */
 
+/* Define STM32 series (family) */
 
 #if defined(STM32F050XX) || defined(STM32F051X4) || defined(STM32F051K6_K8_C6_R6) || \
     defined(STM32F051C8_R8)
@@ -212,7 +212,7 @@
 #endif
 
 
-/* Selects which version to be used ZottaOS */
+/* Select which ZottaOS version to use. */
 //#define ZOTTAOS_VERSION_HARD
 #define ZOTTAOS_VERSION_SOFT
 
@@ -225,46 +225,54 @@
 ** can take all the remaining RAM memory not occupied by the dynamic memory allocations
 ** and the application's global variables.
 ** (Also see function OSMalloc in ZottaOS_CortexMx.c) */
-#define OSMALLOC_INTERNAL_HEAP_SIZE   2048
+#define OSMALLOC_INTERNAL_HEAP_SIZE  2048
 
 
 #if defined(CORTEX_M3) || defined(CORTEX_M4)
    /* The nested vector interrupt controller (NVIC) under Cortex-M3 or Cortex-M4 allows
-   ** dynamic prioritization of interrupts with up to 256 levels that can be arranged into
-   ** priority level groups where each group can be preempted. The NVIC is configurable by
-   ** the pair (A,B), where A denotes the number of bits used to set the number of groups
-   ** (number of priorities), and B is the number of bits used for the number of subpriori-
-   ** ties within a* group. A + B = 8 and A = [2..7]. Note that ZottaOS requires 3 priority
-   ** groups for itself. From highest to lowest priority, these are: one for the peripheral
-   ** hardware timer, one for the software timer interrupt and a final one for the PendSV
-   ** used to finalize a context switch.
-   ** In the following, PRIGROUP determines the setting of the (A,B) pair, where PRIGROUP is
-   ** a value in the range [0..5] yielding A = 7 - PRIGROUP and B = 8 - A.
-   ** Note that some microcontrollers may have fewer than 8 bits to define the priority le-
-   ** vels, for example STM-32 uses only 4 bits and PRIGROUP must be in the range [3..5]
-   ** which then gives A = 7 - PRIGROUP and B = 4 - A. */
-   #define PRIGROUP (UINT32)3
+   ** dynamic prioritization of interrupts with up to 256 levels that can be arranged
+   ** into priority level groups where each group can be preempted. The NVIC is config-
+   ** urable by the pair (A,B), where A denotes the number of bits used to set the number
+   ** of groups (number of priorities), and B is the number of bits used for the number
+   ** of subpriorities within a group. A + B = 8 and A = [2..7]. Note that ZottaOS re-
+   ** quires 3 priority groups for itself. From highest to lowest priority, these are:
+   ** one for the peripheral hardware timer, one for the software timer interrupt and a
+   ** final one for the PendSV used to finalize a context switch.
+   ** In the following, PRIGROUP determines the setting of the (A,B) pair, where PRIGROUP
+   ** is a value in the range [0..5] yielding A = 7 - PRIGROUP and B = 8 - A.
+   ** STM32 based Cortex-M3 and -M4 cores has 16 distinct priority levels (=2^4) and
+   ** PRIGROUP must be in the range [3..5] which then gives A = 7 - PRIGROUP and B = 4
+   ** - A. */
+   #define PRIGROUP  (UINT32)3
 #elif defined(CORTEX_M0)
-   /*  */
-   #define LOWEST_PRIORITY_LEVEL 3
+   /* Cortex-M0 on STM32F0XXX defines 4 distinct priority levels numbered from 0 through
+   ** 3 with 0 being the highest. Of these, 2 priority levels are reserved by ZottaOS:
+   **   PendSV Ð used for context switching and must be at the lowest priority level (3);
+   **   SysTick Ð used to handle software generated exceptions to schedule application
+   **             tasks and must be at a higher priority than PendSV (2);
+   **   Internal timer used by ZottaOS Ð defined by TIMER_PRIORITY below and must be at
+   **             a higher priority than SysTick (0 or 1).
+   ** This leaves 2 priority levels for the application's peripheral devices (0 or 1). */
+   #define LOWEST_PRIORITY_LEVEL  3
 #endif
 
 
+/* Internal interval timer used by ZottaOS */
 /* You can choose the timer for ZottaOS from the following choices: OS_IO_TIM1 to
-** OS_IO_TIM5 and OS_IO_TIM8 to OS_IO_TIM17. Basic timers 6 and 7 may not be used because
-** they do not have a comparator. If the selected timer is not implemented in the part
-** number of the STM32 series used, a compiler error will indicate that the corresponding
-** symbol does not exist.*/
-#define ZOTTAOS_TIMER OS_IO_TIM3
+** OS_IO_TIM5 and OS_IO_TIM8 to OS_IO_TIM17. Basic timers 6 and 7 may not be used be-
+** cause they do not have a comparator. If the selected timer is not implemented in the
+** part number of the STM32 series used, a compiler error will indicate that the corres-
+** ponding symbol does not exist.*/
+#define ZOTTAOS_TIMER  OS_IO_TIM3
 
 /* Define the interval-timer prescaler */
-#define ZOTTAOS_TIMER_PRESCALER 47
+#define ZOTTAOS_TIMER_PRESCALER  47
 
 /* Defines the priority group and level of the interval-timer. The timer's priority must
 ** be higher than that of SysTick. See _OSResetHandler(). */
-#define TIMER_PRIORITY     (UINT8)0
+#define TIMER_PRIORITY  (UINT8)0
 #if defined(CORTEX_M3) || defined(CORTEX_M4)
-   #define TIMER_SUB_PRIORITY (UINT8)0
+   #define TIMER_SUB_PRIORITY  (UINT8)0
 #endif
 
 #endif /* ZOTTAOS_CONFIG_H_ */

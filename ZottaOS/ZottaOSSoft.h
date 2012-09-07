@@ -16,7 +16,7 @@
 ** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
-/* File ZottaOSHard.h: Defines the user interface with ZottaOSHard.c.
+/* File ZottaOSSoft.h: Defines the user interface with ZottaOSSoft.c.
 ** Version identifier: March 2012
 ** Authors: MIS-TIC
 */
@@ -195,7 +195,7 @@ void *OSMalloc(UINT16 size);
 **                  lines.
 **   (8) (UINT8) startInstance: Initial task offset delay counted in number of task in-
 **                  stances. 0 <= startInstance < k.
-**   (9) (void *) argument: An instance specific 32-bit value.
+**   (9) (void *) argument: An instance specific pointer width value.
 ** Returned value: TRUE if the task creation was successful and FALSE otherwise. The
 **   function fails when there's a memory allocation failure. */
 BOOL OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 periodOffset,
@@ -239,7 +239,7 @@ void *OSCreateEventDescriptor(void);
 **           3.   set aperiodicUtilization to (UINT8)(256.0 * sum) for all event-driven
 **                tasks
 **   (5) (void *) event: Descriptor returned by OSCreateSynchronousTask();
-**   (6) (void *) argument: An instance specific 32-bit value.
+**   (6) (void *) argument: An instance specific pointer width value.
 ** Returned value: TRUE if the task creation was successful and FALSE otherwise. The
 **   function fails when there's a memory allocation failure. */
 BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,

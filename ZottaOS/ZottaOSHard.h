@@ -174,7 +174,7 @@ void *OSMalloc(UINT16 size);
 **   (2) (UINT16) periodCycles: Number of full 2^30 cycles.
 **   (3) (INT32) periodOffset: Remaining period cycles, must be < 2^30.
 **   (4) (INT32) deadline: Task's deadline (worstCaseExecutionTime <= deadline <= P);
-**   (5) (void *) argument: An instance specific 32-bit value.
+**   (5) (void *) argument: An instance specific pointer width value.
 ** Returned value: TRUE if the task creation was successful and FALSE otherwise. The
 **   function fails when there's a memory allocation failure. */
 BOOL OSCreateTask(void task(void *), UINT16 periodCycles, INT32 periodOffset,
@@ -202,7 +202,7 @@ void *OSCreateEventDescriptor(void);
 **       completed, but under deadline monotonic scheduling, this task behaves like any
 **       other periodic task;
 **   (3) (void *) event: Descriptor returned by OSCreateSynchronousTask();
-**   (4) (void *) arg: An instance specific 32-bit value.
+**   (4) (void *) arg: An instance specific pointer width value.
 ** Returned value: TRUE if the task creation was successful and FALSE otherwise. The
 **   function fails when there's a memory allocation failure. */
 BOOL OSCreateSynchronousTask(void task(void *), INT32 workLoad, void *event, void *arg);
