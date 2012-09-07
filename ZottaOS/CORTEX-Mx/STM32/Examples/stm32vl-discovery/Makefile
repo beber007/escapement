@@ -16,7 +16,7 @@
 ## AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
 ## TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
-# Version identifier: March 2012
+# Version identifier: August 2012
 # Authors: MIS-TIC 
 
 FAMILLY = STM32F10x
@@ -42,7 +42,7 @@ clean:
 
 INCLUDE_ZOTTAOS = -I../../ -I../../../ -I../../../../
 
-CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g
+CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g ß-fdata-sections -ffunction-sections
 AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g
 
 OBJECTS_ZOTTAOS = build/ZottaOS_UART.o \
@@ -158,9 +158,9 @@ build/TestTimerEventF1.o : TestTimerEventF1.c
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ZOTTAOS) -o $@ $<
 
 build/TaskLEDF1.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TaskLEDF1.o
-	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TaskLEDF1.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TaskLEDF1.o -T${LINKERFILE}
 build/UARTSimpleEchoF1.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/UARTSimpleEchoF1.o
-	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/UARTSimpleEchoF1.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/UARTSimpleEchoF1.o -T${LINKERFILE}
 build/TestTimerEventF1.elf : ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TestTimerEventF1.o
-	${CC} -mcpu=${CPU} -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TestTimerEventF1.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ZOTTAOS} ${OBJECTS_LIB} build/TestTimerEventF1.o -T${LINKERFILE}
 	
