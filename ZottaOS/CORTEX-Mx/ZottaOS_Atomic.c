@@ -83,7 +83,6 @@ inline BOOL OSUINT8_SC(UINT8 *memAddr, register UINT8 newVal)
                    "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
      return tmp;
   #elif defined(CORTEX_M0)
-     BOOL tmp;
      UINT32 priMask = GetPriMask();
      _OSDisableInterrupts();
      if (_OSLLReserveBit) {      // Is the reservation still on?
@@ -123,7 +122,6 @@ inline BOOL OSUINT16_SC(UINT16 *memAddr, register UINT16 newVal)
                    "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
      return tmp;
   #elif defined(CORTEX_M0)
-     BOOL tmp;
      UINT32 priMask = GetPriMask();
      _OSDisableInterrupts();
      if (_OSLLReserveBit) {      // Is the reservation still on?
@@ -163,7 +161,6 @@ inline BOOL OSINT16_SC(INT16 *memAddr, register INT16 newVal)
                    "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
      return tmp;
   #elif defined(CORTEX_M0)
-     BOOL tmp;
      UINT32 priMask = GetPriMask();
      _OSDisableInterrupts();
      if (_OSLLReserveBit) {      // Is the reservation still on?
@@ -203,7 +200,6 @@ inline BOOL OSUINT32_SC(UINT32 *memAddr, register UINT32 newVal)
                    "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
      return tmp;
   #elif defined(CORTEX_M0)
-     BOOL tmp;
      UINT32 priMask = GetPriMask();
      _OSDisableInterrupts();
      if (_OSLLReserveBit) {      // Is the reservation still on?
@@ -243,7 +239,6 @@ inline BOOL OSINT32_SC(INT32 *memAddr, register INT32 newVal)
                    "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
      return tmp;
   #elif defined(CORTEX_M0)
-     BOOL tmp;
      UINT32 priMask = GetPriMask();
      _OSDisableInterrupts();
      if (_OSLLReserveBit) {      // Is the reservation still on?
