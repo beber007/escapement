@@ -18,7 +18,7 @@
 */
 /* File ZottaOS_Timer.c: Hardware abstract timer layer. This file holds all timer related
 **            functions needed by the ZottaOS family of kernels so that these can easily
-**            easily be ported from one microcontroller to another.
+**            be ported from one microcontroller to another.
 ** Platform version: All STM32 microcontrollers.
 ** Version date: March 2012
 ** Authors: MIS-TIC

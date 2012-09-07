@@ -20,8 +20,6 @@
 ** Version identifier: July 2012
 ** Authors: MIS-TIC
 */
-/* TODO ajouter specificite OSMalloc pour Cortex */
-/* TODO ajouter specificite OSSetISRDescriptor/OSGetISRDescriptor pour Cortex */
 /* Building an application typically involves 5 steps:
 ** (1) Initialize processor specifics.
 ** (2) Perform application specific initializations.
@@ -172,10 +170,10 @@
 void OSSetMinimalProcessorSpeed(UINT8 speed);
 #endif
 
-/* OSSetProcessorSpeed: Sets the speed that the processor should run.
-** The function can be called anywhere from a task or from an interrupt ISR. It is provid-
-** ed here so that an application, not using any dynamic power management, can manually
-** adjust the core frequency. We however recommend that this task be left to ZottaOS.
+/* OSSetProcessorSpeed: Sets the speed that the processor should run. The function can
+** be called anywhere from a task or from an interrupt ISR. It is provided here so that
+** an application, not using any dynamic power management, can manually adjust the core
+** frequency. We however recommend that this task be left to ZottaOS.
 ** Parameter: (UINT8) A valid speed setting defined by a OS_xxMHZ_SPEED value. */
 void OSSetProcessorSpeed(UINT8 speed);
 
@@ -228,7 +226,8 @@ void *OSMalloc(UINT16 size);
 **   (3) (UINT16) periodCycles: Number of full 2^30 cycles.
 **   (4) (INT32) periodOffset: Remaining period cycles, must be < 2^30.
 **   (5) (INT32) deadline: Task's deadline (worstCaseExecutionTime <= deadline <= P);
-**   (6) (void *) argument: An instance specific 32-bit value.** Returned value: TRUE if the task creation was successful and FALSE otherwise. The
+**   (6) (void *) argument: An instance specific pointer width value.
+** Returned value: TRUE if the task creation was successful and FALSE otherwise. The
 **   function fails when there's a memory allocation failure. */
 BOOL OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 periodOffset,
                   INT32 deadline, void *argument);
@@ -244,7 +243,7 @@ BOOL OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 peri
 **   (3) (UINT16) periodCycles: Number of full 2^30 cycles.
 **   (4) (INT32) periodOffset: Remaining period cycles, must be < 2^30.
 **   (5) (INT32) deadline for the task's execution;
-**   (6) (void *) argument: An instance specific 32-bit value.
+**   (6) (void *) argument: An instance specific pointer width value.
 **   (7) (UINT8) static frequency index of the task; this index corresponds to the nomi-
 **       nal speed of task and is one of
 **               {OS_8MHZ_SPEED, OS_12MHZ_SPEED, OS_20MHZ_SPEED, OS_25MHZ_SPEED}
@@ -284,7 +283,7 @@ void *OSCreateEventDescriptor(void);
 **       dynamic power management is in effect or if Deadline Monotonic Schedule is in
 **       effect.
 **   (5) (void *) event: Descriptor returned by OSCreateSynchronousTask();
-**   (6) (void *) arg: An instance specific 32-bit value.
+**   (6) (void *) arg: An instance specific pointer width value.
 ** Returned value: TRUE if the task creation was successful and FALSE otherwise. The
 **   function fails when there's a memory allocation failure. */
 BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
@@ -299,7 +298,7 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
 **   (3) (INT32) workload: see OSCreateSynchronousTask();
 **   (4) (UINT8) Total processor utilization of all aperiodic tasks * 256;
 **   (5) (void *) event: see OSCreateSynchronousTask();
-**   (6) (void *) arg: An instance specific 32-bit value.
+**   (6) (void *) arg: An instance specific pointer width value.
 **   (7) (UINT8) static frequency index of the task; this index corresponds to the nomi-
 **       nal speed of task and is one of
 **               {OS_8MHZ_SPEED, OS_12MHZ_SPEED, OS_20MHZ_SPEED, OS_25MHZ_SPEED}

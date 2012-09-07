@@ -50,8 +50,8 @@
 **   (2) (UINT8) maxNodeSize: Byte size of the buffers that are in the free list. This
 **       value also corresponds to the maximum number of bytes that can be inserted into
 **       a message that the UART can transmit.
-**   (3) (BOOL (*)(UINT8)) ReceiveHandler: ISR function that is called when the
-**        UART receives a new byte from its input port.
+**   (3) (void (*)(UINT8)) ReceiveHandler: ISR function that is called when the UART re-
+**       ceives a new byte from its input port.
 **   (4) (UINT8) interruptIndex: Port number corresponding to a specific UART. This should
 **        be one of OS_IO_USART1 through OS_IO_USART6.
 ** Returned value: (BOOL) TRUE on success and FALSE if there's insufficient memory to

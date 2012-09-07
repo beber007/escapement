@@ -63,7 +63,7 @@ typedef struct TCB {
   INT32 NextArrivalTimeLow;      // Remaining time before reappearing
   void (*TaskCodePtr)(void *);   // Pointer to the first instruction of the code task
                                  // (Needed to reinitialize a new instance execution)
-  void *Argument;                // An instance specific 32-bit value
+  void *Argument;                // An instance specific pointer width value
   INT32 PeriodLow;               // Interarrival period >= WCET (user input)
   #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
      INT32 NextDeadline;         // Current instance deadline (offset==ETCB)
@@ -103,7 +103,7 @@ typedef struct ETCB {
   INT32 NextArrivalTimeLow;      // Remaining time before it can reappear
   void (*TaskCodePtr)(void *);   // Pointer to the first instruction of the code task
                                  // (Needed to reinitialize a new instance execution)
-  void *Argument;                // An instance specific 32-bit value
+  void *Argument;                // An instance specific pointer width value
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      INT32 PeriodLow;            // Interarrival period >= WCET (user input)
   #else

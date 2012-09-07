@@ -83,7 +83,7 @@ typedef struct TCB {
   #endif
   void (*TaskCodePtr)(void *);   // Pointer to the first instruction of the code task
                                  // (Needed to reinitialize a new instance execution)
-  void *Argument;                // An instance specific 32-bit value
+  void *Argument;                // An instance specific pointer width value
   INT32 PeriodLow;               // Interarrival period >= WCET (user input)
   INT32 NextDeadline;            // Current instance deadline (offset==ETCB)
   INT32 Deadline;                // Task's deadline <= Period (user input)
@@ -130,7 +130,7 @@ typedef struct ETCB {
   #endif
   void (*TaskCodePtr)(void *);   // Pointer to the first instruction of the code task
                                  // (Needed to reinitialize a new instance execution)
-  void *Argument;                // An instance specific 32-bit value
+  void *Argument;                // An instance specific pointer width value
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      INT32 PeriodLow;            // Interarrival period >= WCET (user input)
      INT32 WCET;                 // Worst case execution time (user input)
@@ -952,7 +952,7 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
      etcb->WCET = wcet;
   #else
      if (AperiodicUtilization < aperiodicUtilization) // All aperiodicUtilization should
-        AperiodicUtilization = aperiodicUtilization;  // be that same => only 1 time here
+        AperiodicUtilization = aperiodicUtilization;  // be the same => only 1 time here
      etcb->WorkLoad = (wcet << 8) / AperiodicUtilization;
      etcb->NextDeadline = 0;
   #endif
