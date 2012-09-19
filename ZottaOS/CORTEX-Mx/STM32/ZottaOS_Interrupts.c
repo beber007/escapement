@@ -1094,7 +1094,6 @@ static void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect);
       NULL,                /* 16  OS_IO_DMA1_Channel6 */
       NULL,                /* 17  OS_IO_DMA1_Channel7 */
       NULL,                /* 18  OS_IO_ADC1 */
-      NULL,
       #if defined(STM32F103X4_X6) || defined(STM32F103T8_TB) || \
           defined(STM32F103C8_CB_R8_RB_V8_VB)
          NULL,             /* 19  OS_IO_USB_HP_CAN1_TX */
