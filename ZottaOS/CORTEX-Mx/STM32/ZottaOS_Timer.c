@@ -533,7 +533,7 @@ BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
      INT16 tmp, time;
      if (_OSOverflowInterruptFlag) {
         _OSOverflowInterruptFlag = FALSE;
-        if ((tmp = shiftTimeLimit >> 16) < Time) {
+        if ((tmp = shiftTimeLimit >> 16) <= Time) {
            do {
               time = OSINT16_LL((INT16 *)&Time);
               time -= tmp;
