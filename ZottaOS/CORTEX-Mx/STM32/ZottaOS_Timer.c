@@ -457,7 +457,7 @@ void _OSStartTimer(void)
 #if ZOTTAOS_TIMER == OS_IO_TIM1 || ZOTTAOS_TIMER == OS_IO_TIM8
    void TimerHandler_Up(struct TIMER_ISR_DATA *descriptor)
    { // Timer overflow ISR
-     TIM_STATUS &= ~UPDATE_INT_BIT; // Clear interrupt flag
+     TIM_STATUS = ~UPDATE_INT_BIT;  // Clear interrupt flag
      #ifdef ZOTTAOS_TIMER_16
         Time += 1;                  // Increment most significant word of Time
      #endif
@@ -467,7 +467,7 @@ void _OSStartTimer(void)
 
    void TimerHandler_CC(struct TIMER_ISR_DATA *descriptor)
    { // Comparator match ISR
-     TIM_STATUS &= ~COMPARATOR_INT_BIT; // Clear interrupt flag
+     TIM_STATUS = ~COMPARATOR_INT_BIT;  // Clear interrupt flag
      TIM_COMPARATOR = 0;                // Disable timer comparator
      _OSComparatorInterruptFlag = TRUE;
      _OSGenerateSoftTimerInterrupt();
@@ -476,7 +476,7 @@ void _OSStartTimer(void)
    void TimerHandler(struct TIMER_ISR_DATA *descriptor)
    {
      if (TIM_STATUS & UPDATE_INT_BIT) {    // Is timer overflow interrupt?
-        TIM_STATUS &= ~UPDATE_INT_BIT;     // Clear interrupt flag
+        TIM_STATUS = ~UPDATE_INT_BIT;      // Clear interrupt flag
         #ifdef ZOTTAOS_TIMER_16
            Time += 1;       // Increment most significant word of Time
         #endif
@@ -484,7 +484,7 @@ void _OSStartTimer(void)
         _OSGenerateSoftTimerInterrupt();
      }
      if (TIM_STATUS & COMPARATOR_INT_BIT) { // Is comparator interrupt pending?
-        TIM_STATUS &= ~COMPARATOR_INT_BIT;  // Clear interrupt flag
+        TIM_STATUS = ~COMPARATOR_INT_BIT;   // Clear interrupt flag
         TIM_COMPARATOR = 0; // Disable timer comparator
         _OSComparatorInterruptFlag = TRUE;
         _OSGenerateSoftTimerInterrupt();
