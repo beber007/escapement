@@ -791,7 +791,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
   do {
      /* shifting of the temporal values. */
      if (*(UINT16 *)(device->Base + OFFSET_STATUS) & 1) { // Is timer overflow interrupt?
-        *(UINT16 *)(device->Base + OFFSET_STATUS) &= ~1;  // Clear interrupt flag
+        *(UINT16 *)(device->Base + OFFSET_STATUS) = ~1;  // Clear interrupt flag
         #if defined(STM32L1XXXX) && defined(OS_IO_TIM5)
            if (device->Base == BASE_TIM5) {
         #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
@@ -845,7 +845,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
            }
         #endif
         /* Clear interrupt flag */
-        *(UINT16 *)(device->Base + OFFSET_STATUS) &= ~2;
+        *(UINT16 *)(device->Base + OFFSET_STATUS) = ~2;
         #if defined(STM32L1XXXX) && defined(OS_IO_TIM5)
            if (device->Base == BASE_TIM5) {
         #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
