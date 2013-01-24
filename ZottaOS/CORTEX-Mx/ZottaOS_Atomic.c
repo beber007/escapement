@@ -41,8 +41,8 @@
    ** a context switch. This action is done in ZottaOS_CortexMx.c and ZottaOS_CortexMx.S. */
    BOOL _OSLLReserveBit;
 
-   /* Return PRIMASK bit and disable interrupts. */
-   static inline INT32 GetPriMask(void)
+   /* Return PRIMASK bit. */
+   static inline UINT32 GetPriMask(void)
    {
      UINT32 priMask;
      asm volatile ("MRS %0,PRIMASK":"=r"(priMask));
