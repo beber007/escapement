@@ -687,7 +687,8 @@ void (* const STM32VectorTable[])(void) = {
      _OSIOHandler,    /* 47 OS_IO_DMA1_Stream7 */
      #if defined(STM32F205VX_ZX) || defined(STM32F215VX_ZX) || defined(STM32F207XX) || \
          defined(STM32F217XX) || defined(STM32F405VX_ZX) || defined(STM32F415VX_ZX) || \
-         defined(STM32F407XX) || defined(STM32F417XX)
+         defined(STM32F407XX) || defined(STM32F417XX) || \
+         defined(STM32F427XX) || defined(STM32F429XX)
         _OSIOHandler, /* 48 OS_IO_FSMC */
      #elif defined(DEBUG_MODE)
         UndefinedInterrupt,
@@ -707,7 +708,7 @@ void (* const STM32VectorTable[])(void) = {
      _OSIOHandler,    /* 59 OS_IO_DMA2_Stream3 */
      _OSIOHandler,    /* 60 OS_IO_DMA2_Stream4 */
      #if defined(STM32F207XX) || defined(STM32F217XX) || defined(STM32F407XX) || \
-         defined(STM32F417XX)
+         defined(STM32F417XX) || defined(STM32F427XX) || defined(STM32F429XX)
         _OSIOHandler, /* 61 OS_IO_ETH */
         _OSIOHandler, /* 62 OS_IO_ETH_WKUP */
      #elif defined(DEBUG_MODE)
@@ -722,7 +723,7 @@ void (* const STM32VectorTable[])(void) = {
      _OSIOHandler,    /* 65 OS_IO_CAN2_RX1 */
      _OSIOHandler,    /* 66 OS_IO_CAN2_SCE */
      #if defined(STM32F207XX) || defined(STM32F217XX) || defined(STM32F407XX) || \
-         defined(STM32F417XX)
+         defined(STM32F417XX) || defined(STM32F427XX) || defined(STM32F429XX)
         _OSIOHandler, /* 67 OS_IO_OTG_FS */
      #elif defined(DEBUG_MODE)
         UndefinedInterrupt,
@@ -740,7 +741,7 @@ void (* const STM32VectorTable[])(void) = {
      _OSIOHandler,    /* 76 OS_IO_OTG_HS_WKUP */
      _OSIOHandler,    /* 77 OS_IO_OTG_HS */
      #if defined(STM32F207XX) || defined(STM32F217XX) || defined(STM32F407XX) || \
-         defined(STM32F417XX)
+         defined(STM32F417XX) || defined(STM32F427XX) || defined(STM32F429XX)
         _OSIOHandler, /* 78 OS_IO_DCMI */
      #elif defined(DEBUG_MODE)
         UndefinedInterrupt,
@@ -762,6 +763,17 @@ void (* const STM32VectorTable[])(void) = {
         UndefinedInterrupt,
      #else
         NULL,
+     #endif
+     #if defined(STM32F427XX) || defined(STM32F429XX)
+        _OSIOHandler, /* 82 OS_IO_UART7 */
+        _OSIOHandler, /* 83 OS_IO_UART8 */
+        _OSIOHandler, /* 84 OS_IO_SPI4 */
+        _OSIOHandler, /* 85 OS_IO_SPI5 */
+        _OSIOHandler, /* 86 OS_IO_SPI6 */
+        _OSIOHandler, /* 87 OS_IO_SAI1 */
+        _OSIOHandler, /* 88 OS_IO_LCDTFT */
+        _OSIOHandler, /* 89 OS_IO_LCDTFT_ERR */
+        _OSIOHandler  /* 90 OS_IO_DMA2D */
      #endif
   #else
      #error STM32 version undefined
@@ -786,7 +798,7 @@ typedef struct MinimalIODescriptor {
 /* IRQ bound to 2 different timer devices */
 typedef struct TIMERSELECT {
    void (*TimerSelector)(struct TIMERSELECT *); // Selector function (_OSTimerSelectorHandler)
-   MinimalIODescriptor TimerISRDescriptor[2];   // Specified ISR handlers for the sources
+   MinimalIODescriptor *TimerISRDescriptor[2];  // Specified ISR handlers for the sources
    UINT32 BaseRegister[2];                      // Starting address of the timer registers
    UINT16 FirstEntryMask;                       // Interrupt enable bits of an interrupt
 } TIMERSELECT;
@@ -1591,7 +1603,11 @@ static void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect);
    static TIMERSELECT Timer12ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40010400,0x40001800},0x80};
    static TIMERSELECT Timer13ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40010400,0x40001C00},0x01};
    static TIMERSELECT Timer14ISRSelect = {_OSTimerSelectorHandler,{NULL,NULL},{0x40010400,0x40002000},0x40};
-   void *_OSTabDevice[82] = {
+   #if defined(STM32F427XX) || defined(STM32F429XX)
+      void *_OSTabDevice[91] = {
+   #else
+      void *_OSTabDevice[82] = {
+   #endif
       NULL,                /*  0  OS_IO_WWDG */
       NULL,                /*  1  OS_IO_PVD */
       NULL,                /*  2  OS_IO_TAMP_STAMP */
@@ -1674,6 +1690,17 @@ static void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect);
       NULL,                /* 79  OS_IO_CRYP */
       NULL,                /* 80  OS_IO_HASH_RNG */
       NULL                 /* 81  OS_IO_FPU */
+      #if defined(STM32F427XX) || defined(STM32F429XX)
+        ,NULL,             /* 82  OS_IO_UART7 */
+         NULL,             /* 83  OS_IO_UART8 */
+         NULL,             /* 84  OS_IO_SPI4 */
+         NULL,             /* 85  OS_IO_SPI5 */
+         NULL,             /* 86  OS_IO_SPI6 */
+         NULL,             /* 87  OS_IO_SAI1 */
+         NULL,             /* 88  OS_IO_LCDTFT */
+         NULL,             /* 89  OS_IO_LCDTFT_ERR */
+         NULL              /* 90  OS_IO_DMA2D */
+      #endif
    };
 #else
   #error STM32 version undefined
@@ -1694,14 +1721,14 @@ void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect)
   if (*(UINT32 *)(timerSelect->BaseRegister[0] + OFFSET_STATUS) &
       *(UINT32 *)(timerSelect->BaseRegister[0] + OFFSET_ENABLE) &
       timerSelect->FirstEntryMask) {  // Did the first timer device raise the interrupt?
-     peripheralIODescriptor = timerSelect->TimerISRDescriptor[0].isr;
+     peripheralIODescriptor = timerSelect->TimerISRDescriptor[0]->isr;
      peripheralIODescriptor(&timerSelect->TimerISRDescriptor[0]);
   }
   /* The second device bound to the IRQ is global to the device (i.e. the interrupt may
   ** be caused for any reason related to the device); no mask is therefore required. */
   if (*(UINT32 *)(timerSelect->BaseRegister[1] + OFFSET_STATUS) &
       *(UINT32 *)(timerSelect->BaseRegister[1] + OFFSET_ENABLE)) {
-     peripheralIODescriptor = timerSelect->TimerISRDescriptor[1].isr;
+     peripheralIODescriptor = timerSelect->TimerISRDescriptor[1]->isr;
      peripheralIODescriptor(&timerSelect->TimerISRDescriptor[1]);
   }
 } /* end of _OSTimerSelectorHandler */

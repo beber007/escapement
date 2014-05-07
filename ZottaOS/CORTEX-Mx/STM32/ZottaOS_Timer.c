@@ -366,7 +366,7 @@ void _OSInitializeTimer(void)
      tmpPriority |=  TIMER_SUB_PRIORITY & (0x0F >> (7 - PRIGROUP));
   #endif
   /* Set the IRQ priority */
-  intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + ZOTTAOS_TIMER);
+  intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + ((ZOTTAOS_TIMER) & 0xFF));
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
      *intPriorityLevel = tmpPriority << 4; // Only 4 MSB bits are used on STM32
   #elif defined(CORTEX_M0)
@@ -374,10 +374,10 @@ void _OSInitializeTimer(void)
   #endif
   /* Enable the IRQ channels */
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
-     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(ZOTTAOS_TIMER / 32);
-     *intSetEnable |= 0x01 << (ZOTTAOS_TIMER % 32);
+     intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(((ZOTTAOS_TIMER) & 0xFF) / 32);
+     *intSetEnable |= 0x01 << (((ZOTTAOS_TIMER) & 0xFF) % 32);
   #elif defined(CORTEX_M0)
-     *(UINT32 *)IRQ_SET_ENABLE_REGISTER |= 0x01 << ZOTTAOS_TIMER;
+     *(UINT32 *)IRQ_SET_ENABLE_REGISTER |= 0x01 << ((ZOTTAOS_TIMER) & 0xFF);
   #endif
   /* Initialize ZottaOS internal interrupt structure */
   #if ZOTTAOS_TIMER == OS_IO_TIM1
@@ -390,7 +390,7 @@ void _OSInitializeTimer(void)
      device->TimerIntHandler = TimerHandler_Up;
      OSSetISRDescriptor(OS_IO_TIM1_UP,device);
      /* Set the IRQ priority */
-     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + OS_IO_TIM1_UP);
+     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + ((OS_IO_TIM1_UP) & 0xFF));
      #if defined(CORTEX_M3) || defined(CORTEX_M4)
         *intPriorityLevel = tmpPriority << 4; // Only 4 MSB bits are used on STM32
      #elif defined(CORTEX_M0)
@@ -398,10 +398,10 @@ void _OSInitializeTimer(void)
      #endif
      /* Enable the IRQ channels */
      #if defined(CORTEX_M3) || defined(CORTEX_M4)
-        intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(OS_IO_TIM1_UP / 32);
-        *intSetEnable |= 0x01 << (OS_IO_TIM1_UP % 32);
+        intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(((OS_IO_TIM1_UP) & 0xFF) / 32);
+        *intSetEnable |= 0x01 << (((OS_IO_TIM1_UP) & 0xFF) % 32);
      #elif defined(CORTEX_M0)
-        *(UINT32 *)IRQ_SET_ENABLE_REGISTER |= 0x01 << OS_IO_TIM1_UP;
+        *(UINT32 *)IRQ_SET_ENABLE_REGISTER |= 0x01 << ((OS_IO_TIM1_UP) & 0xFF);
      #endif
   #elif ZOTTAOS_TIMER == OS_IO_TIM2 || ZOTTAOS_TIMER == OS_IO_TIM3 || \
         ZOTTAOS_TIMER == OS_IO_TIM4 || ZOTTAOS_TIMER == OS_IO_TIM5 || \
@@ -423,7 +423,7 @@ void _OSInitializeTimer(void)
      device->TimerIntHandler = TimerHandler_Up;
      OSSetISRDescriptor(OS_IO_TIM8_UP,device);
      /* Set the IRQ priority */
-     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + OS_IO_TIM8_UP);
+     intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + ((OS_IO_TIM8_UP) & 0xFF));
      #if defined(CORTEX_M3) || defined(CORTEX_M4)
         *intPriorityLevel = tmpPriority << 4; // Only 4 MSB bits are used on STM32
      #elif defined(CORTEX_M0)
@@ -431,10 +431,10 @@ void _OSInitializeTimer(void)
      #endif
      /* Enable the IRQ channels */
      #if defined(CORTEX_M3) || defined(CORTEX_M4)
-        intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(OS_IO_TIM8_UP / 32);
-        *intSetEnable |= 0x01 << (OS_IO_TIM1_UP % 32);
+        intSetEnable = (UINT32 *)IRQ_SET_ENABLE_REGISTER + (UINT32)(((OS_IO_TIM8_UP) & 0xFF) / 32);
+        *intSetEnable |= 0x01 << (((OS_IO_TIM8_UP) & 0xFF) % 32);
      #elif defined(CORTEX_M0)
-        *(UINT32 *)IRQ_SET_ENABLE_REGISTER |= 0x01 << OS_IO_TIM8_UP;
+        *(UINT32 *)IRQ_SET_ENABLE_REGISTER |= 0x01 << ((OS_IO_TIM8_UP) & 0xFF);
      #endif
   #endif
 } /* end of _OSInitializeTimer */
