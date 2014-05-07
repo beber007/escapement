@@ -27,6 +27,7 @@
 
 #include "ZottaOS_Config.h"
 
+
 /* ------------------------------ Common to all STM32XXX ---------------------------- */
 #define OS_IO_WWDG                     0 /* Window watchdog */
 #define OS_IO_PVD                      1 /* Programmable voltage detector */
@@ -506,7 +507,8 @@
   #define OS_IO_DMA1_Stream7          47 /* DMA 1 stream 7 */
   #if defined(STM32F205VX_ZX) || defined(STM32F215VX_ZX) || defined(STM32F207XX) || \
       defined(STM32F217XX) || defined(STM32F405VX_ZX) || defined(STM32F415VX_ZX) || \
-      defined(STM32F407XX) || defined(STM32F417XX)
+      defined(STM32F407XX) || defined(STM32F417XX) || \
+      defined(STM32F427XX) || defined(STM32F429XX)
      #define OS_IO_FSMC               48  /* Flexible static memory controller (global) */
   #endif
   #define OS_IO_SDIO                  49 /* Secure digital input/output interface (global) */
@@ -522,7 +524,7 @@
   #define OS_IO_DMA2_Stream3          59 /* DMA 2 stream 3 (global) */
   #define OS_IO_DMA2_Stream4          60 /* DMA 2 stream 4 (global) */
   #if defined(STM32F207XX) || defined(STM32F217XX) || defined(STM32F407XX) || \
-      defined(STM32F417XX)
+      defined(STM32F417XX) || defined(STM32F427XX) || defined(STM32F429XX)
      #define OS_IO_ETH                61 /* Ethernet (global) */
      #define OS_IO_ETH_WKUP           62 /* Ethernet wake-up through EXTI line */
   #endif
@@ -531,7 +533,7 @@
   #define OS_IO_CAN2_RX1              65 /* CAN 2 RX1 */
   #define OS_IO_CAN2_SCE              66 /* CAN 2 SCE */
   #if defined(STM32F207XX) || defined(STM32F217XX) || defined(STM32F407XX) || \
-      defined(STM32F417XX)
+      defined(STM32F417XX) || defined(STM32F427XX) || defined(STM32F429XX)
      #define OS_IO_OTG_FS             67 /* USB on-the-go full-speed (global) */
   #endif
   #define OS_IO_DMA2_Stream5          68 /* DMA 2 stream 5 (global) */
@@ -545,7 +547,7 @@
   #define OS_IO_OTG_HS_WKUP           76 /* USB on-the-go HS wake-up through EXTI */
   #define OS_IO_OTG_HS                77 /* USB on-the-go high-speed (global) */
   #if defined(STM32F207XX) || defined(STM32F217XX) || defined(STM32F407XX) || \
-      defined(STM32F417XX)
+      defined(STM32F417XX) || defined(STM32F427XX) || defined(STM32F429XX)
      #define OS_IO_DCMI               78 /* Digital camera interface (global) */
   #endif
   #if defined(STM32F215RX) || defined(STM32F215VX_ZX) || defined(STM32F217XX) || \
@@ -556,6 +558,17 @@
                                             (global) */
   #if defined(STM32F4XXXX)
      #define OS_IO_FPU                81 /* Floating-point unit (global) */
+  #endif
+  #if defined(STM32F427XX) || defined(STM32F429XX)
+     #define OS_IO_UART7              82 /* UART 7 interrupt (global) */
+     #define OS_IO_UART8              83 /* UART 8 interrupt (global) */
+     #define OS_IO_SPI4               84 /* SPI 4 interrupt (global) */
+     #define OS_IO_SPI5               85 /* SPI 5 interrupt (global) */
+     #define OS_IO_SPI6               86 /* SPI 6 interrupt (global) */
+     #define OS_IO_SAI1               87 /* Serial Audio Interface (global) */
+     #define OS_IO_LCDTFT             88 /* LCD Controller (global) */
+     #define OS_IO_LCDTFT_ERR         89 /* LCD Controller error (global) */
+     #define OS_IO_DMA2D              90 /* DMA2D (global) */
   #endif
 #else
   #error STM32 version undefined

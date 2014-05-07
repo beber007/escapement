@@ -54,7 +54,7 @@ void _OSIOHandler(void);
 ** lowest interrupt priority to handler _OSContextSwapHandler (defined in assembler in
 ** ZottaOS_CortexMx_a.S). Sets bit PENDSVSET of ICSR (0xE000ED04). */
 #define _OSScheduleTask() (*((UINT32 *)0xE000ED04) = 0x10000000)  /* Note that the write
-** bits of ICSR take effect only if they are set, hence as assign ment is the proper way
+** bits of ICSR take effect only if they are set, hence an assignment is the proper way
 ** to set a bit. */
 
 /* _OSGenerateSoftTimerInterrupt: Called by the timer peripheral to generate a SysTick
