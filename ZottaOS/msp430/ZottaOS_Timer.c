@@ -112,7 +112,7 @@ BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
 {
   INT16 tmp;
   _OSOverflowInterruptFlag = FALSE;
-  if ((tmp = shiftTimeLimit >> 16) < _OSTime) {
+  if ((tmp = shiftTimeLimit >> 16) <= _OSTime) {
      _OSTime -= tmp; // No need for LL/SC because word subtraction is one assembly instruction
      return TRUE;
   }
