@@ -1,0 +1,20 @@
+// STM32F4-Discovery pour Escapement.
+//
+// Deux écarts avec la plateforme fournie par Renode :
+//  - le script de link place la flash en 0x00000000 (aliasing STM32 quand
+//    BOOT0 = 0), que Renode ne modélise pas ;
+//  - les trois tâches de TaskLEDF4 basculent PD13, PD14 et PD15, alors que la
+//    carte de référence ne déclare une LED que sur PD12.
+using "platforms/boards/stm32f4_discovery.repl"
+
+flash_boot: Memory.MappedMemory @ sysbus 0x00000000
+    size: 0x00080000
+
+Flag1: Miscellaneous.LED @ gpioPortD
+Flag2: Miscellaneous.LED @ gpioPortD
+Flag3: Miscellaneous.LED @ gpioPortD
+
+gpioPortD:
+    13 -> Flag1@0
+    14 -> Flag2@0
+    15 -> Flag3@0

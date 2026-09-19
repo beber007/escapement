@@ -29,7 +29,15 @@ $(shell mkdir -p build)
 all: build/TaskLEDF4.elf build/UARTSimpleEchoF4.elf build/TestTimerEventF4.elf
 
 clean: 
-	rm -f build/*.o build/*.elf
+	rm -f build/*.o build/*.elf build/*.bin
+
+# Images brutes, pour l'émulation Renode (voir emulation/renode/).
+OBJCOPY = $(CROSS_COMPILE)objcopy
+
+bin: all build/TaskLEDF4.bin build/UARTSimpleEchoF4.bin build/TestTimerEventF4.bin
+
+build/%.bin : build/%.elf
+	$(OBJCOPY) -O binary $< $@
 
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 

@@ -94,6 +94,41 @@ nécessaire.
 Le flashage se fait via OpenOCD (`openocd.cfg` fourni dans
 `Escapement/CORTEX-Mx/STM32/Examples/`).
 
+## Émulation
+
+Le noyau se lance sous [Renode](https://renode.io) sur un STM32F407VG :
+
+```sh
+cd Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery && make bin && cd -
+renode emulation/renode/escapement_f4.resc
+(monitor) emulation RunFor "2"
+```
+
+**Ce qui est prouvé :** le noyau démarre, active les horloges, alloue par
+`OSMalloc`, installe son vecteur d'interruption via `OSSetISRDescriptor`,
+déplace `VTOR` vers `0x08000000`, et son interruption timer se déclenche.
+
+**Où ça s'arrête :** dans `_OSTimerInterruptHandler`, sur un garde-fou du
+noyau lui-même, actif en `DEBUG_MODE` :
+
+```c
+if (!(arrival->TaskState & STATE_ZOMBIE)) {
+   _OSDisableInterrupts();
+   while (TRUE); // If we get here, the processor utilization > 100%.
+}
+```
+
+Une instance de tâche arrive alors que la précédente n'est pas terminée. Ce
+n'est pas une simple question de vitesse : le comportement est identique à
+500 et à 2000 MIPS émulés. La piste la plus probable est un écart entre la
+sémantique du `Timers.STM32_Timer` de Renode et ce qu'attend un noyau
+*tickless*, qui arme une échéance dans le comparateur plutôt que de battre à
+période fixe.
+
+QEMU a été essayé d'abord (`-machine netduinoplus2`) : le noyau démarre aussi,
+mais son timer n'est jamais réveillé — deux exceptions en 60 secondes. Renode
+va nettement plus loin.
+
 ## API
 
 Une application se construit en cinq étapes, la dernière rendant la main au
@@ -148,13 +183,9 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
 
 - [x] Réparer les `Makefile` : les quatre exemples STM32 se construisent.
 - [x] Compilation vérifiée en CI (`.github/workflows/build.yml`).
-- [ ] **Exécuter le noyau.** Le démarrage est prouvé sous QEMU
-      (`-machine netduinoplus2`) : horloges RCC activées, muxage GPIO de
-      l'USART2, première exception prise et retournée. Mais l'ordonnanceur ne
-      progresse pas — après 60 s, deux exceptions en tout. Le modèle de
-      périphériques STM32 de QEMU ne réveille pas le timer d'échéance
-      d'Escapement. Piste suivante : Renode, plus complet sur les MCU et
-      prévu pour piloter des tests en CI. À défaut, une carte.
+- [ ] **Faire progresser l'ordonnanceur en émulation.** Voir « Émulation »
+      ci-dessous : le noyau démarre et son interruption timer part, mais il
+      s'arrête sur son propre garde-fou de surcharge.
 - [ ] Porter la variante power-aware sur STM32L4 ou STM32U5, avec un exemple
       DVFS fonctionnel équivalent à `PA/`.
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
