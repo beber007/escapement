@@ -135,7 +135,7 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
       DVFS fonctionnel équivalent à `PA/`.
 - [ ] Reporter la réparation du `Makefile` sur les exemples `stm32f1`,
       `stm32f4` et `stm32l`, qui ont encore `CC = /root/CodeSourcery/...`.
-- [ ] Mettre en place une compilation vérifiable en CI.
+- [x] Mettre en place une compilation vérifiable en CI (`.github/workflows/build.yml`).
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
       référence d'origine ont été retirés avec le rebranding).
 - [ ] MSP430, seulement si le portage est réactivé : reconstituer le générateur

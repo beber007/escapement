@@ -35,7 +35,7 @@ INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
 # -ffreestanding : pas de bibliotheque C hote, GCC fournit ses propres
 # stdint.h et stddef.h.
-CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding
+CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding -Werror=comment
 AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g
 
 OBJECTS_ESCAPEMENT = build/Escapement_UART.o \

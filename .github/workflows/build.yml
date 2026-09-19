@@ -1,0 +1,48 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  stm32f0:
+    name: stm32f0-discovery (Cortex-M0)
+    runs-on: ubuntu-latest
+    env:
+      EXAMPLE: Escapement/CORTEX-Mx/STM32/Examples/stm32f0-discovery
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer la toolchain ARM bare-metal
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi
+          arm-none-eabi-gcc --version | head -1
+
+      - name: Compiler
+        working-directory: ${{ env.EXAMPLE }}
+        run: make
+
+      - name: Vérifier les binaires et leur taille
+        working-directory: ${{ env.EXAMPLE }}
+        run: |
+          for elf in TaskLEDF0 UARTSimpleEchoF0 TestTimerEventF0 TestTimerEventF0b; do
+            test -s "build/$elf.elf" || { echo "::error::build/$elf.elf manquant ou vide"; exit 1; }
+          done
+          arm-none-eabi-size build/*.elf
+
+      - name: Vérifier que la reconstruction est reproductible
+        working-directory: ${{ env.EXAMPLE }}
+        run: |
+          make clean
+          make
+          arm-none-eabi-size build/*.elf
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stm32f0-elf
+          path: ${{ env.EXAMPLE }}/build/*.elf
+          retention-days: 14
