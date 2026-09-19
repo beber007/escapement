@@ -140,10 +140,37 @@ Tags: Capture/compare 1 generation`. Or c'est exactement ce bit qu'utilise
 l'ordonnanceur.
 
 Émuler ce bit par un `AddWatchpointHook` qui arme `CCR1` juste devant le
-compteur lève l'obstacle sans débloquer l'ordonnanceur pour autant : le noyau
-atteint toujours son garde-fou. Il reste donc au moins un autre facteur, et
-la piste se déplace vers la séquence de démarrage du noyau plutôt que vers
-l'émulateur.
+compteur lève l'obstacle sans débloquer l'ordonnanceur pour autant.
+
+### Pourquoi le garde-fou se déclenche
+
+La séquence de démarrage a été instrumentée sous Renode, avec un point
+d'arrêt sur le piège lui-même. Au moment où il se déclenche, le compteur vaut
+`1` — c'est donc la toute première interruption — et la file d'arrivées
+contient :
+
+```
+tcb=0x2001bf8c state=0x00 NextArrivalTimeLow=0xC00000C8
+tcb=0x2001bf60 state=0x00 NextArrivalTimeLow=0xC0000258
+```
+
+`0xC00000C8` vaut `200 - 2^30`, `0xC0000258` vaut `600 - 2^30` : ce sont les
+périodes des tâches, **décalées de −2³⁰**. Le noyau a appliqué son mécanisme
+de recalage temporel (`ShiftTimeLimit`), qui n'a lieu que si
+`_OSTimerIsOverflow()` est vrai — c'est-à-dire, pour un timer 32 bits, si
+l'ISR bas niveau a vu le drapeau `UIF` de débordement. À `CNT = 1`, sur du
+matériel réel, cette condition est impossible.
+
+Tous les temps d'arrivée devenant très négatifs, chaque tâche est
+perpétuellement « en retard » : la boucle de traitement des arrivées reprend
+des tâches qu'elle vient de passer à `STATE_INIT`, et le garde-fou
+`DEBUG_MODE` s'arme, à juste titre de son point de vue.
+
+**Ce qui reste ouvert** : l'origine exacte de ce `UIF` parasite. Il n'est
+reproductible dans aucun test isolé du timer — ni `UG`, ni `CC1G`, ni
+l'activation du compteur ne le lèvent — et n'apparaît que dans la séquence
+propre du noyau. C'est le point à reprendre : tracer les lectures de `SR`
+conjointement aux interruptions pour capturer l'instant où il se lève.
 
 QEMU a été essayé d'abord (`-machine netduinoplus2`) : le noyau démarre aussi,
 mais son timer n'est jamais réveillé — deux exceptions en 60 secondes. Renode
