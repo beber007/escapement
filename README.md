@@ -119,11 +119,31 @@ if (!(arrival->TaskState & STATE_ZOMBIE)) {
 ```
 
 Une instance de tâche arrive alors que la précédente n'est pas terminée. Ce
-n'est pas une simple question de vitesse : le comportement est identique à
-500 et à 2000 MIPS émulés. La piste la plus probable est un écart entre la
-sémantique du `Timers.STM32_Timer` de Renode et ce qu'attend un noyau
-*tickless*, qui arme une échéance dans le comparateur plutôt que de battre à
-période fixe.
+n'est pas une question de vitesse : comportement identique à 500 et à 2000
+MIPS émulés.
+
+Le modèle `Timers.STM32_Timer` de Renode a été audité registre par registre.
+Il est plus complet qu'attendu :
+
+| Mécanisme | État |
+|---|---|
+| `ARR`, `PSC`, `CNT`, `CR1`, `DIER`, `SR` | conformes |
+| `CCR1`, `CCMR1`, `CCER` | présents et relus correctement |
+| Comparaison sur égalité → `CC1IF` | **fonctionne** |
+| `CC1IF` → IRQ 28 au NVIC | **fonctionne** |
+| Fréquence : 10 MHz déclarés | 10 MHz mesurés |
+| `CC1G` (`EGR` bit 1), événement logiciel | **non implémenté** |
+
+Renode le dit lui-même : `Unhandled write to offset 0x14. Unhandled bits: [1].
+Tags: Capture/compare 1 generation`. Or c'est exactement ce bit qu'utilise
+`_OSStartTimer` pour forcer la première interruption de comparaison et amorcer
+l'ordonnanceur.
+
+Émuler ce bit par un `AddWatchpointHook` qui arme `CCR1` juste devant le
+compteur lève l'obstacle sans débloquer l'ordonnanceur pour autant : le noyau
+atteint toujours son garde-fou. Il reste donc au moins un autre facteur, et
+la piste se déplace vers la séquence de démarrage du noyau plutôt que vers
+l'émulateur.
 
 QEMU a été essayé d'abord (`-machine netduinoplus2`) : le noyau démarre aussi,
 mais son timer n'est jamais réveillé — deux exceptions en 60 secondes. Renode
