@@ -105,6 +105,19 @@ renode emulation/renode/escapement_f4.resc
 (monitor) emulation RunFor "1"
 ```
 
+Deux tests Robot rejouent cette exécution à chaque push, dans le job
+`emulation` de la CI :
+
+```sh
+pip install robotframework==6.1 robotframework-retryfailed psutil pyyaml
+renode-test emulation/renode/escapement_f4.robot
+```
+
+| Test | Ce qu'il prouve |
+|---|---|
+| Les trois tâches périodiques sont ordonnancées | chacune des trois tâches allume **et** éteint sa sortie dans sa fenêtre temporelle |
+| L'écho UART répond | le noyau ordonnance aussi le traitement piloté par interruption |
+
 `TaskLEDF4` crée trois tâches périodiques de 100, 200 et 600 tops, qui
 basculent chacune une sortie de GPIOB. Sur une seconde émulée :
 
@@ -214,8 +227,8 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
 - [x] **Exécuter le noyau.** Les trois tâches de `TaskLEDF4` sont ordonnancées
       à leurs périodes sous Renode (voir « Émulation »).
 - [ ] Proposer en amont les deux correctifs du `Timers.STM32_Timer` de Renode.
-- [ ] Rejouer l'émulation en CI avec `renode-test`, pour transformer la preuve
-      d'exécution en test de non-régression.
+- [x] Émulation rejouée en CI avec `renode-test` : l'exécution du noyau est
+      devenue un test de non-régression.
 - [ ] Porter la variante power-aware sur STM32L4 ou STM32U5, avec un exemple
       DVFS fonctionnel équivalent à `PA/`.
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de

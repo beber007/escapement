@@ -64,3 +64,47 @@ jobs:
           name: ${{ matrix.example }}-elf
           path: ${{ env.DIR }}/build/*.elf
           retention-days: 14
+
+  emulation:
+    name: Exécution sous Renode (STM32F407VG)
+    runs-on: ubuntu-latest
+    needs: examples
+    env:
+      DIR: Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
+      RENODE_VERSION: 1.17.0
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer la toolchain ARM bare-metal
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi
+
+      - name: Construire l'exemple et ses images brutes
+        working-directory: ${{ env.DIR }}
+        run: make bin
+
+      - name: Installer Renode
+        run: |
+          url="https://github.com/renode/renode/releases/download/v${RENODE_VERSION}/renode-${RENODE_VERSION}.linux-portable.tar.gz"
+          curl -fsSL "$url" -o renode.tar.gz
+          mkdir -p "$HOME/renode"
+          tar -xzf renode.tar.gz -C "$HOME/renode" --strip-components=1
+          echo "$HOME/renode" >> "$GITHUB_PATH"
+
+      - name: Installer les dépendances de renode-test
+        run: pip install --quiet robotframework==6.1 robotframework-retryfailed psutil pyyaml
+
+      - name: Exécuter le noyau
+        run: renode-test emulation/renode/escapement_f4.robot
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: renode-report
+          path: |
+            report.html
+            log.html
+            robot_output.xml
+          retention-days: 14

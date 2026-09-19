@@ -10,3 +10,9 @@ build/
 
 # macOS
 .DS_Store
+
+# Artefacts de renode-test
+robot_output.xml
+log.html
+report.html
+snapshots/

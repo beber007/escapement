@@ -9,11 +9,14 @@
 $elf ?= @Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery/build/TaskLEDF4.elf
 $bin ?= @Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery/build/TaskLEDF4.bin
 
+# Les fichiers voisins sont references par nom simple.
+path add @emulation/renode
+
 # Modele de TIM2 corrige, a charger avant la plateforme.
-include @emulation/renode/Escapement_STM32_Timer.cs
+include @Escapement_STM32_Timer.cs
 
 mach create "escapement-f4"
-machine LoadPlatformDescription @emulation/renode/escapement_f4.repl
+machine LoadPlatformDescription @escapement_f4.repl
 
 # Le noyau déplace VTOR de 0x00000000 vers 0x08000000 : sur silicium c'est la
 # même flash vue à deux adresses, on charge donc l'image aux deux.
