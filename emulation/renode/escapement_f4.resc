@@ -9,6 +9,9 @@
 $elf ?= @Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery/build/TaskLEDF4.elf
 $bin ?= @Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery/build/TaskLEDF4.bin
 
+# Modele de TIM2 corrige, a charger avant la plateforme.
+include @emulation/renode/Escapement_STM32_Timer.cs
+
 mach create "escapement-f4"
 machine LoadPlatformDescription @emulation/renode/escapement_f4.repl
 

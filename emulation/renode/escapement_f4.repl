@@ -1,11 +1,17 @@
 // STM32F4-Discovery pour Escapement.
 //
-// Deux écarts avec la plateforme fournie par Renode :
+// Trois ecarts avec la plateforme fournie par Renode :
+//  - TIM2 utilise le modele corrige (voir Escapement_STM32_Timer.cs) ;
 //  - le script de link place la flash en 0x00000000 (aliasing STM32 quand
-//    BOOT0 = 0), que Renode ne modélise pas ;
-//  - les trois tâches de TaskLEDF4 basculent PD13, PD14 et PD15, alors que la
-//    carte de référence ne déclare une LED que sur PD12.
-using "platforms/boards/stm32f4_discovery.repl"
+//    BOOT0 = 0), que Renode ne modelise pas ;
+//  - les trois taches de TaskLEDF4 basculent PD13, PD14 et PD15, alors que la
+//    carte de reference ne declare une LED que sur PD12.
+using "emulation/renode/stm32f4_escapement_cpu.repl"
+
+UserButton: Miscellaneous.Button @ gpioPortA
+    -> gpioPortA@0
+
+UserLED: Miscellaneous.LED @ gpioPortD
 
 flash_boot: Memory.MappedMemory @ sysbus 0x00000000
     size: 0x00080000
@@ -15,6 +21,7 @@ Flag2: Miscellaneous.LED @ gpioPortD
 Flag3: Miscellaneous.LED @ gpioPortD
 
 gpioPortD:
+    12 -> UserLED@0
     13 -> Flag1@0
     14 -> Flag2@0
     15 -> Flag3@0

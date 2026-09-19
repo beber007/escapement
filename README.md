@@ -96,113 +96,66 @@ Le flashage se fait via OpenOCD (`openocd.cfg` fourni dans
 
 ## Émulation
 
-Le noyau se lance sous [Renode](https://renode.io) sur un STM32F407VG :
+Le noyau **tourne** sur un STM32F407VG émulé par [Renode](https://renode.io) :
 
 ```sh
 cd Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery && make bin && cd -
 renode emulation/renode/escapement_f4.resc
-(monitor) emulation RunFor "2"
+(monitor) sysbus LogPeripheralAccess sysbus.gpioPortB true
+(monitor) emulation RunFor "1"
 ```
 
-**Ce qui est prouvé :** le noyau démarre, active les horloges, alloue par
-`OSMalloc`, installe son vecteur d'interruption via `OSSetISRDescriptor`,
-déplace `VTOR` vers `0x08000000`, et son interruption timer se déclenche.
+`TaskLEDF4` crée trois tâches périodiques de 100, 200 et 600 tops, qui
+basculent chacune une sortie de GPIOB. Sur une seconde émulée :
 
-**Où ça s'arrête :** dans `_OSTimerInterruptHandler`, sur un garde-fou du
-noyau lui-même, actif en `DEBUG_MODE` :
+| Sortie | Période | Basculements | Ratio mesuré | Ratio théorique |
+|---|---:|---:|---:|---:|
+| PB13 | 100 | 1220 | 5,98 | 6,00 |
+| PB14 | 200 | 610 | 2,99 | 3,00 |
+| PB15 | 600 | 204 | 1,00 | 1,00 |
 
-```c
-if (!(arrival->TaskState & STATE_ZOMBIE)) {
-   _OSDisableInterrupts();
-   while (TRUE); // If we get here, the processor utilization > 100%.
-}
+L'ordonnancement par échéances respecte les périodes déclarées. C'est la
+première exécution vérifiée du noyau depuis la reprise du projet.
+
+### Le modèle de timer de Renode a dû être corrigé
+
+Sans correction, le noyau se bloquait sur son propre garde-fou de surcharge.
+La cause était dans `Timers.STM32_Timer`, au registre `EventGeneration` :
+
+```csharp
+.WithFlag(0, FieldMode.WriteOneToClear, writeCallback: (_, val) =>
+{
+    if(updateDisable.Value) { return; }   // <- aucun test sur val
+    ...
+    updateInterruptFlag = true;
+}, name: "Update generation (UG)")
+.WithTag("Capture/compare 1 generation (CC1G)", 1, 1)
 ```
 
-Une instance de tâche arrive alors que la précédente n'est pas terminée. Ce
-n'est pas une question de vitesse : comportement identique à 500 et à 2000
-MIPS émulés.
-
-Le modèle `Timers.STM32_Timer` de Renode a été audité registre par registre.
-Il est plus complet qu'attendu :
-
-| Mécanisme | État |
-|---|---|
-| `ARR`, `PSC`, `CNT`, `CR1`, `DIER`, `SR` | conformes |
-| `CCR1`, `CCMR1`, `CCER` | présents et relus correctement |
-| Comparaison sur égalité → `CC1IF` | **fonctionne** |
-| `CC1IF` → IRQ 28 au NVIC | **fonctionne** |
-| Fréquence : 10 MHz déclarés | 10 MHz mesurés |
-| `CC1G` (`EGR` bit 1), événement logiciel | **non implémenté** |
-
-Renode le dit lui-même : `Unhandled write to offset 0x14. Unhandled bits: [1].
-Tags: Capture/compare 1 generation`. Or c'est exactement ce bit qu'utilise
-`_OSStartTimer` pour forcer la première interruption de comparaison et amorcer
-l'ordonnanceur.
-
-Émuler ce bit par un `AddWatchpointHook` qui arme `CCR1` juste devant le
-compteur lève l'obstacle sans débloquer l'ordonnanceur pour autant.
-
-### Pourquoi le garde-fou se déclenche
-
-La séquence de démarrage a été instrumentée sous Renode, avec un point
-d'arrêt sur le piège lui-même. Au moment où il se déclenche, le compteur vaut
-`1` — c'est donc la toute première interruption — et la file d'arrivées
-contient :
-
-```
-tcb=0x2001bf8c state=0x00 NextArrivalTimeLow=0xC00000C8
-tcb=0x2001bf60 state=0x00 NextArrivalTimeLow=0xC0000258
-```
-
-`0xC00000C8` vaut `200 - 2^30`, `0xC0000258` vaut `600 - 2^30` : ce sont les
-périodes des tâches, **décalées de −2³⁰**. Le noyau a appliqué son mécanisme
-de recalage temporel (`ShiftTimeLimit`), qui n'a lieu que si
-`_OSTimerIsOverflow()` est vrai — c'est-à-dire, pour un timer 32 bits, si
-l'ISR bas niveau a vu le drapeau `UIF` de débordement. À `CNT = 1`, sur du
-matériel réel, cette condition est impossible.
-
-Tous les temps d'arrivée devenant très négatifs, chaque tâche est
-perpétuellement « en retard » : la boucle de traitement des arrivées reprend
-des tâches qu'elle vient de passer à `STATE_INIT`, et le garde-fou
-`DEBUG_MODE` s'arme, à juste titre de son point de vue.
-
-### L'origine du `UIF` parasite
-
-Trouvée en traçant les accès au timer et l'activité du NVIC dans le même
-journal :
-
-```
-[cpu: 0x328] Write Control1 = 0x1          CEN, le compteur démarre
-[cpu: 0x336] Write EventGeneration = 0x2   CC1G
-nvic: External IRQ 44: True                l'interruption part
-timer2: Unhandled write to offset 0x14. Unhandled bits: [1]
-[cpu: 0x34E] Read Status -> 0x1            l'ISR lit UIF, pas CC1IF
-```
-
-Renode ignore le bit `CC1G` mais génère quand même un événement, et c'est un
-événement **update** : il lève `UIF` au lieu de `CC1IF`. Le noyau, qui
-attendait sa première interruption de comparaison, reçoit un faux
-débordement — d'où le recalage de −2³⁰ à `CNT = 1`.
+Le callback du bit `UG` s'exécutait **quel que soit le bit écrit**. Écrire
+`CC1G` — ce que fait `_OSStartTimer` pour forcer sa première interruption de
+comparaison — générait donc un événement *update* et levait `UIF` au lieu de
+`CC1IF`. Le noyau y lisait un débordement de compteur et décalait tous ses
+temps de −2³⁰ à `CNT = 1`, rendant chaque tâche perpétuellement en retard.
 
 Reproducteur minimal, hors de tout noyau :
 
-| Séquence | Résultat |
-|---|---|
-| `DIER = 0` puis `EGR <- 0x2` | `SR = 0x0` |
-| `DIER = 3` puis `EGR <- 0x2` | **`SR = 0x1`** (`UIF`) |
+| Séquence | Attendu | Renode 1.17.0 |
+|---|---|---|
+| `DIER = 0`, `EGR <- 0x2` | `SR = 0x0` | `SR = 0x0` |
+| `DIER = 3`, `EGR <- 0x2` | `SR = 0x2` (`CC1IF`) | `SR = 0x1` (`UIF`) |
 
-Sur un STM32 réel, `CC1G` lève `CC1IF` et jamais `UIF`. C'est un défaut du
-modèle `Timers.STM32_Timer`, à signaler en amont.
+`emulation/renode/Escapement_STM32_Timer.cs` est une copie du modèle
+d'origine (MIT, Antmicro) avec deux corrections : le callback `UG` est gardé
+par un test sur la valeur écrite, et `CC1G` à `CC4G` sont implémentés. Renode
+compile ce greffon à chaud, il n'y a rien à reconstruire. La plateforme CPU
+est dérivée dans `stm32f4_escapement_cpu.repl` — Renode n'autorisant pas de
+redéclarer un nœud, il faut copier le fichier pour changer le type de TIM2.
 
-Un contournement en deux parties a été tenté — réécrire le drapeau à la
-lecture de `SR` au démarrage, et armer `CCR1` devant le compteur à l'écriture
-de `CC1G`. Il s'exécute sans erreur mais ne suffit pas : le noyau atteint
-toujours son garde-fou. Corriger le modèle en amont, ou passer par du
-matériel, reste la voie propre.
+**Les deux correctifs sont à proposer en amont chez Antmicro.**
 
-QEMU a été essayé d'abord (`-machine netduinoplus2`) : le noyau démarre aussi,
-mais son timer n'est jamais réveillé — deux exceptions en 60 secondes. Renode
-va nettement plus loin.
+QEMU a été essayé d'abord (`-machine netduinoplus2`) : le noyau démarre mais
+son timer n'est jamais réveillé, deux exceptions en 60 secondes.
 
 ## API
 
@@ -258,9 +211,11 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
 
 - [x] Réparer les `Makefile` : les quatre exemples STM32 se construisent.
 - [x] Compilation vérifiée en CI (`.github/workflows/build.yml`).
-- [ ] **Faire progresser l'ordonnanceur en émulation.** Voir « Émulation »
-      ci-dessous : le noyau démarre et son interruption timer part, mais il
-      s'arrête sur son propre garde-fou de surcharge.
+- [x] **Exécuter le noyau.** Les trois tâches de `TaskLEDF4` sont ordonnancées
+      à leurs périodes sous Renode (voir « Émulation »).
+- [ ] Proposer en amont les deux correctifs du `Timers.STM32_Timer` de Renode.
+- [ ] Rejouer l'émulation en CI avec `renode-test`, pour transformer la preuve
+      d'exécution en test de non-régression.
 - [ ] Porter la variante power-aware sur STM32L4 ou STM32U5, avec un exemple
       DVFS fonctionnel équivalent à `PA/`.
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
