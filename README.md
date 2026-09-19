@@ -148,8 +148,13 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
 
 - [x] Réparer les `Makefile` : les quatre exemples STM32 se construisent.
 - [x] Compilation vérifiée en CI (`.github/workflows/build.yml`).
-- [ ] **Exécuter le noyau**, en émulation ou sur carte. Rien n'a jamais tourné :
-      la CI ne prouve que la compilation.
+- [ ] **Exécuter le noyau.** Le démarrage est prouvé sous QEMU
+      (`-machine netduinoplus2`) : horloges RCC activées, muxage GPIO de
+      l'USART2, première exception prise et retournée. Mais l'ordonnanceur ne
+      progresse pas — après 60 s, deux exceptions en tout. Le modèle de
+      périphériques STM32 de QEMU ne réveille pas le timer d'échéance
+      d'Escapement. Piste suivante : Renode, plus complet sur les MCU et
+      prévu pour piloter des tests en CI. À défaut, une carte.
 - [ ] Porter la variante power-aware sur STM32L4 ou STM32U5, avec un exemple
       DVFS fonctionnel équivalent à `PA/`.
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
