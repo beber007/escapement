@@ -16,9 +16,15 @@ PATH_LIB_ST = ../../Libraries
 
 INCLUDE_LIB_ST = -I. -I${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/inc -I${PATH_LIB_ST}/CMSIS/Device/${FAMILLY} -I${PATH_LIB_ST}/CMSIS/Include
 
-CC = /root/CodeSourcery/Sourcery_CodeBench_Lite_for_ARM_EABI/bin/arm-none-eabi-gcc
+# Toolchain bare-metal ARM. Surchargeable :
+#   make CROSS_COMPILE=/chemin/vers/arm-none-eabi-
+CROSS_COMPILE ?= arm-none-eabi-
+CC = $(CROSS_COMPILE)gcc
 
 CPU = cortex-m3
+
+# Les règles écrivent toutes dans build/ sans jamais le créer.
+$(shell mkdir -p build)
 
 all: build/TaskLEDL1.elf build/UARTSimpleEchoL1.elf build/TestTimerEventL1.elf build/TestTimerEventL1b.elf
 
@@ -27,7 +33,7 @@ clean:
 
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
-CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g  -fdata-sections -ffunction-sections
+CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding -Werror=comment
 AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g
 
 OBJECTS_ESCAPEMENT = build/Escapement_UART.o \
@@ -141,13 +147,13 @@ build/IccMeasure.o : IccMeasure.c
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskLEDL1.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDL1.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDL1.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDL1.o -T${LINKERFILE} -lgcc
 build/UARTSimpleEchoL1.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimpleEchoL1.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimpleEchoL1.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimpleEchoL1.o -T${LINKERFILE} -lgcc
 build/TestTimerEventL1.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventL1.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections-mthumb -nostartfiles -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventL1.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventL1.o -T${LINKERFILE} -lgcc
 build/TestTimerEventL1b.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventL1b.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventL1b.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventL1b.o -T${LINKERFILE} -lgcc
 build/IccMeasure.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/IccMeasure.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/IccMeasure.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/IccMeasure.o -T${LINKERFILE} -lgcc
 	
