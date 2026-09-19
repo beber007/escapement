@@ -1,5 +1,7 @@
 # Escapement
 
+[![build](https://github.com/beber007/escapement/actions/workflows/build.yml/badge.svg)](https://github.com/beber007/escapement/actions/workflows/build.yml)
+
 **Lightweight Power-Aware Real-Time OS** pour microcontrôleurs ARM Cortex-M et TI MSP430.
 
 Escapement est un noyau temps réel préemptif à ordonnancement par échéances (EDF),
@@ -22,10 +24,14 @@ temps réel, de façon à consommer le minimum d'énergie tout en garantissant l
 
 ## Cibles supportées
 
-- **ARM Cortex-M0 / M3 / M4** — familles STM32F0, STM32F1, STM32F2, STM32F4,
-  STM32L1. Portage dans `Escapement/CORTEX-Mx/`. *Cible de développement.*
+- **ARM Cortex-M0 / M3 / M4** — portage dans `Escapement/CORTEX-Mx/`,
+  *cible de développement*. Les bibliothèques ST sont fournies pour les
+  familles STM32F0, F1, F2, F4 et L1 ; quatre cartes ont un exemple
+  construit en CI (voir « Compilation »), la F2 n'en a pas.
 - **TI MSP430** — MSP430x1xx à x5xx, MSP430FR57xx, CC430. Portage dans
-  `Escapement/msp430/`. *Gelé*, voir « Orientation » ci-dessous.
+  `Escapement/msp430/`. *Gelé*, voir « Orientation » ci-dessous. **Il n'existe
+  aucun build pour cette cible** : les projets d'origine étaient des projets
+  IAR / Code Composer, absents du dépôt.
 
 ## Arborescence
 
@@ -36,57 +42,54 @@ Escapement/
   EscapementHardPA.{c,h}    noyau temps réel dur power-aware
   CORTEX-Mx/                portage ARM (STM32, CMSIS, StdPeriph)
   msp430/                   portage MSP430
+  CORTEX-Mx/STM32/Examples/ quatre exemples avec Makefile
 PA/                         exemple power-aware (MSP430F5419A)
 USB/                        exemple avec pile USB (MSP430x552x)
 Balls/                      démo graphique (MSP-EXP430F5438)
+.github/workflows/build.yml compilation des quatre exemples STM32
 ```
 
 ## Compilation
 
-Toolchain bare-metal ARM requise :
+Toolchain bare-metal ARM :
 
 ```sh
-brew install arm-none-eabi-gcc        # macOS
+brew install arm-none-eabi-gcc         # macOS
+sudo apt install gcc-arm-none-eabi     # Debian / Ubuntu
 ```
 
-L'exemple `stm32f0-discovery` se construit tel quel :
+Chaque exemple se construit depuis son répertoire :
 
 ```sh
 cd Escapement/CORTEX-Mx/STM32/Examples/stm32f0-discovery
 make
 ```
 
-Il produit quatre binaires pour un STM32F051R8 (Cortex-M0) :
+Les quatre exemples sont construits à chaque push par la CI :
 
-| Binaire | text | data | bss |
-|---|---:|---:|---:|
-| `TaskLEDF0.elf` | 8 884 | 8 | 160 |
-| `UARTSimpleEchoF0.elf` | 10 896 | 8 | 156 |
-| `TestTimerEventF0b.elf` | 11 932 | 10 | 160 |
-| `TestTimerEventF0.elf` | 12 168 | 8 | 156 |
+| Exemple | Cœur | MCU | Cibles | Noyau + une tâche périodique |
+|---|---|---|---|---|
+| `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 | 5 936 / 480 / 32 |
+| `stm32l-discovery` | Cortex-M3 | STM32L152RB | 4 | 6 112 / 8 / 212 |
+| `stm32vl-discovery` | Cortex-M3 | STM32F103RC | 3 | 7 792 / 8 / 272 |
+| `stm32f0-discovery` | Cortex-M0 | STM32F051R8 | 4 | 8 884 / 8 / 160 |
+
+Dernière colonne : `text` / `data` / `bss` en octets pour la cible `TaskLED`,
+soit le noyau complet plus une tâche périodique qui fait clignoter une LED.
 
 Le chemin de la toolchain est surchargeable :
 `make CROSS_COMPILE=/chemin/vers/arm-none-eabi-`.
 
-Le projet est compilé en *freestanding* et lié sans bibliothèque C
-(`-nostdlib`), avec seulement `libgcc` pour les routines que le Cortex-M0 ne
-sait pas faire en matériel (division entière). Il n'a donc besoin d'aucune
-newlib.
+Le code est compilé en *freestanding* et lié sans bibliothèque C
+(`-nostdlib`), avec seulement `libgcc` pour les routines que le matériel ne
+fournit pas (division entière sur Cortex-M0 et M3). Aucune newlib n'est
+nécessaire.
 
-Les quatre exemples se construisent et sont vérifiés en CI :
-
-| Exemple | Cœur | MCU | Binaires |
-|---|---|---|---|
-| `stm32f0-discovery` | Cortex-M0 | STM32F051R8 | 4 |
-| `stm32l-discovery` | Cortex-M3 | STM32L152RB | 4 |
-| `stm32vl-discovery` | Cortex-M3 | STM32F103RC | 3 |
-| `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 |
-
-> **Aucun de ces binaires n'a été exécuté sur du matériel.** La CI prouve
-> qu'ils se construisent et que la configuration est cohérente avec le script
-> de link, pas qu'ils tournent. Le MCU de `stm32vl-discovery` a d'ailleurs été
-> déduit du seul script de link livré (`STM32F103RC_Flash.ld`), son
-> `Escapement_Config.h` désignant par erreur un STM32L152 depuis 2012.
+> **Aucun binaire n'a été exécuté sur du matériel.** La CI prouve qu'ils se
+> construisent et que chaque configuration est cohérente avec son script de
+> link, pas qu'ils tournent. Le MCU de `stm32vl-discovery` est d'ailleurs une
+> déduction : son `Escapement_Config.h` désignait un STM32L152 depuis 2012
+> alors que le seul script de link livré vise un STM32F103RC.
 
 Le flashage se fait via OpenOCD (`openocd.cfg` fourni dans
 `Escapement/CORTEX-Mx/STM32/Examples/`).
@@ -143,16 +146,18 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
 
 ### Chantiers
 
+- [x] Réparer les `Makefile` : les quatre exemples STM32 se construisent.
+- [x] Compilation vérifiée en CI (`.github/workflows/build.yml`).
+- [ ] **Exécuter le noyau**, en émulation ou sur carte. Rien n'a jamais tourné :
+      la CI ne prouve que la compilation.
 - [ ] Porter la variante power-aware sur STM32L4 ou STM32U5, avec un exemple
       DVFS fonctionnel équivalent à `PA/`.
-- [ ] Valider au moins un exemple sur du matériel réel : rien n'a encore été
-      exécuté, seulement compilé.
-- [x] Mettre en place une compilation vérifiable en CI (`.github/workflows/build.yml`).
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
       référence d'origine ont été retirés avec le rebranding).
 - [ ] MSP430, seulement si le portage est réactivé : reconstituer le générateur
       de configuration qui produisait les en-têtes par dérivé
-      (`Escapement_msp430xNNN.h`), absents du dépôt.
+      (`Escapement_msp430xNNN.h`), absents du dépôt, et un système de build —
+      il n'en existe aucun pour cette cible.
 
 ## Licence
 
