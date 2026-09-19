@@ -34,7 +34,7 @@ int main(void)
   InitializeUARTHardware();
   /* Start the OS so that it runs the idle task, which puts the processor to sleep when
   ** there are no interrupts. */
-  return OSStartMultitasking();
+  return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 
 

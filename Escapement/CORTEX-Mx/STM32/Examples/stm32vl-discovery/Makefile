@@ -16,18 +16,24 @@ PATH_LIB_ST = ../../Libraries
 
 INCLUDE_LIB_ST = -I. -I${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/inc -I${PATH_LIB_ST}/CMSIS/Device/${FAMILLY} -I${PATH_LIB_ST}/CMSIS/Include
 
-CC = /root/CodeSourcery/Sourcery_CodeBench_Lite_for_ARM_EABI/bin/arm-none-eabi-gcc
+# Toolchain bare-metal ARM. Surchargeable :
+#   make CROSS_COMPILE=/chemin/vers/arm-none-eabi-
+CROSS_COMPILE ?= arm-none-eabi-
+CC = $(CROSS_COMPILE)gcc
 
 CPU = cortex-m3
+
+# Les règles écrivent toutes dans build/ sans jamais le créer.
+$(shell mkdir -p build)
 
 all: build/TaskLEDF1.elf build/UARTSimpleEchoF1.elf build/TestTimerEventF1.elf
 
 clean: 
 	rm -f build/*.o build/*.elf
 
-INCLUDE_ESCAPEMENT = -I../../ -I../../../ -I../../../../
+INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
-CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g �-fdata-sections -ffunction-sections
+CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding -Werror=comment
 AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g
 
 OBJECTS_ESCAPEMENT = build/Escapement_UART.o \
@@ -35,8 +41,8 @@ OBJECTS_ESCAPEMENT = build/Escapement_UART.o \
           build/Escapement_Interrupts.o \
           build/Escapement_Timer.o \
           build/Escapement_Atomic.o \
-          build/Escapement_CortexM3.o \
-          build/Escapement_CortexM3_a.o \
+          build/Escapement_CortexMx.o \
+          build/Escapement_CortexMx_a.o \
           build/EscapementHard.o \
           build/EscapementSoft.o \
           
@@ -73,7 +79,7 @@ build/Escapement_Timer.o : ../../Escapement_Timer.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $< 
 build/Escapement_UART.o : ../../Escapement_UART.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $< 
-build/Escapement_CortexM3.o : ../../../Escapement_CortexM3.c
+build/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementHard.o : ../../../../EscapementHard.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $< 
@@ -81,11 +87,11 @@ build/EscapementSoft.o : ../../../../EscapementSoft.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $< 
 build/Escapement_TimerEvent.o : ../../Escapement_TimerEvent.c 
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_CortexM3_a.o : ../../../Escapement_CortexM3_a.S
+build/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $< 
 
 
-build/system_stm32f10x.o : system_stm32f10x.c
+build/system_stm32f10x.o : ${PATH_LIB_ST}/CMSIS/Device/${FAMILLY}/system_stm32f10x.c
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
 build/stm32f10x_adc.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32f10x_adc.c
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
@@ -143,9 +149,9 @@ build/TestTimerEventF1.o : TestTimerEventF1.c
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskLEDF1.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDF1.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDF1.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDF1.o -T${LINKERFILE} -lgcc
 build/UARTSimpleEchoF1.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimpleEchoF1.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimpleEchoF1.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimpleEchoF1.o -T${LINKERFILE} -lgcc
 build/TestTimerEventF1.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF1.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF1.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF1.o -T${LINKERFILE} -lgcc
 	

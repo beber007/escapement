@@ -118,7 +118,7 @@ int main(void)
      OSCreateTask(SetLed2Task,0,0,20000,20000,1,1,0,tmp);
   #endif
   /* Start the OS so that it starts scheduling the user tasks */
-  return OSStartMultitasking();
+  return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 
 
