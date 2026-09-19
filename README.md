@@ -23,9 +23,9 @@ temps réel, de façon à consommer le minimum d'énergie tout en garantissant l
 ## Cibles supportées
 
 - **ARM Cortex-M0 / M3 / M4** — familles STM32F0, STM32F1, STM32F2, STM32F4,
-  STM32L1. Portage dans `Escapement/CORTEX-Mx/`.
+  STM32L1. Portage dans `Escapement/CORTEX-Mx/`. *Cible de développement.*
 - **TI MSP430** — MSP430x1xx à x5xx, MSP430FR57xx, CC430. Portage dans
-  `Escapement/msp430/`.
+  `Escapement/msp430/`. *Gelé*, voir « Orientation » ci-dessous.
 
 ## Arborescence
 
@@ -84,15 +84,37 @@ L'interface complète est documentée dans les en-têtes `EscapementHard.h`,
 ## État du projet
 
 Reprise et maintenance d'une base de code temps réel existante ; voir `NOTICE`
-pour la filiation et les composants tiers. Chantiers en cours :
+pour la filiation et les composants tiers.
 
+### Orientation
+
+L'effort de développement porte sur **ARM Cortex-M**, et en priorité sur les
+STM32L4 / STM32U5 : leur scaling de tension cœur et leurs modes basse
+consommation sont ce qui donne du sens à la variante power-aware. Aujourd'hui
+`EscapementHardPA` est référencé par les deux portages, mais le seul exemple
+DVFS qui fonctionne (`PA/`) cible un MSP430F5419A, et le pilote de tension cœur
+`VCORE.c` est spécifique MSP430.
+
+Le portage **MSP430 est gelé** : conservé, pas développé. Il ne pèse que
+7 600 lignes, il porte la seule démonstration power-aware existante, et la FRAM
+des MSP430FRxx (non volatile, adressable à l'octet, écriture quasi gratuite en
+énergie) reste sans équivalent pour l'*intermittent computing* sous récupération
+d'énergie. Son avenir sera tranché une fois l'exemple PA disponible sur
+Cortex-M. À noter que TI n'ajoute plus de nouvelle famille MSP430 et oriente les
+nouveaux designs vers MSPM0 (Cortex-M0+).
+
+### Chantiers
+
+- [ ] Porter la variante power-aware sur STM32L4 ou STM32U5, avec un exemple
+      DVFS fonctionnel équivalent à `PA/`.
 - [ ] Remplacer les chemins de toolchain codés en dur dans les `Makefile`
       (`CC = /root/CodeSourcery/...`).
-- [ ] Reconstituer le générateur de configuration MSP430, qui produisait les
-      en-têtes par dérivé (`Escapement_msp430xNNN.h`) absents du dépôt.
+- [ ] Mettre en place une compilation vérifiable en CI.
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
       référence d'origine ont été retirés avec le rebranding).
-- [ ] Mettre en place une compilation vérifiable en CI.
+- [ ] MSP430, seulement si le portage est réactivé : reconstituer le générateur
+      de configuration qui produisait les en-têtes par dérivé
+      (`Escapement_msp430xNNN.h`), absents du dépôt.
 
 ## Licence
 
