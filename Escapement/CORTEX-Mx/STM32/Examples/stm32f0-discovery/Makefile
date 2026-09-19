@@ -16,9 +16,15 @@ PATH_LIB_ST = ../../Libraries
 
 INCLUDE_LIB_ST = -I. -I${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/inc -I${PATH_LIB_ST}/CMSIS/Device/${FAMILLY} -I${PATH_LIB_ST}/CMSIS/Include
 
-CC = /root/CodeSourcery/Sourcery_CodeBench_Lite_for_ARM_EABI/bin/arm-none-eabi-gcc
+# Toolchain bare-metal ARM. Surchargeable :
+#   make CROSS_COMPILE=/chemin/vers/arm-none-eabi-
+CROSS_COMPILE ?= arm-none-eabi-
+CC = $(CROSS_COMPILE)gcc
 
 CPU = cortex-m0
+
+# Les règles écrivent toutes dans build/ sans jamais le créer.
+$(shell mkdir -p build)
 
 all: build/TaskLEDF0.elf build/UARTSimpleEchoF0.elf build/TestTimerEventF0.elf build/TestTimerEventF0b.elf
 
@@ -27,7 +33,9 @@ clean:
 
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
-CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections
+# -ffreestanding : pas de bibliotheque C hote, GCC fournit ses propres
+# stdint.h et stddef.h.
+CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding
 AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g
 
 OBJECTS_ESCAPEMENT = build/Escapement_UART.o \
@@ -141,11 +149,11 @@ build/TestTimerEventF0b.o : TestTimerEventF0b.c
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskLEDF0.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDF0.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDF0.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDF0.o -T${LINKERFILE} -lgcc
 build/UARTSimpleEchoF0.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimpleEchoF0.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimpleEchoF0.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimpleEchoF0.o -T${LINKERFILE} -lgcc
 build/TestTimerEventF0.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF0.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF0.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF0.o -T${LINKERFILE} -lgcc
 build/TestTimerEventF0b.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF0b.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostartfiles -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF0b.o -T${LINKERFILE}
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF0b.o -T${LINKERFILE} -lgcc
 	

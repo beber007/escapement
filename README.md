@@ -43,12 +43,38 @@ Balls/                      démo graphique (MSP-EXP430F5438)
 
 ## Compilation
 
-Les exemples STM32 se construisent avec `arm-none-eabi-gcc` :
+Toolchain bare-metal ARM requise :
+
+```sh
+brew install arm-none-eabi-gcc        # macOS
+```
+
+L'exemple `stm32f0-discovery` se construit tel quel :
 
 ```sh
 cd Escapement/CORTEX-Mx/STM32/Examples/stm32f0-discovery
 make
 ```
+
+Il produit quatre binaires pour un STM32F051R8 (Cortex-M0) :
+
+| Binaire | text | data | bss |
+|---|---:|---:|---:|
+| `TaskLEDF0.elf` | 8 884 | 8 | 160 |
+| `UARTSimpleEchoF0.elf` | 10 896 | 8 | 156 |
+| `TestTimerEventF0b.elf` | 11 932 | 10 | 160 |
+| `TestTimerEventF0.elf` | 12 168 | 8 | 156 |
+
+Le chemin de la toolchain est surchargeable :
+`make CROSS_COMPILE=/chemin/vers/arm-none-eabi-`.
+
+Le projet est compilé en *freestanding* et lié sans bibliothèque C
+(`-nostdlib`), avec seulement `libgcc` pour les routines que le Cortex-M0 ne
+sait pas faire en matériel (division entière). Il n'a donc besoin d'aucune
+newlib.
+
+Les trois autres exemples STM32 (`stm32f1`, `stm32f4`, `stm32l`) ont encore le
+chemin de toolchain de 2012 codé en dur dans leur `Makefile`.
 
 Le flashage se fait via OpenOCD (`openocd.cfg` fourni dans
 `Escapement/CORTEX-Mx/STM32/Examples/`).
@@ -107,8 +133,8 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
 
 - [ ] Porter la variante power-aware sur STM32L4 ou STM32U5, avec un exemple
       DVFS fonctionnel équivalent à `PA/`.
-- [ ] Remplacer les chemins de toolchain codés en dur dans les `Makefile`
-      (`CC = /root/CodeSourcery/...`).
+- [ ] Reporter la réparation du `Makefile` sur les exemples `stm32f1`,
+      `stm32f4` et `stm32l`, qui ont encore `CC = /root/CodeSourcery/...`.
 - [ ] Mettre en place une compilation vérifiable en CI.
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
       référence d'origine ont été retirés avec le rebranding).
