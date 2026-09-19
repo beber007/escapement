@@ -166,11 +166,39 @@ perpétuellement « en retard » : la boucle de traitement des arrivées reprend
 des tâches qu'elle vient de passer à `STATE_INIT`, et le garde-fou
 `DEBUG_MODE` s'arme, à juste titre de son point de vue.
 
-**Ce qui reste ouvert** : l'origine exacte de ce `UIF` parasite. Il n'est
-reproductible dans aucun test isolé du timer — ni `UG`, ni `CC1G`, ni
-l'activation du compteur ne le lèvent — et n'apparaît que dans la séquence
-propre du noyau. C'est le point à reprendre : tracer les lectures de `SR`
-conjointement aux interruptions pour capturer l'instant où il se lève.
+### L'origine du `UIF` parasite
+
+Trouvée en traçant les accès au timer et l'activité du NVIC dans le même
+journal :
+
+```
+[cpu: 0x328] Write Control1 = 0x1          CEN, le compteur démarre
+[cpu: 0x336] Write EventGeneration = 0x2   CC1G
+nvic: External IRQ 44: True                l'interruption part
+timer2: Unhandled write to offset 0x14. Unhandled bits: [1]
+[cpu: 0x34E] Read Status -> 0x1            l'ISR lit UIF, pas CC1IF
+```
+
+Renode ignore le bit `CC1G` mais génère quand même un événement, et c'est un
+événement **update** : il lève `UIF` au lieu de `CC1IF`. Le noyau, qui
+attendait sa première interruption de comparaison, reçoit un faux
+débordement — d'où le recalage de −2³⁰ à `CNT = 1`.
+
+Reproducteur minimal, hors de tout noyau :
+
+| Séquence | Résultat |
+|---|---|
+| `DIER = 0` puis `EGR <- 0x2` | `SR = 0x0` |
+| `DIER = 3` puis `EGR <- 0x2` | **`SR = 0x1`** (`UIF`) |
+
+Sur un STM32 réel, `CC1G` lève `CC1IF` et jamais `UIF`. C'est un défaut du
+modèle `Timers.STM32_Timer`, à signaler en amont.
+
+Un contournement en deux parties a été tenté — réécrire le drapeau à la
+lecture de `SR` au démarrage, et armer `CCR1` devant le compteur à l'écriture
+de `CC1G`. Il s'exécute sans erreur mais ne suffit pas : le noyau atteint
+toujours son garde-fou. Corriger le modèle en amont, ou passer par du
+matériel, reste la voie propre.
 
 QEMU a été essayé d'abord (`-machine netduinoplus2`) : le noyau démarre aussi,
 mais son timer n'est jamais réveillé — deux exceptions en 60 secondes. Renode
