@@ -1,0 +1,12 @@
+# Artefacts de compilation
+build/
+*.o
+*.elf
+*.bin
+*.hex
+*.lst
+*.map
+*.d
+
+# macOS
+.DS_Store
