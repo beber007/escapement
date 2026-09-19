@@ -7,11 +7,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  stm32f0:
-    name: stm32f0-discovery (Cortex-M0)
+  examples:
+    name: ${{ matrix.example }} (${{ matrix.cpu }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - example: stm32f0-discovery
+            cpu: Cortex-M0
+          - example: stm32f4-discovery
+            cpu: Cortex-M4
+          - example: stm32l-discovery
+            cpu: Cortex-M3
     env:
-      EXAMPLE: Escapement/CORTEX-Mx/STM32/Examples/stm32f0-discovery
+      DIR: Escapement/CORTEX-Mx/STM32/Examples/${{ matrix.example }}
 
     steps:
       - uses: actions/checkout@v4
@@ -23,19 +33,25 @@ jobs:
           arm-none-eabi-gcc --version | head -1
 
       - name: Compiler
-        working-directory: ${{ env.EXAMPLE }}
+        working-directory: ${{ env.DIR }}
         run: make
 
       - name: Vérifier les binaires et leur taille
-        working-directory: ${{ env.EXAMPLE }}
+        working-directory: ${{ env.DIR }}
         run: |
-          for elf in TaskLEDF0 UARTSimpleEchoF0 TestTimerEventF0 TestTimerEventF0b; do
-            test -s "build/$elf.elf" || { echo "::error::build/$elf.elf manquant ou vide"; exit 1; }
+          shopt -s nullglob
+          elfs=(build/*.elf)
+          if [ ${#elfs[@]} -eq 0 ]; then
+            echo "::error::aucun binaire produit"
+            exit 1
+          fi
+          for elf in "${elfs[@]}"; do
+            test -s "$elf" || { echo "::error::$elf est vide"; exit 1; }
           done
-          arm-none-eabi-size build/*.elf
+          arm-none-eabi-size "${elfs[@]}"
 
       - name: Vérifier que la reconstruction est reproductible
-        working-directory: ${{ env.EXAMPLE }}
+        working-directory: ${{ env.DIR }}
         run: |
           make clean
           make
@@ -43,6 +59,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: stm32f0-elf
-          path: ${{ env.EXAMPLE }}/build/*.elf
+          name: ${{ matrix.example }}-elf
+          path: ${{ env.DIR }}/build/*.elf
           retention-days: 14

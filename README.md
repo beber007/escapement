@@ -73,8 +73,21 @@ Le projet est compilé en *freestanding* et lié sans bibliothèque C
 sait pas faire en matériel (division entière). Il n'a donc besoin d'aucune
 newlib.
 
-Les trois autres exemples STM32 (`stm32f1`, `stm32f4`, `stm32l`) ont encore le
-chemin de toolchain de 2012 codé en dur dans leur `Makefile`.
+Trois exemples sur quatre se construisent et sont vérifiés en CI :
+
+| Exemple | Cœur | MCU | Binaires |
+|---|---|---|---|
+| `stm32f0-discovery` | Cortex-M0 | STM32F051R8 | 4 |
+| `stm32l-discovery` | Cortex-M3 | STM32L152RB | 4 |
+| `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 |
+| `stm32vl-discovery` | Cortex-M3 | **incohérent** | — |
+
+`stm32vl-discovery` est hors CI : son `Escapement_Config.h` sélectionne un
+STM32L152 alors que son script de link vise un STM32F103RC. Deux de ses cibles
+se compilent malgré tout, mais contre les définitions du mauvais
+microcontrôleur — les binaires produits ne tourneraient pas. Le reste de
+l'exemple est réparé (sources restaurées, `Makefile`, appels d'API) ; il ne
+manque que le choix du MCU visé.
 
 Le flashage se fait via OpenOCD (`openocd.cfg` fourni dans
 `Escapement/CORTEX-Mx/STM32/Examples/`).
@@ -133,8 +146,8 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
 
 - [ ] Porter la variante power-aware sur STM32L4 ou STM32U5, avec un exemple
       DVFS fonctionnel équivalent à `PA/`.
-- [ ] Reporter la réparation du `Makefile` sur les exemples `stm32f1`,
-      `stm32f4` et `stm32l`, qui ont encore `CC = /root/CodeSourcery/...`.
+- [ ] Trancher le microcontrôleur visé par `stm32vl-discovery`, puis corriger
+      son `Escapement_Config.h` et le remettre en CI.
 - [x] Mettre en place une compilation vérifiable en CI (`.github/workflows/build.yml`).
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
       référence d'origine ont été retirés avec le rebranding).
