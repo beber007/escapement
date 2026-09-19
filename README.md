@@ -73,21 +73,20 @@ Le projet est compilé en *freestanding* et lié sans bibliothèque C
 sait pas faire en matériel (division entière). Il n'a donc besoin d'aucune
 newlib.
 
-Trois exemples sur quatre se construisent et sont vérifiés en CI :
+Les quatre exemples se construisent et sont vérifiés en CI :
 
 | Exemple | Cœur | MCU | Binaires |
 |---|---|---|---|
 | `stm32f0-discovery` | Cortex-M0 | STM32F051R8 | 4 |
 | `stm32l-discovery` | Cortex-M3 | STM32L152RB | 4 |
+| `stm32vl-discovery` | Cortex-M3 | STM32F103RC | 3 |
 | `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 |
-| `stm32vl-discovery` | Cortex-M3 | **incohérent** | — |
 
-`stm32vl-discovery` est hors CI : son `Escapement_Config.h` sélectionne un
-STM32L152 alors que son script de link vise un STM32F103RC. Deux de ses cibles
-se compilent malgré tout, mais contre les définitions du mauvais
-microcontrôleur — les binaires produits ne tourneraient pas. Le reste de
-l'exemple est réparé (sources restaurées, `Makefile`, appels d'API) ; il ne
-manque que le choix du MCU visé.
+> **Aucun de ces binaires n'a été exécuté sur du matériel.** La CI prouve
+> qu'ils se construisent et que la configuration est cohérente avec le script
+> de link, pas qu'ils tournent. Le MCU de `stm32vl-discovery` a d'ailleurs été
+> déduit du seul script de link livré (`STM32F103RC_Flash.ld`), son
+> `Escapement_Config.h` désignant par erreur un STM32L152 depuis 2012.
 
 Le flashage se fait via OpenOCD (`openocd.cfg` fourni dans
 `Escapement/CORTEX-Mx/STM32/Examples/`).
@@ -146,8 +145,8 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
 
 - [ ] Porter la variante power-aware sur STM32L4 ou STM32U5, avec un exemple
       DVFS fonctionnel équivalent à `PA/`.
-- [ ] Trancher le microcontrôleur visé par `stm32vl-discovery`, puis corriger
-      son `Escapement_Config.h` et le remettre en CI.
+- [ ] Valider au moins un exemple sur du matériel réel : rien n'a encore été
+      exécuté, seulement compilé.
 - [x] Mettre en place une compilation vérifiable en CI (`.github/workflows/build.yml`).
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
       référence d'origine ont été retirés avec le rebranding).
