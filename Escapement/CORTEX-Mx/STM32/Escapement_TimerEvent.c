@@ -7,6 +7,7 @@
 ** as soon as this delay has expired, the event is scheduled.
 ** Platform version: All STM32 microcontrollers.
 ** Version date: April 2012
+*/
 
 #include "Escapement_CortexMx.h"
 #include "Escapement.h"

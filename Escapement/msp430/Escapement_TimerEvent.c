@@ -7,6 +7,7 @@
 ** as this delay has expired, the event is scheduled.
 ** Platform version: All MSP430 and CC430 microcontrollers.
 ** Version identifier: May 2012
+*/
 
 #include "Escapement.h"
 #include "Escapement_TimerEvent.h"

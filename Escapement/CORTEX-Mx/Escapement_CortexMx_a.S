@@ -6,6 +6,7 @@
 **           microcontrollers. For the time being, only context switching is needed.
 ** Platform version: All Cortex-Mx based microcontrollers.
 ** Version date: August 2012
+*/
 
 #define _ASM_
 

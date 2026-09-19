@@ -21,6 +21,7 @@
 **   (3) You can then run a hyperterminal on a PC and transmit characters that are echoed
 **       back.
 ** Version identifier: March 2012
+*/
 
 #include "Escapement.h"
 #include "Escapement_UART.h"

@@ -5,6 +5,7 @@
 /* File TestTimerEventL1.c: Shows how to use API Escapement_TimerEvent. This simple program
 ** periodically turns LEDS on and then schedules an event to turn them off.
 ** Version identifier: May 2012
+*/
 
 #include "Escapement.h"
 #include "Escapement_TimerEvent.h"

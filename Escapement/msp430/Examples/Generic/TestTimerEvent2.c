@@ -11,6 +11,7 @@
 ** also a port pin interrupt to act as a software interrupt (e.g. on port 1 pin 6 defined
 ** as OS_IO_PORT1_6).
 ** Version identifier: June 2012
+*/
 
 #include "Escapement.h"
 #include "Escapement_TimerEvent.h"

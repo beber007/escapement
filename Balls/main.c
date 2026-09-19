@@ -4,6 +4,7 @@
 */
 /* File main.c: This program displays a ball movement on a terminal screen according to
 ** the orientation of the board sensed by the accelerometer.
+*/
  * This program samples the following information with the ADC10 converter:
 **    - The X and Y axis of the accelerometer (sampling period 100 ms);
 **    - Internal temperature sensor (sampling period 1 s).

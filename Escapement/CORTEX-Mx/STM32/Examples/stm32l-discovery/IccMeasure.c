@@ -4,6 +4,7 @@
 */
 /* File icc_measure.c:
 ** Version date: July 2012
+*/
 
 #include "Escapement.h"
 #include "stm32l1xx.h"

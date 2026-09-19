@@ -6,6 +6,7 @@
 **                      transmissions and easy access to the receiver part of a UART.
 ** Platform version: All MSP430 and CC430 microcontrollers.
 ** Version identifier: March 2012
+*/
 
 #ifndef _ESCAPEMENT_UART_H_
 #define _ESCAPEMENT_UART_H_

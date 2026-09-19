@@ -6,6 +6,7 @@
 ** based on TestTimerEventF0.c but uses a single event-driven task per LED and shows
 ** how to initiate 2 events.
 ** Version identifier: June 2012
+*/
 
 #include "Escapement.h"
 #include "Escapement_TimerEvent.h"

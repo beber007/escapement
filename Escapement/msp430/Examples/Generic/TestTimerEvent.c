@@ -9,6 +9,7 @@
 ** ter 1, e.g. OS_IO_TIMER1_A1_TA and OS_IO_TIMER1_A1_CC1 for Timer1 A), and also a port
 ** pin interrupt to act as a software interrupt (e.g. port 1 pin 6 OS_IO_PORT1_6).
 ** Version identifier: May 2012
+*/
 
 #include "Escapement.h"
 #include "Escapement_TimerEvent.h"

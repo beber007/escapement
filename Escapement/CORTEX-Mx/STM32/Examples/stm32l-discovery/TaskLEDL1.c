@@ -7,6 +7,7 @@
 ** a variable number of iterations, which increases at each invocation until this number
 ** reaches a maximum value, at which time it restarts with a iteration of 1.
 ** Version date: March 2012
+*/
 
 #include "Escapement.h"
 #include "stm32l1xx.h"

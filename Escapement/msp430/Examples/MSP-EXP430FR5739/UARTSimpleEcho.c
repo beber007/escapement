@@ -16,6 +16,7 @@
 **        back.
 ** Tested on "MSP-EXP430FR5739 - Experimenter Board".
 ** Version identifier: March 2012
+*/
 
 #include "Escapement.h"
 #include "Escapement_UART.h"

@@ -26,6 +26,7 @@
 ** Although trivial, this simple application uses a single code template to instanciate
 ** 2 different tasks, each having its particular set of parameters.
 ** Version identifier: March 2012
+*/
 
 #include "Escapement.h"
 

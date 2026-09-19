@@ -5,6 +5,7 @@
 /* File UARTSimpleEchoF4.c: Receives characters that are then forwarded back to the
 ** sender.
 ** Version identifier: February 2012
+*/
 
 #include "Escapement.h"
 #include "Escapement_UART.h"

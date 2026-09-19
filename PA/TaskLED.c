@@ -4,6 +4,7 @@
 */
 /* File TestKernel.c: 
 ** Version identifier: April 2010
+*/
 
 /*       MSP430
 **  -----------------

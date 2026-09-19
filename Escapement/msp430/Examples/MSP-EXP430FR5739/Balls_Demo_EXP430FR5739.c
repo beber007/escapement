@@ -17,6 +17,7 @@
 **    - SMCLK sourced from the DCO (DCOCLK) divided by 8;
 **    - DCO set for factory calibrated value of 8.00 MHz(DCORSEL = 0, DCOFSEL = 3).
 ** Version identifier: June 2012
+*/
 #include "Escapement.h"
 #include "Escapement_UART.h"
 #include <string.h>

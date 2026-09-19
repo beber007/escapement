@@ -5,6 +5,7 @@
 /* File Balls_Demol_EXP430F5438.c: Bouncing balls on TI evaluation kit MSP-EXP430F5438.
 ** Version identifier: March 2012
 ** Requires TI LCD HAL file modified for Escapement and either Escapement-Hard or Escapement-Soft
+*/
 
 /* The purpose of this program is to demonstrate most of the features available in
 ** Escapement with a non-trivial application having periodic and event-driven tasks, multi-

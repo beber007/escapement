@@ -28,6 +28,7 @@
 ** 2 different tasks, each having its particular set of parameters.
 ** Tested on "MSP-EXP430FR5739 - Experimenter Board".
 ** Version identifier: June 2012
+*/
 
 #include "Escapement.h"
 
