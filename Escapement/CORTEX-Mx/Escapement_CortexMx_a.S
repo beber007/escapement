@@ -166,6 +166,9 @@ _OSContextSwapHandler_CreateNewContext:
   LDR R2,[R1,#16]                          // R2 <- task entry point
   LDR R0,[R1,#20]                          // R0 <- task argument
 #endif
+  /* The stacked PC must be halfword aligned: clear the Thumb bit carried by the
+  ** function pointer, otherwise the exception return is UNPREDICTABLE on v7-M. */
+  BIC R2,R2,#1                             // R2 <- entry point & ~1
   /* Set link register to return to thread mode and on return use the main stack */
   MOV R1,#0xFFFFFFF9                       // R1 <- new LR
   /* Set status register to thumb state */
@@ -255,6 +258,10 @@ _OSContextSwapHandler_CreateNewContext:
   LDR R2,[R1,#16]                          // R2 <- task entry point
   LDR R0,[R1,#20]                          // R0 <- task argument
 #endif
+  /* The stacked PC must be halfword aligned: clear the Thumb bit carried by the
+  ** function pointer, otherwise the exception return is UNPREDICTABLE. */
+  MOVS R3,#1
+  BICS R2,R3                               // R2 <- entry point & ~1
   /* Set link register to return to thread mode and on return use the main stack (0xFFFFFFF9) */
   MOVS R1,#0
   SUBS R1,R1,#7                            // R0 <- 0 - 7 = 0xFFFFFFF9
