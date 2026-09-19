@@ -39,7 +39,6 @@ Escapement/
 PA/                         exemple power-aware (MSP430F5419A)
 USB/                        exemple avec pile USB (MSP430x552x)
 Balls/                      démo graphique (MSP-EXP430F5438)
-docs/                       documentation
 ```
 
 ## Compilation
@@ -91,7 +90,8 @@ pour la filiation et les composants tiers. Chantiers en cours :
       (`CC = /root/CodeSourcery/...`).
 - [ ] Reconstituer le générateur de configuration MSP430, qui produisait les
       en-têtes par dérivé (`Escapement_msp430xNNN.h`) absents du dépôt.
-- [ ] Reconstituer la documentation utilisateur.
+- [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
+      référence d'origine ont été retirés avec le rebranding).
 - [ ] Mettre en place une compilation vérifiable en CI.
 
 ## Licence
