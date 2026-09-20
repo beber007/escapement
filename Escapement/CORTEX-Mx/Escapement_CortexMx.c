@@ -97,7 +97,9 @@ void _OSResetHandler(void)
   #endif
   #define SHPR *((UINT32 *)0xE000ED20)     // System Handlers 14-15 Priority Register
   /* Segment start and end address defined in linker file */
-  extern UINT32 _etext; // Global variables in flash memory different than 0.
+  extern UINT32 _sidata; // Load address of the initialized globals, given by the
+                         // linker script; equal to _data when the image is linked
+                         // into RAM, in which case the copy below does nothing.
   extern UINT32 _data;  // RAM start location for the above globals
   extern UINT32 _edata; // RAM end location of previous globals
   extern UINT32 _bss;   // Global variables that are initialized to 0 and stored in RAM.
@@ -105,7 +107,7 @@ void _OSResetHandler(void)
   UINT32 *pulSrc, *pulDest;
   asm("CPSID I");       // Disable all interrupt
   /* Copy the data segment initializers from flash to SRAM */
-  pulSrc = &_etext;
+  pulSrc = &_sidata;
   for (pulDest = &_data; pulDest < &_edata; *(pulDest++) = *(pulSrc++));
   /* Zero fill the bss segment  */
   for (pulDest = &_bss; pulDest < &_ebss; *(pulDest++) = 0);
@@ -162,7 +164,10 @@ void _OSResetHandler(void)
            break;
      }
   #elif defined(CORTEX_M0)
-     SHPR = (LOWEST_PRIORITY_LEVEL - 1) << 30 | (LOWEST_PRIORITY_LEVEL) << 22;
+     /* Unsigned literals: with LOWEST_PRIORITY_LEVEL at 3, shifting 2 left by 30 in
+     ** a signed int overflows, which the standard leaves undefined. */
+     SHPR = ((UINT32)(LOWEST_PRIORITY_LEVEL - 1) << 30) |
+            ((UINT32)(LOWEST_PRIORITY_LEVEL) << 22);
   #endif
   /* Call the application's entry point */
   asm("BL main");

@@ -41,6 +41,13 @@ SECTIONS
         _edata = .;
     } > SRAM
 
+
+    /* Load address of .data: where the initial values sit in the image. On a
+    ** target running from flash this is just past .text; on one linked into SRAM
+    ** it is the run address itself, and the copy below becomes a no-op. Taking it
+    ** from LOADADDR rather than from _etext keeps it exact whatever padding the
+    ** linker inserts at the end of .text. */
+    _sidata = LOADADDR(.data);
     .bss :
     {
         . = ALIGN(4);
