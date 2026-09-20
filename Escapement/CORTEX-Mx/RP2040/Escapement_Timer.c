@@ -60,6 +60,20 @@ static UINT32 TimeOrigin = 0;
 volatile BOOL _OSOverflowInterruptFlag = FALSE;
 volatile BOOL _OSComparatorInterruptFlag = FALSE;
 
+#ifdef ESCAPEMENT_MEASURE_SCHEDULING_COST
+   /* Cost of a scheduling round, in microseconds: from the hardware timer interrupt that
+   ** signals an arrival, to the moment the kernel arms the next deadline through
+   ** _OSSetTimer. Covers the interrupt, the software timer handler, the transfer of
+   ** arrivals to the ready queue and the election of the next task. Read over SWD. */
+   volatile UINT32 _OSCostLast = 0;
+   volatile UINT32 _OSCostMax = 0;
+   volatile UINT32 _OSCostSum = 0;
+   volatile UINT32 _OSCostCount = 0;
+   static volatile UINT32 CostStart = 0;
+   static volatile BOOL CostPending = FALSE;
+#endif
+
+
 /* Minimal descriptor retrieved by _OSIOHandler; its first field is the handler. */
 typedef struct TIMER_ISR_DATA {
   void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
@@ -161,6 +175,17 @@ BOOL _OSSetTimer(INT32 nextArrivalTime)
   UINT32 raw = TIMER_TIMERAWL;
   UINT32 now = raw - TimeOrigin;
   UINT32 target = (UINT32)nextArrivalTime;
+  #ifdef ESCAPEMENT_MEASURE_SCHEDULING_COST
+     if (CostPending) {
+        UINT32 cost = raw - CostStart;
+        CostPending = FALSE;
+        _OSCostLast = cost;
+        _OSCostSum += cost;
+        _OSCostCount += 1;
+        if (cost > _OSCostMax)
+           _OSCostMax = cost;
+     }
+  #endif
   if (target > (now & TIME_MASK)) {
      /* Keep the armed value: reading ALARM0 back does not return it, the register is
      ** cleared as soon as the alarm fires. */
@@ -178,6 +203,10 @@ BOOL _OSSetTimer(INT32 nextArrivalTime)
 /* Alarm0Handler: Comparator interrupt, a task arrival is due. */
 static void Alarm0Handler(struct TIMER_ISR_DATA *descriptor)
 {
+  #ifdef ESCAPEMENT_MEASURE_SCHEDULING_COST
+     CostStart = TIMER_TIMERAWL;
+     CostPending = TRUE;
+  #endif
   TIMER_INTF = 0;              // release a possibly forced interrupt
   TIMER_INTR = ALARM0_BIT;     // acknowledge
   _OSComparatorInterruptFlag = TRUE;

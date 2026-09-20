@@ -413,14 +413,33 @@ d'une microseconde exact quelle que soit la fréquence du cœur — c'est
 précisément ce qui fait de cette puce une bonne cible pour la variante
 power-aware — et la seconde laisse l'UART diviser une fréquence connue du pilote.
 
-### Une limite à caractériser
+### Coût d'une ronde d'ordonnancement
 
-Une tâche de période courte destinée à servir de mire à un fréquencemètre
-externe déclenche le garde-fou de surcharge, **y compris à 125 MHz et avec une
-charge utile nulle**. Testé à 1, 2 et 5 ms : même résultat, alors que les trois
-tâches de 10, 20 et 60 ms tournent sans difficulté. Le coût par activation du
-noyau sur ce portage reste donc à mesurer, et c'est un chantier en soi. La
-broche GP4 est laissée libre à cet usage.
+Mesuré sur la carte, de l'interruption matérielle du timer jusqu'au réarmement
+de l'échéance suivante — ce qui couvre l'interruption, le gestionnaire logiciel,
+le transfert des arrivées vers la file des prêts et l'élection de la tâche
+suivante :
+
+| | |
+|---|---:|
+| Rondes en 5 s | 501 |
+| Moyenne | **9,5 µs** |
+| Maximum | **17 µs** |
+
+Soit environ **1 190 cycles** à 125 MHz, et 0,1 % du processeur pour le jeu de
+tâches de l'exemple. L'instrumentation est dans `Escapement_Timer.c`, sous
+`ESCAPEMENT_MEASURE_SCHEDULING_COST`, et les compteurs se lisent par SWD.
+
+### Une limite qui reste inexpliquée
+
+Une tâche de période courte, **sans aucune charge utile**, déclenche le
+garde-fou de surcharge du noyau : testé à 1, 2 et 5 ms, même résultat, alors que
+les trois tâches de 10, 20 et 60 ms tournent sans difficulté.
+
+L'explication évidente — le coût par activation du noyau — **est démentie par la
+mesure ci-dessus** : 17 µs au pire sur une période de 1 ms font 1,7 %. La cause
+est donc ailleurs, et reste à trouver. La broche GP4 est laissée libre pour
+reprendre l'expérience.
 
 ### Deux pièges rencontrés
 

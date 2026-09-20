@@ -13,6 +13,10 @@
 #define CORTEX_M0
 
 
+/* Mesure du cout d'une ronde d'ordonnancement, lisible par le debogueur. */
+#define ESCAPEMENT_MEASURE_SCHEDULING_COST
+
+
 /* Select which Escapement version to use. */
 #define ESCAPEMENT_VERSION_HARD
 //#define ESCAPEMENT_VERSION_SOFT
