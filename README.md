@@ -278,6 +278,40 @@ raisonnement, pas de la mesure.** Une carte Discovery tranche définitivement, e
 le résultat a sa place dans ce README quel qu'il soit — y compris s'il est
 décevant.
 
+### Vers quel MCU porter ensuite ?
+
+Le critère de sélection **inverse le classement habituel** : le DVFS paie là où
+le sommeil est mauvais. Les meilleurs MCU basse consommation sont précisément
+ceux où il sert le moins, puisque le *race-to-sleep* y écrase tout.
+
+Ce qu'il faut chercher : une plage de tension large **et pilotable finement**,
+des coûts fixes faibles devant la commutation donc une **fréquence élevée**, un
+**sommeil profond médiocre ou coûteux à réveiller**, et une charge **continue**
+qui interdit de dormir.
+
+| Cible | Pourquoi | Réserve |
+|---|---|---|
+| **RP2040** | Tension cœur réglable en continu sur une plage large, horloge programmable de quelques kHz à 133 MHz, et surtout **sommeil médiocre** : pas de Stop à 1 µA, le mode dormant perd les horloges. Le *race-to-sleep* y est faible, le DVFS récupère une vraie niche. Cortex-M0+, déjà couvert par la couche générique. | Flash externe en QSPI XIP, qui ne suit pas la tension cœur : un nouveau coût fixe qui mangera une part du gain. |
+| **Cortex-M7 (STM32H7…)** | Le plus gros gain en watts absolus : à 400-550 MHz la commutation domine enfin le budget, donc V² s'applique à une part majoritaire. Charges typiques — audio, SDR, contrôle moteur — **continues**, donc impossibles à endormir. | Cœur non couvert par la couche générique, qui s'arrête à M4. |
+| **STM32U5** | Portage **le moins cher** : réutilise la couche STM32 existante. Quatre paliers, gravure 40 nm, moins de fuites. | Contresens à éviter : son Stop 2 descend autour du µA, donc le *race-to-sleep* y domine encore plus que sur L1. Gain probablement **moindre**, pas supérieur. |
+| ESP32, Ambiq Apollo | — | À écarter : l'ESP32 a déjà son DFS constructeur (`esp_pm`) avec veille automatique ; chez Ambiq la tension est gérée en interne, sans levier utilisateur. |
+
+Coût d'un portage, mesuré sur la base actuelle :
+
+```
+Couche générique Cortex-M (M0/M3/M4)    921 lignes   réutilisable telle quelle
+Couche specifique fabricant           ~1800 lignes   a reecrire
+  dont le pilote DVFS                   157 lignes   la partie facile
+```
+
+Le changement de contexte, les atomiques et l'ordonnanceur ne bougent pas. Le
+gros du travail est le timer à comparateur, la table de vecteurs et l'UART —
+pas la gestion d'énergie.
+
+**Mais l'ordre compte** : rejouer `IccMeasure.c` sur la Discovery L1 vient
+avant. Tant qu'il n'y a pas un chiffre mesuré sur la plateforme déjà en main,
+choisir la suivante se fait à l'aveugle.
+
 ### Ce que l'émulation ne dira jamais
 
 La plateforme L151 ne modélise ni RCC ni PWR : les écritures du pilote sont
@@ -351,6 +385,8 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
 - [ ] **Rejouer `IccMeasure.c` sur une carte STM32L-Discovery** et consigner le
       gain réel des trois paliers. C'est la seule façon de savoir si le DVFS
       vaut mieux que le *race-to-sleep* sur cette famille.
+- [ ] Selon le résultat, porter vers une cible où le gain est structurellement
+      plus grand — voir « Vers quel MCU porter ensuite ? ».
 - [ ] Proposer en amont les deux correctifs du `Timers.STM32_Timer` de Renode.
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
       référence d'origine ont été retirés avec le rebranding).
