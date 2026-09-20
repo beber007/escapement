@@ -48,9 +48,13 @@ void _OSIOHandler(void);
 
 /* _OSEnableInterrupts and _OSDisableInterrupts: Macros changing the state of the special
 ** register PRIMASK.These are provided to allow portable code between different microcon-
-** trollers. */
-#define _OSEnableInterrupts()  __asm("CPSIE i;")
-#define _OSDisableInterrupts() __asm("CPSID i;")
+** trollers.
+** The memory clobber is what makes them critical sections as far as the compiler is
+** concerned. Without it, masking interrupts only constrains the processor, not the code
+** generator: reads and writes may legally be moved across the boundary, and what the
+** section was protecting is then protected only by the compiler's goodwill. */
+#define _OSEnableInterrupts()  __asm volatile ("CPSIE i" ::: "memory")
+#define _OSDisableInterrupts() __asm volatile ("CPSID i" ::: "memory")
 
 /* _OSSleep: Sets the processor to its lowest possible sleep mode. */
 #ifdef ESCAPEMENT_VERSION_HARD_PA

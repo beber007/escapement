@@ -317,7 +317,7 @@ void FinalizeContextSwitchPreparation(void)
 void _OSIOHandler(void)
 {
   #if defined(CORTEX_M0)
-     extern BOOL _OSLLReserveBit;
+     extern volatile BOOL _OSLLReserveBit;
   #endif
   /* Definition of a minimal peripheral descriptor to retrieve the peripheral interrupt
   ** handler routine */

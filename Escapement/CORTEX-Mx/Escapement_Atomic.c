@@ -24,7 +24,7 @@
    /* Because the Cortex-M0 core processors do not have a reservation bit, we can emulate
    ** the validity of the last LL instruction by clearing this indicator whenever there is
    ** a context switch. This action is done in Escapement_CortexMx.c and Escapement_CortexMx.S. */
-   BOOL _OSLLReserveBit;
+   volatile BOOL _OSLLReserveBit;   /* cleared from interrupt context, so never cached */
 
    /* Return PRIMASK bit. */
    static inline UINT32 GetPriMask(void)
