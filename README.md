@@ -432,22 +432,24 @@ sous `ESCAPEMENT_MEASURE_SCHEDULING_COST`, et les compteurs se lisent par SWD.
 
 ### Vérifié par un instrument indépendant
 
-La tâche de 1 ms bascule `GP4` à chaque instance, ce qui produit un carré de
-500 Hz à rapport cyclique 50 %. Mesuré au fréquencemètre d'un Bus Pirate v4,
-relié à `AUX` et à une masse commune :
+Les trois sorties ont été mesurées au fréquencemètre d'un Bus Pirate v4, relié
+à `AUX` et à une masse commune :
 
-```
-mesure 1 : 500.03 Hz
-mesure 2 : 500.01 Hz
-mesure 3 : 500.01 Hz
-mesure 4 : 500.03 Hz
+| Sortie | Tâche | Attendu | Mesuré | Écart |
+|---|---|---:|---:|---:|
+| `GP4` | 1 ms, bascule à chaque instance | 500,000 Hz | **500,02 Hz** | +40 ppm |
+| `GP2` | 20 ms, impulsion | 50,0000 Hz | **50,0014 Hz** | +28 ppm |
+| `GP3` | 60 ms, impulsion de durée variable | 16,66667 Hz | **16,66713 Hz** | +28 ppm |
 
-moyenne 500.02 Hz   théorique 500,00 Hz   écart 0,004 %
-```
+Huit relevés consécutifs sur `GP3` donnent la même valeur au cent-millième près.
+L'écart de +28 ppm, **identique sur les deux mesures les plus précises**, n'est
+pas du bruit : c'est la tolérance du quartz de la carte par rapport à la
+référence de l'instrument, en plein dans les ±30 ppm habituels.
 
-C'est la seule mesure du projet qui ne dépende **ni du noyau, ni de
-l'émulateur, ni du débogueur** : un second appareil confirme qu'Escapement
-active sa tâche toutes les millisecondes.
+C'est la seule mesure du projet qui ne dépende **ni du noyau, ni de l'émulateur,
+ni du débogueur**. Un second appareil confirme les trois périodes
+d'ordonnancement, y compris celle de la tâche dont la durée d'exécution varie
+d'une instance à l'autre — sa période, elle, ne bouge pas.
 
 ### Le timer doit s'arrêter avec le débogueur
 
