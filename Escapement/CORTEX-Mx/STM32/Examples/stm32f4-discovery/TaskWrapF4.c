@@ -7,10 +7,11 @@
 **
 ** The kernel counts time modulo 2^30 and shifts every temporal variable back when its
 ** counter wraps. On a real board that happens once every eighteen minutes at the usual
-** tick rate, which is why no test had ever reached it. Here the timer is clocked at 1 GHz
-** by the emulated platform and runs with no prescaler, so the boundary arrives after
-** 1.07 seconds; the task periods are scaled by the same factor, leaving the kernel with
-** exactly the load it would have on hardware.
+** tick rate, which is why no test had ever reached it. Here the emulated platform clocks
+** the timer so that its counter ticks at 10 GHz, and the boundary arrives after 107 ms;
+** the task periods are scaled by the same factor, leaving the kernel with exactly the
+** load it would have on hardware while there is ten times less processor time to
+** emulate.
 **
 ** Built from the same sources as TaskLEDF4, with ESCAPEMENT_WRAP_TEST defined.
 ** Platform version: STM32F4-Discovery under Renode.
@@ -39,24 +40,23 @@ int main(void)
   TaskParametersDef *TaskParameters;
   SystemInit();
   InitializeFlags(FLAG1_PIN | FLAG2_PIN | FLAG3_PIN);
-  /* One tick is a nanosecond here, so these periods are 1, 2 and 6 ms — the same ratios
-  ** as TaskLEDF4 and the same real load, reached with a counter that runs fast enough to
-  ** wrap inside a test. */
+  /* A tick is a tenth of a nanosecond here, so these periods are 1, 2 and 6 ms — the same
+  ** ratios as TaskLEDF4 and the same real load, with a counter that wraps inside a test. */
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->GPIOx = FLAG_PORT;
   TaskParameters->GPIO_Pin = FLAG1_PIN;
   TaskParameters->Delay = 20;
-  OSCreateTask(FixedDelayTask,0,1000000,1000000,TaskParameters);
+  OSCreateTask(FixedDelayTask,0,10000000,10000000,TaskParameters);
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->GPIOx = FLAG_PORT;
   TaskParameters->GPIO_Pin = FLAG2_PIN;
   TaskParameters->Delay = 40;
-  OSCreateTask(FixedDelayTask,0,2000000,2000000,TaskParameters);
+  OSCreateTask(FixedDelayTask,0,20000000,20000000,TaskParameters);
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->GPIOx = FLAG_PORT;
   TaskParameters->GPIO_Pin = FLAG3_PIN;
   TaskParameters->Delay = 120;
-  OSCreateTask(FixedDelayTask,0,6000000,6000000,TaskParameters);
+  OSCreateTask(FixedDelayTask,0,60000000,60000000,TaskParameters);
   return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 

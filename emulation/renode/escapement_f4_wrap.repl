@@ -1,14 +1,14 @@
 // STM32F4-Discovery for the 2^30 wrap test.
 //
-// Same platform as escapement_f4.repl, with one difference: TIM2 is clocked 8200 times
-// faster. The kernel programs a prescaler of 81, so its counter ticks at 1 GHz and
-// reaches the 2^30 boundary after 1.07 seconds instead of eighteen minutes. TaskWrapF4
-// scales its periods by the same factor, so the kernel sees the load it would have on
-// hardware.
+// Same platform as escapement_f4.repl, with one difference: TIM2 is clocked 82,000 times
+// faster. The kernel programs a prescaler of 81, so its counter ticks at 10 GHz and
+// reaches the 2^30 boundary after 107 ms instead of eighteen minutes. TaskWrapF4 scales
+// its periods by the same factor, so the kernel sees the load it would have on hardware —
+// what shrinks is the processor time to emulate, which a CI runner has to pay in full.
 using "stm32f4_escapement_cpu.repl"
 
 timer2:
-    frequency: 82000000000
+    frequency: 820000000000
 
 flash_boot: Memory.MappedMemory @ sysbus 0x00000000
     size: 0x00080000

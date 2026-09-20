@@ -5,9 +5,17 @@ the lineage and the third-party components.
 
 ## Direction
 
-Development effort goes to **ARM Cortex-M**, and primarily to the STM32L4 and
-STM32U5: their core voltage scaling and their low-power modes are what gives
-the power-aware variant its point. Today `EscapementHardPA` is referenced by
+Development effort goes to **ARM Cortex-M**, and the power-aware variant is the
+point of the project. The target for it is the **RP2040**: this documentation
+argues, in `power-aware.md`, that it is where dynamic voltage and frequency
+scaling has a real niche, because it sleeps poorly — and it is the one board
+here that has been verified on hardware.
+
+A **STM32L4** would come next among the STM32 parts, being a Cortex-M4 the
+generic layer already covers. It is a larger job than it looks: Renode ships no
+L4 platform, so the port would have to bring its own. The **STM32U5** is further
+still, being a Cortex-M33 and therefore a kernel port to ARMv8-M rather than a
+board port. Today `EscapementHardPA` is referenced by
 both ports, and `stm32l-discovery-pa` demonstrates it on Cortex-M.
 
 ## The MSP430 port was removed
@@ -44,11 +52,6 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
 - [x] **Power-aware variant on Cortex-M**: `stm32l-discovery-pa` schedules its
       three tasks and reprograms the PLL, verified in CI.
 - [ ] Propose the two fixes to the Renode `Timers.STM32_Timer` upstream.
-- [ ] **Replay `IccMeasure.c` on an STM32L-Discovery board** and record the
-      real gain of the three voltage ranges. That is the only way to know
-      whether DVFS beats *race-to-sleep* on this family.
-- [ ] Depending on the result, port to a target where the gain is structurally
-      larger — see “Which MCU to port to next?” in `power-aware.md`.
 - [ ] **Write the DVFS driver for the RP2040.** `Escapement_Processor.h` declares
       12, 48 and 125 MHz, but `OSSetProcessorSpeed` does not exist: the PLL has to
       be reconfigured and the core voltage set through `VREG_CTRL`. Testable under
@@ -57,6 +60,10 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       plain Pico rather than a Pico W, an INA226 read from the Bus Pirate — and
       answer, on the target this documentation calls the most promising, whether
       DVFS beats race-to-sleep.
+- [ ] Only if that answer calls for it: an STM32L-Discovery board would allow
+      `IccMeasure.c`, written by the original authors and still here, to be
+      replayed on the L1. Needs a board nobody has, and the RP2040 bench above
+      needs none.
 - [x] **Fix what `-O2` exposed**: pending an exception did not take effect
       before the next instruction, so an optimised `OSEndTask` returned instead
       of switching context and faulted with `INVPC`. Barriers added; the build

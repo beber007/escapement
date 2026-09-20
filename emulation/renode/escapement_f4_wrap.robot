@@ -15,7 +15,7 @@ Scheduling survives the 2^30 wrap of the kernel clock
     ...                       that happens once every eighteen minutes, so no test had ever
     ...                       reached it. Here TIM2 is clocked 8200 times faster and
     ...                       TaskWrapF4 scales its periods to match, which puts the
-    ...                       boundary at 1.074 s of emulated time for an unchanged load.
+    ...                       boundary at 107 ms of emulated time for an unchanged load.
     ...                       Each task must still raise and lower its output afterwards.
     Execute Command           path add @${CURDIR}
     Execute Command           include @Escapement_STM32_Timer.cs
@@ -35,8 +35,8 @@ Scheduling survives the 2^30 wrap of the kernel clock
     Assert LED State          true   testerId=${flag2}  pauseEmulation=true
     Assert LED State          true   testerId=${flag3}  pauseEmulation=true
 
-    # Cross it. The counter reaches 2^30 after 1.074 s, so this leaves it well past.
-    Execute Command           emulation RunFor "1.2"
+    # Cross it. The counter reaches 2^30 after 107 ms, so this leaves it well past.
+    Execute Command           emulation RunFor "0.15"
 
     # After the boundary: every task must still be scheduled.
     Assert LED State          true   testerId=${flag1}  pauseEmulation=true

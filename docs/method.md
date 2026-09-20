@@ -13,7 +13,7 @@ claim confirms it.
 
 | Level | Means | Catches |
 |---|---|---|
-| Compilation | GitHub Actions, six examples, every push | code that does not build, configurations inconsistent with their linker script |
+| Compilation | GitHub Actions, two toolchains, every push | code that does not build, and anything one compiler forgives that the other does not |
 | Replayable execution | Renode, replayed by `renode-test` in CI | a kernel that builds but does not schedule |
 | Internal state on hardware | OpenOCD and SWD | an emulator that models the hardware wrongly |
 | Independent instrument | frequency counter of a Bus Pirate v4 | everything above at once — it trusts no software from this repository |
@@ -87,8 +87,7 @@ The clearest case of all, and it took until the scheduler ran on a host to find 
 The README leads with earliest-deadline-first scheduling, and it is what makes this kernel
 worth looking at next to a fixed-priority one. `EscapementHard.h` nevertheless selected
 deadline-monotonic itself, in a plain `#define` with no `#ifndef` around it, so an
-application could not choose: none of the six examples overrode it, and none of them
-could have.
+application could not choose: no example overrode it, and none of them could have.
 
 Nothing exposed it. The examples scheduled correctly, the emulation tests passed, the
 periods were right to the part per hundred thousand on a frequency counter — all of it is

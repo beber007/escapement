@@ -47,5 +47,6 @@ Escapement/
   CORTEX-Mx/STM32/Examples/ five examples with a Makefile
   CORTEX-Mx/RP2040/Examples/ Raspberry Pi Pico example
 tools/                      trace capture and figure generation
-.github/workflows/build.yml builds the six examples and runs them under Renode
+.github/workflows/build.yml builds the four examples, runs three under Renode
+                            and the scheduler on the host
 ```

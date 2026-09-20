@@ -80,6 +80,7 @@ jobs:
   emulation:
     name: Execution under Renode (STM32F407VG)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: examples
     env:
       DIR: Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery

@@ -164,7 +164,8 @@ sleeping.
 |---|---|---|
 | **RP2040** | Core voltage adjustable continuously over a wide range, clock programmable from a few kHz to 133 MHz, and above all **poor sleep**: no 1 µA Stop mode, and dormant mode loses the clocks. Race-to-sleep is weak there, so DVFS regains a real niche. Cortex-M0+, already covered by the generic layer. | External QSPI flash running XIP, which does not follow the core voltage: a new fixed cost that will eat into the gain. |
 | **Cortex-M7 (STM32H7…)** | The largest gain in absolute watts: at 400–550 MHz switching finally dominates the budget, so V² applies to the majority share. Typical workloads — audio, SDR, motor control — are **continuous**, hence impossible to put to sleep. | Core not covered by the generic layer, which stops at M4. |
-| **STM32U5** | The **cheapest** port: it reuses the existing STM32 layer. Four ranges, 40 nm process, less leakage. | A trap to avoid: its Stop 2 goes down to about a µA, so race-to-sleep dominates there even more than on the L1. The gain is probably **smaller**, not larger. |
+| **STM32L4** | The cheapest STM32 port: a Cortex-M4, which the generic layer already covers, with wider voltage scaling than the L1. | Renode ships no L4 platform, so the emulation level of verification would have to be built along with the port. |
+| **STM32U5** | Four voltage ranges, a 40 nm process, less leakage than anything else here. | Two traps. It is a **Cortex-M33**, so ARMv8-M: the generic layer stops at ARMv7-M and this is a kernel port, not a board port. And its Stop 2 mode reaches about a µA, so race-to-sleep dominates even more than on the L1 — the gain is probably **smaller**, not larger. |
 | ESP32, Ambiq Apollo | — | To rule out: the ESP32 already has vendor DFS (`esp_pm`) with automatic idling; on Ambiq parts the voltage is managed internally, with no lever for the user. |
 
 Cost of a port, measured on the current base:
@@ -179,9 +180,15 @@ The context switch, the atomics and the scheduler do not move. The bulk of the
 work is the comparator timer, the vector table and the UART — not energy
 management.
 
-**But the order matters**: replaying `IccMeasure.c` on the L1 Discovery comes
-first. Until there is a measured figure on the platform already at hand,
-choosing the next one is done blind.
+**But the order matters.** Measuring comes before porting: until there is a
+figure from hardware, choosing the next target is done blind. The bench described
+above uses a board that is already at hand, which is why it now comes before
+buying an L1 Discovery.
+
+One practical note on any STM32 beyond the two families kept here: Renode
+provides platforms for the F0, F1, F4, F7, G0, H7, L0, L1, L5 and W families, but
+**none for the L4 or the U5**. Porting to either means writing its platform as
+well, or giving up the emulation level of verification for that target.
 
 ## What emulation will never tell
 
