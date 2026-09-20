@@ -28,6 +28,8 @@ temps réel, de façon à consommer le minimum d'énergie tout en garantissant l
   *cible de développement*. Les bibliothèques ST sont fournies pour les
   familles STM32F0, F1, F2, F4 et L1 ; quatre cartes ont un exemple
   construit en CI (voir « Compilation »), la F2 n'en a pas.
+- **Raspberry Pi RP2040** — Cortex-M0+, portage dans `Escapement/CORTEX-Mx/RP2040/`.
+  Timer 64 bits à quatre alarmes, cadencé **indépendamment de l'horloge cœur**.
 - **TI MSP430** — MSP430x1xx à x5xx, MSP430FR57xx, CC430. Portage dans
   `Escapement/msp430/`. *Gelé*, voir « Orientation » ci-dessous. **Il n'existe
   aucun build pour cette cible** : les projets d'origine étaient des projets
@@ -70,6 +72,7 @@ Les quatre exemples sont construits à chaque push par la CI :
 | Exemple | Cœur | MCU | Cibles | Noyau + une tâche périodique |
 |---|---|---|---|---|
 | `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 |
+| `RP2040/Examples/pico` | Cortex-M0+ | RP2040 | 1 |
 | `stm32l-discovery-pa` | Cortex-M3 | STM32L152RB | 1 (*power-aware*) | 5 936 / 480 / 32 |
 | `stm32l-discovery` | Cortex-M3 | STM32L152RB | 4 | 6 112 / 8 / 212 |
 | `stm32vl-discovery` | Cortex-M3 | STM32F103RC | 3 | 7 792 / 8 / 272 |
@@ -320,6 +323,54 @@ validera du DVFS** — il faudrait modéliser l'effet d'un changement de tension
 sur la vitesse d'exécution. Ce que l'émulation prouve ici, c'est que le noyau
 ordonnance correctement *et* pilote les bons registres ; pas qu'il économise
 de l'énergie. Cette mesure-là demandera du matériel.
+
+## Portage RP2040
+
+Le portage Raspberry Pi Pico vit dans `Escapement/CORTEX-Mx/RP2040/` et tient en
+**280 lignes** contre 3 543 pour la couche STM32 — cette dernière consacre 1 757
+lignes à ses seules tables de vecteurs par dérivé, là où le RP2040 n'a qu'une
+puce et 26 interruptions.
+
+| Fichier | Rôle | Lignes |
+|---|---|---:|
+| `Escapement_Timer.c` | les cinq fonctions attendues par le noyau, sur TIMER | 180 |
+| `Escapement_Interrupts.c` | table des vecteurs et dispatch des 26 IRQ | 83 |
+| `Escapement_Processor.h` | paliers de fréquence, pour la variante power-aware | 26 |
+| `RP2040_SRAM.ld` | script de link | 50 |
+
+### Deux choix de conception
+
+**Le firmware s'exécute depuis la SRAM.** Le RP2040 démarre normalement depuis
+une flash QSPI externe, ce qui impose un second étage de boot de 256 octets avec
+son CRC. Lier en SRAM l'évite — c'est ce que fait le type de build `no_flash` du
+SDK — et sort la flash de la mesure de consommation, ce qui servira la variante
+power-aware. L'application pointe `VTOR` sur `0x20000000` avant d'autoriser les
+interruptions.
+
+**Le temps est reconstruit modulo 2³⁰.** Le compteur du RP2040 est un 64 bits
+libre qui ne déborde jamais en pratique, alors qu'Escapement attend un compteur
+qui reboucle à 2³⁰ et signale chaque rebouclage. `ALARM0` porte l'échéance posée
+par `_OSSetTimer`, et `ALARM1`, réarmée sur chaque frontière de 2³⁰, joue le rôle
+de l'interruption de débordement.
+
+Surtout, **le timer est cadencé par un tick de 1 µs dérivé de `clk_ref`,
+indépendant de `clk_sys`** : changer la fréquence cœur ne déplace pas la base de
+temps du noyau. Sur STM32, l'horloge du timer suit l'horloge cœur, ce qui
+complique le DVFS.
+
+### Exécution vérifiée
+
+Sur un Pico émulé (voir `emulation/renode/RP2040.md`), les trois tâches
+périodiques de `TaskLEDPico.c` sur une seconde :
+
+| Sortie | Période | Instances | Ratio mesuré | Ratio théorique |
+|---|---:|---:|---:|---:|
+| GPIO 25 (LED intégrée) | 10 ms | 100 | 5,88 | 6,00 |
+| GPIO 2 | 20 ms | 50 | 2,94 | 3,00 |
+| GPIO 3 | 60 ms | 17 | 1,00 | 1,00 |
+
+Le processeur finit dans le `wfi` d'`IdleTask`. Le firmware n'a **pas encore été
+flashé sur une vraie carte**.
 
 ## API
 

@@ -24,6 +24,8 @@ jobs:
             cpu: Cortex-M3
           - example: stm32l-discovery-pa
             cpu: Cortex-M3
+          - example: ../../RP2040/Examples/pico
+            cpu: Cortex-M0+
     env:
       DIR: Escapement/CORTEX-Mx/STM32/Examples/${{ matrix.example }}
 

@@ -1,0 +1,58 @@
+## Copyright (c) 2026 Bertrand Hurst. All rights reserved.
+## Escapement - Lightweight Power-Aware Real-Time OS.
+## Derived from prior work; see LICENSE and NOTICE at the root of this repository.
+
+# Toolchain bare-metal ARM. Surchargeable :
+#   make CROSS_COMPILE=/chemin/vers/arm-none-eabi-
+CROSS_COMPILE ?= arm-none-eabi-
+CC = $(CROSS_COMPILE)gcc
+OBJCOPY = $(CROSS_COMPILE)objcopy
+
+CPU = cortex-m0plus
+LINKERFILE = ../../RP2040_SRAM.ld
+
+# Le firmware s'execute depuis la SRAM : pas de second etage de boot a ecrire.
+INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
+
+CFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -fdata-sections -ffunction-sections \
+         -ffreestanding -Werror=comment
+AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g
+
+# Les regles ecrivent toutes dans build/ sans jamais le creer.
+$(shell mkdir -p build)
+
+all: build/TaskLEDPico.elf
+
+clean:
+	rm -f build/*.o build/*.elf build/*.bin
+
+bin: all build/TaskLEDPico.bin
+
+build/%.bin : build/%.elf
+	$(OBJCOPY) -O binary $< $@
+
+OBJECTS = build/Escapement_CortexMx.o \
+          build/Escapement_CortexMx_a.o \
+          build/Escapement_Atomic.o \
+          build/Escapement_Interrupts.o \
+          build/Escapement_Timer.o \
+          build/EscapementHard.o \
+          build/TaskLEDPico.o
+
+build/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
+	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Atomic.o : ../../../Escapement_Atomic.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Interrupts.o : ../../Escapement_Interrupts.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Timer.o : ../../Escapement_Timer.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/EscapementHard.o : ../../../../EscapementHard.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/TaskLEDPico.o : TaskLEDPico.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+
+build/TaskLEDPico.elf : $(OBJECTS)
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(OBJECTS) -T$(LINKERFILE) -lgcc
