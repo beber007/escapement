@@ -21,7 +21,7 @@ All six are built on every push by the CI:
 | `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 | 4,012 / 477 / 32 |
 | `stm32l-discovery` | Cortex-M3 | STM32L152RB | 4 | 4,124 / 5 / 212 |
 | `stm32l-discovery-pa` | Cortex-M3 | STM32L152RB | 1 (*power-aware*) | 4,638 / 7 / 224 |
-| `RP2040/Examples/pico` | Cortex-M0+ | RP2040 | 4 | 5,256 / 8 / 180 |
+| `RP2040/Examples/pico` | Cortex-M0+ | RP2040 | 4 | 5,148 / 8 / 156 |
 | `stm32vl-discovery` | Cortex-M3 | STM32F103RC | 3 | 5,184 / 5 / 272 |
 | `stm32f0-discovery` | Cortex-M0 | STM32F051R8 | 4 | 6,172 / 5 / 160 |
 

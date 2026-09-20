@@ -13,8 +13,12 @@
 #define CORTEX_M0
 
 
-/* Mesure du cout d'une ronde d'ordonnancement, lisible par le debogueur. */
-#define ESCAPEMENT_MEASURE_SCHEDULING_COST
+/* Measures the cost of a scheduling round, read back over SWD by
+** tools/measure_cost.sh. Off by default: it adds work to the critical path of
+** the kernel, and it clears TIMER_DBGPAUSE so that the clock keeps running
+** through debugger halts — which is what a measurement needs and the opposite
+** of what debugging needs. */
+//#define ESCAPEMENT_MEASURE_SCHEDULING_COST
 
 
 /* Select which Escapement version to use. */

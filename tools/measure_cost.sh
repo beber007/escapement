@@ -28,6 +28,13 @@ RUN_SECONDS=${1:-10}
 
 addr() { arm-none-eabi-nm "$ELF" | awk -v s="$1" '$3 == s { print "0x"$1 }'; }
 
+[ -n "$(addr _OSCostCount)" ] || {
+    echo "the example carries no instrumentation." >&2
+    echo "Uncomment ESCAPEMENT_MEASURE_SCHEDULING_COST in its Escapement_Config.h" >&2
+    echo "and rebuild; it is off by default." >&2
+    exit 1
+}
+
 # 1. load, let the kernel initialise, free the timer from the debugger, let go
 openocd -f interface/cmsis-dap.cfg -c 'adapter speed 5000' -f target/rp2040.cfg \
     -c init -c 'reset halt' -c "load_image $ELF" -c 'resume 0x20000000' \
