@@ -22,6 +22,8 @@ jobs:
             cpu: Cortex-M3
           - example: stm32vl-discovery
             cpu: Cortex-M3
+          - example: stm32l-discovery-pa
+            cpu: Cortex-M3
     env:
       DIR: Escapement/CORTEX-Mx/STM32/Examples/${{ matrix.example }}
 

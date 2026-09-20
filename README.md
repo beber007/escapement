@@ -69,7 +69,8 @@ Les quatre exemples sont construits à chaque push par la CI :
 
 | Exemple | Cœur | MCU | Cibles | Noyau + une tâche périodique |
 |---|---|---|---|---|
-| `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 | 5 936 / 480 / 32 |
+| `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 |
+| `stm32l-discovery-pa` | Cortex-M3 | STM32L152RB | 1 (*power-aware*) | 5 936 / 480 / 32 |
 | `stm32l-discovery` | Cortex-M3 | STM32L152RB | 4 | 6 112 / 8 / 212 |
 | `stm32vl-discovery` | Cortex-M3 | STM32F103RC | 3 | 7 792 / 8 / 272 |
 | `stm32f0-discovery` | Cortex-M0 | STM32F051R8 | 4 | 8 884 / 8 / 160 |
@@ -170,6 +171,40 @@ redéclarer un nœud, il faut copier le fichier pour changer le type de TIM2.
 QEMU a été essayé d'abord (`-machine netduinoplus2`) : le noyau démarre mais
 son timer n'est jamais réveillé, deux exceptions en 60 secondes.
 
+## Power-aware
+
+`Escapement/CORTEX-Mx/STM32/Escapement_Processor.c` est un pilote DVFS pour
+STM32L1 : trois paliers à 4, 16 et 32 MHz, avec réglage de la tension cœur via
+`PWR_CR`. L'exemple `stm32l-discovery-pa` l'active — même application et même
+charge de 90 % que `stm32l-discovery`, mais chaque tâche déclare son temps
+d'exécution au pire cas, ce dont le noyau se sert pour abaisser la fréquence.
+
+```sh
+cd Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery-pa && make bin && cd -
+renode emulation/renode/escapement_l1_pa.resc
+```
+
+**Ce qui marche** : la variante compile (7 018 octets contre 6 112 pour la
+version Hard, soit ~900 octets de logique DVFS), elle démarre, le pilote écrit
+`PWR_CR = 0x800` — le palier de tension 1,8 V — et les trois tâches exécutent
+chacune une instance avant que le noyau rejoigne sa boucle de veille
+spécifique PA, qui remonte la fréquence avant chaque `WFI`.
+
+**Ce qui ne marche pas** : l'ordonnancement ne se maintient pas au-delà de la
+première instance. Deux causes possibles, non départagées :
+
+- Sur un STM32L152RB, `OS_IO_TIM5` n'existe pas, donc le noyau tombe en **mode
+  timer 16 bits**, qui reconstitue la partie haute de l'horloge à partir de
+  l'interruption de débordement. C'est un chemin que l'on n'a jamais validé —
+  l'exemple `stm32f4` utilise le mode 32 bits.
+- La plateforme L151 de Renode ne modélise **ni RCC ni PWR** : les écritures du
+  pilote DVFS sont visibles mais sans effet. Le noyau croit changer de
+  fréquence, l'horloge émulée ne bouge pas, et sa base de temps diverge.
+
+La seconde limite est structurelle : **aucun émulateur ne validera du DVFS**,
+puisqu'il faudrait modéliser l'effet d'un changement de tension sur la vitesse
+réelle. Cette variante demandera du matériel.
+
 ## API
 
 Une application se construit en cinq étapes, la dernière rendant la main au
@@ -229,8 +264,10 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
 - [ ] Proposer en amont les deux correctifs du `Timers.STM32_Timer` de Renode.
 - [x] Émulation rejouée en CI avec `renode-test` : l'exécution du noyau est
       devenue un test de non-régression.
-- [ ] Porter la variante power-aware sur STM32L4 ou STM32U5, avec un exemple
-      DVFS fonctionnel équivalent à `PA/`.
+- [~] **Variante power-aware sur Cortex-M** : `stm32l-discovery-pa` compile et
+      démarre, le pilote DVFS écrit bien la tension cœur. Mais l'ordonnancement
+      ne se maintient pas — voir « Power-aware » ci-dessous.
+- [ ] Proposer en amont les deux correctifs du `Timers.STM32_Timer` de Renode.
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
       référence d'origine ont été retirés avec le rebranding).
 - [ ] MSP430, seulement si le portage est réactivé : reconstituer le générateur

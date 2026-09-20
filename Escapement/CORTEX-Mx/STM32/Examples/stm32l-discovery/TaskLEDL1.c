@@ -76,6 +76,29 @@ int main(void)
      TaskParameters->GPIO_Pin = FLAG3_PIN;
      TaskParameters->Delay = 1900;
      OSCreateTask(VariableDelayTask,0,3000,3000,TaskParameters);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     /* Memes taches et meme charge de 90% que la version Hard, mais chaque tache
+     ** declare son temps d'execution au pire cas. Le noyau s'en sert pour abaisser
+     ** la frequence et la tension coeur des que la charge reelle le permet.
+     ** 125  / 500  -> 25%
+     ** 250  / 1000 -> 25%
+     ** 1200 / 3000 -> 40%
+     ** Total:         90% */
+     TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
+     TaskParameters->GPIOx = FLAG_PORT;
+     TaskParameters->GPIO_Pin = FLAG1_PIN;
+     TaskParameters->Delay = 200;
+     OSCreateTask(FixedDelayTask,125,0,500,500,TaskParameters);
+     TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
+     TaskParameters->GPIOx = FLAG_PORT;
+     TaskParameters->GPIO_Pin = FLAG2_PIN;
+     TaskParameters->Delay = 400;
+     OSCreateTask(FixedDelayTask,250,0,1000,1000,TaskParameters);
+     TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
+     TaskParameters->GPIOx = FLAG_PORT;
+     TaskParameters->GPIO_Pin = FLAG3_PIN;
+     TaskParameters->Delay = 1900;
+     OSCreateTask(VariableDelayTask,1200,0,3000,3000,TaskParameters);
   #elif defined(ESCAPEMENT_VERSION_SOFT)
      /* Calculation of the total load:
      ** Without Escapement-Soft capabilities:

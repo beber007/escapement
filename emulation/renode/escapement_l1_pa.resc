@@ -1,0 +1,14 @@
+:name: Escapement power-aware sur STM32L152
+:description: Trois taches periodiques de charge 90 pourcent, avec ajustement dynamique de la frequence et de la tension coeur.
+
+path add @emulation/renode
+include @Escapement_STM32_Timer.cs
+
+$elf ?= @Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery-pa/build/TaskLEDPA.elf
+$bin ?= @Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery-pa/build/TaskLEDPA.bin
+
+mach create "escapement-l1-pa"
+machine LoadPlatformDescription @escapement_l1_pa.repl
+
+sysbus LoadELF $elf
+sysbus LoadBinary $bin 0x08000000

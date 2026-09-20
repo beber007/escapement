@@ -1,0 +1,28 @@
+// STM32L152 pour la variante power-aware d'Escapement.
+//
+// La plateforme stm32l151 de Renode ne modelise pas le bloc PWR : les ecritures
+// du pilote DVFS sur PWR_CR sont visibles dans le journal mais sans effet, et
+// la boucle d'attente sur PWR_CSR sort immediatement. C'est suffisant pour
+// observer les changements de palier, pas pour mesurer une consommation.
+using "stm32l151_escapement_cpu.repl"
+
+// Le script de link place la flash en 0x00000000 (aliasing STM32, BOOT0 = 0).
+flash_boot: Memory.MappedMemory @ sysbus 0x00000000
+    size: 0x00040000
+
+// TaskLEDL1 pilote PB12, PB13 et PB14.
+Flag1: Miscellaneous.LED @ gpioPortB
+Flag2: Miscellaneous.LED @ gpioPortB
+Flag3: Miscellaneous.LED @ gpioPortB
+
+gpioPortB:
+    12 -> Flag1@0
+    13 -> Flag2@0
+    14 -> Flag3@0
+
+// La plateforme L151 de Renode etiquette deja RCC_CR, PWR_CR et PWR_CSR, mais
+// pas RCC_CFGR. SetSysClock() de ST attend que SWS[3:2] indique la PLL : sans
+// cela il boucle indefiniment. Les bits SW[1:0] sont sans effet ici.
+sysbus:
+    init add:
+        Tag <0x40023808 4> "RCC_CFGR" 0xC
