@@ -430,9 +430,24 @@ Mille ordonnancements par seconde pour **0,7 % du processeur**, soit environ
 875 cycles par ronde à 125 MHz. L'instrumentation est dans `Escapement_Timer.c`
 sous `ESCAPEMENT_MEASURE_SCHEDULING_COST`, et les compteurs se lisent par SWD.
 
+### Vérifié par un instrument indépendant
+
 La tâche de 1 ms bascule `GP4` à chaque instance, ce qui produit un carré de
-500 Hz à rapport cyclique 50 % : une mire commode pour un fréquencemètre
-externe, dans une plage que les instruments lisent sans difficulté.
+500 Hz à rapport cyclique 50 %. Mesuré au fréquencemètre d'un Bus Pirate v4,
+relié à `AUX` et à une masse commune :
+
+```
+mesure 1 : 500.03 Hz
+mesure 2 : 500.01 Hz
+mesure 3 : 500.01 Hz
+mesure 4 : 500.03 Hz
+
+moyenne 500.02 Hz   théorique 500,00 Hz   écart 0,004 %
+```
+
+C'est la seule mesure du projet qui ne dépende **ni du noyau, ni de
+l'émulateur, ni du débogueur** : un second appareil confirme qu'Escapement
+active sa tâche toutes les millisecondes.
 
 ### Le timer doit s'arrêter avec le débogueur
 
