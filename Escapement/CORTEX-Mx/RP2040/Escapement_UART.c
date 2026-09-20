@@ -48,6 +48,7 @@
 #define FUNCSEL_UART         2
 
 #define NVIC_ISER            *((volatile UINT32 *)0xE000E100)
+#define NVIC_ICER            *((volatile UINT32 *)0xE000E180)
 
 /* Clock feeding the UART, fixed by OSInitializeSystemClocks. */
 #define CLK_PERI_HZ          12000000u
@@ -148,8 +149,17 @@ void OSEnqueueUART(void *buffer, UINT8 dataSize, UINT8 interruptIndex)
   /* Contrary to the USART of the STM32, where the transmit interrupt reflects a state and
   ** fires as soon as it is enabled, the one of the PL011 fires on a FIFO threshold being
   ** crossed. Enabling it on an already empty FIFO produces nothing: transmission has to be
-  ** primed by writing the first bytes. */
+  ** primed by writing the first bytes.
+  ** Priming is the one moment where the fields holding the buffer being emptied are
+  ** touched outside the interrupt. The interrupt of this UART alone is therefore masked
+  ** around it, rather than every interrupt, so that the timer of the kernel keeps its
+  ** latency. A transmit interrupt raised meanwhile stays pending and is taken as soon as
+  ** it is unmasked. */
+  NVIC_ICER = 1u << interruptIndex;
+  asm volatile ("dsb" ::: "memory");   // the mask must hold before the next instruction
+  asm volatile ("isb" ::: "memory");
   Transmit(descriptor);
+  NVIC_ISER = 1u << interruptIndex;
 } /* end of OSEnqueueUART */
 
 
