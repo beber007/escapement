@@ -23,20 +23,26 @@ declared by the tasks — without ever missing a deadline.
 | **3.2 µs** | cost of one scheduling round, measured on the board — 0.43 % of the processor at 1,340 activations per second |
 | **+28 ppm** | deviation of the periods read by an external frequency counter: the tolerance of the crystal on the board, not that of the scheduler |
 
-## Verified at four levels
+## Verified at five levels
 
-Each level is independent of the one before it, and the last one trusts no
-software from this repository.
+Each level is independent of the ones before it, and they answer different
+questions: the instrument says the periods are right, the host test says the
+scheduler decided what it was supposed to decide.
 
 | Level | Means | What it establishes |
 |---|---|---|
-| Compilation | GitHub Actions | six examples, four MCU families, on every push |
-| Replayable execution | Renode and `renode-test` | the three tasks scheduled at their periods, as a regression test |
+| Compilation | GitHub Actions, two toolchains | six examples, four MCU families, on every push |
+| The scheduler alone | the kernel built for the host, with time as a variable | ten tasks over 200,000 ticks: every activation on time, no deadline missed |
+| Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, and the 2^30 wrap of the kernel clock crossed — all as regression tests |
 | Internal state on hardware | OpenOCD and SWD on a Pico | deadlines armed ahead of the counter, cost counters read back from SRAM |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
 
 That last level reads 500.02 Hz, 50.0014 Hz and 16.66713 Hz for declared periods
 of 1, 20 and 60 ms. Details in [`docs/rp2040.md`](docs/rp2040.md).
+
+None of this is decoration. The host test was added last, and it found that the
+other four had all been green on a kernel that was not running the algorithm
+this page advertises. That story is in [`docs/method.md`](docs/method.md).
 
 ![Chronogram of three periodic tasks scheduled by Escapement](docs/images/f4-schedule.svg)
 
@@ -46,7 +52,14 @@ emulator, and the figure is regenerated from that data by a script in `tools/`
 
 ## Watch it run
 
-Without any hardware, using [Renode](https://renode.io):
+The scheduler alone, on the machine you are reading this on, in one command:
+
+```sh
+make -C test/host run
+```
+
+The whole kernel under emulation, without any hardware, using
+[Renode](https://renode.io):
 
 ```sh
 cd Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery && make bin && cd -
@@ -66,7 +79,8 @@ openocd -f interface/cmsis-dap.cfg -c 'adapter speed 5000' -f target/rp2040.cfg 
 **EDF without a tick.** Mainstream real-time kernels schedule at fixed
 priorities, paced by a periodic tick. Here tasks declare a period and a deadline,
 the scheduler elects the one whose deadline is nearest, and the hardware
-interrupts the processor at that moment only.
+interrupts the processor at that moment only. Deadline-monotonic scheduling is
+available too, selected in the configuration of an application.
 
 **Energy management driven by the scheduler.** Tasks declare their worst-case
 execution time; the kernel uses it to know *by how much* it may slow the core
@@ -103,6 +117,7 @@ wrongly suspected when the defect was in the firmware. The full account is in
 | [`docs/power-aware.md`](docs/power-aware.md) | DVFS, energy analysis, choosing a target |
 | [`docs/rp2040.md`](docs/rp2040.md) | Raspberry Pi Pico port and hardware measurements |
 | [`docs/method.md`](docs/method.md) | verifying AI-assisted development |
+| [`test/host`](test/host) | the scheduler built for the machine it runs on |
 | [`docs/roadmap.md`](docs/roadmap.md) | current state and open work |
 
 ## Origin and licence
