@@ -21,9 +21,12 @@ The power-aware variant schedules its three tasks
     Execute Command           sysbus LoadELF @${EXAMPLE}/build/TaskLEDPA.elf
     Execute Command           sysbus LoadBinary @${EXAMPLE}/build/TaskLEDPA.bin 0x08000000
 
-    ${flag1}=                 Create LED Tester  sysbus.gpioPortB.Flag1  defaultTimeout=0.1
-    ${flag2}=                 Create LED Tester  sysbus.gpioPortB.Flag2  defaultTimeout=0.1
-    ${flag3}=                 Create LED Tester  sysbus.gpioPortB.Flag3  defaultTimeout=0.1
+    # A task can raise and lower its output inside the same emulated
+    # microsecond — at -O2 most instances of the longest task do — so the
+    # tester has to be given several periods to catch a pulse it can see.
+    ${flag1}=                 Create LED Tester  sysbus.gpioPortB.Flag1  defaultTimeout=0.25
+    ${flag2}=                 Create LED Tester  sysbus.gpioPortB.Flag2  defaultTimeout=0.25
+    ${flag3}=                 Create LED Tester  sysbus.gpioPortB.Flag3  defaultTimeout=0.25
 
     Start Emulation
 

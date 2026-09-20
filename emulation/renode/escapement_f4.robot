@@ -26,9 +26,12 @@ The three periodic tasks are scheduled
     ...                       therefore raise and then lower its output within its window.
     Load Escapement           TaskLEDF4
 
-    ${flag1}=                 Create LED Tester  sysbus.gpioPortB.Flag1  defaultTimeout=0.05
-    ${flag2}=                 Create LED Tester  sysbus.gpioPortB.Flag2  defaultTimeout=0.05
-    ${flag3}=                 Create LED Tester  sysbus.gpioPortB.Flag3  defaultTimeout=0.05
+    # A task can raise and lower its output inside the same emulated
+    # microsecond — at -O2 most instances of the longest task do — so the
+    # tester has to be given several periods to catch a pulse it can see.
+    ${flag1}=                 Create LED Tester  sysbus.gpioPortB.Flag1  defaultTimeout=0.25
+    ${flag2}=                 Create LED Tester  sysbus.gpioPortB.Flag2  defaultTimeout=0.25
+    ${flag3}=                 Create LED Tester  sysbus.gpioPortB.Flag3  defaultTimeout=0.25
 
     Start Emulation
 
