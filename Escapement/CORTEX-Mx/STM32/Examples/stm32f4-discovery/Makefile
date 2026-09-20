@@ -29,7 +29,7 @@ $(shell mkdir -p build)
 all: build/TaskLEDF4.elf build/UARTSimpleEchoF4.elf build/TestTimerEventF4.elf
 
 clean: 
-	rm -f build/*.o build/*.elf build/*.bin
+	rm -f build/*.o build/*.elf build/*.bin build/*.d
 
 # Images brutes, pour l'émulation Renode (voir emulation/renode/).
 OBJCOPY = $(CROSS_COMPILE)objcopy
@@ -41,8 +41,8 @@ build/%.bin : build/%.elf
 
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
-CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding -Werror=comment
-AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g
+CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding -Werror=comment -MMD -MP
+AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -MMD -MP
 
 OBJECTS_ESCAPEMENT = build/Escapement_UART.o \
           build/Escapement_TimerEvent.o \
@@ -172,3 +172,8 @@ build/UARTSimpleEchoF4.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimp
 build/TestTimerEventF4.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF4.o
 	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF4.o -T${LINKERFILE} -lgcc
 	
+
+# Les .d produits par -MMD listent les en-tetes de chaque objet : sans eux, une
+# modification de Escapement_Config.h ne declenche aucune recompilation et les essais
+# portent sur un binaire perime.
+-include $(wildcard build/*.d)

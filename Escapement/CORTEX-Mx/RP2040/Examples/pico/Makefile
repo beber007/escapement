@@ -15,8 +15,8 @@ LINKERFILE = ../../RP2040_SRAM.ld
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
 CFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -fdata-sections -ffunction-sections \
-         -ffreestanding -Werror=comment
-AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g
+         -ffreestanding -Werror=comment -MMD -MP
+AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -MMD -MP
 
 # Les regles ecrivent toutes dans build/ sans jamais le creer.
 $(shell mkdir -p build)
@@ -24,7 +24,7 @@ $(shell mkdir -p build)
 all: build/TaskLEDPico.elf build/UARTEchoPico.elf
 
 clean:
-	rm -f build/*.o build/*.elf build/*.bin
+	rm -f build/*.o build/*.elf build/*.bin build/*.d
 
 bin: all build/TaskLEDPico.bin build/UARTEchoPico.bin
 
@@ -67,3 +67,8 @@ build/TaskLEDPico.elf : $(COMMON) build/TaskLEDPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/TaskLEDPico.o -T$(LINKERFILE) -lgcc
 build/UARTEchoPico.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o -T$(LINKERFILE) -lgcc
+
+# Les .d produits par -MMD listent les en-tetes de chaque objet : sans eux, une
+# modification de Escapement_Config.h ne declenche aucune recompilation et les essais
+# portent sur un binaire perime.
+-include $(wildcard build/*.d)

@@ -29,12 +29,12 @@ $(shell mkdir -p build)
 all: build/TaskLEDF1.elf build/UARTSimpleEchoF1.elf build/TestTimerEventF1.elf
 
 clean: 
-	rm -f build/*.o build/*.elf
+	rm -f build/*.o build/*.elf build/*.d
 
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
-CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding -Werror=comment
-AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g
+CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding -Werror=comment -MMD -MP
+AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -MMD -MP
 
 OBJECTS_ESCAPEMENT = build/Escapement_UART.o \
           build/Escapement_TimerEvent.o \
@@ -155,3 +155,8 @@ build/UARTSimpleEchoF1.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimp
 build/TestTimerEventF1.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF1.o
 	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF1.o -T${LINKERFILE} -lgcc
 	
+
+# Les .d produits par -MMD listent les en-tetes de chaque objet : sans eux, une
+# modification de Escapement_Config.h ne declenche aucune recompilation et les essais
+# portent sur un binaire perime.
+-include $(wildcard build/*.d)
