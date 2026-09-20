@@ -46,10 +46,10 @@ towards MSPM0 (Cortex-M0+).
       ships with a simulated target layer and exercises it with ten periodic
       tasks over 200,000 ticks: every task is activated exactly as often as its
       period calls for.
-- [ ] Check in that host test that no deadline is ever missed. The mirror of the
-      task control block it uses reads back values that cannot be deadlines, so
-      either the layout or what `_OSActiveTask` points at is not what it assumes;
-      counting activations does not depend on it, missing deadlines would.
+- [x] Check in that host test that no deadline is ever missed. What the mirror
+      of the task control block was reading turned out to be the real finding:
+      the kernel was scheduling deadline-monotonic, not by deadline, so the
+      field did not exist. Both are now selectable and the check passes.
 - [x] **Give the STM32 port a defined starting time.** The kernel assumed its
       counter started near zero; `_OSStartTimer` now clears it, which costs one
       store. Shown under Renode: started with the counter at 0x3FFFF000 the

@@ -10,6 +10,11 @@
 #ifndef ESCAPEMENT_CONFIG_H_
 #define ESCAPEMENT_CONFIG_H_
 
+
+/* Scheduling algorithm. EscapementHard.h defines the names before reading this choice and
+** falls back to deadline-monotonic when an application says nothing. */
+#define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
+
 /* Uncomment the line below that corresponds to your target STM32 device while leaving
 ** the others commented. */
 

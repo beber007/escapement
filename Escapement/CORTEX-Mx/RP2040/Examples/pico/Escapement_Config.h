@@ -9,6 +9,11 @@
 #ifndef ESCAPEMENT_CONFIG_H_
 #define ESCAPEMENT_CONFIG_H_
 
+
+/* Scheduling algorithm. EscapementHard.h defines the names before reading this choice and
+** falls back to deadline-monotonic when an application says nothing. */
+#define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
+
 #define RP2040
 #define CORTEX_M0
 

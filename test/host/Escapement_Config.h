@@ -15,10 +15,12 @@
 #define ESCAPEMENT_HOST
 #define ESCAPEMENT_VERSION_HARD
 
-/* Deadline driven scheduling, the default of the kernel. */
-#define EARLIEST_DEADLINE_FIRST_SCHEDULING 1
-#define DEADLINE_MONOTONIC_SCHEDULING      2
-#define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST_SCHEDULING
+/* Scheduling algorithm. The names come from EscapementHard.h, which defines them before
+** reading this choice; HOST_SCHEDULER lets the test build both ways. */
+#ifndef HOST_SCHEDULER
+   #define HOST_SCHEDULER 1
+#endif
+#define SCHEDULER_REAL_TIME_MODE HOST_SCHEDULER
 
 #define OSMALLOC_INTERNAL_HEAP_SIZE 65536
 

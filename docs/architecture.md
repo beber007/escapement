@@ -8,6 +8,20 @@
 | **Soft** | `Escapement/EscapementSoft.{c,h}` | Soft real time: aperiodic tasks tolerating overruns |
 | **Hard PA** | `Escapement/EscapementHardPA.{c,h}` | Hard real time plus dynamic energy management (DVFS) |
 
+## Scheduling algorithm
+
+Two are implemented: earliest deadline first, where the task whose deadline is nearest
+runs first, and deadline-monotonic, where priorities are fixed before start-up from the
+declared deadlines. An application picks one in its `Escapement_Config.h`:
+
+```c
+#define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
+```
+
+Every example here selects earliest deadline first. `EscapementHard.h` falls back to
+deadline-monotonic when an application says nothing — which is what all of them used to
+do without meaning to, see `method.md`.
+
 ## Supported targets
 
 - **ARM Cortex-M0 / M3 / M4** — port under `Escapement/CORTEX-Mx/`, the

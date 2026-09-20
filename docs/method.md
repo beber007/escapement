@@ -37,6 +37,7 @@ has to design around.
 | Rewriting history would shrink `.git` from 12 MB to 7 MB | Measuring the repository after the attempt | No gain at all; the operation was reverted |
 | Including the dependency files at the top of a `Makefile` is harmless | `make` stopped building anything but one object file | The first rule read becomes the default goal, and a `.d` file provides one |
 | Building at `-O2` was a matter of adding the flag: it built, both emulation suites passed, and the board measured 3.2 µs per round instead of 7.0 | The CI, on its own toolchain | The kernel HardFaults there. Local success proved only that one compiler version was forgiving |
+| The kernel schedules by earliest deadline first — the first line of the README, and the reason the project is interesting | Running the scheduler on the host, where a mirror of the task control block read a pointer where a deadline belonged | Every example shipped was scheduling deadline-monotonic. `EscapementHard.h` set the algorithm itself, with no `#ifndef`, and no configuration file overrode it |
 
 One more, of a different kind: an early rebranding pass deleted a comment
 terminator in 32 files, and the first attempt to repair them corrupted 57
@@ -78,6 +79,28 @@ non-volatile pointers, I concluded the compiler had dropped the store, and the
 disassembly of the CI binary showed it there all along. The `volatile` was added
 anyway, because the code had no right to that store being kept, but it was not
 the bug.
+
+## The repository was not scheduling the way it said
+
+The clearest case of all, and it took until the scheduler ran on a host to find it.
+
+The README leads with earliest-deadline-first scheduling, and it is what makes this kernel
+worth looking at next to a fixed-priority one. `EscapementHard.h` nevertheless selected
+deadline-monotonic itself, in a plain `#define` with no `#ifndef` around it, so an
+application could not choose: none of the six examples overrode it, and none of them
+could have.
+
+Nothing exposed it. The examples scheduled correctly, the emulation tests passed, the
+periods were right to the part per hundred thousand on a frequency counter — all of it is
+just as true under deadline-monotonic. It surfaced only because a host build read the
+deadline field of the elected task and got a pointer back: under deadline-monotonic the
+kernel inserts a priority byte and drops the two deadline fields, which moves everything
+after them.
+
+The algorithm is now chosen in `Escapement_Config.h`, the header only supplies the
+fallback, and every example selects earliest-deadline-first. All three emulation suites
+still pass, and the host test additionally checks that no deadline is missed — a check
+that could not even be written while the field it reads was not there.
 
 ## What this changes in the repository
 

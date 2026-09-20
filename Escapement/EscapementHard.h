@@ -105,8 +105,11 @@
 #define EARLIEST_DEADLINE_FIRST        1
 #define DEADLINE_MONOTONIC_SCHEDULING  2
 
-/* The following define sets the scheduling algorithm to use. */
-#define SCHEDULER_REAL_TIME_MODE DEADLINE_MONOTONIC_SCHEDULING
+/* The following define sets the scheduling algorithm to use. An application selects it in
+** its Escapement_Config.h; this is only the default when it says nothing. */
+#ifndef SCHEDULER_REAL_TIME_MODE
+   #define SCHEDULER_REAL_TIME_MODE DEADLINE_MONOTONIC_SCHEDULING
+#endif
 
 #ifndef _ASM_
 

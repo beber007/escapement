@@ -33,11 +33,14 @@ typedef struct HostTCB {
   UINT16 NextArrivalTimeHigh;
 } HostTCB;
 
-/* Only the first three fields of this view are trusted. Reading the deadline back gave
-** values that cannot be deadlines — a pointer where an integer belongs — so either the
-** layout or what _OSActiveTask points at is not what this mirror assumes. Checking that
-** no deadline is ever missed therefore waits until that is understood; counting
-** activations needs none of it. */
+/* This view holds only under earliest-deadline-first scheduling. Under deadline-monotonic
+** the kernel inserts a priority byte after the state and drops the two deadline fields,
+** which moves everything after them — reading a deadline then returns a neighbouring
+** pointer. That is exactly how this test found that the kernel was not scheduling the way
+** the repository said it was. */
+#if SCHEDULER_REAL_TIME_MODE != EARLIEST_DEADLINE_FIRST
+   #error this mirror of the task control block assumes earliest-deadline-first
+#endif
 
 #define TASKTYPE_BLOCKING 0x08   /* set on the idle sentinel */
 
@@ -50,6 +53,7 @@ static unsigned Activations[MAX_TASKS];
 static INT32    Periods[MAX_TASKS];
 static unsigned NbTasks = 0;
 static unsigned Failures = 0;
+static unsigned LateArrivals = 0;
 
 static void CountingTask(void *argument)
 {
@@ -75,6 +79,8 @@ static unsigned RunFor(INT32 duration)
      rounds += 1;
      while (_OSActiveTask != NULL && !(_OSActiveTask->TaskState & TASKTYPE_BLOCKING)) {
         HostTCB *task = _OSActiveTask;
+        if (task->NextDeadline < HostClockNow())
+           LateArrivals += 1;
         task->TaskCodePtr(task->Argument);
         if (_OSActiveTask == task)     /* the task did not end: stop rather than spin */
            break;
@@ -114,6 +120,8 @@ int main(void)
               Periods[i], Activations[i], expected);
      Check(label, Activations[i] + 1 >= expected && Activations[i] <= expected + 1);
   }
+
+  Check("  no deadline missed", LateArrivals == 0);
 
   printf("\n%s\n", Failures ? "FAILURES" : "all checks passed");
   return Failures ? 1 : 0;
