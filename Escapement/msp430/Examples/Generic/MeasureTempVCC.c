@@ -219,13 +219,13 @@ void InitializeADCHardware(void)
      ADC12CTL0 = ADC12ON + ADC12REFON + ADC12SHT02 + ADC12MSC + ADC12REF2_5V;
      ADC12CTL1 = ADC12SHP + ADC12CONSEQ_1 + ADC12SSEL_0;
      ADC12MCTL0 = ADC12SREF_1 + ADC12INCH_10;            // Temperature sensor
-     ADC12MCTL1 = ADC12SREF_1 + ADC12INCH_11 + ADC12EOS; // (AVCC – AVSS) / 2
+     ADC12MCTL1 = ADC12SREF_1 + ADC12INCH_11 + ADC12EOS; // (AVCC â€“ AVSS) / 2
   #elif OS_MSP430_FAMILY == OS_MSP430_FAMILY_5XX
      REFCTL0 &= ~REFMSTR; // Reset REFMSTR to hand over control to ADC12_A ref control registers  
      ADC12CTL0 = ADC12ON + ADC12REFON + ADC12SHT0_8 + ADC12MSC + ADC12REF2_5V;
      ADC12CTL1 = ADC12SHP + ADC12CONSEQ_1;
      ADC12MCTL0 = ADC12SREF_1 + ADC12INCH_10;            // Temperature sensor
-     ADC12MCTL1 = ADC12SREF_1 + ADC12INCH_11 + ADC12EOS; // (AVCC – AVSS) / 2
+     ADC12MCTL1 = ADC12SREF_1 + ADC12INCH_11 + ADC12EOS; // (AVCC â€“ AVSS) / 2
   #endif
 } /* end of InitializeADCHardware */
 
@@ -310,7 +310,7 @@ void InitializeUARTHardware(void)
 
 
 /* UARTUserReceiveInterruptHandler: Claude custom handler pour la transmission WelcomeMessage
-** effectué dans main.*/
+** effectuÃ© dans main.*/
 void CustomUARTHandler(UARTInterruptDescriptorDef *descriptor)
 {
   static UINT8 index = 0;

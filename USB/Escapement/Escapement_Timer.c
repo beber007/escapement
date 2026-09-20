@@ -12,7 +12,7 @@
    #include "USB\USB.h"
 #endif
 
-/* Claude : Comentaires à revoir dans tout le fichier */
+/* Claude : Comentaires Ã  revoir dans tout le fichier */
 
 /* TASK INSTANCE INTER-ARRIVAL TIMER
 ** Although the MSP430F5xx provides three 16 bits timers/counters with multiple modes and

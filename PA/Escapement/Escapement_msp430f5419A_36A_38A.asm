@@ -61,7 +61,7 @@
 ; Constants declaration
 ; **********************************
 
-; Claude Beber Es-qu'il faut tjs être 0,5 MHz en dessous de la valeur voulue ?
+; Claude Beber Es-qu'il faut tjs Ãªtre 0,5 MHz en dessous de la valeur voulue ?
 
   ; MSP430 with PMM have 4 operating frequency dynamic settings. Although it is pre-
   ; ferable to have the highest frequency operating with the lowest core voltage, these
@@ -180,8 +180,8 @@ IntName:
   and #0xD0,r14                     ; Claude IdleTask en LPM3 ?
   cmp #0xD0,r14
   jne :IntName:_IdleTask_not_in_LPM3
-  dec &UCSCTL5                      ; Claude Pour s'assuer que lors du réveil la frèq. ne dépasse la fréq. max du CPU
-                                    ; Selon bug PMM11 décrit dans le document SLAZ057F
+  dec &UCSCTL5                      ; Claude Pour s'assuer que lors du rÃ©veil la frÃ¨q. ne dÃ©passe la frÃ©q. max du CPU
+                                    ; Selon bug PMM11 dÃ©crit dans le document SLAZ057F
 :IntName:_IdleTask_not_in_LPM3:
   .if $defined(SAVE_20_BIT_REGISTERS)
      bic #0xD0,8(sp)                ; Disable LPM3/LPM1 in IdleTask
@@ -239,7 +239,7 @@ _c_int00SkipAutoInit:
 ; end of c_int00 (reset interrupt handler int63)
 
 ; System non-maskable interrupt handler (int62).
-;Claude Beber SYSNMI_SVSMH utilisé uniquement en mode debug car que faire si Vcc est trop bas ?
+;Claude Beber SYSNMI_SVSMH utilisÃ© uniquement en mode debug car que faire si Vcc est trop bas ?
   .sect ".int62"
   .short int62
   .sect ".text:_isr"
@@ -576,7 +576,7 @@ PMMHandler:
   clr r13
   mov.b r12,r13
   rla r13
-  ; Claude retrouve la valeur désirée de FreqTabUCSCTL2   
+  ; Claude retrouve la valeur dÃ©sirÃ©e de FreqTabUCSCTL2   
   mov &ptFreqTabUCSCTL2,r14
   add r13,r14 
   dint
@@ -654,8 +654,8 @@ PMMInterrupt_Equal:
   .else
      bis #0xD0,8(sp)                ; Enable LPM3 in IdleTask
   .endif
-  inc &UCSCTL5                      ; Claude Pour s'assuer que lors du réveil la frèq. ne dépasse la fréq. max du CPU
-                                    ; Selon bug PMM11 décrit dans le document SLAZ057F
+  inc &UCSCTL5                      ; Claude Pour s'assuer que lors du rÃ©veil la frÃ¨q. ne dÃ©passe la frÃ©q. max du CPU
+                                    ; Selon bug PMM11 dÃ©crit dans le document SLAZ057F
 PMMInterrupt_do_not_set_LPM3:
   bis #SVSMLDLYIFG,&PMMIFG          ; Set delay interrupt flag for next speed modification
 PMMInterrupt_END:
@@ -1006,8 +1006,8 @@ Wait_Flag_XT1:
   bis.b #BIT6,&P2IE                 ; Enable I/O Port 2 pin 6 interrupts
   bic #0x07,&UCSCTL4                ; Clear SELM bits
   bis #0x03,&UCSCTL4                ; Set SELM to DCOCLK
-  ; Claude phase d'étalonage (ecriture de la table FreqTabUCSCTL0)
-  ; FreqTabUCSCTL2Cal doit être utilisée quand FLL reference divider est 1 (valeur par default).
+  ; Claude phase d'Ã©talonage (ecriture de la table FreqTabUCSCTL0)
+  ; FreqTabUCSCTL2Cal doit Ãªtre utilisÃ©e quand FLL reference divider est 1 (valeur par default).
   mov #FreqTabUCSCTL2Cal,&ptFreqTabUCSCTL2
   mov.b #OS_8MHZ_SPEED,r13
   mov.b &PMMCTL0_L,&CurrentSpeed
@@ -1037,7 +1037,7 @@ Wait_FLL:
 Exit_SetProcessorSpeed:
   bis #FLLREFDIV__16,&UCSCTL3              ; Set FLL reference divider (by 16)
   mov #FreqTabUCSCTL2,&ptFreqTabUCSCTL2
-  ; Claude on doit appeler OSSetProcessorSpeed à nouveau pour fixer FLLN et FLLD
+  ; Claude on doit appeler OSSetProcessorSpeed Ã  nouveau pour fixer FLLN et FLLD
   ; avec les valeurs contenue dans la table FreqTabUCSCTL2 (FLL reference divider by 16). 
   mov.b #OS_25MHZ_SPEED,r12
   mov.b #OS_25MHZ_SPEED,&AdjustFreq ; Claude force la configuration du DCO/FLL

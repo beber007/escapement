@@ -6,7 +6,7 @@
 ** Version identifier: August 2009
 */
 
-/* Claude : Comentaires à revoir dans tout le fichier */
+/* Claude : Comentaires Ã  revoir dans tout le fichier */
 
 #ifndef ESCAPEMENT_TIMER_H
 #define ESCAPEMENT_TIMER_H

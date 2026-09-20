@@ -237,10 +237,10 @@
 #elif defined(CORTEX_M0)
    /* Cortex-M0 on STM32F0XXX defines 4 distinct priority levels numbered from 0 through
    ** 3 with 0 being the highest. Of these, 2 priority levels are reserved by Escapement:
-   **   PendSV Ð used for context switching and must be at the lowest priority level (3);
-   **   SysTick Ð used to handle software generated exceptions to schedule application
+   **   PendSV - used for context switching and must be at the lowest priority level (3);
+   **   SysTick - used to handle software generated exceptions to schedule application
    **             tasks and must be at a higher priority than PendSV (2);
-   **   Internal timer used by Escapement Ð defined by TIMER_PRIORITY below and must be at
+   **   Internal timer used by Escapement - defined by TIMER_PRIORITY below and must be at
    **             a higher priority than SysTick (0 or 1).
    ** This leaves 2 priority levels for the application's peripheral devices (0 or 1). */
    #define LOWEST_PRIORITY_LEVEL  3

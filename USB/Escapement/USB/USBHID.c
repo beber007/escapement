@@ -133,7 +133,7 @@
            usedNodes = OSUINT8_LL(&descriptor->UsedNodes);
         } while (!OSUINT8_SC(&descriptor->UsedNodes,usedNodes - 1));
      }
-     /* Claude Si plus aucun noeud contenant des donées devant être envoié n'est 
+     /* Claude Si plus aucun noeud contenant des donÃ©es devant Ãªtre envoiÃ© n'est 
      ** disponnible alors il faut sortir sans repermettre l'interruption. L'interruption
      ** sera repermise par la fonction OSEnqueueInputUSB (USB.c). */
      if (descriptor->CurrentNode != NULL)

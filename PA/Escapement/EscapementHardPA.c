@@ -516,7 +516,7 @@ BOOL Initialize(void)
   return TRUE;
 } /* end of Initialize */
 
-UINT16 _OSIdleSP; // Claude permet de dÈtecter si la prochaine t‚che ‡ executer est la t‚che NULL
+UINT16 _OSIdleSP; // Claude permet de d√©tecter si la prochaine t√¢che √† executer est la t√¢che NULL
 
 /* IdleTask: This task executes whenever there is no other task in the ready queue. Its
 ** sole purpose is to keep the processor busy until the next task arrival time.
