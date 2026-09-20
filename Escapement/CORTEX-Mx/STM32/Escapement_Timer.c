@@ -429,6 +429,16 @@ void _OSInitializeTimer(void)
 ** called only once when the kernel is ready to schedule the first application task. */
 void _OSStartTimer(void)
 {
+  /* Start counting from zero. The kernel computes its first arrival times from whatever
+  ** the counter reads here, while the ones that follow are periods away from it; if the
+  ** counter held a large value, the second round would find every task overdue at once and
+  ** the overload guard would fire. A reset leaves the counter at zero, so this costs one
+  ** store and removes an unstated requirement — the RP2040 port carries a time origin for
+  ** the same reason, its counter being free running and impossible to clear. */
+  TIM_COUNTER = 0;
+  #ifdef ESCAPEMENT_TIMER_16
+     Time = 0;                                // High half of the reconstructed clock
+  #endif
   TIM_CONTROL1 |= 1;                          // Enable the TIM Counter
   TIM_EVENT_GENERATION |= COMPARATOR_INT_BIT; // Generate the first comparator interrupt
 } /* end of _OSStartTimer */
