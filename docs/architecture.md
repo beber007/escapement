@@ -24,10 +24,11 @@ do without meaning to, see `method.md`.
 
 ## Supported targets
 
-- **ARM Cortex-M0 / M3 / M4** — port under `Escapement/CORTEX-Mx/`, the
-  *development target*. The ST libraries are bundled for the STM32F0, F1, F2,
-  F4 and L1 families; five STM32 examples are built in CI (see `build.md`),
-  the F2 has none.
+- **ARM Cortex-M0 / M3 / M4** — port under `Escapement/CORTEX-Mx/`. The ST
+  libraries are bundled for the STM32F4 and L1 families, the two the examples
+  use. Support for the F0, F1 and F2 families was removed on 2026-09-20: those
+  examples were only ever compiled, and this is a demonstration of what the
+  kernel does, not a catalogue of the parts it could run on.
 - **Raspberry Pi RP2040** — Cortex-M0+, port under
   `Escapement/CORTEX-Mx/RP2040/`. A 64-bit timer with four alarms, clocked
   **independently of the core clock**.

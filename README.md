@@ -31,7 +31,7 @@ scheduler decided what it was supposed to decide.
 
 | Level | Means | What it establishes |
 |---|---|---|
-| Compilation | GitHub Actions, two toolchains | six examples, four MCU families, on every push |
+| Compilation | GitHub Actions, two toolchains | four examples, three cores, on every push |
 | The scheduler alone | the kernel built for the host, with time as a variable | ten tasks over 200,000 ticks: every activation on time, no deadline missed |
 | Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, and the 2^30 wrap of the kernel clock crossed — all as regression tests |
 | Internal state on hardware | OpenOCD and SWD on a Pico | deadlines armed ahead of the counter, cost counters read back from SRAM |

@@ -14,17 +14,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - example: stm32f0-discovery
-            dir: Escapement/CORTEX-Mx/STM32/Examples/stm32f0-discovery
-            cpu: Cortex-M0
           - example: stm32f4-discovery
             dir: Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
             cpu: Cortex-M4
           - example: stm32l-discovery
             dir: Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery
-            cpu: Cortex-M3
-          - example: stm32vl-discovery
-            dir: Escapement/CORTEX-Mx/STM32/Examples/stm32vl-discovery
             cpu: Cortex-M3
           - example: stm32l-discovery-pa
             dir: Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery-pa
