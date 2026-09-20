@@ -31,7 +31,8 @@ bin: all build/TaskLEDPico.bin
 build/%.bin : build/%.elf
 	$(OBJCOPY) -O binary $< $@
 
-OBJECTS = build/Escapement_CortexMx.o \
+OBJECTS = build/Escapement_RamEntry.o \
+          build/Escapement_CortexMx.o \
           build/Escapement_CortexMx_a.o \
           build/Escapement_Atomic.o \
           build/Escapement_Interrupts.o \
@@ -39,6 +40,8 @@ OBJECTS = build/Escapement_CortexMx.o \
           build/EscapementHard.o \
           build/TaskLEDPico.o
 
+build/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
+	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S

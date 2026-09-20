@@ -47,7 +47,8 @@ int main(void)
   TaskParametersDef *TaskParameters;
   /* The firmware runs from SRAM: point the processor at the vector table placed there by
   ** the linker before any interrupt can be taken. */
-  VTOR = 0x20000000;
+  extern void (* const CortexMxVectorTable[])(void);
+  VTOR = (UINT32)CortexMxVectorTable;
   /* Release the two GPIO blocks from reset. */
   RESETS_RESET &= ~(RESETS_IO_BANK0 | RESETS_PADS_BANK0);
   while ((RESETS_RESET_DONE & (RESETS_IO_BANK0 | RESETS_PADS_BANK0)) !=

@@ -9,7 +9,7 @@
 ** avant d'autoriser les interruptions.
 */
 
-ENTRY(_OSResetHandler)
+ENTRY(_OSRamEntry)
 
 MEMORY
 {
@@ -20,6 +20,10 @@ SECTIONS
 {
     .text :
     {
+        /* Le bootrom branche sur le premier mot de l'image : il lui faut du code, pas la
+        ** table des vecteurs. Celle-ci suit, alignee sur 256 octets comme VTOR l'exige. */
+        KEEP(*(.ram_entry))
+        . = ALIGN(256);
         KEEP(*(.isr_vector_general))  /* exceptions systeme Cortex-Mx */
         KEEP(*(.isr_vector_specific)) /* interruptions peripheriques RP2040 */
         *(.text*)
