@@ -75,6 +75,14 @@ jobs:
           path: ${{ env.DIR }}/build/*.elf
           retention-days: 14
 
+  host-scheduler:
+    name: Scheduler on the host
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the scheduler against ten periodic tasks
+        run: make -C test/host run
+
   emulation:
     name: Execution under Renode (STM32F407VG)
     runs-on: ubuntu-latest

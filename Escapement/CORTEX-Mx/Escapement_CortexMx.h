@@ -27,8 +27,11 @@
    #define OS_TCB_ARGUMENT_OFFSET 20
 #endif
 
-/* OSCheckTCBLayout: Placed by each kernel variant right after its TCB definition. */
-#ifndef _ASM_
+/* OSCheckTCBLayout: Placed by each kernel variant right after its TCB definition. Only
+** meaningful where the assembler context switch actually runs: a host build of the kernel,
+** for testing the scheduler, has wider pointers and a different layout, and no assembler
+** that cares. */
+#if !defined(_ASM_) && (defined(CORTEX_M0) || defined(CORTEX_M3) || defined(CORTEX_M4))
    #define OSCheckTCBLayout() \
       _Static_assert(__builtin_offsetof(TCB,TaskState) == OS_TCB_STATE_OFFSET, \
                      "TaskState moved; Escapement_CortexMx_a.S reads it at another offset"); \
@@ -36,6 +39,8 @@
                      "TaskCodePtr moved; Escapement_CortexMx_a.S reads it at another offset"); \
       _Static_assert(__builtin_offsetof(TCB,Argument) == OS_TCB_ARGUMENT_OFFSET, \
                      "Argument moved; Escapement_CortexMx_a.S reads it at another offset")
+#else
+   #define OSCheckTCBLayout() struct OSCheckTCBLayoutNotApplicable
 #endif
 
 /* Non-blocking algorithms use a marker that needs to be part of the address. These algo-

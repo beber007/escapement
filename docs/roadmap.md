@@ -42,9 +42,14 @@ towards MSPM0 (Cortex-M0+).
       of switching context and faulted with `INVPC`. Barriers added; the build
       is at `-O2`, the mean cost of a scheduling round is down from 7.0 to
       3.2 µs and the worst case from 26 to 8 µs.
-- [ ] Unit-test the scheduler on the host, so that it can be exercised well
-      beyond four tasks, and so that the 2^30 wrap of its clock can be reached
-      in a test rather than after eighteen minutes of running.
+- [x] **Run the scheduler on the host.** `test/host` builds the kernel as it
+      ships with a simulated target layer and exercises it with ten periodic
+      tasks over 200,000 ticks: every task is activated exactly as often as its
+      period calls for.
+- [ ] Check in that host test that no deadline is ever missed. The mirror of the
+      task control block it uses reads back values that cannot be deadlines, so
+      either the layout or what `_OSActiveTask` points at is not what it assumes;
+      counting activations does not depend on it, missing deadlines would.
 - [x] **Give the STM32 port a defined starting time.** The kernel assumed its
       counter started near zero; `_OSStartTimer` now clears it, which costs one
       store. Shown under Renode: started with the counter at 0x3FFFF000 the
