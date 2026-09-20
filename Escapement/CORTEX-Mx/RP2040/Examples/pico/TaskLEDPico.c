@@ -13,9 +13,10 @@
 #define FLAG1_PIN 25   /* on-board LED */
 #define FLAG2_PIN  2
 #define FLAG3_PIN  3
-/* Sortie laissee libre pour une mire de mesure. Voir le README : une tache de periode
-** courte destinee a un frequencemetre externe declenche le garde-fou de surcharge du
-** noyau, dont le cout par activation reste a mesurer. */
+/* Mire de mesure, pilotee par une tache de periode 1 ms. Le garde-fou de surcharge que
+** cette tache declenchait tenait a la frequence du coeur, restee sur le quartz : depuis
+** que OSInitializeSystemClocks engage la PLL, la ronde d'ordonnancement coute 7 us en
+** moyenne et la mire tourne. Voir le README. */
 #define PROBE_PIN  4
 
 /* Parameters handed to each task instance */
@@ -66,13 +67,12 @@ int main(void)
   InitializeFlag(FLAG3_PIN);
   InitializeFlag(PROBE_PIN);
   /* Create the 3 tasks. Periods are expressed in microseconds, the resolution of the
-  ** RP2040 timer.
-  ** The delays are counts of volatile loop iterations, each costing about a dozen cycles
-  ** on a Cortex-M0+, so roughly 1 us with the core at the 12 MHz of the crystal. The load
-  ** stays around 17%, well clear of the kernel's overload guard.
-  **     500 / 10000 -> 5%
-  **    1000 / 20000 -> 5%
-  **   4000 / 60000  -> 6.7% */
+  ** RP2040 timer: 10, 20 and 60 ms, plus the 1 ms probe below.
+  ** The delays are counts of volatile loop iterations. How long one takes depends on the
+  ** core frequency — 125 MHz once OSInitializeSystemClocks has engaged the PLL — and on
+  ** the optimisation level the example is built with, so no load figure is quoted here;
+  ** it is low enough that the kernel's overload guard never fires. The periods themselves
+  ** were checked against an external frequency counter, see the README. */
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->Pin = FLAG1_PIN;
   TaskParameters->Delay = 500;
