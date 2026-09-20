@@ -31,10 +31,9 @@ do without meaning to, see `method.md`.
 - **Raspberry Pi RP2040** — Cortex-M0+, port under
   `Escapement/CORTEX-Mx/RP2040/`. A 64-bit timer with four alarms, clocked
   **independently of the core clock**.
-- **TI MSP430** — MSP430x1xx through x5xx, MSP430FR57xx, CC430. Port under
-  `Escapement/msp430/`. *Frozen*, see `roadmap.md`. **There is no build for
-  this target**: the original projects were IAR / Code Composer projects, and
-  they are not in the repository.
+Escapement began life on the TI MSP430, and that port was removed on
+2026-09-20: see `roadmap.md`. The history keeps it, and so does the archived
+`beber007/zottaos`.
 
 ## Source tree
 
@@ -44,12 +43,8 @@ Escapement/
   EscapementSoft.{c,h}      soft real-time kernel
   EscapementHardPA.{c,h}    power-aware hard real-time kernel
   CORTEX-Mx/                ARM port (STM32, CMSIS, StdPeriph)
-  msp430/                   MSP430 port
   CORTEX-Mx/STM32/Examples/ five examples with a Makefile
   CORTEX-Mx/RP2040/Examples/ Raspberry Pi Pico example
 tools/                      trace capture and figure generation
-PA/                         power-aware example (MSP430F5419A)
-USB/                        example with a USB stack (MSP430x552x)
-Balls/                      graphical demo (MSP-EXP430F5438)
 .github/workflows/build.yml builds the six examples and runs them under Renode
 ```

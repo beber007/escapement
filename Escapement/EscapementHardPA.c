@@ -40,7 +40,7 @@
 #define STATE_INIT          0x00 /* Must be equal to zero */
 #define STATE_RUNNING       0x01 /* These values may also be used in other implementa- */
 #define STATE_ZOMBIE        0x02 /* tion files specific to a microcontroller, e.g. */
-#define STATE_TERMINATED    0x04 /* MSP430 or CC430. */
+#define STATE_TERMINATED    0x04 /* of a given port. */
 /* Because the task structure is different for event-driven tasks, we need to distinguish
 ** them. By default all tasks are periodic unless specified. */
 #define TASKTYPE_BLOCKING   0x08

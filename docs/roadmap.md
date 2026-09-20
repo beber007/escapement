@@ -8,16 +8,28 @@ the lineage and the third-party components.
 Development effort goes to **ARM Cortex-M**, and primarily to the STM32L4 and
 STM32U5: their core voltage scaling and their low-power modes are what gives
 the power-aware variant its point. Today `EscapementHardPA` is referenced by
-both ports, but the only working DVFS example (`PA/`) targets an MSP430F5419A,
-and the core voltage driver `VCORE.c` is MSP430-specific.
+both ports, and `stm32l-discovery-pa` demonstrates it on Cortex-M.
 
-The **MSP430 port is frozen**: kept, not developed. It is only 7,600 lines, it
-carries the one existing power-aware demonstration, and the FRAM of the
-MSP430FRxx parts — non-volatile, byte-addressable, nearly free to write in
-energy terms — still has no equivalent for *intermittent computing* under
-energy harvesting. Its fate will be settled once a power-aware example runs on
-Cortex-M. Note that TI no longer adds MSP430 families and steers new designs
-towards MSPM0 (Cortex-M0+).
+## The MSP430 port was removed
+
+Escapement began life on the TI MSP430, and the port went on 2026-09-20 along
+with its three examples — 19,406 lines across 60 files, a fifth of what the
+repository carried.
+
+It had not been built once since the takeover: the original projects were IAR
+and Code Composer projects that are not in the repository, and the per-derivative
+headers it needs were produced by a configurator tool that is not either. Keeping
+it meant carrying a quarter of the source tree that no test could reach and no
+reader could trust, in a project whose point is that everything it claims is
+verified.
+
+What was lost: the FRAM of the MSP430FRxx parts — non-volatile, byte-addressable,
+nearly free to write in energy terms — still has no equivalent for *intermittent
+computing* under energy harvesting, and that was the one reason to keep the port.
+TI adds no new MSP430 families and steers new designs towards MSPM0, a Cortex-M0+
+the generic layer here already covers.
+
+The history keeps all of it, and so does the archived `beber007/zottaos`.
 
 ## Open work
 
@@ -65,7 +77,3 @@ towards MSPM0 (Cortex-M0+).
       80 ms as a normal start.
 - [ ] Rebuild the user documentation (the original manual and reference notes
       were removed along with the rebranding).
-- [ ] MSP430, only if the port is revived: rebuild the configuration generator
-      that produced the per-derivative headers (`Escapement_msp430xNNN.h`),
-      absent from the repository, and a build system — there is none for this
-      target.
