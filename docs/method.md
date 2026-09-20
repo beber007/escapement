@@ -62,11 +62,22 @@ dead. The program counter sat in `HardFaultException`, and `CFSR` read
 builds its own exception frame by hand, does something the architecture only
 tolerates as long as the compiler leaves the surrounding code alone.
 
-The lesson is not that `-O2` is dangerous. It is that a local build passing is a
-statement about one version of one compiler, and that the second toolchain in
-the CI was the only thing standing between this defect and a repository that
-claimed to be measured and verified. The flag is reverted until the defect is
-fixed; `roadmap.md` carries it.
+The defect itself is a missing barrier. Pending PendSV does not take it: the
+write has to reach the NVIC and the processor has to observe the pending state
+before it runs what follows. `OSEndTask` depends on never returning — a task
+starts with `0xFFFFFFF9` in `LR`, an `EXC_RETURN` value, so returning from
+thread mode faults. At `-O0` the epilogue was long enough for the exception to
+arrive first; optimised, `bx lr` sits one instruction after the store. `dsb`
+and `isb` close it, the CI agrees, and the build is at `-O2`.
+
+Two things are worth keeping from this. A local build passing is a statement
+about one version of one compiler — the second toolchain in the CI was the only
+thing between this defect and a repository claiming to be measured and verified.
+And the first diagnosis was wrong: seeing the registers written through
+non-volatile pointers, I concluded the compiler had dropped the store, and the
+disassembly of the CI binary showed it there all along. The `volatile` was added
+anyway, because the code had no right to that store being kept, but it was not
+the bug.
 
 ## What this changes in the repository
 
