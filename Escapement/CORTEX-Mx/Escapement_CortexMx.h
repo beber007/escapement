@@ -38,20 +38,35 @@ void _OSIOHandler(void);
 /* _OSScheduleTask: Generates a PendSV exception, which will interrupt and proceed at the
 ** lowest interrupt priority to handler _OSContextSwapHandler (defined in assembler in
 ** Escapement_CortexMx_a.S). Sets bit PENDSVSET of ICSR (0xE000ED04). */
-#define _OSScheduleTask() (*((UINT32 *)0xE000ED04) = 0x10000000)  /* Note that the write
-** bits of ICSR take effect only if they are set, hence an assignment is the proper way
-** to set a bit. */
+/* Note that the write bits of ICSR take effect only if they are set, hence an assignment
+** is the proper way to set a bit.
+** The barriers are not decoration. Pending an exception does not take it: the write has
+** to reach the NVIC, and the processor has to see the pending state before it executes
+** what follows. Callers such as OSEndTask depend on never returning, and an optimised
+** epilogue puts the return one instruction after the store — the task then returns to an
+** EXC_RETURN value in LR from thread mode, which faults with INVPC. */
+#define _OSScheduleTask() \
+   do { \
+     *((volatile UINT32 *)0xE000ED04) = 0x10000000; \
+     __asm volatile ("dsb" ::: "memory"); \
+     __asm volatile ("isb" ::: "memory"); \
+   } while (0)
 
 /* _OSGenerateSoftTimerInterrupt: Called by the timer peripheral to generate a SysTick
 ** exception, which will interrupt and continue with a smaller priority to handler
 ** _OSTimerInterruptHandler defined in EscapementHard.c or EscapementSoft.c. Sets bit PENDSTSET
 ** of ICSR (0xE000ED04). (See note in _OSScheduleTask) */
-#define _OSGenerateSoftTimerInterrupt() (*((UINT32 *)0xE000ED04) = 0x4000000)
+#define _OSGenerateSoftTimerInterrupt() \
+   do { \
+     *((volatile UINT32 *)0xE000ED04) = 0x4000000; \
+     __asm volatile ("dsb" ::: "memory"); \
+     __asm volatile ("isb" ::: "memory"); \
+   } while (0)
 
 /* _OSClearSoftTimerInterrupt: Called by _OSTimerInterruptHandler binded to the SysTick
 ** exception to remove its interrupt pending status. In other words, a new SysTick excep-
 ** tion can be raised. Sets bit PENDSTCLR of ICSR (0xE000ED04). (See note in _OSSchedule-
 ** Task) */
-#define _OSClearSoftTimerInterrupt() (*((UINT32 *)0xE000ED04) = 0x2000000)
+#define _OSClearSoftTimerInterrupt() (*((volatile UINT32 *)0xE000ED04) = 0x2000000)
 
 #endif /* _ESCAPEMENT_CORTEXMX_H_ */

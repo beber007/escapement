@@ -93,9 +93,9 @@ void _OSResetHandler(void)
 {
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
      /* CortexM3 registers setting the number interrupt priority levels. */
-     #define AIRCR *((UINT32 *)0xE000ED0C) // Application Interrupt/Reset Control Register
+     #define AIRCR *((volatile UINT32 *)0xE000ED0C) // Application Interrupt/Reset Control Reg.
   #endif
-  #define SHPR *((UINT32 *)0xE000ED20)     // System Handlers 14-15 Priority Register
+  #define SHPR *((volatile UINT32 *)0xE000ED20) // System Handlers 14-15 Priority Register
   /* Segment start and end address defined in linker file */
   extern UINT32 _sidata; // Load address of the initialized globals, given by the
                          // linker script; equal to _data when the image is linked
@@ -327,7 +327,7 @@ void _OSIOHandler(void)
   extern void *_OSTabDevice[];
   MinimalIODescriptor *peripheralIODescriptor;
   /* Retrieve the specific handler from _OSTabDevice */
-  peripheralIODescriptor = _OSTabDevice[(*((UINT32 *)0xE000ED04) & 0x1FF) - 16];
+  peripheralIODescriptor = _OSTabDevice[(*((volatile UINT32 *)0xE000ED04) & 0x1FF) - 16];
   #ifdef DEBUG_MODE
      if (peripheralIODescriptor == NULL) {
         _OSDisableInterrupts();

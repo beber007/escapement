@@ -30,7 +30,7 @@ static void UndefinedInterrupt(void)
 {
   UINT32 intNum;
   _OSDisableInterrupts();
-  intNum  = (*((UINT32 *)0xE000ED04) & 0x1FF);
+  intNum  = (*((volatile UINT32 *)0xE000ED04) & 0x1FF);
   intNum  -= 16;
   while (TRUE); // referring to an inexistent entry of the interrupt vector table.
 } /* end of undefinedInterrupt */
