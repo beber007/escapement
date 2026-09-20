@@ -37,9 +37,12 @@ towards MSPM0 (Cortex-M0+).
       whether DVFS beats *race-to-sleep* on this family.
 - [ ] Depending on the result, port to a target where the gain is structurally
       larger — see “Which MCU to port to next?” in `power-aware.md`.
-- [x] Move the build to `-O2` and redo the hardware measurements: the mean cost
-      of a scheduling round falls from 7.0 to 3.2 µs, the worst case from 26 to
-      8 µs.
+- [ ] **Fix what `-O2` exposes**: built optimised with the GCC of Ubuntu, the
+      kernel takes a HardFault with `INVPC` right after the first activation —
+      an invalid exception return, so something about the context switch does
+      not hold once the compiler is free to rearrange. Measured gain once it is
+      fixed: mean cost of a scheduling round from 7.0 to 3.2 µs, worst case from
+      26 to 8 µs, and a quarter less code.
 - [ ] Unit-test the scheduler on the host, so that it can be exercised well
       beyond four tasks.
 - [ ] Rebuild the user documentation (the original manual and reference notes

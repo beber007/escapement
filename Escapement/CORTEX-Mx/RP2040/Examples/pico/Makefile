@@ -15,7 +15,7 @@ LINKERFILE = ../../RP2040_SRAM.ld
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
 CFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -fdata-sections -ffunction-sections \
-         -ffreestanding -Werror=comment -O2 -MMD -MP
+         -ffreestanding -Werror=comment -MMD -MP
 AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -MMD -MP
 
 # Every rule writes into build/ without ever creating it.

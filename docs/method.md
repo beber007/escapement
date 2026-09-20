@@ -36,11 +36,37 @@ has to design around.
 | The per-activation cost of the kernel is what trips the overload guard | Measurement: 7.0 µs per round, 0.7 % of the processor | The core was still running on the crystal; the guard was right |
 | Rewriting history would shrink `.git` from 12 MB to 7 MB | Measuring the repository after the attempt | No gain at all; the operation was reverted |
 | Including the dependency files at the top of a `Makefile` is harmless | `make` stopped building anything but one object file | The first rule read becomes the default goal, and a `.d` file provides one |
+| Building at `-O2` was a matter of adding the flag: it built, both emulation suites passed, and the board measured 3.2 µs per round instead of 7.0 | The CI, on its own toolchain | The kernel HardFaults there. Local success proved only that one compiler version was forgiving |
 
 One more, of a different kind: an early rebranding pass deleted a comment
 terminator in 32 files, and the first attempt to repair them corrupted 57
 healthy ones. It was undone with `git checkout` and redone from an exact list.
 Working in a repository where every step is committed is what made that cheap.
+
+## What `-O2` exposed
+
+Worth recording in full, because it is the clearest case so far of a test that
+said yes for the wrong reason.
+
+Adding `-O2` to the Makefiles built cleanly, passed both Renode suites locally
+three times over, and the board reported the per-activation cost falling from
+7.0 to 3.2 µs. Everything said go. The CI then failed the first assertion of the
+stm32f4 suite, and widening the tester window changed nothing — because the
+window was not the problem.
+
+Downloading the ELF the CI had built and running it under the *local* emulator
+reproduced the failure at once: the binary is at fault, not the runner. Tracing
+its outputs showed the kernel raising one output at 19 µs and then stopping
+dead. The program counter sat in `HardFaultException`, and `CFSR` read
+`0x00040000` — `INVPC`, an invalid exception return. The context switch, which
+builds its own exception frame by hand, does something the architecture only
+tolerates as long as the compiler leaves the surrounding code alone.
+
+The lesson is not that `-O2` is dangerous. It is that a local build passing is a
+statement about one version of one compiler, and that the second toolchain in
+the CI was the only thing standing between this defect and a repository that
+claimed to be measured and verified. The flag is reverted until the defect is
+fixed; `roadmap.md` carries it.
 
 ## What this changes in the repository
 

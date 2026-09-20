@@ -19,8 +19,8 @@ declared by the tasks — without ever missing a deadline.
 
 | | |
 |---|---|
-| **5,148 bytes** | the whole kernel and four periodic tasks, on a Cortex-M0+ built at `-O2` |
-| **3.2 µs** | cost of one scheduling round, measured on the board — 0.43 % of the processor at 1,340 activations per second |
+| **6,804 bytes** | the whole kernel and four periodic tasks, on a Cortex-M0+ |
+| **7.0 µs** | cost of one scheduling round, measured on the board — 0.93 % of the processor at 1,330 activations per second |
 | **+28 ppm** | deviation of the periods read by an external frequency counter: the tolerance of the crystal on the board, not that of the scheduler |
 
 ## Verified at four levels

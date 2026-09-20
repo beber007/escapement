@@ -41,7 +41,7 @@ build/%.bin : build/%.elf
 
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
-CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding -Werror=comment -O2 -MMD -MP
+CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding -Werror=comment -MMD -MP
 AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -MMD -MP
 
 OBJECTS_ESCAPEMENT = build/Escapement_UART.o \
