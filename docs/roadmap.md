@@ -51,6 +51,11 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       become a regression test.
 - [x] **Power-aware variant on Cortex-M**: `stm32l-discovery-pa` schedules its
       three tasks and reprograms the PLL, verified in CI.
+- [ ] **Measure the per-activation cost again on the Pico.** The published
+      figures — 3.2 µs mean, 8 µs worst case — were taken while the kernel still
+      selected deadline-monotonic scheduling; ordering the ready queue by
+      deadline is not the same work. `tools/measure_cost.sh` does the run, with
+      the instrumentation switched on in `Escapement_Config.h`.
 - [ ] Propose the two fixes to the Renode `Timers.STM32_Timer` upstream.
 - [ ] **Write the DVFS driver for the RP2040.** `Escapement_Processor.h` declares
       12, 48 and 125 MHz, but `OSSetProcessorSpeed` does not exist: the PLL has to

@@ -19,8 +19,8 @@ declared by the tasks — without ever missing a deadline.
 
 | | |
 |---|---|
-| **5,196 bytes** | the whole kernel and four periodic tasks, on a Cortex-M0+ |
-| **3.2 µs** | cost of one scheduling round, measured on the board — 0.43 % of the processor at 1,340 activations per second |
+| **5,160 bytes** | the whole kernel and four periodic tasks, on a Cortex-M0+ |
+| **3.2 µs** | cost of one scheduling round, measured on the board — 0.43 % of the processor at 1,340 activations per second, see the note in [`docs/rp2040.md`](docs/rp2040.md) |
 | **+28 ppm** | deviation of the periods read by an external frequency counter: the tolerance of the crystal on the board, not that of the scheduler |
 
 ## Verified at five levels
