@@ -69,6 +69,7 @@ typedef struct UART_INTERRUPT_DESCRIPTOR { // Interrupt handler opaque descripto
 
 static void InterruptHandler(UART_INTERRUPT_DESCRIPTOR *descriptor);
 static void Transmit(UART_INTERRUPT_DESCRIPTOR *descriptor);
+static void TakeNextBuffer(UART_INTERRUPT_DESCRIPTOR *descriptor);
 
 
 /* OSInitUART: Creates and binds the descriptor used by the other functions, and brings the
@@ -169,17 +170,14 @@ void OSEnqueueUART(void *buffer, UINT8 dataSize, UINT8 interruptIndex)
 ** to carry on. */
 static void Transmit(UART_INTERRUPT_DESCRIPTOR *des)
 {
-  if (des->CurrentBuffer == NULL) {
-     des->CurrentBufferIndex = 0;
-     des->CurrentBuffer = (UINT8 *)OSDequeueFIFO(des->FifoArray,&des->NbTransmit);
-  }
+  if (des->CurrentBuffer == NULL)
+     TakeNextBuffer(des);
   while (des->CurrentBuffer != NULL && (REG(des,UART_FR) & FR_TXFF) == 0) {
      REG(des,UART_DR) = des->CurrentBuffer[des->CurrentBufferIndex++];
      des->NbTransmit -= 1;
      if (des->NbTransmit == 0) {
         OSReleaseNodeFIFO(des->FifoArray,des->CurrentBuffer);
-        des->CurrentBufferIndex = 0;
-        des->CurrentBuffer = (UINT8 *)OSDequeueFIFO(des->FifoArray,&des->NbTransmit);
+        TakeNextBuffer(des);
      }
   }
   if (des->CurrentBuffer == NULL)
@@ -187,6 +185,19 @@ static void Transmit(UART_INTERRUPT_DESCRIPTOR *des)
   else
      REG(des,UART_IMSC) |= INT_TX;
 } /* end of Transmit */
+
+
+/* TakeNextBuffer: Takes the next buffer to send from the queue, skipping any buffer that
+** holds nothing. A buffer enqueued with a size of zero has to be dropped here: the count
+** of remaining bytes is unsigned, so decrementing it from zero would wrap around and empty
+** 64 Kbytes of memory onto the port. */
+static void TakeNextBuffer(UART_INTERRUPT_DESCRIPTOR *des)
+{
+  des->CurrentBufferIndex = 0;
+  while ((des->CurrentBuffer = (UINT8 *)OSDequeueFIFO(des->FifoArray,&des->NbTransmit))
+          != NULL && des->NbTransmit == 0)
+     OSReleaseNodeFIFO(des->FifoArray,des->CurrentBuffer);
+} /* end of TakeNextBuffer */
 
 
 /* InterruptHandler: Single ISR of a UART. On reception it hands each byte to the

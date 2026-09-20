@@ -52,6 +52,7 @@ typedef struct UART_INTERRUPT_DESCRIPTOR { // Interrupt handler opaque descripto
 
 /* Internal interrupt handler prototypes */
 static void InterruptHandler(UART_INTERRUPT_DESCRIPTOR *descriptor);
+static void TakeNextBuffer(UART_INTERRUPT_DESCRIPTOR *descriptor);
 
 
 /* OSInitUART: Creates and binds a descriptor that will be used with the functions rela-
@@ -174,20 +175,35 @@ void InterruptHandler(UART_INTERRUPT_DESCRIPTOR *des)
   }
   /* Transmit buffer empty: insert a new byte to send. */
   if ((*des->Status & 0x80) && (*des->ControlReg1  & 0x80)) {
-     if (des->CurrentBuffer == NULL) { // If last message is completely sent
-        des->CurrentBufferIndex = 0;
-        des->CurrentBuffer = (UINT8 *)OSDequeueFIFO(des->FifoArray,&des->NbTransmit);
-     }
-     des->NbTransmit--;                // One less byte to send.
-     tmp = des->CurrentBuffer[des->CurrentBufferIndex++];
-     if (des->NbTransmit == 0) {       // Is this message is completely sent?
-        OSReleaseNodeFIFO(des->FifoArray,des->CurrentBuffer);
-        des->CurrentBufferIndex = 0;
-        des->CurrentBuffer = (UINT8 *)OSDequeueFIFO(des->FifoArray,&des->NbTransmit);
-     }
-     *des->HardwareBuffer = tmp;
-     /* If there is no more data to send, we need to disable transmit buffer empty interrupts. */
-     if (des->CurrentBuffer == NULL)
+     if (des->CurrentBuffer == NULL)   // If last message is completely sent
+        TakeNextBuffer(des);
+     if (des->CurrentBuffer == NULL)   // Nothing left in the queue after all
         *des->ControlReg1 &= ~0x80;
+     else {
+        des->NbTransmit--;             // One less byte to send.
+        tmp = des->CurrentBuffer[des->CurrentBufferIndex++];
+        if (des->NbTransmit == 0) {    // Is this message is completely sent?
+           OSReleaseNodeFIFO(des->FifoArray,des->CurrentBuffer);
+           TakeNextBuffer(des);
+        }
+        *des->HardwareBuffer = tmp;
+        /* If there is no more data to send, we need to disable transmit buffer empty interrupts. */
+        if (des->CurrentBuffer == NULL)
+           *des->ControlReg1 &= ~0x80;
+     }
   }
 } /* end of InterruptHandler */
+
+
+/* TakeNextBuffer: Takes the next buffer to send from the queue, skipping any buffer that
+** holds nothing. A buffer enqueued with a size of zero has to be dropped here: the count
+** of remaining bytes is unsigned, so decrementing it from zero would wrap around and empty
+** 64 Kbytes of memory onto the port. Leaves the current buffer at NULL when the queue runs
+** out, which the caller checks before dereferencing it. */
+static void TakeNextBuffer(UART_INTERRUPT_DESCRIPTOR *des)
+{
+  des->CurrentBufferIndex = 0;
+  while ((des->CurrentBuffer = (UINT8 *)OSDequeueFIFO(des->FifoArray,&des->NbTransmit))
+          != NULL && des->NbTransmit == 0)
+     OSReleaseNodeFIFO(des->FifoArray,des->CurrentBuffer);
+} /* end of TakeNextBuffer */
