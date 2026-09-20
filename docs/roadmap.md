@@ -43,7 +43,22 @@ towards MSPM0 (Cortex-M0+).
       is at `-O2`, the mean cost of a scheduling round is down from 7.0 to
       3.2 µs and the worst case from 26 to 8 µs.
 - [ ] Unit-test the scheduler on the host, so that it can be exercised well
-      beyond four tasks.
+      beyond four tasks, and so that the 2^30 wrap of its clock can be reached
+      in a test rather than after eighteen minutes of running.
+- [ ] **Exercise the 2^30 wrap under emulation.** Placing the counter near the
+      boundary before the kernel starts does not test the wrap: it tests
+      starting at an arbitrary time, which the kernel does not support — the
+      first arrivals are computed from a large current time, the next ones land
+      back near zero, every task looks overdue at once and the overload guard
+      fires. Measured under Renode: 164 output pulses in 80 ms from a normal
+      start, none at all when the counter starts at 0x3FFFF000. Reaching the
+      boundary honestly needs a dedicated example whose timer runs far faster
+      with task periods scaled to match, so that 2^30 ticks pass in about a
+      second of emulated time.
+- [ ] **Give the STM32 port a time origin**, as the RP2040 port has. The kernel
+      assumes its counter starts near zero. That holds after a reset, so no
+      shipped example is affected, but it is an unstated requirement of the
+      whole time base — and it is what the experiment above ran into.
 - [ ] Rebuild the user documentation (the original manual and reference notes
       were removed along with the rebranding).
 - [ ] MSP430, only if the port is revived: rebuild the configuration generator
