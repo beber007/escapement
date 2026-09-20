@@ -49,6 +49,9 @@ int main(void)
   ** the linker before any interrupt can be taken. */
   extern void (* const CortexMxVectorTable[])(void);
   VTOR = (UINT32)CortexMxVectorTable;
+  /* Leave the ring oscillator, imprecise and around 6 MHz, for the 12 MHz crystal: the
+  ** microsecond tick of the timer, and therefore the task periods, depend on it. */
+  OSInitializeSystemClocks();
   /* Release the two GPIO blocks from reset. */
   RESETS_RESET &= ~(RESETS_IO_BANK0 | RESETS_PADS_BANK0);
   while ((RESETS_RESET_DONE & (RESETS_IO_BANK0 | RESETS_PADS_BANK0)) !=
@@ -58,19 +61,23 @@ int main(void)
   InitializeFlag(FLAG3_PIN);
   /* Create the 3 tasks. Periods are expressed in microseconds, the resolution of the
   ** RP2040 timer.
-  ** The delays are counts of volatile loop iterations, each costing about 9 cycles on a
-  ** Cortex-M0+, so roughly 72 ns at 125 MHz. */
+  ** The delays are counts of volatile loop iterations, each costing about a dozen cycles
+  ** on a Cortex-M0+, so roughly 1 us with the core at the 12 MHz of the crystal. The load
+  ** stays around 17%, well clear of the kernel's overload guard.
+  **     500 / 10000 -> 5%
+  **    1000 / 20000 -> 5%
+  **   4000 / 60000  -> 6.7% */
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->Pin = FLAG1_PIN;
-  TaskParameters->Delay = 2000;
+  TaskParameters->Delay = 500;
   OSCreateTask(FixedDelayTask,0,10000,10000,TaskParameters);
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->Pin = FLAG2_PIN;
-  TaskParameters->Delay = 4000;
+  TaskParameters->Delay = 1000;
   OSCreateTask(FixedDelayTask,0,20000,20000,TaskParameters);
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->Pin = FLAG3_PIN;
-  TaskParameters->Delay = 15000;
+  TaskParameters->Delay = 4000;
   OSCreateTask(VariableDelayTask,0,60000,60000,TaskParameters);
   /* Start the OS so that it starts scheduling the user tasks */
   return OSStartMultitasking(NULL,NULL);

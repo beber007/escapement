@@ -25,6 +25,7 @@
 #define TIMER_ALARM0        *((volatile UINT32 *)(TIMER_BASE + 0x10))
 #define TIMER_ALARM1        *((volatile UINT32 *)(TIMER_BASE + 0x14))
 #define TIMER_ARMED         *((volatile UINT32 *)(TIMER_BASE + 0x20))
+#define TIMER_DBGPAUSE      *((volatile UINT32 *)(TIMER_BASE + 0x2C))
 #define TIMER_TIMERAWL      *((volatile UINT32 *)(TIMER_BASE + 0x28))
 #define TIMER_INTR          *((volatile UINT32 *)(TIMER_BASE + 0x34))
 #define TIMER_INTE          *((volatile UINT32 *)(TIMER_BASE + 0x38))
@@ -94,6 +95,10 @@ void _OSInitializeTimer(void)
   while ((RESETS_RESET_DONE & RESETS_TIMER_BIT) == 0);
   /* Produce the 1 us tick from the 12 MHz reference clock. */
   WATCHDOG_TICK = WATCHDOG_TICK_ENABLE | 12;
+  /* By default the RP2040 freezes its timer as soon as a core is halted by the debugger,
+  ** which stops the kernel's clock during any inspection and makes every deadline look
+  ** missed on resume. A real-time kernel would rather keep counting. */
+  TIMER_DBGPAUSE = 0;
   /* Disarm both alarms and clear any pending cause. */
   TIMER_INTE = 0;
   TIMER_ARMED = ALARM0_BIT | ALARM1_BIT;
