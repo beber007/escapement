@@ -37,6 +37,14 @@ towards MSPM0 (Cortex-M0+).
       whether DVFS beats *race-to-sleep* on this family.
 - [ ] Depending on the result, port to a target where the gain is structurally
       larger — see “Which MCU to port to next?” in `power-aware.md`.
+- [ ] **Write the DVFS driver for the RP2040.** `Escapement_Processor.h` declares
+      12, 48 and 125 MHz, but `OSSetProcessorSpeed` does not exist: the PLL has to
+      be reconfigured and the core voltage set through `VREG_CTRL`. Testable under
+      emulation, and a prerequisite to measuring anything.
+- [ ] Then build the current measurement bench described in `power-aware.md` — a
+      plain Pico rather than a Pico W, an INA226 read from the Bus Pirate — and
+      answer, on the target this documentation calls the most promising, whether
+      DVFS beats race-to-sleep.
 - [x] **Fix what `-O2` exposed**: pending an exception did not take effect
       before the next instruction, so an optimised `OSEndTask` returned instead
       of switching context and faulted with `INVPC`. Barriers added; the build

@@ -106,6 +106,49 @@ measurement.** A Discovery board settles it for good, and the result belongs in
 this documentation whatever it turns out to be — including if it is
 disappointing.
 
+## Measuring the RP2040 instead
+
+The L1 board is not the only way to settle the question, and it may not be the best one:
+this documentation already argues that the RP2040 is where DVFS has a niche, because it
+sleeps poorly. Measuring it needs a bench, which is described here so that it can be built
+when the time comes.
+
+**Where to insert the measurement.** On a Pico, 5 V from `VSYS` goes through a buck-boost
+converter before reaching the 3V3 rail that feeds the RP2040. Measuring upstream of it
+would mostly measure the efficiency of that converter, which varies with the load. The
+right point is the 3V3 rail, and it is reachable without touching the board: ground
+`3V3_EN` (pin 37) to disable the on-board regulator and feed `3V3(OUT)` (pin 36) from
+outside, with the shunt on that supply.
+
+One design choice of this port helps here. The firmware runs **from SRAM**, so the QSPI
+flash stays idle and contributes almost nothing to what is measured.
+
+**Use a Pico, not a Pico W.** The CYW43439 wireless chip sits on the same rail and draws
+current even when idle, which would put a varying floor under every reading.
+
+**Two benches.** An **INA226** module — shunt plus a 16-bit converter, read over I²C —
+gives an average current, which is enough to compare steady-state operating points. Prefer
+it to the INA219, whose 12 bits are marginal for telling voltage ranges apart. It can be
+read straight from a Bus Pirate acting as I²C master, with no second microcontroller to
+program. A **Nordic Power Profiler Kit II** costs an order of magnitude more and earns it
+if the measurement becomes an axis of the project: it powers the target, spans about a
+hundred nanoamps to an amp, and **integrates energy over a window** — which is the quantity
+that actually settles DVFS against race-to-sleep, a comparison about energy per unit of
+work rather than about average current.
+
+**One caveat before spending anything.** The core regulator of the RP2040 is a **linear
+regulator**, not a switching one, so part of the theoretical benefit is dissipated in the
+regulator rather than saved. Lowering the voltage does lower the switching current, so a
+gain remains measurable, but it will fall short of what a V² law suggests — one more
+reason to measure rather than reason. Worth confirming against the datasheet first.
+
+**What has to be written first.** `Escapement_Processor.h` declares three operating points
+for the RP2040 — 12, 48 and 125 MHz — but `OSSetProcessorSpeed` does not exist yet. The
+driver has to reconfigure the PLL and set the core voltage through `VREG_CTRL`, honouring
+the settling times. It can be written and checked under emulation before any hardware is
+bought: emulation will show that it drives the right registers, though it will never say
+anything about energy.
+
 ## Which MCU to port to next?
 
 The selection criterion **inverts the usual ranking**: DVFS pays off where
