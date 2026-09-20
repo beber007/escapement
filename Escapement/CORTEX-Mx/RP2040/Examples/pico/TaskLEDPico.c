@@ -27,6 +27,7 @@ typedef struct TaskParametersDef {
 static void InitializeFlag(UINT8 pin);
 static void FixedDelayTask(void *argument);
 static void VariableDelayTask(void *argument);
+static void ProbeTask(void *argument);
 
 #define RESETS_RESET      *((volatile UINT32 *)0x4000C000)
 #define RESETS_RESET_DONE *((volatile UINT32 *)0x4000C008)
@@ -63,6 +64,7 @@ int main(void)
   InitializeFlag(FLAG1_PIN);
   InitializeFlag(FLAG2_PIN);
   InitializeFlag(FLAG3_PIN);
+  InitializeFlag(PROBE_PIN);
   /* Create the 3 tasks. Periods are expressed in microseconds, the resolution of the
   ** RP2040 timer.
   ** The delays are counts of volatile loop iterations, each costing about a dozen cycles
@@ -83,6 +85,8 @@ int main(void)
   TaskParameters->Pin = FLAG3_PIN;
   TaskParameters->Delay = 4000;
   OSCreateTask(VariableDelayTask,0,60000,60000,TaskParameters);
+  /* Mire de mesure, periode de 1 ms, sans charge utile. */
+  OSCreateTask(ProbeTask,0,1000,1000,NULL);
   /* Start the OS so that it starts scheduling the user tasks */
   return OSStartMultitasking(NULL,NULL);
 } /* end of main */
@@ -108,6 +112,15 @@ static void FixedDelayTask(void *argument)
   SIO_GPIO_OUT_CLR = 1u << TaskParameters->Pin;
   OSEndTask();
 } /* end of FixedDelayTask */
+
+
+static void ProbeTask(void *argument)
+{
+  static UINT32 level = 0;
+  level ^= 1;
+  if (level) SIO_GPIO_OUT_SET = 1u << PROBE_PIN; else SIO_GPIO_OUT_CLR = 1u << PROBE_PIN;
+  OSEndTask();
+}
 
 
 /* VariableDelayTask: Same, but the number of iterations grows on each instance until it

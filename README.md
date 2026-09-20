@@ -418,48 +418,40 @@ power-aware — et la seconde laisse l'UART diviser une fréquence connue du pil
 Mesuré sur la carte, de l'interruption matérielle du timer jusqu'au réarmement
 de l'échéance suivante — ce qui couvre l'interruption, le gestionnaire logiciel,
 le transfert des arrivées vers la file des prêts et l'élection de la tâche
-suivante :
+suivante. Jeu de quatre tâches : 1, 10, 20 et 60 ms.
 
 | | |
 |---|---:|
-| Rondes en 5 s | 501 |
-| Moyenne | **9,5 µs** |
-| Maximum | **17 µs** |
+| Rondes en 10 s | 10 011 |
+| Moyenne | **7,0 µs** |
+| Maximum | **26 µs** |
 
-Soit environ **1 190 cycles** à 125 MHz, et 0,1 % du processeur pour le jeu de
-tâches de l'exemple. L'instrumentation est dans `Escapement_Timer.c`, sous
-`ESCAPEMENT_MEASURE_SCHEDULING_COST`, et les compteurs se lisent par SWD.
+Mille ordonnancements par seconde pour **0,7 % du processeur**, soit environ
+875 cycles par ronde à 125 MHz. L'instrumentation est dans `Escapement_Timer.c`
+sous `ESCAPEMENT_MEASURE_SCHEDULING_COST`, et les compteurs se lisent par SWD.
 
-### Une limite qui reste inexpliquée
+La tâche de 1 ms bascule `GP4` à chaque instance, ce qui produit un carré de
+500 Hz à rapport cyclique 50 % : une mire commode pour un fréquencemètre
+externe, dans une plage que les instruments lisent sans difficulté.
 
-Une tâche de période courte, **sans aucune charge utile**, déclenche le
-garde-fou de surcharge du noyau : testé à 1, 2 et 5 ms, même résultat, alors que
-les trois tâches de 10, 20 et 60 ms tournent sans difficulté.
+### Le timer doit s'arrêter avec le débogueur
 
-Deux explications ont été avancées puis **écartées par la mesure** :
+Le RP2040 fige son compteur dès qu'un cœur est arrêté par le débogueur. Ce
+comportement est **conservé**, et le désactiver a coûté une longue enquête.
 
-- *Le coût par activation du noyau.* Démenti par les 9,5 µs de moyenne et 17 µs
-  au pire relevés ci-dessus, soit 1,7 % d'une période de 1 ms.
-- *L'arrêt du cœur par le débogueur.* `DBGPAUSE` avait été désactivé, si bien
-  que l'horloge du noyau continuait de courir pendant chaque inspection et qu'il
-  retrouvait toutes ses échéances manquées à la reprise. Le comportement
-  d'origine a été rétabli — voir ci-dessous — mais l'échec persiste sans
-  débogueur.
+Sans lui, l'horloge du noyau continue de courir pendant les arrêts qu'impose le
+chargement par SWD — reset, transfert de l'image, relance du second cœur, soit
+plusieurs dizaines de millisecondes. Le noyau démarre donc **déjà en retard
+d'autant**. Une tâche de 10 ms ou plus l'absorbe ; une tâche de 1 ms naît avec
+vingt périodes de retard, et la boucle de rattrapage la fait réarriver avant
+qu'elle ait pu s'exécuter : le garde-fou de surcharge se déclenche, à juste
+titre.
 
-Ce que montre l'état capturé au déclenchement, sur un point d'arrêt logiciel :
-au même instant, **trois tâches ont entre 18 et 26 ms de retard** alors que la
-quatrième est à l'heure. Ce profil ressemble à un blocage du processeur, pas à
-une surcharge régulière. La cause reste à trouver ; la broche GP4 est laissée
-libre pour reprendre l'expérience.
-
-### Le timer s'arrête avec le débogueur
-
-Le RP2040 fige son compteur dès qu'un cœur est arrêté par le débogueur, et ce
-comportement est **conservé volontairement**. Sans lui, chaque inspection laisse
-l'horloge du noyau courir pendant que les tâches sont arrêtées, et le noyau
-retrouve toutes ses échéances manquées à la reprise. Déboguer un noyau temps réel
-suppose que son horloge s'arrête avec lui. Mettre `TIMER_DBGPAUSE` à 0 donne le
-comportement inverse, utile pour mesurer du temps mural à travers un arrêt.
+L'état capturé au déclenchement le disait déjà, avec trois tâches en retard de
+18 à 26 ms au même instant — exactement la durée de la séquence de chargement.
+Déboguer un noyau temps réel suppose que son horloge s'arrête avec lui. Mettre
+`TIMER_DBGPAUSE` à 0 donne le comportement inverse, utile pour mesurer du temps
+mural à travers un arrêt.
 
 ### Deux pièges rencontrés
 
