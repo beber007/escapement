@@ -20,6 +20,27 @@ renode-test emulation/renode/escapement_f4.robot
 |---|---|
 | The three periodic tasks are scheduled | each of the three tasks raises **and** lowers its output within its time window |
 | The UART echo answers | the kernel also schedules interrupt-driven processing |
+| Scheduling survives the 2^30 wrap | the kernel keeps scheduling across the wraparound of its clock |
+| The power-aware variant schedules its three tasks | the DVFS variant schedules and drives the PLL |
+
+## Crossing the 2^30 boundary
+
+The kernel counts time modulo 2^30 and shifts every temporal variable back when its
+counter wraps. At the usual tick rate that happens once every eighteen minutes, which is
+why the path had never been executed once in the life of this code.
+
+Reaching it in a test takes a platform, not a trick. `escapement_f4_wrap.repl` clocks TIM2
+8200 times faster; the kernel still programs its prescaler of 81, so its counter ticks at
+1 GHz and reaches the boundary after 1.07 s. `TaskWrapF4.c` scales its periods by the same
+factor — 1, 2 and 6 ms — so the kernel carries the load it would have on hardware, with a
+counter that happens to run fast.
+
+Traced with `tools/trace_gpio.sh` over 1.3 s: 2,167 pulses, which is exactly the 1,300 +
+650 + 217 activations the three periods call for, and 377 of them fall after the boundary.
+Nothing is lost in the crossing.
+
+The test earns its place: neutralising the time shift in `_OSTimerIsOverflow` makes it
+fail, and restoring it makes it pass again.
 
 `TaskLEDF4` creates three periodic tasks of 100, 200 and 600 ticks, each
 toggling one output of GPIOB. Over one emulated second:

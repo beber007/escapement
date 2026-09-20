@@ -108,7 +108,11 @@ jobs:
         run: pip install --quiet robotframework==6.1 robotframework-retryfailed psutil pyyaml
 
       - name: Run the kernel
-        run: renode-test emulation/renode/escapement_f4.robot emulation/renode/escapement_l1_pa.robot
+        run: >-
+          renode-test
+          emulation/renode/escapement_f4.robot
+          emulation/renode/escapement_f4_wrap.robot
+          emulation/renode/escapement_l1_pa.robot
 
       - uses: actions/upload-artifact@v4
         if: always()

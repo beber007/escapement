@@ -26,7 +26,7 @@ CPU = cortex-m4
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p build)
 
-all: build/TaskLEDF4.elf build/UARTSimpleEchoF4.elf build/TestTimerEventF4.elf
+all: build/TaskLEDF4.elf build/UARTSimpleEchoF4.elf build/TestTimerEventF4.elf build/TaskWrapF4.elf
 
 clean: 
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
@@ -34,7 +34,7 @@ clean:
 # Raw images, for the Renode emulation (see emulation/renode/).
 OBJCOPY = $(CROSS_COMPILE)objcopy
 
-bin: all build/TaskLEDF4.bin build/UARTSimpleEchoF4.bin build/TestTimerEventF4.bin
+bin: all build/TaskLEDF4.bin build/UARTSimpleEchoF4.bin build/TestTimerEventF4.bin build/TaskWrapF4.bin
 
 build/%.bin : build/%.elf
 	$(OBJCOPY) -O binary $< $@
@@ -167,6 +167,15 @@ build/TestTimerEventF4.o : TestTimerEventF4.c
 
 build/TaskLEDF4.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDF4.o
 	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDF4.o -T${LINKERFILE} -lgcc
+build/TaskWrapF4.o : TaskWrapF4.c 
+	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/UARTSimpleEchoF4.o : UARTSimpleEchoF4.c 
+	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/TestTimerEventF4.o : TestTimerEventF4.c 
+	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ESCAPEMENT) -o $@ $<
+
+build/TaskWrapF4.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskWrapF4.o
+	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskWrapF4.o -T${LINKERFILE} -lgcc
 build/UARTSimpleEchoF4.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimpleEchoF4.o
 	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/UARTSimpleEchoF4.o -T${LINKERFILE} -lgcc
 build/TestTimerEventF4.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF4.o
