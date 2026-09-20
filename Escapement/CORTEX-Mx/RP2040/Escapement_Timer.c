@@ -102,7 +102,9 @@ static void SetIRQPriority(UINT8 irq, UINT8 priority)
   UINT32 word = NVIC_IPR[irq >> 2];
   UINT8 shift = (irq & 0x3) << 3;
   word &= ~(0xFFu << shift);
-  word |= ((UINT32)(priority << 6) << shift);
+  /* Only the 2 most significant bits of the byte are implemented; masking keeps a
+  ** priority above 3 from spilling into the neighbouring interrupt. */
+  word |= ((UINT32)((priority << 6) & 0xFF) << shift);
   NVIC_IPR[irq >> 2] = word;
 } /* end of SetIRQPriority */
 
@@ -198,7 +200,11 @@ BOOL _OSSetTimer(INT32 nextArrivalTime)
      if ((INT32)(deadline - TIMER_TIMERAWL) > 0)
         return TRUE;
   }
-  TIMER_ARMED = ALARM0_BIT;   // disarm
+  /* Disarm, then drop any cause the alarm may have raised while it was being set:
+  ** the caller is told the deadline has passed and processes the arrival itself, so
+  ** a pending interrupt would only buy a second, redundant scheduling round. */
+  TIMER_ARMED = ALARM0_BIT;
+  TIMER_INTR = ALARM0_BIT;
   return FALSE;
 } /* end of _OSSetTimer */
 
