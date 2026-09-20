@@ -116,10 +116,13 @@ void _OSInitializeTimer(void)
   while ((RESETS_RESET_DONE & RESETS_TIMER_BIT) == 0);
   /* Produce the 1 us tick from the 12 MHz reference clock. */
   WATCHDOG_TICK = WATCHDOG_TICK_ENABLE | 12;
-  /* By default the RP2040 freezes its timer as soon as a core is halted by the debugger,
-  ** which stops the kernel's clock during any inspection and makes every deadline look
-  ** missed on resume. A real-time kernel would rather keep counting. */
-  TIMER_DBGPAUSE = 0;
+  /* The RP2040 freezes its timer as soon as a core is halted by the debugger. Keeping that
+  ** behaviour is deliberate: without it, every inspection lets the kernel's clock run on
+  ** while the tasks are stopped, and on resume the kernel finds every deadline missed —
+  ** which trips its overload guard as soon as a task has a short period. Debugging a
+  ** real-time kernel requires its clock to stop with it.
+  ** Set TIMER_DBGPAUSE to 0 to measure elapsed wall time across a halt instead. */
+  TIMER_DBGPAUSE = 0x7;
   /* Disarm both alarms and clear any pending cause. */
   TIMER_INTE = 0;
   TIMER_ARMED = ALARM0_BIT | ALARM1_BIT;

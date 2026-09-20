@@ -436,10 +436,30 @@ Une tâche de période courte, **sans aucune charge utile**, déclenche le
 garde-fou de surcharge du noyau : testé à 1, 2 et 5 ms, même résultat, alors que
 les trois tâches de 10, 20 et 60 ms tournent sans difficulté.
 
-L'explication évidente — le coût par activation du noyau — **est démentie par la
-mesure ci-dessus** : 17 µs au pire sur une période de 1 ms font 1,7 %. La cause
-est donc ailleurs, et reste à trouver. La broche GP4 est laissée libre pour
-reprendre l'expérience.
+Deux explications ont été avancées puis **écartées par la mesure** :
+
+- *Le coût par activation du noyau.* Démenti par les 9,5 µs de moyenne et 17 µs
+  au pire relevés ci-dessus, soit 1,7 % d'une période de 1 ms.
+- *L'arrêt du cœur par le débogueur.* `DBGPAUSE` avait été désactivé, si bien
+  que l'horloge du noyau continuait de courir pendant chaque inspection et qu'il
+  retrouvait toutes ses échéances manquées à la reprise. Le comportement
+  d'origine a été rétabli — voir ci-dessous — mais l'échec persiste sans
+  débogueur.
+
+Ce que montre l'état capturé au déclenchement, sur un point d'arrêt logiciel :
+au même instant, **trois tâches ont entre 18 et 26 ms de retard** alors que la
+quatrième est à l'heure. Ce profil ressemble à un blocage du processeur, pas à
+une surcharge régulière. La cause reste à trouver ; la broche GP4 est laissée
+libre pour reprendre l'expérience.
+
+### Le timer s'arrête avec le débogueur
+
+Le RP2040 fige son compteur dès qu'un cœur est arrêté par le débogueur, et ce
+comportement est **conservé volontairement**. Sans lui, chaque inspection laisse
+l'horloge du noyau courir pendant que les tâches sont arrêtées, et le noyau
+retrouve toutes ses échéances manquées à la reprise. Déboguer un noyau temps réel
+suppose que son horloge s'arrête avec lui. Mettre `TIMER_DBGPAUSE` à 0 donne le
+comportement inverse, utile pour mesurer du temps mural à travers un arrêt.
 
 ### Deux pièges rencontrés
 
