@@ -190,20 +190,41 @@ version Hard, soit ~900 octets de logique DVFS), elle démarre, le pilote écrit
 chacune une instance avant que le noyau rejoigne sa boucle de veille
 spécifique PA, qui remonte la fréquence avant chaque `WFI`.
 
-**Ce qui ne marche pas** : l'ordonnancement ne se maintient pas au-delà de la
-première instance. Deux causes possibles, non départagées :
+Les trois tâches sont ordonnancées à leurs périodes, vérifié par un test Robot
+en CI. Sur une seconde émulée :
 
-- Sur un STM32L152RB, `OS_IO_TIM5` n'existe pas, donc le noyau tombe en **mode
-  timer 16 bits**, qui reconstitue la partie haute de l'horloge à partir de
-  l'interruption de débordement. C'est un chemin que l'on n'a jamais validé —
-  l'exemple `stm32f4` utilise le mode 32 bits.
-- La plateforme L151 de Renode ne modélise **ni RCC ni PWR** : les écritures du
-  pilote DVFS sont visibles mais sans effet. Le noyau croit changer de
-  fréquence, l'horloge émulée ne bouge pas, et sa base de temps diverge.
+| Sortie | Période | Basculements | Ratio mesuré | Ratio théorique |
+|---|---:|---:|---:|---:|
+| PB12 | 500 | 625 | 5,95 | 6,00 |
+| PB13 | 1000 | 313 | 2,98 | 3,00 |
+| PB14 | 3000 | 105 | 1,00 | 1,00 |
 
-La seconde limite est structurelle : **aucun émulateur ne validera du DVFS**,
-puisqu'il faudrait modéliser l'effet d'un changement de tension sur la vitesse
-réelle. Cette variante demandera du matériel.
+Le pilote DVFS s'exerce : **18 reprogrammations de la PLL** sur une demi-seconde.
+La tension cœur, elle, reste au palier 1 — la boucle de veille de la variante PA
+remonte à la vitesse maximale avant chaque `WFI`, et une charge de 90 % laisse
+peu de marge pour descendre.
+
+### Un troisième défaut de plateforme
+
+Sur un STM32L152RB, `OS_IO_TIM5` n'existe pas : le noyau tombe donc en **mode
+timer 16 bits**, où la partie haute de l'horloge est reconstituée à partir de
+l'interruption de débordement. Or la plateforme L151 de Renode déclare TIM2
+avec `initialLimit: 0xFFFFFFFF`, ce qui en fait un compteur **32 bits** — alors
+que le TIM2 d'un STM32L1 est un timer 16 bits.
+
+Conséquence : le compteur ne repassait jamais par zéro à 65 536, l'interruption
+de débordement n'arrivait jamais, la partie haute du temps restait figée. Mesuré
+directement : `CNT = 93 741` après 0,3 s, bien au-delà de ce qu'un compteur
+16 bits peut atteindre. La plateforme dérivée corrige `initialLimit` à `0xFFFF`.
+
+### Ce que l'émulation ne dira jamais
+
+La plateforme L151 ne modélise ni RCC ni PWR : les écritures du pilote sont
+visibles mais sans effet sur la vitesse réelle du cœur. **Aucun émulateur ne
+validera du DVFS** — il faudrait modéliser l'effet d'un changement de tension
+sur la vitesse d'exécution. Ce que l'émulation prouve ici, c'est que le noyau
+ordonnance correctement *et* pilote les bons registres ; pas qu'il économise
+de l'énergie. Cette mesure-là demandera du matériel.
 
 ## API
 
@@ -264,9 +285,10 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
 - [ ] Proposer en amont les deux correctifs du `Timers.STM32_Timer` de Renode.
 - [x] Émulation rejouée en CI avec `renode-test` : l'exécution du noyau est
       devenue un test de non-régression.
-- [~] **Variante power-aware sur Cortex-M** : `stm32l-discovery-pa` compile et
-      démarre, le pilote DVFS écrit bien la tension cœur. Mais l'ordonnancement
-      ne se maintient pas — voir « Power-aware » ci-dessous.
+- [x] **Variante power-aware sur Cortex-M** : `stm32l-discovery-pa` ordonnance
+      ses trois tâches et reprogramme la PLL, vérifié en CI.
+- [ ] Mesurer la consommation réelle sur carte : l'émulation ne peut pas le
+      faire.
 - [ ] Proposer en amont les deux correctifs du `Timers.STM32_Timer` de Renode.
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
       référence d'origine ont été retirés avec le rebranding).

@@ -83,9 +83,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-arm-none-eabi
 
-      - name: Construire l'exemple et ses images brutes
-        working-directory: ${{ env.DIR }}
-        run: make bin
+      - name: Construire les exemples et leurs images brutes
+        run: |
+          make -C "${{ env.DIR }}" bin
+          make -C Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery-pa bin
 
       - name: Installer Renode
         run: |
@@ -99,7 +100,7 @@ jobs:
         run: pip install --quiet robotframework==6.1 robotframework-retryfailed psutil pyyaml
 
       - name: Exécuter le noyau
-        run: renode-test emulation/renode/escapement_f4.robot
+        run: renode-test emulation/renode/escapement_f4.robot emulation/renode/escapement_l1_pa.robot
 
       - uses: actions/upload-artifact@v4
         if: always()

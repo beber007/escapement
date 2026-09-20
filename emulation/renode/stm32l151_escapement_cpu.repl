@@ -103,7 +103,11 @@ bitbandSram: Miscellaneous.BitBanding @ sysbus <0x22000000, +0x200000>
 timer2: Timers.Escapement_STM32_Timer @ sysbus 0x40000000
     -> nvic@28
     frequency: 10000000
-    initialLimit: 0xFFFFFFFF
+    // Sur STM32L1, TIM2 est un timer 16 bits. La plateforme d'origine declare
+    // 0xFFFFFFFF, d'ou un compteur 32 bits qui ne deborde jamais a 65536 : le
+    // noyau, qui reconstitue la partie haute de son horloge a partir de
+    // l'interruption de debordement, voit son temps se figer.
+    initialLimit: 0xFFFF
 
 timer3: Timers.STM32_Timer @ sysbus 0x40000400
     -> nvic@29
