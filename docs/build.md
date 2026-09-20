@@ -18,22 +18,15 @@ All six are built on every push by the CI:
 
 | Example | Core | MCU | Tasks | `text` / `data` / `bss` |
 |---|---|---|---|---|
-| `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 | 5,940 / 480 / 32 |
-| `stm32l-discovery` | Cortex-M3 | STM32L152RB | 4 | 6,116 / 8 / 212 |
-| `stm32l-discovery-pa` | Cortex-M3 | STM32L152RB | 1 (*power-aware*) | 7,018 / 10 / 224 |
-| `RP2040/Examples/pico` | Cortex-M0+ | RP2040 | 4 | 6,908 / 8 / 180 |
-| `stm32vl-discovery` | Cortex-M3 | STM32F103RC | 3 | 7,796 / 8 / 272 |
-| `stm32f0-discovery` | Cortex-M0 | STM32F051R8 | 4 | 8,888 / 8 / 160 |
+| `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 | 4,012 / 477 / 32 |
+| `stm32l-discovery` | Cortex-M3 | STM32L152RB | 4 | 4,124 / 5 / 212 |
+| `stm32l-discovery-pa` | Cortex-M3 | STM32L152RB | 1 (*power-aware*) | 4,638 / 7 / 224 |
+| `RP2040/Examples/pico` | Cortex-M0+ | RP2040 | 4 | 5,256 / 8 / 180 |
+| `stm32vl-discovery` | Cortex-M3 | STM32F103RC | 3 | 5,184 / 5 / 272 |
+| `stm32f0-discovery` | Cortex-M0 | STM32F051R8 | 4 | 6,172 / 5 / 160 |
 
 Bytes of the `TaskLED` target, that is the whole kernel plus the periodic tasks
-of the example.
-
-> **Everything is built without optimisation.** No `Makefile` carries a `-O`
-> flag: the sizes above, and the costs measured elsewhere in this
-> documentation, are `-O0` figures. The port builds cleanly at `-O2`, where the
-> Pico example drops to 5,248 bytes — 24 % less. Moving to `-O2` requires
-> redoing the hardware measurements before publishing the resulting figures,
-> and has therefore not been done yet.
+of the example. Everything is built at `-O2`.
 
 The toolchain prefix can be overridden:
 `make CROSS_COMPILE=/path/to/arm-none-eabi-`.

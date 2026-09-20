@@ -123,8 +123,16 @@ void _OSInitializeTimer(void)
   ** while the tasks are stopped, and on resume the kernel finds every deadline missed —
   ** which trips its overload guard as soon as a task has a short period. Debugging a
   ** real-time kernel requires its clock to stop with it.
-  ** Set TIMER_DBGPAUSE to 0 to measure elapsed wall time across a halt instead. */
-  TIMER_DBGPAUSE = 0x7;
+  ** Measuring is the one case that wants the opposite. The probe has to hold a core
+  ** halted while it loads the image, which freezes the clock; the kernel then arms a
+  ** deadline computed on a stopped clock, and since an alarm of the RP2040 fires on
+  ** equality, a deadline the counter has already passed once it resumes is never
+  ** reached again. Letting the clock run from the start avoids that dead end. */
+  #ifdef ESCAPEMENT_MEASURE_SCHEDULING_COST
+     TIMER_DBGPAUSE = 0x0;   /* wall time, including across debugger halts */
+  #else
+     TIMER_DBGPAUSE = 0x7;
+  #endif
   /* Disarm both alarms and clear any pending cause. */
   TIMER_INTE = 0;
   TIMER_ARMED = ALARM0_BIT | ALARM1_BIT;
