@@ -20,6 +20,10 @@
 
 #define OS_MAX_SPEED    OS_125MHZ_SPEED
 
+/* Switches the clock tree onto the 12 MHz crystal. To be called first, before the timer
+** and before any peripheral whose rate depends on the clock. */
+void OSInitializeSystemClocks(void);
+
 #ifdef ESCAPEMENT_VERSION_HARD_PA
    void OSInitProcessorSpeed(void);
    void OSSetProcessorSpeed(UINT8 speed);

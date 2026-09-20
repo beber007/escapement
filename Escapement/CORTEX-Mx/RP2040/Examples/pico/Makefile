@@ -21,24 +21,24 @@ AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g
 # Les regles ecrivent toutes dans build/ sans jamais le creer.
 $(shell mkdir -p build)
 
-all: build/TaskLEDPico.elf
+all: build/TaskLEDPico.elf build/UARTEchoPico.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin
 
-bin: all build/TaskLEDPico.bin
+bin: all build/TaskLEDPico.bin build/UARTEchoPico.bin
 
 build/%.bin : build/%.elf
 	$(OBJCOPY) -O binary $< $@
 
-OBJECTS = build/Escapement_RamEntry.o \
+COMMON = build/Escapement_RamEntry.o \
           build/Escapement_CortexMx.o \
           build/Escapement_CortexMx_a.o \
           build/Escapement_Atomic.o \
           build/Escapement_Interrupts.o \
           build/Escapement_Timer.o \
-          build/EscapementHard.o \
-          build/TaskLEDPico.o
+          build/Escapement_Processor.o \
+          build/EscapementHard.o
 
 build/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
@@ -52,10 +52,18 @@ build/Escapement_Interrupts.o : ../../Escapement_Interrupts.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/Escapement_Timer.o : ../../Escapement_Timer.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Processor.o : ../../Escapement_Processor.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_UART.o : ../../Escapement_UART.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementHard.o : ../../../../EscapementHard.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TaskLEDPico.o : TaskLEDPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/UARTEchoPico.o : UARTEchoPico.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
-build/TaskLEDPico.elf : $(OBJECTS)
-	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(OBJECTS) -T$(LINKERFILE) -lgcc
+build/TaskLEDPico.elf : $(COMMON) build/TaskLEDPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/TaskLEDPico.o -T$(LINKERFILE) -lgcc
+build/UARTEchoPico.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o -T$(LINKERFILE) -lgcc
