@@ -392,6 +392,36 @@ L'ordonnanceur arme bien ses échéances dans le futur.
 > `TaskLEDPico` la déclare pourtant comme première sortie — sur une Pico W il
 > faut regarder GP2 et GP3 à l'oscilloscope, ou passer par l'UART.
 
+### Le temps du noyau doit avoir une origine
+
+Le compteur du RP2040 tourne librement depuis la mise sous tension et n'est
+jamais remis à zéro, alors qu'Escapement suppose que son horloge démarre près de
+zéro. Sur une carte allumée depuis quelques heures, le compteur dépasse le
+milliard de microsecondes : le noyau se croyait instantanément en retard de
+toutes ses échéances et tombait sur son garde-fou de surcharge.
+
+`_OSStartTimer` capture donc l'instant de démarrage, et tous les temps du noyau
+sont comptés depuis cette origine. **Ce défaut n'était visible que sur
+matériel** : le compteur de l'émulateur repart toujours de zéro.
+
+### Le cœur tourne à 125 MHz
+
+`OSInitializeSystemClocks` engage la PLL, parce que le coût par activation du
+noyau fixe un plancher à la période atteignable. Les horloges de référence et
+des périphériques, elles, **restent sur le quartz** : la première garde le tick
+d'une microseconde exact quelle que soit la fréquence du cœur — c'est
+précisément ce qui fait de cette puce une bonne cible pour la variante
+power-aware — et la seconde laisse l'UART diviser une fréquence connue du pilote.
+
+### Une limite à caractériser
+
+Une tâche de période courte destinée à servir de mire à un fréquencemètre
+externe déclenche le garde-fou de surcharge, **y compris à 125 MHz et avec une
+charge utile nulle**. Testé à 1, 2 et 5 ms : même résultat, alors que les trois
+tâches de 10, 20 et 60 ms tournent sans difficulté. Le coût par activation du
+noyau sur ce portage reste donc à mesurer, et c'est un chantier en soi. La
+broche GP4 est laissée libre à cet usage.
+
 ### Deux pièges rencontrés
 
 **Recharger sans réinitialiser.** Charger un firmware par SWD par-dessus un

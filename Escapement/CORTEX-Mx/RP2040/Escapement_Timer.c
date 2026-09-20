@@ -51,6 +51,12 @@
 
 /* Interrupt cause marked by the ISR and processed by the lower priority handler
 ** _OSTimerInterruptHandler. */
+/* Value of the counter when the kernel started. The RP2040 counter is free running since
+** power-up and is never reset, whereas Escapement expects its clock to start near zero: on
+** a board that has been running for a while the kernel would otherwise believe every
+** deadline already missed. All kernel times are therefore counted from this origin. */
+static UINT32 TimeOrigin = 0;
+
 volatile BOOL _OSOverflowInterruptFlag = FALSE;
 volatile BOOL _OSComparatorInterruptFlag = FALSE;
 
@@ -69,7 +75,8 @@ static void Alarm1Handler(struct TIMER_ISR_DATA *descriptor);
 /* ArmOverflowAlarm: Arms ALARM1 on the next 2^30 boundary of the counter. */
 static void ArmOverflowAlarm(void)
 {
-  TIMER_ALARM1 = (TIMER_TIMERAWL & ~TIME_MASK) + (TIME_MASK + 1);
+  UINT32 raw = TIMER_TIMERAWL;
+  TIMER_ALARM1 = raw + ((TIME_MASK + 1) - ((raw - TimeOrigin) & TIME_MASK));
 } /* end of ArmOverflowAlarm */
 
 
@@ -120,6 +127,7 @@ void _OSInitializeTimer(void)
 ** kernel the opportunity to compute its first deadline. */
 void _OSStartTimer(void)
 {
+  TimeOrigin = TIMER_TIMERAWL;
   ArmOverflowAlarm();
   TIMER_INTE = ALARM0_BIT | ALARM1_BIT;
   TIMER_INTF = ALARM0_BIT;   // force the first comparator interrupt
@@ -129,7 +137,7 @@ void _OSStartTimer(void)
 /* _OSGetActualTime: Returns the current time, counted modulo 2^30. */
 INT32 _OSGetActualTime(void)
 {
-  return (INT32)(TIMER_TIMERAWL & TIME_MASK);
+  return (INT32)((TIMER_TIMERAWL - TimeOrigin) & TIME_MASK);
 } /* end of _OSGetActualTime */
 
 
@@ -150,12 +158,13 @@ BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
 **   which case the caller processes it immediately. */
 BOOL _OSSetTimer(INT32 nextArrivalTime)
 {
-  UINT32 now = TIMER_TIMERAWL;
+  UINT32 raw = TIMER_TIMERAWL;
+  UINT32 now = raw - TimeOrigin;
   UINT32 target = (UINT32)nextArrivalTime;
   if (target > (now & TIME_MASK)) {
      /* Keep the armed value: reading ALARM0 back does not return it, the register is
      ** cleared as soon as the alarm fires. */
-     UINT32 deadline = now + (target - (now & TIME_MASK));
+     UINT32 deadline = raw + (target - (now & TIME_MASK));
      TIMER_ALARM0 = deadline;
      /* The counter may have moved past the deadline while it was being armed. */
      if ((INT32)(deadline - TIMER_TIMERAWL) > 0)

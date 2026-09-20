@@ -9,9 +9,14 @@
 ** rate need a reference worthy of the name, so the crystal is started and the whole tree
 ** is switched onto it.
 **
-** Staying at the 12 MHz of the crystal, without engaging the PLL, is deliberate: it keeps
-** this layer short, makes the microsecond tick exact, and leaves plenty of margin for the
-** task sets used by the examples.
+** The system clock is then taken to the nominal 125 MHz of the RP2040 through the PLL,
+** because the per-activation cost of the kernel sets a floor on the achievable period: at
+** 12 MHz a task of 1 ms already trips its overload guard.
+**
+** The reference and peripheral clocks stay on the crystal on purpose. The former keeps the
+** microsecond tick exact whatever the core does — which is precisely what makes this chip
+** a good target for the power-aware variant — and the latter keeps the UART dividing a
+** frequency the driver knows.
 **
 ** Platform version: RP2040 (Raspberry Pi Pico).
 */
@@ -36,6 +41,23 @@
 
 #define CLK_REF_SRC_XOSC     2
 #define CLK_SYS_SRC_REF      0
+#define CLK_SYS_SRC_AUX      1
+#define CLK_SYS_AUXSRC_PLL   (0u << 5)
+#define CLK_PERI_AUXSRC_XOSC (4u << 5)
+
+#define RESETS_CLR           *((volatile UINT32 *)(0x4000C000 + 0x3000))
+#define RESETS_DONE          *((volatile UINT32 *)(0x4000C000 + 0x08))
+#define RESETS_PLL_SYS_BIT   (1u << 12)
+
+#define PLL_SYS_BASE         0x40028000
+#define PLL_CS               *((volatile UINT32 *)(PLL_SYS_BASE + 0x00))
+#define PLL_PWR              *((volatile UINT32 *)(PLL_SYS_BASE + 0x04))
+#define PLL_FBDIV_INT        *((volatile UINT32 *)(PLL_SYS_BASE + 0x08))
+#define PLL_PRIM             *((volatile UINT32 *)(PLL_SYS_BASE + 0x0C))
+#define PLL_CS_LOCK          (1u << 31)
+#define PLL_PWR_PD           (1u << 0)
+#define PLL_PWR_POSTDIVPD    (1u << 3)
+#define PLL_PWR_VCOPD        (1u << 5)
 
 
 /* OSInitializeSystemClocks: Switches the reference, system and peripheral clocks onto the
@@ -54,6 +76,24 @@ void OSInitializeSystemClocks(void)
   while ((CLK_REF_SELECTED & (1u << CLK_REF_SRC_XOSC)) == 0);
   CLK_SYS_CTRL = CLK_SYS_SRC_REF;
   while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_REF)) == 0);
-  /* Peripheral clock onto the system clock, so the UART divides a known 12 MHz. */
-  CLK_PERI_CTRL = CLK_PERI_ENABLE;
+  /* Peripheral clock straight onto the crystal, so the UART keeps dividing a known 12 MHz
+  ** whatever the system clock does afterwards. */
+  CLK_PERI_CTRL = CLK_PERI_ENABLE | CLK_PERI_AUXSRC_XOSC;
+  /* System clock to 125 MHz: the 12 MHz crystal multiplied by 125 gives a 1500 MHz VCO,
+  ** divided by 6 then by 2. */
+  RESETS_CLR = RESETS_PLL_SYS_BIT;
+  while ((RESETS_DONE & RESETS_PLL_SYS_BIT) == 0);
+  PLL_CS = 1;                      /* REFDIV = 1 */
+  PLL_FBDIV_INT = 125;
+  PLL_PWR &= ~(PLL_PWR_PD | PLL_PWR_VCOPD);
+  while ((PLL_CS & PLL_CS_LOCK) == 0);
+  PLL_PRIM = (6u << 16) | (2u << 12);
+  PLL_PWR &= ~PLL_PWR_POSTDIVPD;
+  /* Switch glitchlessly: park on the reference, select the PLL as auxiliary source, then
+  ** take the auxiliary. */
+  CLK_SYS_CTRL = CLK_SYS_SRC_REF;
+  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_REF)) == 0);
+  CLK_SYS_CTRL = CLK_SYS_AUXSRC_PLL | CLK_SYS_SRC_REF;
+  CLK_SYS_CTRL = CLK_SYS_AUXSRC_PLL | CLK_SYS_SRC_AUX;
+  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_AUX)) == 0);
 } /* end of OSInitializeSystemClocks */

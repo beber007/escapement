@@ -13,6 +13,10 @@
 #define FLAG1_PIN 25   /* on-board LED */
 #define FLAG2_PIN  2
 #define FLAG3_PIN  3
+/* Sortie laissee libre pour une mire de mesure. Voir le README : une tache de periode
+** courte destinee a un frequencemetre externe declenche le garde-fou de surcharge du
+** noyau, dont le cout par activation reste a mesurer. */
+#define PROBE_PIN  4
 
 /* Parameters handed to each task instance */
 typedef struct TaskParametersDef {
