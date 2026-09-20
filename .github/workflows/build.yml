@@ -38,17 +38,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Installer la toolchain ARM bare-metal
+      - name: Install the bare-metal ARM toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-arm-none-eabi
           arm-none-eabi-gcc --version | head -1
 
-      - name: Compiler
+      - name: Build
         working-directory: ${{ env.DIR }}
         run: make
 
-      - name: Vérifier les binaires et leur taille
+      - name: Check the binaries and their size
         working-directory: ${{ env.DIR }}
         run: |
           shopt -s nullglob
@@ -62,7 +62,7 @@ jobs:
           done
           arm-none-eabi-size "${elfs[@]}"
 
-      - name: Vérifier que la reconstruction est reproductible
+      - name: Check that the rebuild is reproducible
         working-directory: ${{ env.DIR }}
         run: |
           make clean
@@ -76,7 +76,7 @@ jobs:
           retention-days: 14
 
   emulation:
-    name: Exécution sous Renode (STM32F407VG)
+    name: Execution under Renode (STM32F407VG)
     runs-on: ubuntu-latest
     needs: examples
     env:
@@ -86,17 +86,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Installer la toolchain ARM bare-metal
+      - name: Install the bare-metal ARM toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-arm-none-eabi
 
-      - name: Construire les exemples et leurs images brutes
+      - name: Build the examples and their raw images
         run: |
           make -C "${{ env.DIR }}" bin
           make -C Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery-pa bin
 
-      - name: Installer Renode
+      - name: Install Renode
         run: |
           url="https://github.com/renode/renode/releases/download/v${RENODE_VERSION}/renode-${RENODE_VERSION}.linux-portable.tar.gz"
           curl -fsSL "$url" -o renode.tar.gz
@@ -104,10 +104,10 @@ jobs:
           tar -xzf renode.tar.gz -C "$HOME/renode" --strip-components=1
           echo "$HOME/renode" >> "$GITHUB_PATH"
 
-      - name: Installer les dépendances de renode-test
+      - name: Install the renode-test dependencies
         run: pip install --quiet robotframework==6.1 robotframework-retryfailed psutil pyyaml
 
-      - name: Exécuter le noyau
+      - name: Run the kernel
         run: renode-test emulation/renode/escapement_f4.robot emulation/renode/escapement_l1_pa.robot
 
       - uses: actions/upload-artifact@v4

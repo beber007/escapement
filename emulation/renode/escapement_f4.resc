@@ -1,24 +1,24 @@
-:name: Escapement sur STM32F4-Discovery
-:description: Démarre TaskLEDF4 sur un STM32F407VG émulé.
+:name: Escapement on STM32F4-Discovery
+:description: Starts TaskLEDF4 on an emulated STM32F407VG.
 
-# À lancer depuis la racine du dépôt :
+# Run from the root of the repository:
 #   renode emulation/renode/escapement_f4.resc
-# puis, dans le moniteur :
+# then, in the monitor:
 #   emulation RunFor "2" ; cpu PC
 
 $elf ?= @Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery/build/TaskLEDF4.elf
 $bin ?= @Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery/build/TaskLEDF4.bin
 
-# Les fichiers voisins sont references par nom simple.
+# Neighbouring files are referenced by plain name.
 path add @emulation/renode
 
-# Modele de TIM2 corrige, a charger avant la plateforme.
+# Fixed TIM2 model, to be loaded before the platform.
 include @Escapement_STM32_Timer.cs
 
 mach create "escapement-f4"
 machine LoadPlatformDescription @escapement_f4.repl
 
-# Le noyau déplace VTOR de 0x00000000 vers 0x08000000 : sur silicium c'est la
-# même flash vue à deux adresses, on charge donc l'image aux deux.
+# The kernel moves VTOR from 0x00000000 to 0x08000000: on silicon this is the
+# same flash seen at two addresses, so the image is loaded at both.
 sysbus LoadELF $elf
 sysbus LoadBinary $bin 0x08000000

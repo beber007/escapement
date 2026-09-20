@@ -130,7 +130,7 @@ void TaskSimpleDelay(void *argument)
   TaskParametersDef *TaskParameters = (TaskParametersDef *)argument;
   TogleBit(TaskParameters->GPIO_Pin);
   #ifdef _CDC_
-     // Recuperer un noeu pour l'emission
+     // Get a node for the transmission
      if ((nodeInput = (UINT8 *)OSGetFreeNodeInputNodeUSB(USB_INPUT)) != NULL) {
         // Recuperer un noeu de donnee recue
         if ((nodeOutput = (UINT8 *)OSDequeueOutputNodeUSB(&size,USB_OUTPUT)) != NULL) {
@@ -140,7 +140,7 @@ void TaskSimpleDelay(void *argument)
            OSReleaseOutputNodeUSB(nodeOutput,USB_OUTPUT);
         }
         else
-           // rendre le noeu pour l'emission non utilise
+           // release the unused transmission node
            OSReleaseInputNodeUSB(nodeInput,USB_INPUT);
      }
   #endif

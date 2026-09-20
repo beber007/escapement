@@ -13,10 +13,10 @@
 #define FLAG1_PIN 25   /* on-board LED */
 #define FLAG2_PIN  2
 #define FLAG3_PIN  3
-/* Mire de mesure, pilotee par une tache de periode 1 ms. Le garde-fou de surcharge que
-** cette tache declenchait tenait a la frequence du coeur, restee sur le quartz : depuis
-** que OSInitializeSystemClocks engage la PLL, la ronde d'ordonnancement coute 7 us en
-** moyenne et la mire tourne. Voir le README. */
+/* Measurement probe, driven by a task of 1 ms period. The overload guard this task used
+** to trip came from the core frequency, which had stayed on the crystal: now that
+** OSInitializeSystemClocks engages the PLL, a scheduling round costs 7 us on average and
+** the probe runs. See docs/rp2040.md. */
 #define PROBE_PIN  4
 
 /* Parameters handed to each task instance */
@@ -85,7 +85,7 @@ int main(void)
   TaskParameters->Pin = FLAG3_PIN;
   TaskParameters->Delay = 4000;
   OSCreateTask(VariableDelayTask,0,60000,60000,TaskParameters);
-  /* Mire de mesure, periode de 1 ms, sans charge utile. */
+  /* Measurement probe, 1 ms period, no payload. */
   OSCreateTask(ProbeTask,0,1000,1000,NULL);
   /* Start the OS so that it starts scheduling the user tasks */
   return OSStartMultitasking(NULL,NULL);

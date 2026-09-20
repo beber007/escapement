@@ -1,5 +1,5 @@
-// Copie de platforms/cpus/stm32l151.repl (Renode 1.17.0, licence MIT), avec un
-// seul changement : TIM2 utilise le modele corrige Escapement_STM32_Timer.
+// Copy of platforms/cpus/stm32l151.repl (Renode 1.17.0, MIT licence), with a
+// single change: TIM2 uses the fixed Escapement_STM32_Timer model.
 
 nvic: IRQControllers.NVIC @ sysbus 0xE000E000
     priorityMask: 0xF0
@@ -103,10 +103,10 @@ bitbandSram: Miscellaneous.BitBanding @ sysbus <0x22000000, +0x200000>
 timer2: Timers.Escapement_STM32_Timer @ sysbus 0x40000000
     -> nvic@28
     frequency: 10000000
-    // Sur STM32L1, TIM2 est un timer 16 bits. La plateforme d'origine declare
-    // 0xFFFFFFFF, d'ou un compteur 32 bits qui ne deborde jamais a 65536 : le
-    // noyau, qui reconstitue la partie haute de son horloge a partir de
-    // l'interruption de debordement, voit son temps se figer.
+    // On the STM32L1, TIM2 is a 16-bit timer. The original platform declares
+    // 0xFFFFFFFF, hence a 32-bit counter that never wraps at 65536: the kernel,
+    // which rebuilds the upper half of its clock from the overflow interrupt,
+    // sees its time freeze.
     initialLimit: 0xFFFF
 
 timer3: Timers.STM32_Timer @ sysbus 0x40000400

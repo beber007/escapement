@@ -1,15 +1,15 @@
 //
-// Escapement_STM32_Timer : copie corrigee du Timers.STM32_Timer de Renode 1.17.0.
+// Escapement_STM32_Timer: a fixed copy of Timers.STM32_Timer from Renode 1.17.0.
 //
-// Deux defauts corriges, tous deux dans le registre EventGeneration (EGR) :
-//   1. le callback du bit UG s'executait quel que soit le bit ecrit, si bien
-//      qu'ecrire CC1G generait un evenement update et levait UIF ;
-//   2. CC1G a CC4G n'etaient pas implementes.
+// Two defects fixed, both in the EventGeneration register (EGR):
+//   1. the callback of the UG bit ran whichever bit was written, so that writing
+//      CC1G generated an update event and raised UIF;
+//   2. CC1G through CC4G were not implemented.
 //
-// Un noyau tickless comme Escapement arme une echeance dans CCR1 et force sa
-// premiere interruption par CC1G : il recevait donc un faux debordement.
+// A tickless kernel such as Escapement arms a deadline in CCR1 and forces its
+// first interrupt through CC1G: it was therefore handed a spurious overflow.
 //
-// Source d'origine : renode/renode-infrastructure, licence MIT (voir ci-dessous).
+// Original source: renode/renode-infrastructure, MIT licence (see below).
 //
 //
 // Copyright (c) 2010-2026 Antmicro
@@ -278,8 +278,8 @@ namespace Antmicro.Renode.Peripherals.Timers
                 {(long)Registers.EventGeneration, new DoubleWordRegister(this)
                     .WithFlag(0, FieldMode.WriteOneToClear, writeCallback: (_, val) =>
                     {
-                        // Correctif : sans ce test, ecrire n'importe quel autre bit de EGR
-                        // (CC1G par exemple) declenchait un evenement update et levait UIF.
+                        // Fix: without this test, writing any other bit of EGR (CC1G for
+                        // instance) triggered an update event and raised UIF.
                         if(!val)
                         {
                             return;
@@ -312,8 +312,8 @@ namespace Antmicro.Renode.Peripherals.Timers
                             }
                         }
                     }, name: "Update generation (UG)")
-                    // Correctif : CC1G..CC4G n'etaient pas implementes. Ecrire un de ces
-                    // bits doit lever le drapeau d'interruption du canal correspondant.
+                    // Fix: CC1G..CC4G were not implemented. Writing one of these bits
+                    // must raise the interrupt flag of the matching channel.
                     .WithFlag(1, FieldMode.Write, writeCallback: (_, val) => { if(val) { channels[0].InterruptFlag = true; } }, name: "Capture/compare 1 generation (CC1G)")
                     .WithFlag(2, FieldMode.Write, writeCallback: (_, val) => { if(val) { channels[1].InterruptFlag = true; } }, name: "Capture/compare 2 generation (CC2G)")
                     .WithFlag(3, FieldMode.Write, writeCallback: (_, val) => { if(val) { channels[2].InterruptFlag = true; } }, name: "Capture/compare 3 generation (CC3G)")

@@ -1,5 +1,5 @@
-:name: Escapement power-aware sur STM32L152
-:description: Trois taches periodiques de charge 90 pourcent, avec ajustement dynamique de la frequence et de la tension coeur.
+:name: Escapement power-aware on STM32L152
+:description: Three periodic tasks at 90 percent load, with dynamic adjustment of the core frequency and voltage.
 
 path add @emulation/renode
 include @Escapement_STM32_Timer.cs

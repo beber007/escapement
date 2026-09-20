@@ -1,6 +1,6 @@
-// Copie de platforms/cpus/stm32f4.repl (Renode 1.17.0, licence MIT), avec un
-// seul changement : TIM2 utilise le modele corrige Escapement_STM32_Timer.
-// Renode n'autorisant pas de redeclarer un noeud, il faut deriver le fichier.
+// Copy of platforms/cpus/stm32f4.repl (Renode 1.17.0, MIT licence), with a
+// single change: TIM2 uses the fixed Escapement_STM32_Timer model.
+// Since Renode does not allow a node to be redeclared, the file has to be derived.
 
 fsmcBank1: Memory.MappedMemory @ sysbus 0x60000000
     size: 0x10000000

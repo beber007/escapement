@@ -2,8 +2,8 @@
 ## Escapement - Lightweight Power-Aware Real-Time OS.
 ## Derived from prior work; see LICENSE and NOTICE at the root of this repository.
 
-# Toolchain bare-metal ARM. Surchargeable :
-#   make CROSS_COMPILE=/chemin/vers/arm-none-eabi-
+# Bare-metal ARM toolchain. Overridable:
+#   make CROSS_COMPILE=/path/to/arm-none-eabi-
 CROSS_COMPILE ?= arm-none-eabi-
 CC = $(CROSS_COMPILE)gcc
 OBJCOPY = $(CROSS_COMPILE)objcopy
@@ -11,14 +11,14 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 CPU = cortex-m0plus
 LINKERFILE = ../../RP2040_SRAM.ld
 
-# Le firmware s'execute depuis la SRAM : pas de second etage de boot a ecrire.
+# The firmware runs from SRAM: no second stage bootloader to write.
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
 CFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -fdata-sections -ffunction-sections \
          -ffreestanding -Werror=comment -MMD -MP
 AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -MMD -MP
 
-# Les regles ecrivent toutes dans build/ sans jamais le creer.
+# Every rule writes into build/ without ever creating it.
 $(shell mkdir -p build)
 
 all: build/TaskLEDPico.elf build/UARTEchoPico.elf
@@ -68,7 +68,7 @@ build/TaskLEDPico.elf : $(COMMON) build/TaskLEDPico.o
 build/UARTEchoPico.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o -T$(LINKERFILE) -lgcc
 
-# Les .d produits par -MMD listent les en-tetes de chaque objet : sans eux, une
-# modification de Escapement_Config.h ne declenche aucune recompilation et les essais
-# portent sur un binaire perime.
+# The .d files produced by -MMD list the headers of each object: without them, a change
+# to Escapement_Config.h triggers no rebuild at all and the next test runs against a
+# stale binary.
 -include $(wildcard build/*.d)

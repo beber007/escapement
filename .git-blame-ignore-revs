@@ -1,12 +1,12 @@
-# Commits purement mécaniques, à ignorer par git blame.
+# Purely mechanical commits, to be ignored by git blame.
 #
-# Activation locale :
+# Enable locally with:
 #   git config blame.ignoreRevsFile .git-blame-ignore-revs
-# GitHub lit ce fichier automatiquement.
+# GitHub reads this file automatically.
 
-# Normalisation CRLF -> LF de 15 fichiers source.
+# CRLF -> LF normalisation of 15 source files.
 a0f43eb886bea2dec91b56516f8f250bfe3ab906
 
-# Renommage ZottaOS -> Escapement : 667 fichiers, en-têtes de copyright,
-# identifiants et chemins. Aucun changement de logique.
+# ZottaOS -> Escapement rename: 667 files, copyright headers, identifiers and
+# paths. No change in logic.
 518940d9657dad4b276388855770a6954c655be0

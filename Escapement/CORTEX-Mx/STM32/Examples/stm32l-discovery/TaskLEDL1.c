@@ -77,9 +77,9 @@ int main(void)
      TaskParameters->Delay = 1900;
      OSCreateTask(VariableDelayTask,0,3000,3000,TaskParameters);
   #elif defined(ESCAPEMENT_VERSION_HARD_PA)
-     /* Memes taches et meme charge de 90% que la version Hard, mais chaque tache
-     ** declare son temps d'execution au pire cas. Le noyau s'en sert pour abaisser
-     ** la frequence et la tension coeur des que la charge reelle le permet.
+     /* Same tasks and same 90% load as the Hard version, except that each task declares
+     ** its worst case execution time. The kernel uses it to lower the frequency and the
+     ** core voltage as soon as the actual load allows it.
      ** 125  / 500  -> 25%
      ** 250  / 1000 -> 25%
      ** 1200 / 3000 -> 40%

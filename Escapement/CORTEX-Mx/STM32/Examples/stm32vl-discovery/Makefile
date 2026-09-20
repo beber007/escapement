@@ -16,14 +16,14 @@ PATH_LIB_ST = ../../Libraries
 
 INCLUDE_LIB_ST = -I. -I${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/inc -I${PATH_LIB_ST}/CMSIS/Device/${FAMILLY} -I${PATH_LIB_ST}/CMSIS/Include
 
-# Toolchain bare-metal ARM. Surchargeable :
-#   make CROSS_COMPILE=/chemin/vers/arm-none-eabi-
+# Bare-metal ARM toolchain. Overridable:
+#   make CROSS_COMPILE=/path/to/arm-none-eabi-
 CROSS_COMPILE ?= arm-none-eabi-
 CC = $(CROSS_COMPILE)gcc
 
 CPU = cortex-m3
 
-# Les règles écrivent toutes dans build/ sans jamais le créer.
+# Every rule writes into build/ without ever creating it.
 $(shell mkdir -p build)
 
 all: build/TaskLEDF1.elf build/UARTSimpleEchoF1.elf build/TestTimerEventF1.elf
@@ -156,7 +156,7 @@ build/TestTimerEventF1.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTime
 	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventF1.o -T${LINKERFILE} -lgcc
 	
 
-# Les .d produits par -MMD listent les en-tetes de chaque objet : sans eux, une
-# modification de Escapement_Config.h ne declenche aucune recompilation et les essais
-# portent sur un binaire perime.
+# The .d files produced by -MMD list the headers of each object: without them, a change
+# to Escapement_Config.h triggers no rebuild at all and the next test runs against a
+# stale binary.
 -include $(wildcard build/*.d)

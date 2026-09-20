@@ -1,7 +1,7 @@
-# Normalisation des fins de ligne : LF dans le dépôt pour tout ce qui est texte.
+# Line ending normalisation: LF in the repository for everything textual.
 * text=auto
 
-# Binaires explicites, jamais convertis.
+# Explicit binaries, never converted.
 *.pdf binary
 *.exe binary
 *.xls binary

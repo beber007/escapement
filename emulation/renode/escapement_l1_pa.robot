@@ -9,11 +9,11 @@ Resource                      ${RENODEKEYWORDS}
 ${EXAMPLE}                    ${CURDIR}/../../Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery-pa
 
 *** Test Cases ***
-La variante power-aware ordonnance ses trois taches
-    [Documentation]           Memes taches que stm32l-discovery et meme charge de 90%, mais
-    ...                       chaque tache declare son temps d'execution au pire cas. Le
-    ...                       noyau s'en sert pour abaisser la frequence coeur. Les periodes
-    ...                       valent 500, 1000 et 3000 tops sur un timer a 312,5 kHz.
+The power-aware variant schedules its three tasks
+    [Documentation]           Same tasks as stm32l-discovery and the same 90% load, except
+    ...                       that each task declares its worst case execution time. The
+    ...                       kernel uses it to lower the core frequency. The periods are
+    ...                       500, 1000 and 3000 ticks on a timer running at 312.5 kHz.
     Execute Command           path add @${CURDIR}
     Execute Command           include @Escapement_STM32_Timer.cs
     Execute Command           mach create "escapement-l1-pa"

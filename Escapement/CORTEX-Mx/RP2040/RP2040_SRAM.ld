@@ -1,12 +1,12 @@
-/* Script de link pour un firmware RP2040 entierement en SRAM.
+/* Linker script for an RP2040 firmware running entirely from SRAM.
 **
-** Le RP2040 demarre normalement depuis une flash QSPI externe, ce qui impose d'ecrire un
-** second etage de boot de 256 octets avec son CRC. Executer depuis la SRAM evite cet
-** etage — c'est ce que fait le type de build « no_flash » du SDK — et sort au passage la
-** flash de la mesure de consommation, ce qui sert la variante power-aware.
+** The RP2040 normally boots from an external QSPI flash, which requires a 256 byte second
+** stage bootloader with its CRC. Executing from SRAM avoids that stage — this is what the
+** no_flash build type of the SDK does — and incidentally takes the flash out of the power
+** measurement, which serves the power-aware variant.
 **
-** La table des vecteurs se trouve donc en 0x20000000 et l'application doit y pointer VTOR
-** avant d'autoriser les interruptions.
+** The vector table therefore sits at 0x20000000, and the application must point VTOR at it
+** before enabling interrupts.
 */
 
 ENTRY(_OSRamEntry)
@@ -20,12 +20,12 @@ SECTIONS
 {
     .text :
     {
-        /* Le bootrom branche sur le premier mot de l'image : il lui faut du code, pas la
-        ** table des vecteurs. Celle-ci suit, alignee sur 256 octets comme VTOR l'exige. */
+        /* The bootrom branches to the first word of the image: it needs code there, not
+        ** the vector table. That table follows, 256 byte aligned as VTOR requires. */
         KEEP(*(.ram_entry))
         . = ALIGN(256);
-        KEEP(*(.isr_vector_general))  /* exceptions systeme Cortex-Mx */
-        KEEP(*(.isr_vector_specific)) /* interruptions peripheriques RP2040 */
+        KEEP(*(.isr_vector_general))  /* Cortex-Mx system exceptions */
+        KEEP(*(.isr_vector_specific)) /* RP2040 peripheral interrupts */
         *(.text*)
         *(.rodata*)
         . = ALIGN(4);
@@ -52,5 +52,5 @@ SECTIONS
     } > SRAM
 }
 
-/* Sommet de la pile et limite haute de l'allocation dynamique d'Escapement. */
+/* Top of the stack and upper bound of the dynamic allocation of Escapement. */
 _OSEndRAM = ORIGIN(SRAM) + LENGTH(SRAM);
