@@ -33,6 +33,24 @@ toggling one output of GPIOB. Over one emulated second:
 Deadline-driven scheduling honours the declared periods. This was the first
 verified execution of the kernel since the project was taken over.
 
+## The chronogram
+
+The figure in the README is drawn from a trace, not by hand. The kernel drives
+its outputs through the BSRR register of the STM32: writing a bit at offset 0x18
+raises a pin, writing it at 0x1A lowers it. Two Renode watchpoints report those
+writes along with the elapsed virtual time, which gives an exact transition list.
+
+```sh
+cd Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery && make bin && cd -
+tools/trace_gpio.sh > docs/data/f4-gpio-trace.csv
+tools/chronogram.py docs/data/f4-gpio-trace.csv docs/images/f4-schedule.svg
+```
+
+The trace is kept in `docs/data/`, so the figure can be redrawn without running
+the emulator at all. Note what the figure cannot show: the tasks of this example
+execute for 0 to 29 us against periods of 820 us and more, so they never overlap
+— there is no preemption to be seen here, only the regularity of the periods.
+
 ## The Renode timer model had to be fixed
 
 Without a fix, the kernel deadlocked on its own overload guard. The cause was

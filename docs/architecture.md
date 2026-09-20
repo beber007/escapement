@@ -33,6 +33,7 @@ Escapement/
   msp430/                   MSP430 port
   CORTEX-Mx/STM32/Examples/ five examples with a Makefile
   CORTEX-Mx/RP2040/Examples/ Raspberry Pi Pico example
+tools/                      trace capture and figure generation
 PA/                         power-aware example (MSP430F5419A)
 USB/                        example with a USB stack (MSP430x552x)
 Balls/                      graphical demo (MSP-EXP430F5438)

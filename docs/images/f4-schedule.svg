@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="314" viewBox="0 0 900 314" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="900" height="314" fill="#ffffff"/>
+<text x="104" y="26" font-size="15" font-weight="600" fill="#1f2328">Three periodic tasks under EDF, on an emulated STM32F407VG</text>
+<text x="104" y="43" font-size="12" fill="#59636e">GPIO transitions captured under Renode with virtual timestamps</text>
+<line x1="104.0" y1="46" x2="104.0" y2="238" stroke="#e7ecf0" stroke-width="1"/>
+<text x="104.0" y="280" font-size="11" fill="#59636e" text-anchor="middle">0</text>
+<line x1="181.2" y1="46" x2="181.2" y2="238" stroke="#e7ecf0" stroke-width="1"/>
+<text x="181.2" y="280" font-size="11" fill="#59636e" text-anchor="middle">1</text>
+<line x1="258.4" y1="46" x2="258.4" y2="238" stroke="#e7ecf0" stroke-width="1"/>
+<text x="258.4" y="280" font-size="11" fill="#59636e" text-anchor="middle">2</text>
+<line x1="335.6" y1="46" x2="335.6" y2="238" stroke="#e7ecf0" stroke-width="1"/>
+<text x="335.6" y="280" font-size="11" fill="#59636e" text-anchor="middle">3</text>
+<line x1="412.8" y1="46" x2="412.8" y2="238" stroke="#e7ecf0" stroke-width="1"/>
+<text x="412.8" y="280" font-size="11" fill="#59636e" text-anchor="middle">4</text>
+<line x1="490.0" y1="46" x2="490.0" y2="238" stroke="#e7ecf0" stroke-width="1"/>
+<text x="490.0" y="280" font-size="11" fill="#59636e" text-anchor="middle">5</text>
+<line x1="567.2" y1="46" x2="567.2" y2="238" stroke="#e7ecf0" stroke-width="1"/>
+<text x="567.2" y="280" font-size="11" fill="#59636e" text-anchor="middle">6</text>
+<line x1="644.4" y1="46" x2="644.4" y2="238" stroke="#e7ecf0" stroke-width="1"/>
+<text x="644.4" y="280" font-size="11" fill="#59636e" text-anchor="middle">7</text>
+<line x1="721.6" y1="46" x2="721.6" y2="238" stroke="#e7ecf0" stroke-width="1"/>
+<text x="721.6" y="280" font-size="11" fill="#59636e" text-anchor="middle">8</text>
+<line x1="798.8" y1="46" x2="798.8" y2="238" stroke="#e7ecf0" stroke-width="1"/>
+<text x="798.8" y="280" font-size="11" fill="#59636e" text-anchor="middle">9</text>
+<line x1="876.0" y1="46" x2="876.0" y2="238" stroke="#e7ecf0" stroke-width="1"/>
+<text x="876.0" y="280" font-size="11" fill="#59636e" text-anchor="middle">10</text>
+<text x="92" y="68" font-size="12.5" font-weight="600" fill="#1f2328" text-anchor="end">PB13</text>
+<text x="92" y="92" font-size="11" fill="#59636e" text-anchor="end">task 1 · 820 us</text>
+<line x1="104" y1="90" x2="876" y2="90" stroke="#1f6feb" stroke-width="1.4" opacity="0.45"/>
+<path d="M107.63 90 L107.63 62 L109.63 62 L109.63 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M170.47 90 L170.47 62 L172.47 62 L172.47 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M234.08 90 L234.08 62 L236.08 62 L236.08 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M297.23 90 L297.23 62 L299.23 62 L299.23 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M360.84 90 L360.84 62 L362.84 62 L362.84 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M423.99 90 L423.99 62 L425.99 62 L425.99 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M487.92 90 L487.92 62 L489.92 62 L489.92 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M550.76 90 L550.76 62 L552.76 62 L552.76 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M613.75 90 L613.75 62 L615.75 62 L615.75 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M677.13 90 L677.13 62 L679.13 62 L679.13 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M740.75 90 L740.75 62 L742.75 62 L742.75 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M803.90 90 L803.90 62 L805.90 62 L805.90 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M867.82 90 L867.82 62 L869.82 62 L869.82 90" fill="none" stroke="#1f6feb" stroke-width="1.8" stroke-linejoin="miter"/>
+<text x="92" y="134" font-size="12.5" font-weight="600" fill="#1f2328" text-anchor="end">PB14</text>
+<text x="92" y="158" font-size="11" fill="#59636e" text-anchor="end">task 2 · 1640 us</text>
+<line x1="104" y1="156" x2="876" y2="156" stroke="#6f42c1" stroke-width="1.4" opacity="0.45"/>
+<path d="M109.48 156 L109.48 128 L111.72 128 L111.72 156" fill="none" stroke="#6f42c1" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M235.93 156 L235.93 128 L237.93 128 L237.93 156" fill="none" stroke="#6f42c1" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M362.70 156 L362.70 128 L364.70 128 L364.70 156" fill="none" stroke="#6f42c1" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M489.69 156 L489.69 128 L491.69 128 L491.69 156" fill="none" stroke="#6f42c1" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M615.60 156 L615.60 128 L617.60 128 L617.60 156" fill="none" stroke="#6f42c1" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M742.60 156 L742.60 128 L744.76 128 L744.76 156" fill="none" stroke="#6f42c1" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M869.59 156 L869.59 128 L871.59 128 L871.59 156" fill="none" stroke="#6f42c1" stroke-width="1.8" stroke-linejoin="miter"/>
+<text x="92" y="200" font-size="12.5" font-weight="600" fill="#1f2328" text-anchor="end">PB15</text>
+<text x="92" y="224" font-size="11" fill="#59636e" text-anchor="end">task 3 · 4920 us</text>
+<line x1="104" y1="222" x2="876" y2="222" stroke="#bc4c00" stroke-width="1.4" opacity="0.45"/>
+<path d="M113.03 222 L113.03 194 L115.03 194 L115.03 222" fill="none" stroke="#bc4c00" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M493.24 222 L493.24 194 L495.24 194 L495.24 222" fill="none" stroke="#bc4c00" stroke-width="1.8" stroke-linejoin="miter"/>
+<path d="M873.14 222 L873.14 194 L875.14 194 L875.14 222" fill="none" stroke="#bc4c00" stroke-width="1.8" stroke-linejoin="miter"/>
+<text x="104" y="308" font-size="11" fill="#59636e">Time in milliseconds. Execution times run from 0 to 29 us, far below one pixel here: every pulse is drawn at least 2 px wide, while its leading edge stays exact.</text>
+</svg>

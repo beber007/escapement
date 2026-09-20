@@ -38,6 +38,12 @@ software from this repository.
 That last level reads 500.02 Hz, 50.0014 Hz and 16.66713 Hz for declared periods
 of 1, 20 and 60 ms. Details in [`docs/rp2040.md`](docs/rp2040.md).
 
+![Chronogram of three periodic tasks scheduled by Escapement](docs/images/f4-schedule.svg)
+
+Every edge above was captured under emulation, with the virtual timestamps of the
+emulator, and the figure is regenerated from that data by a script in `tools/`
+— see [`docs/emulation.md`](docs/emulation.md).
+
 ## Watch it run
 
 Without any hardware, using [Renode](https://renode.io):
