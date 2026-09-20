@@ -67,6 +67,7 @@ typedef struct UART_INTERRUPT_DESCRIPTOR { // Interrupt handler opaque descripto
 #define REG(des,off) *((volatile UINT32 *)((des)->Base + (off)))
 
 static void InterruptHandler(UART_INTERRUPT_DESCRIPTOR *descriptor);
+static void Transmit(UART_INTERRUPT_DESCRIPTOR *descriptor);
 
 
 /* OSInitUART: Creates and binds the descriptor used by the other functions, and brings the
@@ -144,8 +145,38 @@ void OSEnqueueUART(void *buffer, UINT8 dataSize, UINT8 interruptIndex)
   UART_INTERRUPT_DESCRIPTOR *descriptor =
                           (UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(interruptIndex);
   OSEnqueueFIFO(descriptor->FifoArray,buffer,dataSize);
-  REG(descriptor,UART_IMSC) |= INT_TX;
+  /* Contrary to the USART of the STM32, where the transmit interrupt reflects a state and
+  ** fires as soon as it is enabled, the one of the PL011 fires on a FIFO threshold being
+  ** crossed. Enabling it on an already empty FIFO produces nothing: transmission has to be
+  ** primed by writing the first bytes. */
+  Transmit(descriptor);
 } /* end of OSEnqueueUART */
+
+
+/* Transmit: Pushes as many bytes as the transmit FIFO accepts, taking the next buffer from
+** the queue whenever the current one runs out. Leaves the transmit interrupt enabled only
+** while something remains to send. Called by OSEnqueueUART to prime, and by the interrupt
+** to carry on. */
+static void Transmit(UART_INTERRUPT_DESCRIPTOR *des)
+{
+  if (des->CurrentBuffer == NULL) {
+     des->CurrentBufferIndex = 0;
+     des->CurrentBuffer = (UINT8 *)OSDequeueFIFO(des->FifoArray,&des->NbTransmit);
+  }
+  while (des->CurrentBuffer != NULL && (REG(des,UART_FR) & FR_TXFF) == 0) {
+     REG(des,UART_DR) = des->CurrentBuffer[des->CurrentBufferIndex++];
+     des->NbTransmit -= 1;
+     if (des->NbTransmit == 0) {
+        OSReleaseNodeFIFO(des->FifoArray,des->CurrentBuffer);
+        des->CurrentBufferIndex = 0;
+        des->CurrentBuffer = (UINT8 *)OSDequeueFIFO(des->FifoArray,&des->NbTransmit);
+     }
+  }
+  if (des->CurrentBuffer == NULL)
+     REG(des,UART_IMSC) &= ~INT_TX;
+  else
+     REG(des,UART_IMSC) |= INT_TX;
+} /* end of Transmit */
 
 
 /* InterruptHandler: Single ISR of a UART. On reception it hands each byte to the
@@ -165,20 +196,6 @@ static void InterruptHandler(UART_INTERRUPT_DESCRIPTOR *des)
   }
   if (status & INT_TX) {
      REG(des,UART_ICR) = INT_TX;
-     if (des->CurrentBuffer == NULL) {   // previous message fully sent
-        des->CurrentBufferIndex = 0;
-        des->CurrentBuffer = (UINT8 *)OSDequeueFIFO(des->FifoArray,&des->NbTransmit);
-     }
-     while (des->CurrentBuffer != NULL && (REG(des,UART_FR) & FR_TXFF) == 0) {
-        REG(des,UART_DR) = des->CurrentBuffer[des->CurrentBufferIndex++];
-        des->NbTransmit -= 1;
-        if (des->NbTransmit == 0) {      // message fully sent, take the next one
-           OSReleaseNodeFIFO(des->FifoArray,des->CurrentBuffer);
-           des->CurrentBufferIndex = 0;
-           des->CurrentBuffer = (UINT8 *)OSDequeueFIFO(des->FifoArray,&des->NbTransmit);
-        }
-     }
-     if (des->CurrentBuffer == NULL)     // nothing left to send
-        REG(des,UART_IMSC) &= ~INT_TX;
+     Transmit(des);
   }
 } /* end of InterruptHandler */

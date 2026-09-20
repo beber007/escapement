@@ -358,7 +358,55 @@ indépendant de `clk_sys`** : changer la fréquence cœur ne déplace pas la bas
 temps du noyau. Sur STM32, l'horloge du timer suit l'horloge cœur, ce qui
 complique le DVFS.
 
-### Exécution vérifiée
+### Exécution sur matériel réel
+
+Le portage a été **validé sur une Raspberry Pi Pico W**, chargé en SRAM par SWD
+avec la Debug Probe officielle — pas besoin du bouton BOOTSEL :
+
+```sh
+openocd -f interface/cmsis-dap.cfg -c 'adapter speed 5000' -f target/rp2040.cfg \
+        -c 'init; reset halt; load_image build/UARTEchoPico.elf; resume 0x20000000; exit'
+```
+
+`UARTEchoPico` renvoie chaque octet reçu sur UART0 (GP0 et GP1, 115200 bauds) :
+
+```
+envoyé b'escapement'  -> reçu b'escapement'   ECHO OK
+envoyé b'RP2040 ok'   -> reçu b'RP2040 ok'    ECHO OK
+envoyé b'0123456789'  -> reçu b'0123456789'   ECHO OK
+```
+
+Et `TaskLEDPico`, inspecté par SWD pendant qu'il tournait :
+
+```
+PC       = 0x20000864     le wfi d'IdleTask
+timer    avance de 136 241 µs entre deux lectures
+alarm0   armée 1 620 µs devant le compteur
+gpio_out = 0x8            GP3 haut, une tâche s'exécutait
+```
+
+L'ordonnanceur arme bien ses échéances dans le futur.
+
+> Sur **Pico W**, la LED intégrée n'est pas sur GP25 : elle est pilotée par la
+> puce sans-fil CYW43439, et GP25 sert de chip-select à cette puce.
+> `TaskLEDPico` la déclare pourtant comme première sortie — sur une Pico W il
+> faut regarder GP2 et GP3 à l'oscilloscope, ou passer par l'UART.
+
+### Deux pièges rencontrés
+
+**Recharger sans réinitialiser.** Charger un firmware par SWD par-dessus un
+autre laisse les périphériques dans l'état où le précédent les avait mis. Le
+timer restait armé, son interruption tombait, et `_OSIOHandler` ne trouvait
+aucun descripteur : il partait dans son piège, interruptions coupées. D'où le
+`reset halt` avant le `load_image`.
+
+**L'amorçage de l'émission.** Sur l'USART d'un STM32, `TXE` reflète un état :
+armer l'interruption la déclenche immédiatement. Sur le PL011 du RP2040, elle se
+déclenche sur un franchissement de seuil de la FIFO — l'armer alors que la FIFO
+est déjà vide ne produit rien. `OSEnqueueUART` doit écrire les premiers octets
+lui-même pour amorcer.
+
+### Exécution vérifiée en émulation
 
 Sur un Pico émulé (voir `emulation/renode/RP2040.md`), les trois tâches
 périodiques de `TaskLEDPico.c` sur une seconde :
