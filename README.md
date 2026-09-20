@@ -217,6 +217,67 @@ de débordement n'arrivait jamais, la partie haute du temps restait figée. Mesu
 directement : `CNT = 93 741` après 0,3 s, bien au-delà de ce qu'un compteur
 16 bits peut atteindre. La plateforme dérivée corrige `initialLimit` à `0xFFFF`.
 
+### Le DVFS vaut-il quelque chose sur un STM32 ?
+
+Question ouverte, et il faut la poser honnêtement avant d'investir dans cette
+variante.
+
+**La physique.** Pour un travail fixe de *W* cycles, l'énergie dynamique vaut
+`α·C·V²·f · W/f = α·C·V²·W` : elle **ne dépend pas de la fréquence**. Baisser
+*f* seul ne fait rien gagner, et allonge même le temps actif donc l'énergie de
+fuite. Le seul levier est **V²**, et on ne peut baisser V qu'en baissant f.
+
+**Ce qui rend le STM32L1 intéressant.** Trois plages de régulateur — 1,8 V
+jusqu'à 32 MHz, 1,5 V jusqu'à 16 MHz, 1,2 V jusqu'à 4,2 MHz. Soit
+(1,8/1,2)² = **2,25×** en théorie sur l'énergie dynamique. Et la plage est
+choisie par logiciel : la plupart des firmwares posent la plage 1 au démarrage
+et n'y touchent plus, il y a donc de la marge inexploitée.
+
+**Ce qui tempère fortement.** Le chiffre qui compte est le µA/MHz du datasheet,
+et il ne suit pas la loi en V² : l'ordre de grandeur annoncé pour le STM32L1 est
+d'environ 230 µA/MHz en plage 1 contre 185 à 200 en plage 3 — **chiffres à
+vérifier sur le datasheet ST**, ils ne sont pas issus d'une mesure faite ici.
+Soit de l'ordre de 20 % de gain par cycle, loin du 2,25× théorique. La loi en V²
+ne s'applique qu'à la commutation ; le régulateur, la flash, l'analogique
+toujours alimenté et les fuites sont incompressibles.
+
+**Le vrai concurrent n'est pas « rester au maximum », c'est le *race-to-sleep*.**
+Monter à 32 MHz, finir au plus vite, tomber en mode Stop à quelques µA. Comme
+l'énergie dynamique est indépendante de f, courir vite ne coûte rien de plus et
+écourte la fenêtre où l'on paie les coûts fixes. C'est presque toujours au moins
+aussi bon, et beaucoup plus simple.
+
+**Le DVFS ne gagne que quand on ne peut pas dormir :** trous d'inactivité plus
+courts que le coût de réveil (sortie de Stop plus relock de la PLL, quelques
+dizaines de µs — à comparer aux périodes de 820 µs et 1,64 ms de nos exemples),
+contrainte de latence interdisant le sommeil profond, ou périphérique exigeant
+le domaine d'horloge cœur. À noter que la charge de 90 % de l'exemple ne laisse
+de toute façon presque aucun temps mort à exploiter.
+
+**Ce qui reste solide dans ce projet**, indépendamment du gain énergétique :
+l'apport n'est pas « baisser la fréquence » mais **savoir quand la baisser sans
+rater d'échéance**, ce que calculent DRA, OTE et DM_SLACK à partir des WCET
+déclarés. C'est une contribution d'ordonnancement, qui tient même si le gain
+mesuré s'avère modeste.
+
+### Le banc de mesure existe déjà
+
+`Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery/IccMeasure.c` enchaîne les
+trois paliers et lit le courant via la mesure Icc intégrée à la carte
+STM32L-Discovery :
+
+```c
+OSSetProcessorSpeed(OS_32MHZ_SPEED);   ...
+OSSetProcessorSpeed(OS_16MHZ_SPEED);   ...
+OSSetProcessorSpeed(OS_4MHZ_SPEED);    ...
+```
+
+Les auteurs d'origine avaient monté exactement l'expérience qu'il faut. Elle n'a
+pas été rejouée ici : **tant qu'elle ne l'est pas, tout ce qui précède reste du
+raisonnement, pas de la mesure.** Une carte Discovery tranche définitivement, et
+le résultat a sa place dans ce README quel qu'il soit — y compris s'il est
+décevant.
+
 ### Ce que l'émulation ne dira jamais
 
 La plateforme L151 ne modélise ni RCC ni PWR : les écritures du pilote sont
@@ -287,8 +348,9 @@ nouveaux designs vers MSPM0 (Cortex-M0+).
       devenue un test de non-régression.
 - [x] **Variante power-aware sur Cortex-M** : `stm32l-discovery-pa` ordonnance
       ses trois tâches et reprogramme la PLL, vérifié en CI.
-- [ ] Mesurer la consommation réelle sur carte : l'émulation ne peut pas le
-      faire.
+- [ ] **Rejouer `IccMeasure.c` sur une carte STM32L-Discovery** et consigner le
+      gain réel des trois paliers. C'est la seule façon de savoir si le DVFS
+      vaut mieux que le *race-to-sleep* sur cette famille.
 - [ ] Proposer en amont les deux correctifs du `Timers.STM32_Timer` de Renode.
 - [ ] Reconstituer la documentation utilisateur (le manuel et les notes de
       référence d'origine ont été retirés avec le rebranding).
