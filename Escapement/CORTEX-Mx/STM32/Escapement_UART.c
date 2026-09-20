@@ -39,9 +39,9 @@
 
 typedef struct UART_INTERRUPT_DESCRIPTOR { // Interrupt handler opaque descriptor
   void (*InterruptHandler)(struct UART_INTERRUPT_DESCRIPTOR *);
-  UINT16 *Status;                      // UART status register
-  UINT16 *ControlReg1;                 // UART control register
-  UINT16 *HardwareBuffer;              // UART data register
+  volatile UINT16 *Status;             // UART status register
+  volatile UINT16 *ControlReg1;        // UART control register
+  volatile UINT16 *HardwareBuffer;     // UART data register
   UINT8 CurrentBufferIndex;            // Next byte to transmit from the current buffer
   void *FifoArray;                     // Descriptor to FIFO queue
   UINT16 NbTransmit;                   // Number of remaining bytes to transmit
@@ -72,44 +72,44 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
   switch (interruptIndex) {  /* Specific UART device configuration */
         #ifdef OS_IO_USART1
         case OS_IO_USART1:
-           descriptor->Status = (UINT16 *)USART1_BASE;
-           descriptor->HardwareBuffer = (UINT16 *)(USART1_BASE + 0x04);
-           descriptor->ControlReg1 = (UINT16 *)(USART1_BASE + 0x0C);
+           descriptor->Status = (volatile UINT16 *)USART1_BASE;
+           descriptor->HardwareBuffer = (volatile UINT16 *)(USART1_BASE + 0x04);
+           descriptor->ControlReg1 = (volatile UINT16 *)(USART1_BASE + 0x0C);
            break;
         #endif
         #ifdef OS_IO_USART2
         case OS_IO_USART2:
-           descriptor->Status = (UINT16 *)USART2_BASE;
-           descriptor->HardwareBuffer = (UINT16 *)(USART2_BASE + 0x04);
-           descriptor->ControlReg1 = (UINT16 *)(USART2_BASE + 0x0C);
+           descriptor->Status = (volatile UINT16 *)USART2_BASE;
+           descriptor->HardwareBuffer = (volatile UINT16 *)(USART2_BASE + 0x04);
+           descriptor->ControlReg1 = (volatile UINT16 *)(USART2_BASE + 0x0C);
            break;
         #endif
         #ifdef OS_IO_USART3
         case OS_IO_USART3:
-           descriptor->Status = (UINT16 *)USART3_BASE;
-           descriptor->HardwareBuffer = (UINT16 *)(USART3_BASE + 0x04);
-           descriptor->ControlReg1 = (UINT16 *)(USART3_BASE + 0x0C);
+           descriptor->Status = (volatile UINT16 *)USART3_BASE;
+           descriptor->HardwareBuffer = (volatile UINT16 *)(USART3_BASE + 0x04);
+           descriptor->ControlReg1 = (volatile UINT16 *)(USART3_BASE + 0x0C);
            break;
         #endif
         #ifdef OS_IO_UART4
         case OS_IO_UART4:
-           descriptor->Status = (UINT16 *)UART4_BASE;
-           descriptor->HardwareBuffer = (UINT16 *)(UART4_BASE + 0x04);
-           descriptor->ControlReg1 = (UINT16 *)(UART4_BASE + 0x0C);
+           descriptor->Status = (volatile UINT16 *)UART4_BASE;
+           descriptor->HardwareBuffer = (volatile UINT16 *)(UART4_BASE + 0x04);
+           descriptor->ControlReg1 = (volatile UINT16 *)(UART4_BASE + 0x0C);
            break;
         #endif
         #ifdef OS_IO_UART5
         case OS_IO_UART5:
-           descriptor->Status = (UINT16 *)UART5_BASE;
-           descriptor->HardwareBuffer = (UINT16 *)(UART5_BASE + 0x04);
-           descriptor->ControlReg1 = (UINT16 *)(UART5_BASE + 0x0C);
+           descriptor->Status = (volatile UINT16 *)UART5_BASE;
+           descriptor->HardwareBuffer = (volatile UINT16 *)(UART5_BASE + 0x04);
+           descriptor->ControlReg1 = (volatile UINT16 *)(UART5_BASE + 0x0C);
            break;
         #endif
         #ifdef OS_IO_UART6
         case OS_IO_UART6:
-           descriptor->Status = (UINT16 *)UART6_BASE;
-           descriptor->HardwareBuffer = (UINT16 *)(UART6_BASE + 0x04);
-           descriptor->ControlReg1 = (UINT16 *)(UART6_BASE + 0x0C);
+           descriptor->Status = (volatile UINT16 *)UART6_BASE;
+           descriptor->HardwareBuffer = (volatile UINT16 *)(UART6_BASE + 0x04);
+           descriptor->ControlReg1 = (volatile UINT16 *)(UART6_BASE + 0x0C);
            break;
         #endif
         default: break;

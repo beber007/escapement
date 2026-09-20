@@ -136,7 +136,7 @@
 #if defined(STM32F05XXX)
    #if ESCAPEMENT_TIMER == OS_IO_TIM1 || ESCAPEMENT_TIMER ==  OS_IO_TIM15 || \
        ESCAPEMENT_TIMER == OS_IO_TIM16 || ESCAPEMENT_TIMER == OS_IO_TIM17
-      #define CLK_ENABLE *((UINT32 *)0x40021018) // RCC_APB2ENR
+      #define CLK_ENABLE *((volatile UINT32 *)0x40021018) // RCC_APB2ENR
       #if ESCAPEMENT_TIMER == OS_IO_TIM1
          #define CLK_ENABLE_BIT 0x0800
       #elif ESCAPEMENT_TIMER == OS_IO_TIM15
@@ -148,7 +148,7 @@
       #endif
    #elif ESCAPEMENT_TIMER ==  OS_IO_TIM2 || ESCAPEMENT_TIMER == OS_IO_TIM3 || \
          ESCAPEMENT_TIMER == OS_IO_TIM14
-      #define CLK_ENABLE *((UINT32 *)0x4002101C) // RCC_APB1ENR
+      #define CLK_ENABLE *((volatile UINT32 *)0x4002101C) // RCC_APB1ENR
       #if ESCAPEMENT_TIMER ==  OS_IO_TIM2
          #define CLK_ENABLE_BIT 0x1
       #elif ESCAPEMENT_TIMER == OS_IO_TIM3
@@ -160,7 +160,7 @@
 #elif defined(STM32L1XXXX)
    #if ESCAPEMENT_TIMER == OS_IO_TIM9 || ESCAPEMENT_TIMER ==  OS_IO_TIM10 || \
        ESCAPEMENT_TIMER == OS_IO_TIM11
-      #define CLK_ENABLE *((UINT32 *)0x40023820) // RCC_APB2ENR
+      #define CLK_ENABLE *((volatile UINT32 *)0x40023820) // RCC_APB2ENR
       #if ESCAPEMENT_TIMER == OS_IO_TIM9
          #define CLK_ENABLE_BIT 0x4
       #elif ESCAPEMENT_TIMER ==  OS_IO_TIM10
@@ -170,7 +170,7 @@
       #endif
    #elif ESCAPEMENT_TIMER ==  OS_IO_TIM2 || ESCAPEMENT_TIMER == OS_IO_TIM3 || \
          ESCAPEMENT_TIMER == OS_IO_TIM4 || ESCAPEMENT_TIMER == OS_IO_TIM5
-      #define CLK_ENABLE *((UINT32 *)0x40023824) // RCC_APB1ENR
+      #define CLK_ENABLE *((volatile UINT32 *)0x40023824) // RCC_APB1ENR
       #if ESCAPEMENT_TIMER ==  OS_IO_TIM2
          #define CLK_ENABLE_BIT 0x1
       #elif ESCAPEMENT_TIMER == OS_IO_TIM3
@@ -185,7 +185,7 @@
    #if ESCAPEMENT_TIMER == OS_IO_TIM1 || ESCAPEMENT_TIMER ==  OS_IO_TIM8 || \
        ESCAPEMENT_TIMER == OS_IO_TIM9 || ESCAPEMENT_TIMER == OS_IO_TIM10 || ESCAPEMENT_TIMER == OS_IO_TIM11 || \
        ESCAPEMENT_TIMER == OS_IO_TIM15 || ESCAPEMENT_TIMER == OS_IO_TIM16 || ESCAPEMENT_TIMER == OS_IO_TIM17
-      #define CLK_ENABLE *((UINT32 *)0x40021018) // RCC_APB2ENR
+      #define CLK_ENABLE *((volatile UINT32 *)0x40021018) // RCC_APB2ENR
       #if ESCAPEMENT_TIMER == OS_IO_TIM1
          #define CLK_ENABLE_BIT 0x800
       #elif ESCAPEMENT_TIMER ==  OS_IO_TIM8
@@ -207,7 +207,7 @@
          ESCAPEMENT_TIMER == OS_IO_TIM4 || ESCAPEMENT_TIMER == OS_IO_TIM5 || \
          ESCAPEMENT_TIMER == OS_IO_TIM12 || ESCAPEMENT_TIMER == OS_IO_TIM13 || \
          ESCAPEMENT_TIMER == OS_IO_TIM14
-      #define CLK_ENABLE *((UINT32 *)0x4002101C) // RCC_APB1ENR
+      #define CLK_ENABLE *((volatile UINT32 *)0x4002101C) // RCC_APB1ENR
       #if ESCAPEMENT_TIMER ==  OS_IO_TIM2
          #define CLK_ENABLE_BIT 0x1
       #elif ESCAPEMENT_TIMER == OS_IO_TIM3
@@ -227,7 +227,7 @@
 #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
    #if ESCAPEMENT_TIMER == OS_IO_TIM1 || ESCAPEMENT_TIMER == OS_IO_TIM8 || \
        ESCAPEMENT_TIMER == OS_IO_TIM9 || ESCAPEMENT_TIMER == OS_IO_TIM10 || ESCAPEMENT_TIMER == OS_IO_TIM11
-      #define CLK_ENABLE *((UINT32 *)0x40023844) // RCC_APB2ENR
+      #define CLK_ENABLE *((volatile UINT32 *)0x40023844) // RCC_APB2ENR
       #if ESCAPEMENT_TIMER == OS_IO_TIM1
          #define CLK_ENABLE_BIT 0x1
       #elif ESCAPEMENT_TIMER == OS_IO_TIM8
@@ -243,7 +243,7 @@
          ESCAPEMENT_TIMER == OS_IO_TIM4 || ESCAPEMENT_TIMER == OS_IO_TIM5 || \
          ESCAPEMENT_TIMER == OS_IO_TIM12 || ESCAPEMENT_TIMER == OS_IO_TIM13 || \
          ESCAPEMENT_TIMER == OS_IO_TIM14
-      #define CLK_ENABLE *((UINT32 *)0x40023840) // RCC_APB1ENR
+      #define CLK_ENABLE *((volatile UINT32 *)0x40023840) // RCC_APB1ENR
       #if ESCAPEMENT_TIMER ==  OS_IO_TIM2
          #define CLK_ENABLE_BIT 0x1
       #elif ESCAPEMENT_TIMER == OS_IO_TIM3
@@ -266,22 +266,22 @@
 
 
 /* Memory mapped timer registers relative to the base address of the timer */
-#define TIM_CONTROL1         *((UINT16 *)(TIME_BASE + 0x00))
-#define TIM_INT_ENABLE       *((UINT16 *)(TIME_BASE + 0x0C))
-#define TIM_STATUS           *((UINT16 *)(TIME_BASE + 0x10))
-#define TIM_EVENT_GENERATION *((UINT16 *)(TIME_BASE + 0x14))
+#define TIM_CONTROL1         *((volatile UINT16 *)(TIME_BASE + 0x00))
+#define TIM_INT_ENABLE       *((volatile UINT16 *)(TIME_BASE + 0x0C))
+#define TIM_STATUS           *((volatile UINT16 *)(TIME_BASE + 0x10))
+#define TIM_EVENT_GENERATION *((volatile UINT16 *)(TIME_BASE + 0x14))
 #ifdef ESCAPEMENT_TIMER_32
-   #define TIM_COUNTER       *((UINT32 *)(TIME_BASE + 0x24))
+   #define TIM_COUNTER       *((volatile UINT32 *)(TIME_BASE + 0x24))
 #elif defined(ESCAPEMENT_TIMER_16)
-   #define TIM_COUNTER       *((UINT16 *)(TIME_BASE + 0x24))
+   #define TIM_COUNTER       *((volatile UINT16 *)(TIME_BASE + 0x24))
 #endif
-#define TIM_PRESCALER        *((UINT16 *)(TIME_BASE + 0x28))
+#define TIM_PRESCALER        *((volatile UINT16 *)(TIME_BASE + 0x28))
 #ifdef ESCAPEMENT_TIMER_32
-   #define TIM_AUTORELOAD    *((UINT32 *)(TIME_BASE + 0x2C))
-   #define TIM_COMPARATOR    *((UINT32 *)(TIME_BASE + 0x34))
+   #define TIM_AUTORELOAD    *((volatile UINT32 *)(TIME_BASE + 0x2C))
+   #define TIM_COMPARATOR    *((volatile UINT32 *)(TIME_BASE + 0x34))
 #elif defined(ESCAPEMENT_TIMER_16)
-   #define TIM_AUTORELOAD    *((UINT16 *)(TIME_BASE + 0x2C))
-   #define TIM_COMPARATOR    *((UINT16 *)(TIME_BASE + 0x34))
+   #define TIM_AUTORELOAD    *((volatile UINT16 *)(TIME_BASE + 0x2C))
+   #define TIM_COMPARATOR    *((volatile UINT16 *)(TIME_BASE + 0x34))
 #endif
 
 #define UPDATE_INT_BIT      0x1
