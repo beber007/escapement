@@ -15,19 +15,25 @@ jobs:
       matrix:
         include:
           - example: stm32f0-discovery
+            dir: Escapement/CORTEX-Mx/STM32/Examples/stm32f0-discovery
             cpu: Cortex-M0
           - example: stm32f4-discovery
+            dir: Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
             cpu: Cortex-M4
           - example: stm32l-discovery
+            dir: Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery
             cpu: Cortex-M3
           - example: stm32vl-discovery
+            dir: Escapement/CORTEX-Mx/STM32/Examples/stm32vl-discovery
             cpu: Cortex-M3
           - example: stm32l-discovery-pa
+            dir: Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery-pa
             cpu: Cortex-M3
-          - example: ../../RP2040/Examples/pico
+          - example: rp2040-pico
+            dir: Escapement/CORTEX-Mx/RP2040/Examples/pico
             cpu: Cortex-M0+
     env:
-      DIR: Escapement/CORTEX-Mx/STM32/Examples/${{ matrix.example }}
+      DIR: ${{ matrix.dir }}
 
     steps:
       - uses: actions/checkout@v4
