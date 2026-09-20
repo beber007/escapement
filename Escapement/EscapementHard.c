@@ -58,6 +58,8 @@ typedef struct TCB {
   UINT16 NextArrivalTimeHigh;    // Number of full 2^30 cycles of the next arrival time
 } TCB;
 
+OSCheckTCBLayout();
+
 /* List head sentinel */
 typedef struct {
   TCB *Next[2];                  // [0]: first TCB in the ready queue link Next

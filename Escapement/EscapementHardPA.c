@@ -91,6 +91,8 @@ typedef struct TCB {
   #endif
 } TCB;
 
+OSCheckTCBLayout();
+
 /* List head sentinel */
 typedef struct {
   #if POWER_MANAGEMENT != DRA && POWER_MANAGEMENT != DR_OTE

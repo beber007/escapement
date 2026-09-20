@@ -83,6 +83,8 @@ typedef struct TCB {
   INT32 NextMandatoryArrivalTimeLow;   // corresponds to instance NextMandatoryInstance
 } TCB;
 
+OSCheckTCBLayout();
+
 /* List head sentinel */
 typedef struct {
   TCB *Next[2];                  // [0]: first TCB in the ready queue link Next

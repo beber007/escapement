@@ -11,6 +11,33 @@
 #ifndef _ESCAPEMENT_CORTEXMX_H_
 #define _ESCAPEMENT_CORTEXMX_H_
 
+/* Offsets the context switch reads out of a task control block. _OSContextSwapHandler is
+** written in assembler and cannot see the C structure, so it addresses these fields by
+** hand. The kernel variants check them with _Static_assert against their own TCB, which
+** turns a silent mismatch into a build failure: the power-aware variant, for one, gives
+** its TCB a third list link under the DRA and DR_OTE algorithms, which moves every field
+** four bytes further along. */
+#if defined(ESCAPEMENT_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+   #define OS_TCB_STATE_OFFSET     8
+   #define OS_TCB_ENTRY_OFFSET    20
+   #define OS_TCB_ARGUMENT_OFFSET 24
+#else
+   #define OS_TCB_STATE_OFFSET     8
+   #define OS_TCB_ENTRY_OFFSET    16
+   #define OS_TCB_ARGUMENT_OFFSET 20
+#endif
+
+/* OSCheckTCBLayout: Placed by each kernel variant right after its TCB definition. */
+#ifndef _ASM_
+   #define OSCheckTCBLayout() \
+      _Static_assert(__builtin_offsetof(TCB,TaskState) == OS_TCB_STATE_OFFSET, \
+                     "TaskState moved; Escapement_CortexMx_a.S reads it at another offset"); \
+      _Static_assert(__builtin_offsetof(TCB,TaskCodePtr) == OS_TCB_ENTRY_OFFSET, \
+                     "TaskCodePtr moved; Escapement_CortexMx_a.S reads it at another offset"); \
+      _Static_assert(__builtin_offsetof(TCB,Argument) == OS_TCB_ARGUMENT_OFFSET, \
+                     "Argument moved; Escapement_CortexMx_a.S reads it at another offset")
+#endif
+
 /* Non-blocking algorithms use a marker that needs to be part of the address. These algo-
 ** rithms operate in RAM and need an address bit that is never used. */
 #define MARKEDBIT    0x80000000u

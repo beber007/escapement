@@ -158,7 +158,9 @@ _OSContextSwapHandler_CreateNewContext:
   /* Set the state of the new task to STATE_RUNNING */
   ORR R0,R0,#1                             // R0 (= _OSActiveTask->TaskState) |= STATE_RUNNING
   STRB R0,[R1,#8]                          // _OSActiveTask->TaskState <- R0
-  /* Create a new context on the stack */
+  /* Create a new context on the stack. The offsets below are OS_TCB_ENTRY_OFFSET and
+  ** OS_TCB_ARGUMENT_OFFSET of Escapement_CortexMx.h, which each kernel variant checks
+  ** against its own TCB with OSCheckTCBLayout(). */
 #if defined(ESCAPEMENT_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
   LDR R2,[R1,#20]                          // R2 <- task entry point
   LDR R0,[R1,#24]                          // R0 <- task argument
@@ -250,7 +252,9 @@ _OSContextSwapHandler_CreateNewContext:
   MOVS R3,#1                               // R3 <- STATE_RUNNING
   ORRS R0,R0,R3                            // R0 (= _OSActiveTask->TaskState) |= STATE_RUNNING
   STRB R0,[R1,#8]                          // _OSActiveTask->TaskState <- R0
-  /* Create a new context on the stack */
+  /* Create a new context on the stack. The offsets below are OS_TCB_ENTRY_OFFSET and
+  ** OS_TCB_ARGUMENT_OFFSET of Escapement_CortexMx.h, which each kernel variant checks
+  ** against its own TCB with OSCheckTCBLayout(). */
 #if defined(ESCAPEMENT_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
   LDR R2,[R1,#20]                          // R2 <- task entry point
   LDR R0,[R1,#24]                          // R0 <- task argument
