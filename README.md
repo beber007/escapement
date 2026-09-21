@@ -33,7 +33,7 @@ scheduler decided what it was supposed to decide.
 |---|---|---|
 | Compilation | GitHub Actions, with a toolchain other than the developer's | four examples, three cores, on every push |
 | The scheduler alone | the kernel built for the host, with time as a variable | ten tasks over 200,000 ticks: every activation on time, no deadline missed; three wraps of the kernel clock, with arrivals served late across each one; event-driven tasks, the FIFO queue and the slot buffers — 90 % of the lines of the kernel |
-| Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed — all as regression tests |
+| Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the STM32F4, the STM32L1 and the RP2040 — all as regression tests |
 | Internal state on hardware | OpenOCD and SWD on a Pico | deadlines armed ahead of the counter, cost counters read back from SRAM |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
 

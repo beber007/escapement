@@ -34,10 +34,10 @@ The code is compiled freestanding and linked without a C library
 (`-nostdlib`), with only `libgcc` for the routines the hardware does not
 provide (integer division on Cortex-M0 and M3). No newlib is needed.
 
-> **Only the RP2040 port has been run on hardware** (see `rp2040.md`). The
-> three STM32 examples are executed under Renode, except `stm32l-discovery`,
-> which is only built — it exists because `stm32l-discovery-pa` borrows its
-> linker script and its sources.
+> **Only the RP2040 port has been run on hardware** (see `rp2040.md`). All the
+> examples are executed under Renode in CI, the RP2040 ones included, except
+> `stm32l-discovery`, which is only built — it exists because
+> `stm32l-discovery-pa` borrows its linker script and its sources.
 
 Flashing is done through OpenOCD (`openocd.cfg` is provided under
 `Escapement/CORTEX-Mx/STM32/Examples/`).

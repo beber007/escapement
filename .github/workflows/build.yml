@@ -136,3 +136,59 @@ jobs:
             log.html
             robot_output.xml
           retention-days: 14
+
+  emulation-rp2040:
+    name: Execution under Renode (RP2040)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: examples
+    env:
+      # The RP2040 models come from matgla/Renode_RP2040 and are built against the
+      # Renode assemblies, which only the linux-dotnet package exposes: see
+      # emulation/renode/RP2040.md. Both are pinned.
+      RENODE_VERSION: 1.16.1
+      RP2040_MODELS_COMMIT: 5aca847c9f57ed96603e55d28e8ceeefa09e55f6
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: rp2040-pico-elf
+          path: Escapement/CORTEX-Mx/RP2040/Examples/pico/build
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install Renode (linux-dotnet)
+        run: |
+          url="https://github.com/renode/renode/releases/download/v${RENODE_VERSION}/renode-${RENODE_VERSION}.linux-dotnet.tar.gz"
+          curl -fsSL "$url" -o renode.tar.gz
+          mkdir -p "$HOME/renode"
+          tar -xzf renode.tar.gz -C "$HOME/renode" --strip-components=1
+          echo "$HOME/renode" >> "$GITHUB_PATH"
+
+      - name: Fetch and build the RP2040 models
+        run: |
+          git clone --quiet https://github.com/matgla/Renode_RP2040.git emulation/renode/rp2040
+          git -C emulation/renode/rp2040 checkout --quiet "$RP2040_MODELS_COMMIT"
+          dotnet build emulation/renode/rp2040/emulation/Peripherals.csproj -c Release \
+              -p:RenodePath="$HOME/renode/bin"
+
+      - name: Install the renode-test dependencies
+        run: pip install --quiet robotframework==6.1 robotframework-retryfailed psutil pyyaml
+
+      - name: Run the kernel
+        run: renode-test emulation/renode/escapement_pico.robot
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: renode-report-rp2040
+          path: |
+            report.html
+            log.html
+            robot_output.xml
+            logs/
+          retention-days: 14

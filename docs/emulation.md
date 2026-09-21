@@ -9,7 +9,8 @@ renode emulation/renode/escapement_f4.resc
 (monitor) emulation RunFor "1"
 ```
 
-Four Robot suites replay such runs on every push, in the `emulation` job of the CI:
+Four Robot suites replay such runs on every push, in the `emulation` job of the CI
+(the RP2040 has its own job and suite, see `emulation/renode/RP2040.md`):
 
 ```sh
 pip install robotframework==6.1 robotframework-retryfailed psutil pyyaml
