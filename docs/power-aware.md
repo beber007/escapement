@@ -100,8 +100,10 @@ OSSetProcessorSpeed(OS_16MHZ_SPEED);   ...
 OSSetProcessorSpeed(OS_4MHZ_SPEED);    ...
 ```
 
-The original authors had set up exactly the experiment that is needed. It has
-not been replayed here: **until it is, everything above remains reasoning, not
+The original authors had set up exactly the experiment that is needed. It did
+not build when the project was taken over; it now builds with the power-aware
+kernel, as a target of `stm32l-discovery-pa`, and the CI keeps it that way. It
+has not been run: **until it is, everything above remains reasoning, not
 measurement.** A Discovery board settles it for good, and the result belongs in
 this documentation whatever it turns out to be — including if it is
 disappointing.

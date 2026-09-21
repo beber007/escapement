@@ -15,8 +15,10 @@ static UINT16 GetCurrentMeasurement (void);
 
 int main(void)
 {
-  UINT16 Current[4];
-  UINT32 i;
+  /* volatile: the readings are for the debugger and the loops are the settling time,
+  ** neither of which -O2 would otherwise keep. */
+  volatile UINT16 Current[4];
+  volatile UINT32 i;
 
   /* Keep debugger connection during sleep mode */
   BoardKeepDebugInSleep();

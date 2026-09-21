@@ -80,8 +80,6 @@ build/TestTimerEventL1.o : TestTimerEventL1.c
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TestTimerEventL1b.o : TestTimerEventL1b.c 
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/IccMeasure.o : IccMeasure.c 
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskLEDL1.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDL1.o
 	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDL1.o -T${LINKERFILE} -lgcc
@@ -91,8 +89,6 @@ build/TestTimerEventL1.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTime
 	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventL1.o -T${LINKERFILE} -lgcc
 build/TestTimerEventL1b.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventL1b.o
 	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TestTimerEventL1b.o -T${LINKERFILE} -lgcc
-build/IccMeasure.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/IccMeasure.o
-	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/IccMeasure.o -T${LINKERFILE} -lgcc
 	
 
 # The .d files produced by -MMD list the headers of each object: without them, a change
