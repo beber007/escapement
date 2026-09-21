@@ -116,6 +116,12 @@
 
 #include "stm32f4xx.h"
 
+/* Oscillator values the 2011 device header used to provide. The STM32F4-Discovery has
+** an 8 MHz crystal, which its stm32f4xx_conf.h used to impose over the 25 MHz default. */
+#define HSE_VALUE            ((uint32_t)8000000)
+#define HSE_STARTUP_TIMEOUT  ((uint16_t)0x0500)
+#define HSI_VALUE            ((uint32_t)16000000)
+
 /**
   * @}
   */
@@ -175,7 +181,7 @@
 
   uint32_t SystemCoreClock = 168000000;
 
-  __I uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9};
+  const uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9};
 
 /**
   * @}

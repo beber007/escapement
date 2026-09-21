@@ -101,6 +101,12 @@
 
 #include "stm32l1xx.h"
 
+/* Oscillator values the 2012 device header used to provide. */
+#define HSE_VALUE            ((uint32_t)8000000)
+#define HSE_STARTUP_TIMEOUT  ((uint16_t)0x0500)
+#define HSI_VALUE            ((uint32_t)16000000)
+#define HSI_STARTUP_TIMEOUT  ((uint16_t)0x0500)
+
 /**
   * @}
   */
@@ -138,8 +144,8 @@
   * @{
   */
 uint32_t SystemCoreClock    = 32000000;
-__I uint8_t PLLMulTable[9] = {3, 4, 6, 8, 12, 16, 24, 32, 48};
-__I uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9};
+const uint8_t PLLMulTable[9] = {3, 4, 6, 8, 12, 16, 24, 32, 48};
+const uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9};
 
 /**
   * @}

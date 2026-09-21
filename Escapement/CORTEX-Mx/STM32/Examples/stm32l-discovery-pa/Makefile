@@ -14,7 +14,7 @@ CONF_HEADER_FILE = Escapement_$(FAMILLY_LC).h
 
 PATH_LIB_ST = ../../Libraries
 
-INCLUDE_LIB_ST = -I. -I../stm32l-discovery -I${PATH_LIB_ST}/CMSIS/Device/${FAMILLY} -I${PATH_LIB_ST}/CMSIS/Include
+INCLUDE_LIB_ST = -I. -I../stm32l-discovery -I${PATH_LIB_ST}/CMSIS/Device/${FAMILLY} -I${PATH_LIB_ST}/CMSIS/Core/Include -DSTM32L152xB
 
 # Bare-metal ARM toolchain. Overridable:
 #   make CROSS_COMPILE=/path/to/arm-none-eabi-

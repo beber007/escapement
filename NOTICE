@@ -37,10 +37,14 @@ This repository also vendors code owned by third parties, under their own
 licenses and copyright notices, which are kept intact in the corresponding
 source files:
 
-  * ARM CMSIS (Cortex Microcontroller Software Interface Standard)
-    Copyright (C) ARM Limited.
-    Escapement/CORTEX-Mx/STM32/Libraries/CMSIS/
+  * ARM CMSIS-Core 6.3.0, from github.com/ARM-software/CMSIS_6, Apache-2.0
+    Copyright (C) Arm Limited.
+    Escapement/CORTEX-Mx/STM32/Libraries/CMSIS/Core/
 
-  * STMicroelectronics STM32 device headers and system files
+  * STMicroelectronics STM32F4 and STM32L1 device headers, v2.6.11 and v2.3.4,
+    from github.com/STMicroelectronics/cmsis_device_f4 and cmsis_device_l1,
+    Apache-2.0
     Escapement/CORTEX-Mx/STM32/Libraries/CMSIS/Device/
+
+  * STMicroelectronics STM32F4 and STM32L1 system files (2011 and 2012)
     Escapement/CORTEX-Mx/STM32/Examples/*/system_stm32*.c

@@ -26,12 +26,11 @@ static inline void BoardStopTimerInDebug(UINT32 timer)
   else if (timer == OS_IO_TIM12) DBGMCU->APB1FZ |= DBGMCU_APB1_FZ_DBG_TIM12_STOP;
   else if (timer == OS_IO_TIM13) DBGMCU->APB1FZ |= DBGMCU_APB1_FZ_DBG_TIM13_STOP;
   else if (timer == OS_IO_TIM14) DBGMCU->APB1FZ |= DBGMCU_APB1_FZ_DBG_TIM14_STOP;
-  /* The device header names the APB2 bits DBGMCU_APB1_FZ_*, hence the plain values. */
-  else if (timer == OS_IO_TIM1)  DBGMCU->APB2FZ |= 1u << 0;
-  else if (timer == OS_IO_TIM8)  DBGMCU->APB2FZ |= 1u << 1;
-  else if (timer == OS_IO_TIM9)  DBGMCU->APB2FZ |= 1u << 16;
-  else if (timer == OS_IO_TIM10) DBGMCU->APB2FZ |= 1u << 17;
-  else if (timer == OS_IO_TIM11) DBGMCU->APB2FZ |= 1u << 18;
+  else if (timer == OS_IO_TIM1)  DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM1_STOP;
+  else if (timer == OS_IO_TIM8)  DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM8_STOP;
+  else if (timer == OS_IO_TIM9)  DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM9_STOP;
+  else if (timer == OS_IO_TIM10) DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM10_STOP;
+  else if (timer == OS_IO_TIM11) DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM11_STOP;
 }
 
 /* BoardKeepDebugInSleep: Keeps the debugger connected while the core sleeps. */

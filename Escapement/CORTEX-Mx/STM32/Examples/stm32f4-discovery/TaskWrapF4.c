@@ -74,8 +74,8 @@ void FixedDelayTask(void *argument)
 {
   volatile UINT32 i;
   TaskParametersDef *TaskParameters = (TaskParametersDef *)argument;
-  TaskParameters->GPIOx->BSRRL = TaskParameters->GPIO_Pin;
+  TaskParameters->GPIOx->BSRR = TaskParameters->GPIO_Pin;
   for (i = 0; i < TaskParameters->Delay; i += 1);
-  TaskParameters->GPIOx->BSRRH = TaskParameters->GPIO_Pin;
+  TaskParameters->GPIOx->BSRR = (UINT32)TaskParameters->GPIO_Pin << 16;
   OSEndTask();
 } /* end of FixedDelayTask */

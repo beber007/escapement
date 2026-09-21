@@ -78,12 +78,12 @@ void ToggleLed1Task(void *argument)
   static UINT8 state = 0;
   switch (state) {
      case 0:
-        FLAG_PORT->BSRRL = FLAG1_PIN;
+        FLAG_PORT->BSRR = FLAG1_PIN;
         OSScheduleTimerEvent(argument,1000,EVENT_TIMER_INDEX);
         break;
      case 1:
      default:
-        FLAG_PORT->BSRRH = FLAG1_PIN;
+        FLAG_PORT->BSRR = (UINT32)FLAG1_PIN << 16;
         OSScheduleTimerEvent(argument,4000,EVENT_TIMER_INDEX);
   }
   state = !state;
@@ -99,7 +99,7 @@ void ToggleLed2Task(void *argument)
   static UINT8 state = 0;
   switch (state) {
      case 0:
-        FLAG_PORT->BSRRL = FLAG2_PIN;
+        FLAG_PORT->BSRR = FLAG2_PIN;
         OSScheduleTimerEvent(argument,delay,EVENT_TIMER_INDEX);
         delay += 100;
         if (delay > 9000)
@@ -107,7 +107,7 @@ void ToggleLed2Task(void *argument)
         break;
      case 1:
      default:
-        FLAG_PORT->BSRRH = FLAG2_PIN;
+        FLAG_PORT->BSRR = (UINT32)FLAG2_PIN << 16;
         OSScheduleTimerEvent(argument,10000-delay,EVENT_TIMER_INDEX);
   }
   state = !state;

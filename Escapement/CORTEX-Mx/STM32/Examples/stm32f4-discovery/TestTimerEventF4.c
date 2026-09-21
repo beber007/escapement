@@ -72,7 +72,7 @@ void InitializeFlags(UINT16 GPIO_Pin)
 /* SetLed1Task: Sets a LED and triggers its clear after 1000 clock ticks. */
 void SetLed1Task(void *argument)
 {
-  FLAG_PORT->BSRRL = FLAG1_PIN;
+  FLAG_PORT->BSRR = FLAG1_PIN;
   OSScheduleTimerEvent(argument,1000,EVENT_TIMER_INDEX);
   OSEndTask();
 } /* end of SetLed1Task */
@@ -81,7 +81,7 @@ void SetLed1Task(void *argument)
 /* ClearLed1Task: Clears the LED toggled by SetLed1Task(). */
 void ClearLed1Task(void *argument)
 {
-  FLAG_PORT->BSRRH = FLAG1_PIN;
+  FLAG_PORT->BSRR = (UINT32)FLAG1_PIN << 16;
   OSSuspendSynchronousTask();
 } /* end of ClearLed1Task */
 
@@ -89,7 +89,7 @@ void ClearLed1Task(void *argument)
 /* SetLed2Task: Sets a LED and triggers its clear after 2000 clock ticks. */
 void SetLed2Task(void *argument)
 {
-  FLAG_PORT->BSRRL = FLAG2_PIN;
+  FLAG_PORT->BSRR = FLAG2_PIN;
   OSScheduleTimerEvent(argument,2000,EVENT_TIMER_INDEX);
   OSEndTask();
 } /* end of SetLed2Task */
@@ -98,6 +98,6 @@ void SetLed2Task(void *argument)
 /* ClearLed1Task: Clears the LED toggled by SetLed2Task(). */
 void ClearLed2Task(void *argument)
 {
-  FLAG_PORT->BSRRH = FLAG2_PIN;
+  FLAG_PORT->BSRR = (UINT32)FLAG2_PIN << 16;
   OSSuspendSynchronousTask();
 } /* end of ClearLed2Task */
