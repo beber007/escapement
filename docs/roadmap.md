@@ -99,9 +99,14 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       Fourteen of fifteen deliberate defects fail a check; the one that does not
       (event-driven deadlines no longer following one another) has no effect
       when tasks run in zero time.
-- [ ] Run the event-driven examples (`TestTimerEventF4`) under Renode, and the
-      RP2040 port, whose emulation works on Linux x86-64 (see
-      `emulation/renode/RP2040.md`).
+- [x] **Run `TestTimerEventF4` under Renode.** `escapement_f4_events.robot`
+      checks the high time and the period of both outputs within 2 %, which
+      takes the timer-event handler on TIM14 and the event-driven tasks it
+      wakes. TIM14 now uses the fixed timer model as TIM2 does: its driver also
+      forces a compare event through CC1G, a path this example happens not to
+      take.
+- [ ] Run the RP2040 port under Renode in CI: its emulation works on Linux
+      x86-64 (see `emulation/renode/RP2040.md`).
 - [ ] Settle `EscapementSoft` and deadline-monotonic scheduling: no
       configuration builds either, so they are either tested or removed.
 - [x] **Give the STM32 port a defined starting time.** The kernel assumed its

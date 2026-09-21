@@ -1,5 +1,7 @@
 // Copy of platforms/cpus/stm32f4.repl (Renode 1.17.0, MIT licence), with a
-// single change: TIM2 uses the fixed Escapement_STM32_Timer model.
+// single change: TIM2, the kernel clock, and TIM14, the timer-event handler of
+// TestTimerEventF4, use the fixed Escapement_STM32_Timer model. Both drivers force
+// a compare event through CC1G, which the stock model turns into an update event.
 // Since Renode does not allow a node to be redeclared, the file has to be derived.
 
 fsmcBank1: Memory.MappedMemory @ sysbus 0x60000000
@@ -249,7 +251,7 @@ timer13: Timers.STM32_Timer @ sysbus 0x40001C00
     frequency: 10000000
     initialLimit: 0xFFFF
 
-timer14: Timers.STM32_Timer @ sysbus 0x40002000
+timer14: Timers.Escapement_STM32_Timer @ sysbus 0x40002000
     -> nvic@45
     frequency: 10000000
     initialLimit: 0xFFFF
