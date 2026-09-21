@@ -77,11 +77,14 @@
 #endif
 
 /* The two kernels take different parameters to create a task. Under the soft kernel every
-** task here is (1,1)-firm, i.e. hard, with no declared execution time. */
+** periodic task here is (1,1)-firm, i.e. hard, with no declared execution time. Its
+** event-driven tasks take their workload directly under deadline-monotonic scheduling but
+** compute it under EDF, as (wcet << 8) / aperiodicUtilization: half the workload at an
+** utilisation of 128 gives it back, where zero for both divides by zero. */
 #if defined(ESCAPEMENT_VERSION_SOFT)
    #define CREATE_TASK(code, period, arg) OSCreateTask(code, 0, 0, period, period, 1, 1, 0, arg)
    #define CREATE_SYNCHRONOUS_TASK(code, workload, event, arg) \
-              OSCreateSynchronousTask(code, 0, workload, 0, event, arg)
+              OSCreateSynchronousTask(code, (workload) / 2, workload, 128, event, arg)
 #else
    #define CREATE_TASK(code, period, arg) OSCreateTask(code, 0, period, period, arg)
    #define CREATE_SYNCHRONOUS_TASK(code, workload, event, arg) \

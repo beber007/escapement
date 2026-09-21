@@ -14,7 +14,10 @@
 #   make -C test/host run
 
 CC ?= cc
-CFLAGS = -I. -I../../Escapement -Wall -O1 -g
+# An integer division by zero traps on x86 but yields 0 on arm64, so a test could pass on
+# one host and crash on the other: the sanitizer makes it an error on both.
+CFLAGS = -I. -I../../Escapement -Wall -O1 -g -fsanitize=integer-divide-by-zero \
+         -fno-sanitize-recover=all
 HARD = ../../Escapement/EscapementHard.c
 SOFT = ../../Escapement/EscapementSoft.c
 HEADERS = Escapement.h Escapement_Config.h Escapement_Types.h Escapement_Processor.h \

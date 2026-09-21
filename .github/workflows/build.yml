@@ -180,7 +180,10 @@ jobs:
       - name: Build the examples and their raw images
         run: |
           for example in ${{ matrix.build }}; do
-            make -C "Escapement/CORTEX-Mx/STM32/Examples/$example" bin ${{ matrix.make }}
+            dir="Escapement/CORTEX-Mx/STM32/Examples/$example"
+            # Only the examples that Renode runs have raw images to make.
+            if grep -q '^bin:' "$dir/Makefile"; then target=bin; else target=all; fi
+            make -C "$dir" $target ${{ matrix.make }}
           done
           if [ "${{ matrix.pico }}" = true ]; then
             make -C Escapement/CORTEX-Mx/RP2040/Examples/pico ${{ matrix.make }}
