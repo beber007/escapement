@@ -43,7 +43,7 @@ Escapement/
   EscapementHard.{c,h}      hard real-time kernel
   EscapementSoft.{c,h}      soft real-time kernel
   EscapementHardPA.{c,h}    power-aware hard real-time kernel
-  CORTEX-Mx/                ARM port (STM32, CMSIS, StdPeriph)
+  CORTEX-Mx/                ARM port (STM32, CMSIS)
   CORTEX-Mx/STM32/Examples/ five examples with a Makefile
   CORTEX-Mx/RP2040/Examples/ Raspberry Pi Pico example
 tools/                      trace capture and figure generation

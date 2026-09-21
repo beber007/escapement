@@ -41,5 +41,6 @@ source files:
     Copyright (C) ARM Limited.
     Escapement/CORTEX-Mx/STM32/Libraries/CMSIS/
 
-  * STMicroelectronics STM32 Standard Peripheral Libraries
-    Escapement/CORTEX-Mx/STM32/Libraries/STM32*_StdPeriph_Driver/
+  * STMicroelectronics STM32 device headers and system files
+    Escapement/CORTEX-Mx/STM32/Libraries/CMSIS/Device/
+    Escapement/CORTEX-Mx/STM32/Examples/*/system_stm32*.c

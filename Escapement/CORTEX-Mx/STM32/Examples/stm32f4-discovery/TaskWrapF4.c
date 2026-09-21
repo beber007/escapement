@@ -18,12 +18,12 @@
 */
 
 #include "Escapement.h"
-#include "stm32f4xx.h"
+#include "BoardF4.h"
 
 #define FLAG_PORT GPIOB
-#define FLAG1_PIN GPIO_Pin_13
-#define FLAG2_PIN GPIO_Pin_14
-#define FLAG3_PIN GPIO_Pin_15
+#define FLAG1_PIN PIN(13)
+#define FLAG2_PIN PIN(14)
+#define FLAG3_PIN PIN(15)
 
 typedef struct TaskParametersDef {
    GPIO_TypeDef* GPIOx;
@@ -64,14 +64,8 @@ int main(void)
 /* InitializeFlags: Initialize input/output pin for flags. */
 void InitializeFlags(UINT16 GPIO_Pin)
 {
-  GPIO_InitTypeDef GPIO_InitStructure;
-  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOB, &GPIO_InitStructure);
+  /* Configure the flag pins as push-pull outputs */
+  BoardInitOutputs(GPIOB, GPIO_Pin);
 } /* end of InitializeFlags */
 
 
@@ -80,8 +74,8 @@ void FixedDelayTask(void *argument)
 {
   volatile UINT32 i;
   TaskParametersDef *TaskParameters = (TaskParametersDef *)argument;
-  GPIO_SetBits(TaskParameters->GPIOx,TaskParameters->GPIO_Pin);
+  TaskParameters->GPIOx->BSRRL = TaskParameters->GPIO_Pin;
   for (i = 0; i < TaskParameters->Delay; i += 1);
-  GPIO_ResetBits(TaskParameters->GPIOx,TaskParameters->GPIO_Pin);
+  TaskParameters->GPIOx->BSRRH = TaskParameters->GPIO_Pin;
   OSEndTask();
 } /* end of FixedDelayTask */

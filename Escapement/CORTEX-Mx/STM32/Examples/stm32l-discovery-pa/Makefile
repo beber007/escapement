@@ -14,7 +14,7 @@ CONF_HEADER_FILE = Escapement_$(FAMILLY_LC).h
 
 PATH_LIB_ST = ../../Libraries
 
-INCLUDE_LIB_ST = -I. -I../stm32l-discovery -I${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/inc -I${PATH_LIB_ST}/CMSIS/Device/${FAMILLY} -I${PATH_LIB_ST}/CMSIS/Include
+INCLUDE_LIB_ST = -I. -I../stm32l-discovery -I${PATH_LIB_ST}/CMSIS/Device/${FAMILLY} -I${PATH_LIB_ST}/CMSIS/Include
 
 # Bare-metal ARM toolchain. Overridable:
 #   make CROSS_COMPILE=/path/to/arm-none-eabi-
@@ -54,28 +54,7 @@ OBJECTS_ESCAPEMENT = build/Escapement_UART.o \
           build/EscapementHardPA.o \
           build/Escapement_Processor.o \
           
-OBJECTS_LIB = build/system_stm32l1xx.o \
-              build/stm32l1xx_adc.o \
-              build/stm32l1xx_crc.o \
-              build/stm32l1xx_comp.o \
-              build/stm32l1xx_dac.o \
-              build/stm32l1xx_dbgmcu.o \
-              build/stm32l1xx_dma.o \
-              build/stm32l1xx_exti.o \
-              build/stm32l1xx_flash.o \
-              build/stm32l1xx_gpio.o \
-              build/stm32l1xx_syscfg.o \
-              build/stm32l1xx_i2c.o \
-              build/stm32l1xx_iwdg.o \
-              build/stm32l1xx_lcd.o \
-              build/stm32l1xx_pwr.o \
-              build/stm32l1xx_rcc.o \
-              build/stm32l1xx_rtc.o \
-              build/stm32l1xx_spi.o \
-              build/stm32l1xx_tim.o \
-              build/stm32l1xx_usart.o \
-              build/stm32l1xx_wwdg.o \
-              build/misc.o
+OBJECTS_LIB = build/system_stm32l1xx.o
 
 build/Escapement_Atomic.o : ../../../Escapement_Atomic.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
@@ -98,48 +77,6 @@ build/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
 
 
 build/system_stm32l1xx.o : ../stm32l-discovery/system_stm32l1xx.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_adc.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_adc.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_crc.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_crc.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_comp.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_comp.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_dac.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_dac.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_dbgmcu.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_dbgmcu.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_dma.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_dma.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_exti.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_exti.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_flash.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_flash.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_gpio.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_gpio.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_syscfg.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_syscfg.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_i2c.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_i2c.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_iwdg.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_iwdg.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_lcd.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_lcd.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_pwr.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_pwr.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_rcc.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_rcc.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_rtc.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_rtc.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_spi.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_spi.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_tim.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_tim.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_usart.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_usart.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/stm32l1xx_wwdg.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/stm32l1xx_wwdg.c
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
-build/misc.o : ${PATH_LIB_ST}/${FAMILLY}_StdPeriph_Driver/src/misc.c
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) -o $@ $<
 
 

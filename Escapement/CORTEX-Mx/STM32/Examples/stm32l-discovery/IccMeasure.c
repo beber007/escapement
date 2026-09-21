@@ -7,7 +7,7 @@
 */
 
 #include "Escapement.h"
-#include "stm32l1xx.h"
+#include "BoardL1.h"
 
 static void InitCurrentMeasurement(void);
 static UINT16 GetCurrentMeasurement (void);
@@ -19,7 +19,7 @@ int main(void)
   UINT32 i;
 
   /* Keep debugger connection during sleep mode */
-  DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
+  BoardKeepDebugInSleep();
 
   /* Initialize Hardware */
   SystemInit();
@@ -59,45 +59,40 @@ int main(void)
 /* ADC initialization (ADC_Channel_4) */
 void InitCurrentMeasurement(void)
 {
-  ADC_InitTypeDef ADC_InitStructure;
-  GPIO_InitTypeDef GPIO_InitStructure;
   /* Enable GPIOA clock */
-  RCC_AHBPeriphClockCmd(GPIOA, ENABLE);
-  /* Configure ADC (GPIO_Pin_4) pin as analog */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4  ;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
-  GPIO_Init( GPIOA, &GPIO_InitStructure);
+  BoardEnablePort(GPIOA);
+  /* Configure ADC (PA4) pin as analog */
+  GPIOA->MODER |= 3u << (2 * 4);
   /* Enable HSI Clock */
-  RCC_HSICmd(ENABLE);
+  RCC->CR |= RCC_CR_HSION;
   /*!< Wait till HSI is ready */
-  while (RCC_GetFlagStatus(RCC_FLAG_HSIRDY) == RESET);
+  while ((RCC->CR & RCC_CR_HSIRDY) == 0);
   /* Enable ADC clock */
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
- /*  de-initialize ADC */
-  ADC_DeInit(ADC1);
-  /* ADC Configuration */
-  ADC_StructInit(&ADC_InitStructure);
-  ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b;
-  ADC_InitStructure.ADC_ScanConvMode = ENABLE;
-  ADC_InitStructure.ADC_ContinuousConvMode = DISABLE;
-  ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;
-  ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
-  ADC_InitStructure.ADC_NbrOfConversion = 1;
-  ADC_Init(ADC1, &ADC_InitStructure);
-  /* ADC1 regular channel4 configuration */
-  ADC_RegularChannelConfig(ADC1, ADC_Channel_4, 1, ADC_SampleTime_192Cycles);
-  ADC_DelaySelectionConfig(ADC1, ADC_DelayLength_Freeze);
+  RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
+  /*  de-initialize ADC */
+  RCC->APB2RSTR |= RCC_APB2RSTR_ADC1RST;
+  RCC->APB2RSTR &= ~RCC_APB2RSTR_ADC1RST;
+  /* ADC Configuration: 12-bit resolution, scan mode, single conversion, no external
+  ** trigger, right-aligned data, one conversion in the regular sequence */
+  ADC1->CR1 = ADC_CR1_SCAN;
+  ADC1->CR2 = 0;
+  ADC1->SQR1 = 0;
+  /* ADC1 regular channel4 configuration: first in the sequence, sampled for 192 cycles */
+  ADC1->SQR5 = 4;
+  ADC1->SMPR3 = (ADC1->SMPR3 & ~ADC_SMPR3_SMP4) | (6u << 12);
+  /* Freeze the ADC until the converted data has been read */
+  ADC1->CR2 |= ADC_CR2_DELS_0;
   /* Enable ADC1 */
-  ADC_Cmd(ADC1, ENABLE);
+  ADC1->CR2 |= ADC_CR2_ADON;
   /* Wait until ADC1 ON status */
-  while (ADC_GetFlagStatus(ADC1, ADC_FLAG_ADONS) == RESET);
+  while ((ADC1->SR & ADC_SR_ADONS) == 0);
 } /* end of InitCurrentMeasurement */
 
 
 /* Current measurement */
 UINT16 GetCurrentMeasurement (void)
 {
-  ADC_SoftwareStartConv(ADC1);
-  while( ADC_GetFlagStatus(ADC1,ADC_FLAG_EOC) == 0);
-  return ADC_GetConversionValue(ADC1) >> 2;
+  ADC1->CR2 |= ADC_CR2_SWSTART;
+  while ((ADC1->SR & ADC_SR_EOC) == 0);
+  return ADC1->DR >> 2;
 } /* end of GetCurrentMeasurement */

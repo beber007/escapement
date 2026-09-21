@@ -10,7 +10,7 @@
 #include "Escapement.h"
 #include "Escapement_UART.h"
 
-#include "stm32l1xx.h"
+#include "BoardL1.h"
 
 /* UART transmit FIFO buffer size definitions */
 #define UART_TRANSMIT_FIFO_NB_NODE    1
@@ -25,21 +25,7 @@ static void InitializeUART2Hardware(void);
 int main(void)
 {
   /* Stop timer during debugger connection */
-  #if ESCAPEMENT_TIMER == OS_IO_TIM11
-     DBGMCU_APB2PeriphConfig(DBGMCU_TIM11_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM10
-     DBGMCU_APB2PeriphConfig(DBGMCU_TIM10_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM9
-     DBGMCU_APB2PeriphConfig(DBGMCU_TIM9_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM5
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM5_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM4
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM4_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM3
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM3_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM2
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM2_STOP,ENABLE);
-  #endif
+  BoardStopTimerInDebug(ESCAPEMENT_TIMER);
   /* Initialize Hardware */
   SystemInit();
   /* Initialize Escapement I/O UART drivers */
@@ -59,53 +45,36 @@ int main(void)
 **  is connected to PA 3*/
 void InitializeUART2Hardware(void)
 {
-  USART_InitTypeDef USART_InitStructure;
-  GPIO_InitTypeDef GPIO_InitStructure;
-  NVIC_InitTypeDef NVIC_InitStructure;
+  UINT32 ppre1, pclk1;
   /* Enable USART2 and GPIOA clocks */
-  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA,ENABLE);
-  RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2,ENABLE);
-  /* Connect PA2 to USART2_Tx*/
-  //GPIO_PinAFConfig(GPIOA,GPIO_PinSource2,GPIO_AF_USART2);
-  /* Connect PA3 to USART2_Rx*/
-  //GPIO_PinAFConfig(GPIOA,GPIO_PinSource3,GPIO_AF_USART2);
-  /* Configure USART2 Tx (PA2) as alternate function push-pull */
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_40MHz;
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
-  GPIO_Init(GPIOA, &GPIO_InitStructure);
-  /* Configure USART2 Rx (PA3) as alternate function */
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
-  GPIO_Init(GPIOA, &GPIO_InitStructure);
-  /* USART2 configuration */
-  /* USART configured as follow:
-     - BaudRate = 115200 baud
+  BoardEnablePort(GPIOA);
+  RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
+  /* Connect PA2 to USART2_Tx and PA3 to USART2_Rx */
+  //GPIOA->AFR[0] = (GPIOA->AFR[0] & ~(0xFFu << 8)) | (0x77u << 8);
+  /* PA2 and PA3 in alternate function mode, push-pull, 40 MHz, pull-up */
+  GPIOA->MODER = (GPIOA->MODER & ~(0xFu << 4)) | (0xAu << 4);
+  GPIOA->OTYPER &= ~(PIN(2) | PIN(3));
+  GPIOA->OSPEEDR = (GPIOA->OSPEEDR & ~(0xFu << 4)) | (0xFu << 4);
+  GPIOA->PUPDR = (GPIOA->PUPDR & ~(0xFu << 4)) | (0x5u << 4);
+  /* USART2 configured as follow:
+     - BaudRate = 115200 baud, from the APB1 clock with oversampling by 16
      - Word Length = 8 Bits
      - One Stop Bit
      - No parity
      - Hardware flow control disabled (RTS and CTS signals)
-     - Receive and transmit enabled */
-  USART_InitStructure.USART_BaudRate = 115200;
-  USART_InitStructure.USART_WordLength = USART_WordLength_8b;
-  USART_InitStructure.USART_StopBits = USART_StopBits_1;
-  USART_InitStructure.USART_Parity = USART_Parity_No;
-  USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-  USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
-  /* Configure USART2 */
-  USART_Init(USART2,&USART_InitStructure);
-  /* Enable USART2 Receive and Transmit interrupts */
-  USART_ITConfig(USART2,USART_IT_RXNE,ENABLE);
-  //USART_ITConfig(USART2,USART_IT_TXE,ENABLE);
+     - Receive and transmit enabled, with the receive interrupt */
+  SystemCoreClockUpdate();
+  ppre1 = (RCC->CFGR & RCC_CFGR_PPRE1) / RCC_CFGR_PPRE1_0;
+  pclk1 = (ppre1 & 4) ? SystemCoreClock >> ((ppre1 & 3) + 1) : SystemCoreClock;
+  USART2->BRR = (pclk1 + 115200 / 2) / 115200;
+  USART2->CR2 &= ~USART_CR2_STOP;
+  USART2->CR3 &= ~(USART_CR3_RTSE | USART_CR3_CTSE);
+  USART2->CR1 = USART_CR1_RE | USART_CR1_TE | USART_CR1_RXNEIE;
   /* Enable the USART2 */
-  USART_Cmd(USART2, ENABLE);
-  /* Enable the USART2 Interrupt */
-  NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
-//  NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
-  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-  NVIC_Init(&NVIC_InitStructure);
+  USART2->CR1 |= USART_CR1_UE;
+  /* Enable the USART2 Interrupt, one priority group below the kernel timer */
+  NVIC_SetPriority(USART2_IRQn, (TIMER_PRIORITY + 1) << (PRIGROUP - 3));
+  NVIC_EnableIRQ(USART2_IRQn);
 } /* end of InitializeUARTHardware */
 
 

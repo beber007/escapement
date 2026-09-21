@@ -10,12 +10,12 @@
 */
 
 #include "Escapement.h"
-#include "stm32f4xx.h"
+#include "BoardF4.h"
 
 #define FLAG_PORT GPIOB
-#define FLAG1_PIN GPIO_Pin_13
-#define FLAG2_PIN GPIO_Pin_14
-#define FLAG3_PIN GPIO_Pin_15
+#define FLAG1_PIN PIN(13)
+#define FLAG2_PIN PIN(14)
+#define FLAG3_PIN PIN(15)
 
 typedef struct TaskParametersDef {
    GPIO_TypeDef* GPIOx; // Output port for the task
@@ -32,33 +32,9 @@ int main(void)
 {
   TaskParametersDef *TaskParameters;
   /* Stop timer during debugger connection */
-  #if ESCAPEMENT_TIMER == OS_IO_TIM14
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM14_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM13
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM13_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM12
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM12_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM11
-     DBGMCU_APB2PeriphConfig(DBGMCU_TIM11_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM10
-     DBGMCU_APB2PeriphConfig(DBGMCU_TIM10_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM9
-     DBGMCU_APB2PeriphConfig(DBGMCU_TIM9_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM8
-     DBGMCU_APB2PeriphConfig(DBGMCU_TIM8_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM5
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM5_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM4
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM4_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM3
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM3_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM2
-     DBGMCU_APB1PeriphConfig(DBGMCU_TIM2_STOP,ENABLE);
-  #elif ESCAPEMENT_TIMER == OS_IO_TIM1
-     DBGMCU_APB2PeriphConfig(DBGMCU_TIM1_STOP,ENABLE);
-  #endif
+  BoardStopTimerInDebug(ESCAPEMENT_TIMER);
   /* Keep debugger connection during sleep mode */
-  DBGMCU_Config(DBGMCU_SLEEP,ENABLE);
+  BoardKeepDebugInSleep();
   /* Initialize Hardware */
   SystemInit();
   InitializeFlags(FLAG1_PIN | FLAG2_PIN | FLAG3_PIN);
@@ -106,16 +82,8 @@ int main(void)
 /* InitializeFlags: Initialize input/output pin for flags.*/
 void InitializeFlags(UINT16 GPIO_Pin)
 {
-  GPIO_InitTypeDef GPIO_InitStructure;
-  /* Enable GPIO_LED clock */
-  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
-  /* Configure GPIO_LED Pin as Output push-pull */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOB, &GPIO_InitStructure);
+  /* Configure the flag pins as push-pull outputs */
+  BoardInitOutputs(GPIOB, GPIO_Pin);
 } /* end of InitializeFlags */
 
 
@@ -126,9 +94,9 @@ void FixedDelayTask(void *argument)
 {
   volatile UINT32 i;
   TaskParametersDef *TaskParameters = (TaskParametersDef *)argument;
-  GPIO_SetBits(TaskParameters->GPIOx,TaskParameters->GPIO_Pin);
+  TaskParameters->GPIOx->BSRRL = TaskParameters->GPIO_Pin;
   for (i = 0; i < TaskParameters->Delay; i += 1);
-  GPIO_ResetBits(TaskParameters->GPIOx,TaskParameters->GPIO_Pin);
+  TaskParameters->GPIOx->BSRRH = TaskParameters->GPIO_Pin;
   OSEndTask();
 } /* end of FixedDelayTask */
 
@@ -145,8 +113,8 @@ void VariableDelayTask(void *argument)
      k = 1;
   else
      k++;
-  GPIO_SetBits(TaskParameters->GPIOx,TaskParameters->GPIO_Pin);
+  TaskParameters->GPIOx->BSRRL = TaskParameters->GPIO_Pin;
   for (i = 0; i < k; i++);
-  GPIO_ResetBits(TaskParameters->GPIOx,TaskParameters->GPIO_Pin);
+  TaskParameters->GPIOx->BSRRH = TaskParameters->GPIO_Pin;
   OSEndTask();
 } /* end of VariableDelayTask */
