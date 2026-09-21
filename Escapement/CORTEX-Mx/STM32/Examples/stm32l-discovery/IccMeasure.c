@@ -25,6 +25,7 @@ int main(void)
 
   /* Initialize Hardware */
   SystemInit();
+  BoardInitClock();
   InitCurrentMeasurement();
 
   OSInitProcessorSpeed();

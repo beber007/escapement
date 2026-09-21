@@ -15,6 +15,39 @@
 
 #define PIN(n) ((UINT16)(1u << (n)))
 
+/* BoardInitClock: Runs the core at 32 MHz from the 16 MHz internal oscillator, through
+** the PLL (x4, /2), with AHB and both APB buses at 32 MHz. ST's current SystemInit()
+** leaves the clocks alone, and the timer prescalers in Escapement_Config.h assume this
+** frequency. */
+static inline void BoardInitClock(void)
+{
+  /* Back to the reset configuration, in case the debugger restarted without a reset */
+  RCC->CR |= RCC_CR_MSION;
+  RCC->CFGR &= 0x88FFC00C;   /* SW, HPRE, PPRE1, PPRE2, MCOSEL and MCOPRE */
+  RCC->CR &= ~(RCC_CR_HSION | RCC_CR_HSEON | RCC_CR_CSSON | RCC_CR_PLLON);
+  RCC->CR &= ~RCC_CR_HSEBYP;
+  RCC->CFGR &= ~(RCC_CFGR_PLLSRC | RCC_CFGR_PLLMUL | RCC_CFGR_PLLDIV);
+  RCC->CIR = 0;
+  /* Start the internal oscillator */
+  RCC->CR |= RCC_CR_HSION;
+  while ((RCC->CR & RCC_CR_HSIRDY) == 0);
+  /* 64-bit flash access, prefetch, one wait state */
+  FLASH->ACR |= FLASH_ACR_ACC64;
+  FLASH->ACR |= FLASH_ACR_PRFTEN;
+  FLASH->ACR |= FLASH_ACR_LATENCY;
+  /* Voltage range 1 (1.8 V), required above 16 MHz */
+  RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+  PWR->CR = PWR_CR_VOS_0;
+  while (PWR->CSR & PWR_CSR_VOSF);
+  RCC->CFGR |= RCC_CFGR_HPRE_DIV1 | RCC_CFGR_PPRE2_DIV1 | RCC_CFGR_PPRE1_DIV1;
+  RCC->CFGR |= RCC_CFGR_PLLSRC_HSI | RCC_CFGR_PLLMUL4 | RCC_CFGR_PLLDIV2;
+  RCC->CR |= RCC_CR_PLLON;
+  while ((RCC->CR & RCC_CR_PLLRDY) == 0);
+  RCC->CFGR = (RCC->CFGR & ~RCC_CFGR_SW) | RCC_CFGR_SW_PLL;
+  while ((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_PLL);
+  SystemCoreClockUpdate();
+}
+
 /* BoardStopTimerInDebug: Freezes a timer while the debugger halts the core, so that the
 ** kernel does not see time pass at a breakpoint (DBGMCU_APB1_FZ and DBGMCU_APB2_FZ). */
 static inline void BoardStopTimerInDebug(UINT32 timer)

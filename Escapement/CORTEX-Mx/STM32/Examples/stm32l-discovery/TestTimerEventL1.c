@@ -35,6 +35,7 @@ int main(void)
   BoardStopTimerInDebug(ESCAPEMENT_TIMER);
   /* Initialize Hardware */
   SystemInit();
+  BoardInitClock();
   InitializeFlags(FLAG1_PIN | FLAG2_PIN);
   OSInitTimerEvent(2,83,0,0,EVENT_TIMER_INDEX);
   #if defined(ESCAPEMENT_VERSION_HARD)

@@ -18,9 +18,9 @@ All four are built on every push by the CI:
 
 | Example | Core | MCU | Tasks | `text` / `data` / `bss` |
 |---|---|---|---|---|
-| `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 | 3,840 / 477 / 36 |
-| `stm32l-discovery` | Cortex-M3 | STM32L152RB | 4 | 3,936 / 5 / 216 |
-| `stm32l-discovery-pa` | Cortex-M3 | STM32L152RB | 1 (*power-aware*) | 4,502 / 7 / 224 |
+| `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 | 3,920 / 484 / 36 |
+| `stm32l-discovery` | Cortex-M3 | STM32L152RB | 4 | 4,005 / 12 / 216 |
+| `stm32l-discovery-pa` | Cortex-M3 | STM32L152RB | 1 (*power-aware*) | 4,569 / 12 / 224 |
 | `RP2040/Examples/pico` | Cortex-M0+ | RP2040 | 4 | 5,160 / 8 / 160 |
 
 Bytes of the `TaskLED` target, that is the whole kernel plus the periodic tasks

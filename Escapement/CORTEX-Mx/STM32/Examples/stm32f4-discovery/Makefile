@@ -14,7 +14,7 @@ CONF_HEADER_FILE = Escapement_$(FAMILLY_LC).h
 
 PATH_LIB_ST = ../../Libraries
 
-INCLUDE_LIB_ST = -I. -I${PATH_LIB_ST}/CMSIS/Device/${FAMILLY} -I${PATH_LIB_ST}/CMSIS/Core/Include -DSTM32F407xx
+INCLUDE_LIB_ST = -I. -I${PATH_LIB_ST}/CMSIS/Device/${FAMILLY} -I${PATH_LIB_ST}/CMSIS/Core/Include -DSTM32F407xx -DUSER_VECT_TAB_ADDRESS -DHSE_VALUE=8000000
 
 # Bare-metal ARM toolchain. Overridable:
 #   make CROSS_COMPILE=/path/to/arm-none-eabi-

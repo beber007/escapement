@@ -37,6 +37,7 @@ int main(void)
   BoardKeepDebugInSleep();
   /* Initialize Hardware */
   SystemInit();
+  BoardInitClock();
   InitializeFlags(FLAG1_PIN | FLAG2_PIN);
   /* Define and start the event handlers */
   OSInitTimerEvent(2,31,0,0,EVENT_TIMER_INDEX);

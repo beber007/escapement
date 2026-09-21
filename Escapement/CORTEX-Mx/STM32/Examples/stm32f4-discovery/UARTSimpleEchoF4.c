@@ -29,6 +29,7 @@ int main(void)
   BoardKeepDebugInSleep();
   /* Initialize Hardware */
   SystemInit();
+  BoardInitClock();
   /* Initialize Escapement I/O UART drivers */
   OSInitUART(UART_TRANSMIT_FIFO_NB_NODE,UART_TRANSMIT_FIFO_NODE_SIZE,
              UARTUserReceiveInterruptHandler,UART_VECTOR);

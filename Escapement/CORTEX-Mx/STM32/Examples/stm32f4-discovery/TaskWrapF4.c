@@ -39,6 +39,7 @@ int main(void)
 {
   TaskParametersDef *TaskParameters;
   SystemInit();
+  BoardInitClock();
   InitializeFlags(FLAG1_PIN | FLAG2_PIN | FLAG3_PIN);
   /* A tick is a tenth of a nanosecond here, so these periods are 1, 2 and 6 ms — the same
   ** ratios as TaskLEDF4 and the same real load, with a counter that wraps inside a test. */

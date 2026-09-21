@@ -15,6 +15,41 @@
 
 #define PIN(n) ((UINT16)(1u << (n)))
 
+/* BoardInitClock: Runs the core at 168 MHz from the 8 MHz crystal of the board, through
+** the main PLL (M = 8, N = 336, P = 2, Q = 7), with AHB at 168 MHz and both APB buses at
+** 42 MHz. ST's current SystemInit() leaves the clocks alone, and the timer prescalers in
+** Escapement_Config.h assume these frequencies. Should the crystal not start, the core
+** stays on the 16 MHz internal oscillator. */
+static inline void BoardInitClock(void)
+{
+  UINT32 timeout;
+  /* Back to the reset configuration, in case the debugger restarted without a reset */
+  RCC->CR |= RCC_CR_HSION;
+  RCC->CFGR = 0;
+  RCC->CR &= ~(RCC_CR_HSEON | RCC_CR_CSSON | RCC_CR_PLLON);
+  RCC->PLLCFGR = 0x24003010;
+  RCC->CR &= ~RCC_CR_HSEBYP;
+  RCC->CIR = 0;
+  /* Start the crystal oscillator */
+  RCC->CR |= RCC_CR_HSEON;
+  for (timeout = 0x500; (RCC->CR & RCC_CR_HSERDY) == 0 && timeout > 0; timeout -= 1);
+  if (RCC->CR & RCC_CR_HSERDY) {
+     /* Regulator in scale 1 mode, required up to 168 MHz */
+     RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+     PWR->CR |= PWR_CR_VOS;
+     RCC->CFGR |= RCC_CFGR_HPRE_DIV1 | RCC_CFGR_PPRE2_DIV4 | RCC_CFGR_PPRE1_DIV4;
+     RCC->PLLCFGR = 8 | (336 << RCC_PLLCFGR_PLLN_Pos) | (((2 >> 1) - 1) << RCC_PLLCFGR_PLLP_Pos) |
+                    RCC_PLLCFGR_PLLSRC_HSE | (7 << RCC_PLLCFGR_PLLQ_Pos);
+     RCC->CR |= RCC_CR_PLLON;
+     while ((RCC->CR & RCC_CR_PLLRDY) == 0);
+     /* Instruction and data caches, 5 wait states */
+     FLASH->ACR = FLASH_ACR_ICEN | FLASH_ACR_DCEN | FLASH_ACR_LATENCY_5WS;
+     RCC->CFGR = (RCC->CFGR & ~RCC_CFGR_SW) | RCC_CFGR_SW_PLL;
+     while ((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_PLL);
+  }
+  SystemCoreClockUpdate();
+}
+
 /* BoardStopTimerInDebug: Freezes a timer while the debugger halts the core, so that the
 ** kernel does not see time pass at a breakpoint (DBGMCU_APB1_FZ and DBGMCU_APB2_FZ). */
 static inline void BoardStopTimerInDebug(UINT32 timer)
