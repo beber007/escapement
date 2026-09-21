@@ -11,6 +11,7 @@
 #define _ASM_
 
 #include "Escapement_Config.h"
+#include "Escapement_Modes.h"   /* before the tests of SCHEDULER_REAL_TIME_MODE below */
 
 .syntax unified
 

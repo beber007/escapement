@@ -11,6 +11,8 @@
 #ifndef _ESCAPEMENT_CORTEXMX_H_
 #define _ESCAPEMENT_CORTEXMX_H_
 
+#include "Escapement_Modes.h"   /* before the tests of SCHEDULER_REAL_TIME_MODE below */
+
 /* Offsets the context switch reads out of a task control block. _OSContextSwapHandler is
 ** written in assembler and cannot see the C structure, so it addresses these fields by
 ** hand. The kernel variants check them with _Static_assert against their own TCB, which

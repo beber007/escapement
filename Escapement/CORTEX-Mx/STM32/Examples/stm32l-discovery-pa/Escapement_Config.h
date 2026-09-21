@@ -13,7 +13,9 @@
 
 /* Scheduling algorithm. EscapementHard.h defines the names before reading this choice and
 ** falls back to deadline-monotonic when an application says nothing. */
-#define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
+#ifndef SCHEDULER_REAL_TIME_MODE   /* make SCHEDULER=... builds the other one */
+   #define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
+#endif
 
 /* Uncomment the line below that corresponds to your target STM32 device while leaving
 ** the others commented. */

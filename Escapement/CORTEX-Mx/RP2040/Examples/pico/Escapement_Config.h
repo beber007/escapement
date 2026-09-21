@@ -12,7 +12,9 @@
 
 /* Scheduling algorithm. EscapementHard.h defines the names before reading this choice and
 ** falls back to deadline-monotonic when an application says nothing. */
-#define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
+#ifndef SCHEDULER_REAL_TIME_MODE   /* make SCHEDULER=... builds the other one */
+   #define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
+#endif
 
 #define RP2040
 #define CORTEX_M0
@@ -26,9 +28,11 @@
 //#define ESCAPEMENT_MEASURE_SCHEDULING_COST
 
 
-/* Select which Escapement version to use. */
-#define ESCAPEMENT_VERSION_HARD
-//#define ESCAPEMENT_VERSION_SOFT
+/* Select which Escapement version to use: the hard real-time kernel, unless the build asks
+** for the soft one with make KERNEL=SOFT. */
+#ifndef ESCAPEMENT_VERSION_SOFT
+   #define ESCAPEMENT_VERSION_HARD
+#endif
 //#define ESCAPEMENT_VERSION_HARD_PA
 
 

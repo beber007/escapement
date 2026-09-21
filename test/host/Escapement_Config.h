@@ -13,9 +13,16 @@
 #define ESCAPEMENT_CONFIG_H_
 
 #define ESCAPEMENT_HOST
-#define ESCAPEMENT_VERSION_HARD
 
-/* Scheduling algorithm. The names come from EscapementHard.h, which defines them before
+/* Kernel variant: HOST_KERNEL_SOFT selects the soft real-time kernel, with its (m,k)-firm
+** tasks, and the hard real-time kernel is built otherwise. */
+#ifdef HOST_KERNEL_SOFT
+   #define ESCAPEMENT_VERSION_SOFT
+#else
+   #define ESCAPEMENT_VERSION_HARD
+#endif
+
+/* Scheduling algorithm. The names come from the kernel header, which defines them before
 ** reading this choice; HOST_SCHEDULER lets the test build both ways. */
 #ifndef HOST_SCHEDULER
    #define HOST_SCHEDULER 1

@@ -5,7 +5,7 @@
 | Variant | Files | Use |
 |---|---|---|
 | **Hard** | `Escapement/EscapementHard.{c,h}` | Hard real time: deadlines are guaranteed |
-| **Soft** | `Escapement/EscapementSoft.{c,h}` | Soft real time: aperiodic tasks tolerating overruns |
+| **Soft** | `Escapement/EscapementSoft.{c,h}` | (m,k)-firm real time: out of every k instances of a task, m are guaranteed and the others run only if they can finish in time |
 | **Hard PA** | `Escapement/EscapementHardPA.{c,h}` | Hard real time plus dynamic energy management (DVFS) |
 
 ## Scheduling algorithm
@@ -18,9 +18,25 @@ declared deadlines. An application picks one in its `Escapement_Config.h`:
 #define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
 ```
 
-Every example here selects earliest deadline first. `EscapementHard.h` falls back to
+Every example here selects earliest deadline first. The kernel headers fall back to
 deadline-monotonic when an application says nothing — which is what all of them used to
-do without meaning to, see `method.md`.
+do without meaning to, see `method.md`. The power-aware kernel adds EDF*, a deterministic
+EDF, and its DRA, DR_OTE and DM_SLACK algorithms impose their scheduling whatever the
+application chose; OTE, the one the example uses, works with any.
+
+The names of the algorithms live in `Escapement/Escapement_Modes.h`, which every file that
+tests the choice includes first. The examples build in every combination without editing
+a file, and the CI runs them all:
+
+```sh
+make                                           # hard kernel, earliest deadline first
+make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING   # hard kernel, deadline-monotonic
+make KERNEL=SOFT                               # soft kernel, earliest deadline first
+make KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+```
+
+The Pico examples are written for the hard kernel only, and the power-aware one takes
+`SCHEDULER` but not `KERNEL`.
 
 ## Supported targets
 
@@ -41,7 +57,8 @@ Escapement began life on the TI MSP430, and that port was removed on
 ```
 Escapement/
   EscapementHard.{c,h}      hard real-time kernel
-  EscapementSoft.{c,h}      soft real-time kernel
+  EscapementSoft.{c,h}      (m,k)-firm real-time kernel
+  Escapement_Modes.h        names of the scheduling algorithms
   EscapementHardPA.{c,h}    power-aware hard real-time kernel
   CORTEX-Mx/                ARM port (STM32, CMSIS)
   CORTEX-Mx/STM32/Examples/ five examples with a Makefile

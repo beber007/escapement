@@ -83,7 +83,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Run the scheduler, the event-driven tasks, the FIFO queue and the slot buffers
+      - name: Run both kernels under both scheduling algorithms
         run: make -C test/host run
 
   emulation:
@@ -136,6 +136,69 @@ jobs:
             log.html
             robot_output.xml
           retention-days: 14
+
+  variants:
+    # The examples ship with the hard kernel under EDF, which the jobs above run. The soft
+    # kernel and deadline-monotonic scheduling are built and run here, from the same
+    # sources: make KERNEL=SOFT and make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING.
+    name: Variant under Renode (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: examples
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: hard, deadline-monotonic
+            make: SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+            build: stm32f4-discovery stm32l-discovery stm32l-discovery-pa
+            pico: true
+            suites: >-
+              escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
+              escapement_l1_pa.robot
+          - variant: soft, EDF
+            make: KERNEL=SOFT
+            build: stm32f4-discovery stm32l-discovery
+            pico: false
+            suites: escapement_f4.robot escapement_f4_wrap.robot
+          - variant: soft, deadline-monotonic
+            make: KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+            build: stm32f4-discovery stm32l-discovery
+            pico: false
+            suites: escapement_f4.robot escapement_f4_wrap.robot
+    env:
+      RENODE_VERSION: 1.17.0
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the bare-metal ARM toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi
+
+      - name: Build the examples and their raw images
+        run: |
+          for example in ${{ matrix.build }}; do
+            make -C "Escapement/CORTEX-Mx/STM32/Examples/$example" bin ${{ matrix.make }}
+          done
+          if [ "${{ matrix.pico }}" = true ]; then
+            make -C Escapement/CORTEX-Mx/RP2040/Examples/pico ${{ matrix.make }}
+          fi
+
+      - name: Install Renode
+        run: |
+          url="https://github.com/renode/renode/releases/download/v${RENODE_VERSION}/renode-${RENODE_VERSION}.linux-portable.tar.gz"
+          curl -fsSL "$url" -o renode.tar.gz
+          mkdir -p "$HOME/renode"
+          tar -xzf renode.tar.gz -C "$HOME/renode" --strip-components=1
+          echo "$HOME/renode" >> "$GITHUB_PATH"
+
+      - name: Install the renode-test dependencies
+        run: pip install --quiet robotframework==6.1 robotframework-retryfailed psutil pyyaml
+
+      - name: Run the kernel
+        run: renode-test $(for suite in ${{ matrix.suites }}; do echo "emulation/renode/$suite"; done)
 
   emulation-rp2040:
     name: Execution under Renode (RP2040)

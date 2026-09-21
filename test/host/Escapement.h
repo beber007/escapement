@@ -20,8 +20,8 @@
 
 #if defined(ESCAPEMENT_VERSION_HARD)
    #include "EscapementHard.h"
-#else
-   #error the host test build only covers the hard real-time kernel
+#elif defined(ESCAPEMENT_VERSION_SOFT)
+   #include "EscapementSoft.h"
 #endif
 
 #endif /* _ESCAPEMENT_H_ */

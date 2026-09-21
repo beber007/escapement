@@ -102,8 +102,7 @@
 ** before later ones. The second and last scheduling algorithm is DMS where tasks have a
 ** static priority based on their deadline. These priorities are determined on-line prior
 ** to starting OSStartMultitasking(). A shorter deadline has the highest priority. */
-#define EARLIEST_DEADLINE_FIRST        1
-#define DEADLINE_MONOTONIC_SCHEDULING  2
+#include "Escapement_Modes.h"     /* EARLIEST_DEADLINE_FIRST, DEADLINE_MONOTONIC_SCHEDULING */
 
 /* The following define sets the scheduling algorithm to use. An application selects it in
 ** its Escapement_Config.h; this is only the default when it says nothing. */

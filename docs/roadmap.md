@@ -110,8 +110,18 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       echo, on Renode 1.16.1 and the models of matgla/Renode_RP2040, both
       pinned. Core 1 has to be halted, or the LED tester times edges from the
       wrong core (`emulation/renode/RP2040.md`).
-- [ ] Settle `EscapementSoft` and deadline-monotonic scheduling: no
-      configuration builds either, so they are either tested or removed.
+- [x] **Settle `EscapementSoft` and deadline-monotonic scheduling: kept, and
+      tested.** The host test now builds both kernels under both algorithms,
+      adds an (m,k)-firm scenario under a declared overload of 220 % and
+      checks that tasks released together run in priority order; the `variants`
+      CI job runs the Renode suites on the soft kernel and under
+      deadline-monotonic scheduling. It found the soft and the power-aware
+      headers still forcing deadline-monotonic, as the hard one had, and the
+      port testing the algorithm before its names were defined (`method.md`).
+      One consequence: `stm32l-discovery-pa` now runs EDF, as its configuration
+      always said. Of the deliberate defects in the soft kernel, one is not
+      caught: ignoring the interference of other tasks in the schedulability
+      test of optional instances, which only shows when tasks take time.
 - [x] **Give the STM32 port a defined starting time.** The kernel assumed its
       counter started near zero; `_OSStartTimer` now clears it, which costs one
       store. Shown under Renode: started with the counter at 0x3FFFF000 the

@@ -125,15 +125,16 @@
 ** Note that without power management, it is best not to use EDF*.
 ** The final scheduling algorithm is DMS where tasks have a static priority based on
 ** their deadline. A shorter deadline has the highest priority. */
-#define EARLIEST_DEADLINE_FIRST        1
-#define EARLIEST_DEADLINE_FIRST_STAR   2
-#define DEADLINE_MONOTONIC_SCHEDULING  3
+#include "Escapement_Modes.h"     /* and EARLIEST_DEADLINE_FIRST_STAR */
 
-/* The following define sets the scheduling algorithm to use. */
-#define SCHEDULER_REAL_TIME_MODE DEADLINE_MONOTONIC_SCHEDULING
+/* The following define sets the scheduling algorithm to use. An application selects it in
+** its Escapement_Config.h; this is only the default when it says nothing. */
+#ifndef SCHEDULER_REAL_TIME_MODE
+   #define SCHEDULER_REAL_TIME_MODE DEADLINE_MONOTONIC_SCHEDULING
+#endif
 
 /* Correct or adjust the scheduling algorithm to be coherent with the power management
-** choice. */
+** choice, whatever the application selected. */
 #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
    #undef SCHEDULER_REAL_TIME_MODE
    #define SCHEDULER_REAL_TIME_MODE    EARLIEST_DEADLINE_FIRST_STAR

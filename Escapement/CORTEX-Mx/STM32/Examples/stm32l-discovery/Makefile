@@ -36,6 +36,18 @@ INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 CFLAGS = -mcpu=${CPU} -mthumb -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding -Werror=comment -O2 -MMD -MP
 AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -MMD -MP
 
+# Build variants, which the CI also runs:
+#   make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING    the other scheduling algorithm
+#   make KERNEL=SOFT                                the soft real-time kernel
+ifdef SCHEDULER
+   CFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
+   AFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
+endif
+ifeq ($(KERNEL),SOFT)
+   CFLAGS += -DESCAPEMENT_VERSION_SOFT
+   AFLAGS += -DESCAPEMENT_VERSION_SOFT
+endif
+
 OBJECTS_ESCAPEMENT = build/Escapement_UART.o \
           build/Escapement_TimerEvent.o \
           build/Escapement_Interrupts.o \

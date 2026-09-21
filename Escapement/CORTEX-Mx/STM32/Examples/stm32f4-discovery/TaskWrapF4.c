@@ -34,6 +34,14 @@ typedef struct TaskParametersDef {
 static void InitializeFlags(UINT16 GPIO_Pin);
 static void FixedDelayTask(void *argument);
 
+/* The soft kernel takes more parameters; every task here is (1,1)-firm, i.e. hard. */
+#if defined(ESCAPEMENT_VERSION_SOFT)
+   #define CreateTask(period,parameters) \
+              OSCreateTask(FixedDelayTask,0,0,period,period,1,1,0,parameters)
+#else
+   #define CreateTask(period,parameters) OSCreateTask(FixedDelayTask,0,period,period,parameters)
+#endif
+
 
 int main(void)
 {
@@ -47,17 +55,17 @@ int main(void)
   TaskParameters->GPIOx = FLAG_PORT;
   TaskParameters->GPIO_Pin = FLAG1_PIN;
   TaskParameters->Delay = 20;
-  OSCreateTask(FixedDelayTask,0,10000000,10000000,TaskParameters);
+  CreateTask(10000000,TaskParameters);
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->GPIOx = FLAG_PORT;
   TaskParameters->GPIO_Pin = FLAG2_PIN;
   TaskParameters->Delay = 40;
-  OSCreateTask(FixedDelayTask,0,20000000,20000000,TaskParameters);
+  CreateTask(20000000,TaskParameters);
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->GPIOx = FLAG_PORT;
   TaskParameters->GPIO_Pin = FLAG3_PIN;
   TaskParameters->Delay = 120;
-  OSCreateTask(FixedDelayTask,0,60000000,60000000,TaskParameters);
+  CreateTask(60000000,TaskParameters);
   return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 

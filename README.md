@@ -32,7 +32,7 @@ scheduler decided what it was supposed to decide.
 | Level | Means | What it establishes |
 |---|---|---|
 | Compilation | GitHub Actions, with a toolchain other than the developer's | four examples, three cores, on every push |
-| The scheduler alone | the kernel built for the host, with time as a variable | ten tasks over 200,000 ticks: every activation on time, no deadline missed; three wraps of the kernel clock, with arrivals served late across each one; event-driven tasks, the FIFO queue and the slot buffers — 90 % of the lines of the kernel |
+| The scheduler alone | the kernel built for the host, with time as a variable | the hard and the soft kernel, each under EDF and deadline-monotonic scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, and (m,k)-firm tasks under overload — 87 to 90 % of the lines of each kernel |
 | Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the STM32F4, the STM32L1 and the RP2040 — all as regression tests |
 | Internal state on hardware | OpenOCD and SWD on a Pico | deadlines armed ahead of the counter, cost counters read back from SRAM |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
@@ -81,6 +81,11 @@ priorities, paced by a periodic tick. Here tasks declare a period and a deadline
 the scheduler elects the one whose deadline is nearest, and the hardware
 interrupts the processor at that moment only. Deadline-monotonic scheduling is
 available too, selected in the configuration of an application.
+
+**Overload that degrades by design.** A second kernel schedules (m,k)-firm tasks:
+out of every k instances of a task, m are guaranteed, and the others run only if a
+test on the declared execution times shows they will finish in time — so an overload
+drops chosen instances instead of missing arbitrary deadlines.
 
 **Energy management driven by the scheduler.** Tasks declare their worst-case
 execution time; the kernel uses it to know *by how much* it may slow the core
