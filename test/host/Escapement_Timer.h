@@ -19,7 +19,7 @@ BOOL _OSSetTimer(INT32 nextArrivalTime);
 
 /* Driven by the test: advances the clock to the armed deadline and returns the time it
 ** reached, or -1 when no deadline is armed. */
-INT32 HostAdvanceToNextDeadline(void);
+INT32 HostTicksToNextEvent(void);
 INT32 HostClockNow(void);
 
 #endif /* ESCAPEMENT_TIMER_H */

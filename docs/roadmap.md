@@ -88,6 +88,22 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       Deleting any one of the three time shifts of the arrival and ready queues
       makes it fail — one of them only reached through that latency, and one
       making the kernel loop forever, which a 10 s alarm now reports.
+- [x] **Test what no example exercises.** The host tests covered 24 % of the
+      lines of `EscapementHard.c`: nothing ran the FIFO queue or the slot
+      buffers, and the event-driven tasks only in examples that are built, not
+      run. `test_scheduler events` wakes event-driven tasks from periodic tasks,
+      from themselves and from a buffer slot filling up; `test_ipc` takes the
+      FIFO queue past the wrap of its indices and both slot buffers through
+      their states. Coverage is now 90 %; what remains is mostly the paths a
+      preempted operation takes, which a single-threaded host cannot reach.
+      Fourteen of fifteen deliberate defects fail a check; the one that does not
+      (event-driven deadlines no longer following one another) has no effect
+      when tasks run in zero time.
+- [ ] Run the event-driven examples (`TestTimerEventF4`) under Renode, and the
+      RP2040 port, whose emulation works on Linux x86-64 (see
+      `emulation/renode/RP2040.md`).
+- [ ] Settle `EscapementSoft` and deadline-monotonic scheduling: no
+      configuration builds either, so they are either tested or removed.
 - [x] **Give the STM32 port a defined starting time.** The kernel assumed its
       counter started near zero; `_OSStartTimer` now clears it, which costs one
       store. Shown under Renode: started with the counter at 0x3FFFF000 the

@@ -14,7 +14,7 @@ claim confirms it.
 | Level | Means | Catches |
 |---|---|---|
 | Compilation | GitHub Actions on every push, with a toolchain other than the developer's | code that does not build, and anything the local compiler forgives that the one in CI does not |
-| The scheduler alone | the kernel built for the host, with time as a variable, in CI | a kernel that does not run the algorithm it claims, and the 2^30 wrap of its clock, which the board reaches only after eighteen minutes |
+| The scheduler alone | the kernel built for the host, with time as a variable, in CI | a kernel that does not run the algorithm it claims, the 2^30 wrap of its clock, which the board reaches only after eighteen minutes, and the parts of the kernel no example exercises: event-driven tasks, FIFO queue, slot buffers |
 | Replayable execution | Renode, replayed by `renode-test` in CI | a kernel that builds but does not schedule |
 | Internal state on hardware | OpenOCD and SWD | an emulator that models the hardware wrongly |
 | Independent instrument | frequency counter of a Bus Pirate v4 | everything above at once — it trusts no software from this repository |

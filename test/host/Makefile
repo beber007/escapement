@@ -3,7 +3,7 @@
 ## Derived from prior work; see LICENSE and NOTICE at the root of this repository.
 
 # Builds the kernel for the machine it runs on, with a simulated target layer, and
-# exercises the scheduler. Time is a variable here, so a task set of any size costs
+# exercises the scheduler (test_scheduler) and the inter-task communication (test_ipc). Time is a variable here, so a task set of any size costs
 # nothing and the clock can jump from one event to the next: three wraparounds of the
 # kernel clock, an hour of real time on the board, take a fraction of a second.
 #
@@ -15,14 +15,21 @@ KERNEL = ../../Escapement/EscapementHard.c
 
 $(shell mkdir -p build)
 
-run: build/test_scheduler
+run: build/test_scheduler build/test_ipc
 	./build/test_scheduler
 	./build/test_scheduler wrap
+	./build/test_scheduler events
+	./build/test_ipc
 
 build/test_scheduler: test_scheduler.c host_port.c $(KERNEL) Escapement.h Escapement_Config.h \
                       Escapement_Types.h Escapement_Processor.h Escapement_Timer.h \
                       Escapement_Interrupts.h
 	$(CC) $(CFLAGS) -o $@ test_scheduler.c host_port.c $(KERNEL)
+
+build/test_ipc: test_ipc.c host_port.c $(KERNEL) Escapement.h Escapement_Config.h \
+                Escapement_Types.h Escapement_Processor.h Escapement_Timer.h \
+                Escapement_Interrupts.h
+	$(CC) $(CFLAGS) -o $@ test_ipc.c host_port.c $(KERNEL)
 
 clean:
 	rm -rf build

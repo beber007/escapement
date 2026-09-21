@@ -69,13 +69,21 @@ jobs:
           path: ${{ env.DIR }}/build/*.elf
           retention-days: 14
 
-  host-scheduler:
-    name: Scheduler on the host
+  encoding:
+    name: Tracked files are UTF-8
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Run the scheduler against ten periodic tasks, then across three wraparounds
+      - run: sh tools/check_encoding.sh
+
+  host-scheduler:
+    name: Kernel on the host
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the scheduler, the event-driven tasks, the FIFO queue and the slot buffers
         run: make -C test/host run
 
   emulation:
