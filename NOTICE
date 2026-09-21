@@ -43,7 +43,3 @@ source files:
 
   * STMicroelectronics STM32 Standard Peripheral Libraries
     Escapement/CORTEX-Mx/STM32/Libraries/STM32*_StdPeriph_Driver/
-
-  * Texas Instruments MSP430 example and HAL code
-    Copyright (C) Texas Instruments Incorporated.
-    Escapement/msp430/Examples/
