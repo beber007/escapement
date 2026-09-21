@@ -20,7 +20,7 @@ declared by the tasks — without ever missing a deadline.
 | | |
 |---|---|
 | **5,160 bytes** | the whole kernel and four periodic tasks, on a Cortex-M0+ |
-| **3.2 µs** | cost of one scheduling round, measured on the board — 0.43 % of the processor at 1,340 activations per second, see the note in [`docs/rp2040.md`](docs/rp2040.md) |
+| **3.2 µs** | cost of one scheduling round, measured on the board — 0.43 % of the processor at 1,340 activations per second. Measured before the kernel was switched to EDF, and to be measured again: see the note in [`docs/rp2040.md`](docs/rp2040.md) |
 | **+28 ppm** | deviation of the periods read by an external frequency counter: the tolerance of the crystal on the board, not that of the scheduler |
 
 ## Verified at five levels
@@ -31,8 +31,8 @@ scheduler decided what it was supposed to decide.
 
 | Level | Means | What it establishes |
 |---|---|---|
-| Compilation | GitHub Actions, two toolchains | four examples, three cores, on every push |
-| The scheduler alone | the kernel built for the host, with time as a variable | ten tasks over 200,000 ticks: every activation on time, no deadline missed |
+| Compilation | GitHub Actions, with a toolchain other than the developer's | four examples, three cores, on every push |
+| The scheduler alone | the kernel built for the host, with time as a variable | ten tasks over 200,000 ticks: every activation on time, no deadline missed; then three wraps of the kernel clock, with arrivals served late across each one |
 | Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, and the 2^30 wrap of the kernel clock crossed — all as regression tests |
 | Internal state on hardware | OpenOCD and SWD on a Pico | deadlines armed ahead of the counter, cost counters read back from SRAM |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
@@ -96,7 +96,7 @@ good target for the power-aware variant.
 ## How this project is built
 
 This project is developed with the help of an AI, under one standing rule:
-**the AI proposes, the instrument decides.** The four levels of verification
+**the AI proposes, the instrument decides.** The five levels of verification
 above exist for that reason.
 
 The documentation therefore keeps a record of the hypotheses that turned out to

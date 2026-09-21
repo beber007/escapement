@@ -9,12 +9,19 @@
 ** board cannot give: task sets far larger than the three an example carries, and the
 ** 2^30 wraparound of the kernel clock, eighteen minutes away on hardware.
 **
+** Two runs, one per process since the kernel keeps its state in statics:
+**   test_scheduler        ten tasks, the clock advanced one tick at a time
+**   test_scheduler wrap   long periods, the clock jumped from one event to the next
+**                         across three wraparounds
+**
 ** Tasks do not run on a stack of their own — there is no context switch here. The test
 ** calls the elected task itself, which is enough to observe what the scheduler decided.
 */
 
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include "Escapement.h"
 
 /* Mirror of the task control block of EscapementHard.c. Declared here rather than shared
@@ -47,6 +54,8 @@ typedef struct HostTCB {
 extern HostTCB *_OSActiveTask;
 extern void _OSTimerInterruptHandler(void);
 extern void HostAdvanceBy(INT32 delta);
+extern INT32 HostTicksToNextEvent(void);
+extern unsigned HostClockWraps;
 
 #define MAX_TASKS 40
 static unsigned Activations[MAX_TASKS];
@@ -54,6 +63,7 @@ static INT32    Periods[MAX_TASKS];
 static unsigned NbTasks = 0;
 static unsigned Failures = 0;
 static unsigned LateArrivals = 0;
+static unsigned DeadlinesOutOfReach = 0;
 
 static void CountingTask(void *argument)
 {
@@ -67,6 +77,22 @@ static void Check(const char *what, int ok)
   if (!ok) Failures += 1;
 }
 
+/* RunElected: Calls each task the scheduler elects until only the idle task is left. */
+static void RunElected(void)
+{
+  while (_OSActiveTask != NULL && !(_OSActiveTask->TaskState & TASKTYPE_BLOCKING)) {
+     HostTCB *task = _OSActiveTask;
+     if (task->NextDeadline < HostClockNow())
+        LateArrivals += 1;
+     /* An absolute deadline further than one relative deadline away was not shifted. */
+     if (task->NextDeadline - HostClockNow() > task->Deadline)
+        DeadlinesOutOfReach += 1;
+     task->TaskCodePtr(task->Argument);
+     if (_OSActiveTask == task)     /* the task did not end: stop rather than spin */
+        break;
+  }
+}
+
 /* RunFor: Advances the clock the way the hardware would and lets the kernel schedule,
 ** calling each elected task. Returns the number of scheduling rounds. */
 static unsigned RunFor(INT32 duration)
@@ -77,16 +103,41 @@ static unsigned RunFor(INT32 duration)
      HostAdvanceBy(1);
      _OSTimerInterruptHandler();
      rounds += 1;
-     while (_OSActiveTask != NULL && !(_OSActiveTask->TaskState & TASKTYPE_BLOCKING)) {
-        HostTCB *task = _OSActiveTask;
-        if (task->NextDeadline < HostClockNow())
-           LateArrivals += 1;
-        task->TaskCodePtr(task->Argument);
-        if (_OSActiveTask == task)     /* the task did not end: stop rather than spin */
-           break;
-     }
+     RunElected();
   }
   return rounds;
+}
+
+/* RunAcross: Same, but the clock jumps straight to the next timer event, so the duration
+** may span wraparounds. Time elapsed is counted apart, the kernel clock being modulo 2^30.
+** Two things the hardware does are imitated around each wraparound, since the time shift
+** has work to do only then: an arrival due in the last LATENCY ticks is served after the
+** counter wrapped, as interrupt latency can have it, and tasks elected just before are
+** called only after, as if still running, so their deadlines sit in the ready queue. */
+#define LATENCY 100
+static INT32 TicksToNextInterrupt(void)
+{
+  INT32 delta = HostTicksToNextEvent();
+  if (HostClockNow() + delta > 0x40000000 - LATENCY)
+     delta = 0x40000000 - HostClockNow();
+  return delta;
+}
+
+static void RunAcross(long long duration)
+{
+  long long elapsed = 0;
+  _OSTimerInterruptHandler();        /* the arrivals at time zero */
+  RunElected();
+  while (TRUE) {
+     INT32 delta = TicksToNextInterrupt();
+     if (elapsed + delta > duration)
+        break;
+     HostAdvanceBy(delta);
+     elapsed += delta;
+     _OSTimerInterruptHandler();
+     if (HostClockNow() + TicksToNextInterrupt() != 0x40000000)
+        RunElected();
+  }
 }
 
 static void CreateTask(INT32 period)
@@ -96,9 +147,22 @@ static void CreateTask(INT32 period)
   NbTasks += 1;
 }
 
-int main(void)
+/* CheckActivations: One activation either way is the boundary of the window, not a
+** missed deadline. */
+static void CheckActivations(long long duration)
 {
   unsigned i;
+  for (i = 0; i < NbTasks; i += 1) {
+     unsigned expected = (unsigned)(duration / Periods[i]);
+     char label[80];
+     snprintf(label, sizeof label, "  period %9d: %u activations (expected %u)",
+              Periods[i], Activations[i], expected);
+     Check(label, Activations[i] + 1 >= expected && Activations[i] <= expected + 1);
+  }
+}
+
+static void TestTaskSet(void)
+{
   INT32 duration = 200000;
 
   /* A set of ten periodic tasks, co-prime enough that their arrivals interleave. */
@@ -112,16 +176,52 @@ int main(void)
   RunFor(duration);
 
   printf("\n%u tasks, %d ticks of simulated time\n\n", NbTasks, duration);
-  for (i = 0; i < NbTasks; i += 1) {
-     unsigned expected = (unsigned)(duration / Periods[i]);
-     char label[80];
-     /* One activation either way is the boundary of the window, not a missed deadline. */
-     snprintf(label, sizeof label, "  period %5d: %u activations (expected %u)",
-              Periods[i], Activations[i], expected);
-     Check(label, Activations[i] + 1 >= expected && Activations[i] <= expected + 1);
-  }
-
+  CheckActivations(duration);
   Check("  no deadline missed", LateArrivals == 0);
+}
+
+/* TestWrap: The kernel shifts every temporal variable back by 2^30 when its counter wraps,
+** and an arrival beyond the wraparound waits in the arrival queue with a cycle count
+** instead of being armed. The periods are prime to one another, so arrivals fall on both
+** sides of each boundary; 2^29 - 1 lands one arrival a few ticks short of every
+** wraparound, which the latency above then serves after it. */
+static void TestWrap(void)
+{
+  long long duration = 3LL * 0x40000000 + 1000000;
+
+  CreateTask(1000003);   CreateTask(1999993);   CreateTask(4999999);
+  CreateTask(99999989);  CreateTask(536870911); CreateTask(700000001);
+
+  OSStartMultitasking(NULL, NULL);
+  _OSStartTimer();
+
+  RunAcross(duration);
+
+  printf("\n%u tasks, %lld ticks of simulated time\n\n", NbTasks, duration);
+  CheckActivations(duration);
+  Check("  the kernel clock wrapped three times", HostClockWraps == 3);
+  Check("  no deadline missed", LateArrivals == 0);
+  Check("  every deadline shifted with the clock", DeadlinesOutOfReach == 0);
+}
+
+/* A kernel that mishandles time can loop forever inside its interrupt handler, where the
+** test has no say; both runs take well under a second. */
+static void Timeout(int signal)
+{
+  static const char message[] = "\nFAILED: the scheduler did not return within 10 s\n";
+  (void)signal;
+  write(STDOUT_FILENO, message, sizeof message - 1);
+  _exit(1);
+}
+
+int main(int argc, char *argv[])
+{
+  signal(SIGALRM, Timeout);
+  alarm(10);
+  if (argc > 1 && strcmp(argv[1], "wrap") == 0)
+     TestWrap();
+  else
+     TestTaskSet();
 
   printf("\n%s\n", Failures ? "FAILURES" : "all checks passed");
   return Failures ? 1 : 0;

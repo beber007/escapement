@@ -4,9 +4,10 @@
 */
 /* File host_port.c: The layer the kernel expects from a target, implemented on the host.
 **
-** The clock is a variable the test advances, which is the whole point: the 2^30
-** wraparound of the kernel clock is eighteen minutes away on hardware and one assignment
-** away here, and a task set of thirty is no harder to run than one of three.
+** The clock is a variable the test advances, which is the whole point: it can jump from
+** one event to the next, so the 2^30 wraparound of the kernel clock, eighteen minutes
+** away on hardware, costs only the activations in between, and a task set of thirty is
+** no harder to run than one of three.
 **
 ** The atomics are plain accesses. This build is single threaded and nothing preempts it,
 ** so a load-linked never loses its reservation.
@@ -18,6 +19,7 @@
 
 unsigned HostContextSwitchesRequested = 0;
 unsigned HostSoftTimerRequests = 0;
+unsigned HostClockWraps = 0;
 
 /* The kernel reads these to learn why the timer interrupted; on a target they are set by
 ** the interrupt handler of the peripheral. */
@@ -60,22 +62,15 @@ BOOL _OSSetTimer(INT32 nextArrivalTime)
 
 INT32 HostClockNow(void) { return Clock; }
 
-/* HostAdvanceToNextDeadline: Moves the clock to the deadline the kernel armed, crossing
-** the 2^30 boundary the way the hardware would — the counter wraps and the overflow is
-** reported once. Returns the time reached, or -1 when the kernel armed nothing. */
-INT32 HostAdvanceToNextDeadline(void)
+/* HostTicksToNextEvent: Returns how far the clock must move to reach the next instant the
+** hardware would interrupt: the deadline the kernel armed, or else the wraparound of the
+** counter. An arrival beyond the wraparound is not armed until the time shift brings it
+** within reach, so the overflow is then the only event left. */
+INT32 HostTicksToNextEvent(void)
 {
-  if (ArmedDeadline < 0)
-     return -1;
   if (ArmedDeadline > Clock)
-     Clock = ArmedDeadline;
-  else {
-     /* The deadline lies beyond the wraparound. */
-     Clock = ArmedDeadline;
-     OverflowPending = TRUE;
-  }
-  ArmedDeadline = -1;
-  return Clock;
+     return ArmedDeadline - Clock;
+  return TIME_LIMIT - Clock;
 }
 
 /* HostAdvanceBy: Moves the clock forward, wrapping at 2^30 like the counter does. */
@@ -85,6 +80,8 @@ void HostAdvanceBy(INT32 delta)
   if (Clock >= TIME_LIMIT) {
      Clock -= TIME_LIMIT;
      OverflowPending = TRUE;
+     ArmedDeadline = -1;   /* armed before the shift, so it no longer means anything */
+     HostClockWraps += 1;
   }
 }
 

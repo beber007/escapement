@@ -9,17 +9,18 @@ Nothing here is considered established because it was asserted confidently — b
 the assistant or by anyone else. It is established when something outside the
 claim confirms it.
 
-## Four independent levels
+## Five independent levels
 
 | Level | Means | Catches |
 |---|---|---|
-| Compilation | GitHub Actions, two toolchains, every push | code that does not build, and anything one compiler forgives that the other does not |
+| Compilation | GitHub Actions on every push, with a toolchain other than the developer's | code that does not build, and anything the local compiler forgives that the one in CI does not |
+| The scheduler alone | the kernel built for the host, with time as a variable, in CI | a kernel that does not run the algorithm it claims, and the 2^30 wrap of its clock, which the board reaches only after eighteen minutes |
 | Replayable execution | Renode, replayed by `renode-test` in CI | a kernel that builds but does not schedule |
 | Internal state on hardware | OpenOCD and SWD | an emulator that models the hardware wrongly |
 | Independent instrument | frequency counter of a Bus Pirate v4 | everything above at once — it trusts no software from this repository |
 
 The levels are ordered by how much they cost and by how little they assume. The
-fourth exists because the third still runs through a debugger, which turned out
+fifth exists because the fourth still runs through a debugger, which turned out
 to matter: see the `TIMER_DBGPAUSE` investigation in `rp2040.md`.
 
 ## Hypotheses that were wrong
@@ -72,8 +73,8 @@ arrive first; optimised, `bx lr` sits one instruction after the store. `dsb`
 and `isb` close it, the CI agrees, and the build is at `-O2`.
 
 Two things are worth keeping from this. A local build passing is a statement
-about one version of one compiler — the second toolchain in the CI was the only
-thing between this defect and a repository claiming to be measured and verified.
+about one version of one compiler — the toolchain in the CI, not the version on the
+developer's machine, was the only thing between this defect and a repository claiming to be measured and verified.
 And the first diagnosis was wrong: seeing the registers written through
 non-volatile pointers, I concluded the compiler had dropped the store, and the
 disassembly of the CI binary showed it there all along. The `volatile` was added

@@ -82,6 +82,12 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       of the task control block was reading turned out to be the real finding:
       the kernel was scheduling deadline-monotonic, not by deadline, so the
       field did not exist. Both are now selectable and the check passes.
+- [x] **Cross the 2^30 wrap in the host test.** `test_scheduler wrap` jumps the
+      clock from one event to the next over three wraps, serves the arrival just
+      short of each one late and leaves tasks in the ready queue across it.
+      Deleting any one of the three time shifts of the arrival and ready queues
+      makes it fail — one of them only reached through that latency, and one
+      making the kernel loop forever, which a 10 s alarm now reports.
 - [x] **Give the STM32 port a defined starting time.** The kernel assumed its
       counter started near zero; `_OSStartTimer` now clears it, which costs one
       store. Shown under Renode: started with the counter at 0x3FFFF000 the
