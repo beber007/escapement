@@ -226,7 +226,7 @@ _OSContextSwapHandler:
   /* Is active task state RUNNING?*/
   LDRB R0,[R1,#8]                          // R0 <- _OSActiveTask->TaskState
   MOVS R3,#1                               // R3 <- STATE_RUNNING (= 1)
-  ANDS R0,R3                               // R0 <- R0 & STATE_RUNNING
+  TST R0,R3                                // R0 & STATE_RUNNING, R0 kept for below
   BNE _OSContextSwapHandler_End            // Jump if _OSActiveTask is STATE_RUNNING
   /* Save the context of the task: context switching from an active task to a new task */
   LDR R3,[R2]                              // R3 <- _OSStackBasePointer
@@ -245,11 +245,14 @@ _OSContextSwapHandler_ClearStack:
   /* Is active task state STATE_RUNNING? */
   LDRB R0,[R1,#8]                          // R0 <- _OSActiveTask->TaskState
   MOVS R3,#1                               // R3 <- STATE_RUNNING
-  ANDS R0,R3                               // R0 <- R0 & STATE_RUNNING
+  TST R0,R3                                // R0 & STATE_RUNNING, R0 kept for below
   BNE _OSContextSwapHandler_RestoreContext // Jump if _OSActiveTask is STATE_RUNNING
 .thumb_func
 _OSContextSwapHandler_CreateNewContext:
-  /* Set the state of the new task to STATE_RUNNING */
+  /* Set the state of the new task to STATE_RUNNING. R0 still holds the whole state: an
+  ** ANDS above used to reduce it to the running bit, and every task started on a
+  ** Cortex-M0 lost the others — TASKTYPE_BLOCKING included, so that the power-aware
+  ** kernel took the idle task for a periodic one and wrote past its control block. */
   MOVS R3,#1                               // R3 <- STATE_RUNNING
   ORRS R0,R0,R3                            // R0 (= _OSActiveTask->TaskState) |= STATE_RUNNING
   STRB R0,[R1,#8]                          // _OSActiveTask->TaskState <- R0
