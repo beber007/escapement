@@ -107,3 +107,28 @@ INT32  OSINT32_LL(INT32 *a)   { return *a; }
 BOOL   OSINT32_SC(INT32 *a, INT32 v)   { *a = v; return TRUE; }
 UINTPTR OSUINTPTR_LL(UINTPTR *a) { return *a; }
 BOOL   OSUINTPTR_SC(UINTPTR *a, UINTPTR v) { *a = v; return TRUE; }
+
+
+#ifdef ESCAPEMENT_VERSION_HARD_PA
+/* Work done at each operating point relative to the fastest, times 256, as on the RP2040. */
+const UINT8 _OSSlowdownRatios[] = {24, 102};
+
+UINT8 HostSpeed = OS_MAX_SPEED;
+unsigned HostSpeedChanges = 0;
+unsigned HostSpeedsUsed = 0;         /* bit n set once speed n has been selected */
+unsigned HostInvalidSpeeds = 0;
+
+UINT8 OSGetProcessorSpeed(void) { return HostSpeed; }
+
+void OSSetProcessorSpeed(UINT8 speed)
+{
+  if (speed > OS_MAX_SPEED) {
+     HostInvalidSpeeds += 1;
+     return;
+  }
+  if (speed != HostSpeed)
+     HostSpeedChanges += 1;
+  HostSpeed = speed;
+  HostSpeedsUsed |= 1u << speed;
+}
+#endif

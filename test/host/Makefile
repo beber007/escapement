@@ -8,8 +8,8 @@
 # from one event to the next: three wraparounds of the kernel clock, an hour of real time
 # on the board, take a fraction of a second.
 #
-# Everything is built four times: the hard and the soft kernel, each under earliest
-# deadline first (edf) and deadline-monotonic scheduling (dm).
+# Everything is built six times: the hard, the soft and the power-aware kernel, each
+# under earliest deadline first (edf) and deadline-monotonic scheduling (dm).
 #
 #   make -C test/host run
 
@@ -24,22 +24,27 @@ CFLAGS = -I. -I../../Escapement -Wall -O1 -g \
 export ASAN_OPTIONS = detect_leaks=0
 HARD = ../../Escapement/EscapementHard.c
 SOFT = ../../Escapement/EscapementSoft.c
+PA = ../../Escapement/EscapementHardPA.c
 HEADERS = Escapement.h Escapement_Config.h Escapement_Types.h Escapement_Processor.h \
           Escapement_Timer.h Escapement_Interrupts.h
 
-BUILDS = hard_edf hard_dm soft_edf soft_dm
+BUILDS = hard_edf hard_dm soft_edf soft_dm pa_edf pa_dm
 FLAGS_hard_edf = -DHOST_SCHEDULER=1
 FLAGS_hard_dm  = -DHOST_SCHEDULER=2
 FLAGS_soft_edf = -DHOST_SCHEDULER=1 -DHOST_KERNEL_SOFT
 FLAGS_soft_dm  = -DHOST_SCHEDULER=2 -DHOST_KERNEL_SOFT
+FLAGS_pa_edf   = -DHOST_SCHEDULER=1 -DHOST_KERNEL_PA
+FLAGS_pa_dm    = -DHOST_SCHEDULER=2 -DHOST_KERNEL_PA
 KERNEL_hard_edf = $(HARD)
 KERNEL_hard_dm  = $(HARD)
 KERNEL_soft_edf = $(SOFT)
 KERNEL_soft_dm  = $(SOFT)
+KERNEL_pa_edf   = $(PA)
+KERNEL_pa_dm    = $(PA)
 
 $(shell mkdir -p build)
 
-run: $(BUILDS:%=build/test_scheduler_%) build/test_ipc_hard build/test_ipc_soft
+run: $(BUILDS:%=build/test_scheduler_%) build/test_ipc_hard build/test_ipc_soft build/test_ipc_pa
 	@for b in $(BUILDS); do \
 	   echo; echo "=== $$b"; \
 	   ./build/test_scheduler_$$b && ./build/test_scheduler_$$b wrap && \
@@ -48,6 +53,7 @@ run: $(BUILDS:%=build/test_scheduler_%) build/test_ipc_hard build/test_ipc_soft
 	done
 	@echo; echo "=== hard"; ./build/test_ipc_hard
 	@echo; echo "=== soft"; ./build/test_ipc_soft
+	@echo; echo "=== pa"; ./build/test_ipc_pa
 
 .SECONDEXPANSION:
 build/test_scheduler_%: test_scheduler.c host_port.c $$(KERNEL_$$*) $(HEADERS)
@@ -58,6 +64,9 @@ build/test_ipc_hard: test_ipc.c host_port.c $(HARD) $(HEADERS)
 
 build/test_ipc_soft: test_ipc.c host_port.c $(SOFT) $(HEADERS)
 	$(CC) $(CFLAGS) -DHOST_KERNEL_SOFT -o $@ test_ipc.c host_port.c $(SOFT)
+
+build/test_ipc_pa: test_ipc.c host_port.c $(PA) $(HEADERS)
+	$(CC) $(CFLAGS) -DHOST_KERNEL_PA -o $@ test_ipc.c host_port.c $(PA)
 
 clean:
 	rm -rf build

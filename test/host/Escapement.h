@@ -22,6 +22,8 @@
    #include "EscapementHard.h"
 #elif defined(ESCAPEMENT_VERSION_SOFT)
    #include "EscapementSoft.h"
+#elif defined(ESCAPEMENT_VERSION_HARD_PA)
+   #include "EscapementHardPA.h"
 #endif
 
 #endif /* _ESCAPEMENT_H_ */

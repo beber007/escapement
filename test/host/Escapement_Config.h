@@ -15,9 +15,12 @@
 #define ESCAPEMENT_HOST
 
 /* Kernel variant: HOST_KERNEL_SOFT selects the soft real-time kernel, with its (m,k)-firm
-** tasks, and the hard real-time kernel is built otherwise. */
-#ifdef HOST_KERNEL_SOFT
+** tasks, HOST_KERNEL_PA the power-aware one, and the hard real-time kernel is built
+** otherwise. */
+#if defined(HOST_KERNEL_SOFT)
    #define ESCAPEMENT_VERSION_SOFT
+#elif defined(HOST_KERNEL_PA)
+   #define ESCAPEMENT_VERSION_HARD_PA
 #else
    #define ESCAPEMENT_VERSION_HARD
 #endif

@@ -166,6 +166,19 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       before those two defects were fixed, since the blocks come from `OSMalloc`
       and reach the fields through casts. It was left out of the CI; what caught
       one of the two is AddressSanitizer in the host test.
+- [x] **Run the power-aware kernel on the host.** `test/host` now builds it under
+      both algorithms, with AddressSanitizer as the other two, and runs the task
+      set, the wrap, the event-driven tasks and the communication tests on it:
+      90 % of the lines it compiles to, in its shipped configuration (one task
+      extension), run. The host records the speeds it asks for: always one of the
+      operating points of the RP2040, changing over four thousand times on the
+      task set and the wrap, and never with event-driven tasks in the set — the
+      one task extension only slows a task down when nothing can arrive before it
+      ends, and a waiting event-driven task can be woken at any time. A kernel
+      that never slows down fails. Two limits: tasks take no time here, so that
+      slowing down keeps the deadlines is not something this test can see; and
+      the defect of the idle task found on the Pico would not have shown either,
+      since it needed the assembler context switch of the Cortex-M0.
 - [x] **Settle `EscapementSoft` and deadline-monotonic scheduling: kept, and
       tested.** The host test now builds both kernels under both algorithms,
       adds an (m,k)-firm scenario under a declared overload of 220 % and

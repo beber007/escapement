@@ -17,6 +17,10 @@
 **                          and by a buffer slot filling up
 **   test_scheduler firm    (m,k)-firm tasks under overload, soft kernel only
 **
+** Under the power-aware kernel every run also checks the speeds it asks for: always one
+** of its operating points, and below the fastest as well as at it, since tasks that take
+** no time leave room to slow down. The speed changes nothing to the time here.
+**
 ** Tasks do not run on a stack of their own — there is no context switch here. The test
 ** calls the elected task itself, which is enough to observe what the scheduler decided.
 ** A soft timer interrupt requested by a task is served as soon as that task returns.
@@ -44,6 +48,23 @@
      void (*TaskCodePtr)(void *);
      void *Argument;
      INT32 PeriodLow;
+     UINT16 PeriodHigh;
+     UINT16 NextArrivalTimeHigh;
+   } HostTCB;
+#elif defined(ESCAPEMENT_VERSION_HARD_PA) && SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+   /* The power-aware kernel keeps its deadline fields under deadline-monotonic scheduling,
+   ** and adds the execution time before the cycle counts. */
+   typedef struct HostTCB {
+     struct HostTCB *Next[2];
+     UINT8 TaskState;
+     UINT8 Priority;
+     INT32 NextArrivalTimeLow;
+     void (*TaskCodePtr)(void *);
+     void *Argument;
+     INT32 PeriodLow;
+     INT32 NextDeadline;
+     INT32 Deadline;
+     INT32 WCET;
      UINT16 PeriodHigh;
      UINT16 NextArrivalTimeHigh;
    } HostTCB;
@@ -86,6 +107,12 @@
    #define CREATE_TASK(code, period, arg) OSCreateTask(code, 0, 0, period, period, 1, 1, 0, arg)
    #define CREATE_SYNCHRONOUS_TASK(code, workload, event, arg) \
               OSCreateSynchronousTask(code, (workload) / 2, workload, 128, event, arg)
+#elif defined(ESCAPEMENT_VERSION_HARD_PA)
+   /* The power-aware kernel is given execution times, a twentieth of each period: the
+   ** ten tasks of TestTaskSet then declare half the processor. */
+   #define CREATE_TASK(code, period, arg) OSCreateTask(code, (period) / 20, 0, period, period, arg)
+   #define CREATE_SYNCHRONOUS_TASK(code, workload, event, arg) \
+              OSCreateSynchronousTask(code, (workload) / 20, workload, 13, event, arg)
 #else
    #define CREATE_TASK(code, period, arg) OSCreateTask(code, 0, period, period, arg)
    #define CREATE_SYNCHRONOUS_TASK(code, workload, event, arg) \
@@ -122,6 +149,29 @@ static void Check(const char *what, int ok)
 {
   printf("%-58s %s\n", what, ok ? "ok" : "FAILED");
   if (!ok) Failures += 1;
+}
+
+/* CheckSpeeds: What the power-aware kernel asked of the processor during a run. When
+** slowing down is expected, the speed must have changed and been both below the fastest
+** and at it. */
+static void CheckSpeeds(BOOL slowsDown)
+{
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     extern unsigned HostSpeedChanges, HostSpeedsUsed, HostInvalidSpeeds;
+     char label[80];
+     Check("  every speed asked for is an operating point", HostInvalidSpeeds == 0);
+     if (!slowsDown) {
+        snprintf(label, sizeof label, "  the speed stays at the fastest: %u changes", HostSpeedChanges);
+        Check(label, HostSpeedChanges == 0 && HostSpeedsUsed == 1u << OS_MAX_SPEED);
+        return;
+     }
+     snprintf(label, sizeof label, "  the speed changes: %u times", HostSpeedChanges);
+     Check(label, HostSpeedChanges > 0);
+     Check("  both below the fastest and at it",
+           (HostSpeedsUsed & (1u << OS_MAX_SPEED)) && (HostSpeedsUsed & ((1u << OS_MAX_SPEED) - 1)));
+  #else
+     (void)slowsDown;
+  #endif
 }
 
 /* StartKernel: Starts the kernel the way a target does. OSStartMultitasking() elects the
@@ -295,6 +345,7 @@ static void TestTaskSet(void)
   CheckActivations(duration);
   Check("  tasks released together run in priority order", OrderBreaks == 0);
   Check("  no deadline missed", LateArrivals == 0);
+  CheckSpeeds(TRUE);
 }
 
 /* TestWrap: The kernel shifts every temporal variable back by 2^30 when its counter wraps,
@@ -318,6 +369,7 @@ static void TestWrap(void)
   Check("  the kernel clock wrapped three times", HostClockWraps == 3);
   Check("  no deadline missed", LateArrivals == 0);
   Check("  every deadline shifted with the clock", DeadlinesOutOfReach == 0);
+  CheckSpeeds(TRUE);
 }
 
 /* EVENT-DRIVEN TASKS ------------------------------------------------------------------ */
@@ -471,6 +523,10 @@ static void TestEvents(void)
            ReaderRuns, WriterRuns);
   Check(label, ReaderMismatches == 0 && WithinOne(ReaderRuns, WriterRuns / SLOT_SIZE));
   Check("  no deadline missed", LateArrivals == 0);
+  /* The power-aware kernel only slows a task down when nothing can arrive before it ends
+  ** (one task extension), and a waiting event-driven task can be woken at any time: with
+  ** event-driven tasks in the set it keeps the fastest speed. */
+  CheckSpeeds(FALSE);
 }
 
 

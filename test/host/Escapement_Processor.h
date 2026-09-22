@@ -48,6 +48,18 @@ BOOL   OSINT32_SC(INT32 *addr, INT32 value);
 UINTPTR OSUINTPTR_LL(UINTPTR *addr);
 BOOL   OSUINTPTR_SC(UINTPTR *addr, UINTPTR value);
 
+/* Operating points of the power-aware kernel, those of the RP2040: the kernel picks one
+** from the work left and the time until the next arrival, and the host only records it,
+** tasks taking no time here whatever the speed. */
+#ifdef ESCAPEMENT_VERSION_HARD_PA
+   #define OS_12MHZ_SPEED  0
+   #define OS_50MHZ_SPEED  1
+   #define OS_125MHZ_SPEED 2
+   #define OS_MAX_SPEED    OS_125MHZ_SPEED
+   UINT8 OSGetProcessorSpeed(void);
+   void OSSetProcessorSpeed(UINT8 speed);
+#endif
+
 void _OSIOHandler(void);
 void *OSMalloc(UINT16 size);
 
