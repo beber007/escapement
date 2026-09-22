@@ -1,0 +1,16 @@
+// Timer for the 2^30 wrap test, loaded over escapement_pico.repl once its own timer has
+// been unregistered (escapement_pico.robot): a platform description cannot redeclare a
+// peripheral with another type.
+//
+// It is the copy in Escapement_RP2040_Timer.cs, clocked 1000 times faster than the chip's
+// 1 MHz. Its counter reaches the 2^30 boundary of the kernel clock after 1.07 s instead
+// of eighteen minutes; TaskWrapPico scales its periods by the same factor, so the kernel
+// sees the load it would have on the board, and there is a thousand times less processor
+// time to emulate. The alarms follow the counter, being clocked alike.
+wrapTimer: Timers.EscapementRP2040Timer @ sysbus 0x40054000
+    address: 0x40054000
+    frequency: 1000000000
+    IRQ0 -> nvic0@0
+    IRQ1 -> nvic0@1
+    IRQ2 -> nvic0@2
+    IRQ3 -> nvic0@3

@@ -42,12 +42,12 @@ endif
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p build)
 
-all: build/TaskLEDPico.elf build/UARTEchoPico.elf
+all: build/TaskLEDPico.elf build/UARTEchoPico.elf build/TaskWrapPico.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
 
-bin: all build/TaskLEDPico.bin build/UARTEchoPico.bin
+bin: all build/TaskLEDPico.bin build/UARTEchoPico.bin build/TaskWrapPico.bin
 
 build/%.bin : build/%.elf
 	$(OBJCOPY) -O binary $< $@
@@ -89,11 +89,15 @@ build/TaskLEDPico.o : TaskLEDPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/UARTEchoPico.o : UARTEchoPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/TaskWrapPico.o : TaskWrapPico.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskLEDPico.elf : $(COMMON) build/TaskLEDPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/TaskLEDPico.o -T$(LINKERFILE) -lgcc
 build/UARTEchoPico.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o -T$(LINKERFILE) -lgcc
+build/TaskWrapPico.elf : $(COMMON) build/TaskWrapPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/TaskWrapPico.o -T$(LINKERFILE) -lgcc
 
 # The .d files produced by -MMD list the headers of each object: without them, a change
 # to Escapement_Config.h triggers no rebuild at all and the next test runs against a

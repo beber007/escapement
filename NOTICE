@@ -46,3 +46,10 @@ source files:
     cmsis_device_l1, Apache-2.0
     Escapement/CORTEX-Mx/STM32/Libraries/CMSIS/Device/
     Escapement/CORTEX-Mx/STM32/Examples/*/system_stm32*.c
+
+  * Renode timer models, copied into the emulation to be changed there, MIT
+    License, notices kept at the head of each file:
+    emulation/renode/Escapement_STM32_Timer.cs, from Timers.STM32_Timer of
+    renode/renode-infrastructure, Copyright (c) 2010-2026 Antmicro;
+    emulation/renode/Escapement_RP2040_Timer.cs, from Timers.RP2040Timer of
+    matgla/Renode_RP2040, Copyright (c) 2025 Mateusz Stadnik.

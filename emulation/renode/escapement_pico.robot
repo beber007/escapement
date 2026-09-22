@@ -30,6 +30,25 @@ Load Escapement
     Execute Command           sysbus.cpu0 PC 0x20000000
     Execute Command           sysbus.cpu1 IsHalted true
 
+Load Escapement With A Fast Timer
+    [Documentation]           Loads TaskWrapPico on the same board, with the timer replaced by
+    ...                       the copy in Escapement_RP2040_Timer.cs clocked at 1 GHz
+    ...                       (escapement_pico_wrap.repl). The steps of the board script of the
+    ...                       models are spelt out: the copy has to be compiled once their
+    ...                       assembly is loaded, and before a platform refers to it.
+    Execute Command           $machine_name="raspberry_pico"
+    Execute Command           include @${CURDIR}/rp2040/cores/initialize_peripherals.resc
+    Execute Command           include @${CURDIR}/Escapement_RP2040_Timer.cs
+    Execute Command           machine LoadPlatformDescription @${CURDIR}/escapement_pico.repl
+    Execute Command           sysbus LoadELF @${CURDIR}/rp2040/bootroms/rp2040/b2.elf
+    Execute Command           sysbus Unregister sysbus.timer
+    Execute Command           machine LoadPlatformDescription @${CURDIR}/escapement_pico_wrap.repl
+    Execute Command           sysbus LoadELF @${EXAMPLE}/build/TaskWrapPico.elf
+    Execute Command           sysbus.cpu0 VectorTableOffset 0x00000000
+    Execute Command           sysbus.cpu1 VectorTableOffset 0x00000000
+    Execute Command           sysbus.cpu0 PC 0x20000000
+    Execute Command           sysbus.cpu1 IsHalted true
+
 Check The DVFS Driver
     [Documentation]           Hooks the writes to VREG, CLK_SYS_CTRL and the post dividers of
     ...                       the PLL to rp2040_dvfs_check.py. Only where no duration is
@@ -90,6 +109,44 @@ The UART echo answers
 
     Write Line To Uart        escapement  waitForEcho=false
     Wait For Prompt On Uart   escapement  testerId=${uart}
+
+Scheduling survives the 2^30 wrap of the kernel clock
+    [Documentation]           The kernel counts time modulo 2^30 and shifts every temporal
+    ...                       variable back when its counter wraps; the port rebuilds that
+    ...                       wrap with ALARM1, since the RP2040 counter never wraps. At the
+    ...                       1 us tick of the chip it comes after eighteen minutes, so no
+    ...                       test had reached it. Here the timer runs at 1 GHz and
+    ...                       TaskWrapPico scales its periods to match, which puts the
+    ...                       boundary at 1.07 s of emulated time for an unchanged load.
+    ...                       Every task must still run afterwards, and the probe, toggled
+    ...                       every 50 ms, must keep its period within 2 %.
+    Load Escapement With A Fast Timer
+
+    ${flag1}=                 Create LED Tester  sysbus.gpio.led  defaultTimeout=1
+    ${flag2}=                 Create LED Tester  sysbus.gpio.flag2  defaultTimeout=1
+    ${flag3}=                 Create LED Tester  sysbus.gpio.flag3  defaultTimeout=1
+    ${probe}=                 Create LED Tester  sysbus.gpio.probe
+
+    Start Emulation
+
+    # Before the boundary: the three tasks are running normally.
+    Assert LED State          true   testerId=${flag1}  pauseEmulation=true
+    Assert LED State          true   testerId=${flag2}  pauseEmulation=true
+    Assert LED State          true   testerId=${flag3}  pauseEmulation=true
+
+    # Cross it, and check that the counter did.
+    Execute Command           emulation RunFor "1.2"
+    ${raw}=                   Execute Command  sysbus ReadDoubleWord 0x40054028
+    Should Be True            ${raw.strip()} > 0x40000000
+
+    # After the boundary: every task must still be scheduled, the probe on time.
+    Assert LED Is Blinking    testDuration=0.5  onDuration=0.05  offDuration=0.05  tolerance=0.02  testerId=${probe}  pauseEmulation=true
+    Assert LED State          true   testerId=${flag1}  pauseEmulation=true
+    Assert LED State          false  testerId=${flag1}  pauseEmulation=true
+    Assert LED State          true   testerId=${flag2}  pauseEmulation=true
+    Assert LED State          false  testerId=${flag2}  pauseEmulation=true
+    Assert LED State          true   testerId=${flag3}  pauseEmulation=true
+    Assert LED State          false  testerId=${flag3}  pauseEmulation=true
 
 The power-aware kernel scales the frequency and the voltage
     [Documentation]           Under the power-aware kernel the tasks of TaskLEDPico, which

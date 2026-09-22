@@ -138,6 +138,19 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       first on a Linux machine of the house, under podman, since the models need
       the linux-dotnet package (`emulation/renode/RP2040.md`). The power-aware
       kernel followed with the DVFS driver above.
+- [x] **Cross the 2^30 wrap on the Pico.** The port rebuilds the wrap of the
+      kernel clock with `ALARM1`, eighteen minutes after the kernel starts at the
+      1 µs tick: no test had reached it, on the board or under Renode. The
+      `escapement_pico.robot` suite now runs `TaskWrapPico` on a copy of the
+      timer model clocked at 1 GHz (`Escapement_RP2040_Timer.cs`, the model of
+      matgla/Renode_RP2040 fixing its frequency), periods scaled to match: after
+      the boundary every task still runs and the probe keeps its 50 ms within 2 %.
+- [ ] **Timer events and event-driven tasks on the Pico**, which the F4 runs with
+      `TestTimerEventF4` and the Pico not at all: the port has no counterpart of
+      `Escapement_TimerEvent.c`, and no Pico example creates an event-driven task.
+      A driver on the two free alarms, a `TestTimerEventPico` and its test. The
+      context switch defect found with the DVFS driver would have hit exactly
+      these tasks.
 - [x] **Settle `EscapementSoft` and deadline-monotonic scheduling: kept, and
       tested.** The host test now builds both kernels under both algorithms,
       adds an (m,k)-firm scenario under a declared overload of 220 % and
