@@ -15,9 +15,13 @@
 
 CC ?= cc
 # An integer division by zero traps on x86 but yields 0 on arm64, so a test could pass on
-# one host and crash on the other: the sanitizer makes it an error on both.
-CFLAGS = -I. -I../../Escapement -Wall -O1 -g -fsanitize=integer-divide-by-zero,signed-integer-overflow \
-         -fno-sanitize-recover=all
+# one host and crash on the other: the sanitizer makes it an error on both. AddressSanitizer
+# catches a read past a block: the idle task, allocated smaller than a task, was read so,
+# and the result depended on whatever the heap held next to it.
+CFLAGS = -I. -I../../Escapement -Wall -O1 -g \
+         -fsanitize=address,integer-divide-by-zero,signed-integer-overflow -fno-sanitize-recover=all
+# What OSMalloc hands out is never freed, by design; Linux would report it as leaked.
+export ASAN_OPTIONS = detect_leaks=0
 HARD = ../../Escapement/EscapementHard.c
 SOFT = ../../Escapement/EscapementSoft.c
 HEADERS = Escapement.h Escapement_Config.h Escapement_Types.h Escapement_Processor.h \

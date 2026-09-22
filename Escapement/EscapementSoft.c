@@ -464,7 +464,9 @@ void ScheduleNextTask(void)
            _OSActiveTask = _OSQueueHead->Next[READYQ];
      }
   #endif
-  if (_OSActiveTask->TaskState == TASKTYPE_BLOCKING)
+  /* The idle task is in the same state as an event-driven task, but has no period, and
+  ** its arrival time has to stay at INT32_MAX for it to sort after every other. */
+  if (_OSActiveTask->TaskState == TASKTYPE_BLOCKING && _OSActiveTask != (TCB *)_OSQueueTail)
      _OSActiveTask->NextArrivalTimeLow = _OSGetActualTime() + _OSActiveTask->PeriodLow;
   _OSScheduleTask();
 } /* end of ScheduleNextTask */
