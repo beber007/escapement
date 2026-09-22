@@ -140,9 +140,11 @@ static void FixedDelayTask(void *argument)
 {
   volatile UINT32 i;
   TaskParametersDef *TaskParameters = (TaskParametersDef *)argument;
+  OSTrace(OS_TRACE_MARK,TaskParameters->Pin,0);
   SIO_GPIO_OUT_SET = 1u << TaskParameters->Pin;
   for (i = 0; i < TaskParameters->Delay; i += 1);
   SIO_GPIO_OUT_CLR = 1u << TaskParameters->Pin;
+  OSTrace(OS_TRACE_MARK,TaskParameters->Pin,1);
   OSEndTask();
 } /* end of FixedDelayTask */
 
@@ -150,6 +152,7 @@ static void FixedDelayTask(void *argument)
 static void ProbeTask(void *argument)
 {
   static UINT32 level = 0;
+  OSTrace(OS_TRACE_MARK,PROBE_PIN,0);
   level ^= 1;
   if (level) SIO_GPIO_OUT_SET = 1u << PROBE_PIN; else SIO_GPIO_OUT_CLR = 1u << PROBE_PIN;
   OSEndTask();
@@ -167,8 +170,10 @@ static void VariableDelayTask(void *argument)
      k = 1;
   else
      k += 1;
+  OSTrace(OS_TRACE_MARK,TaskParameters->Pin,0);
   SIO_GPIO_OUT_SET = 1u << TaskParameters->Pin;
   for (i = 0; i < k; i += 1);
   SIO_GPIO_OUT_CLR = 1u << TaskParameters->Pin;
+  OSTrace(OS_TRACE_MARK,TaskParameters->Pin,1);
   OSEndTask();
 } /* end of VariableDelayTask */

@@ -251,7 +251,9 @@ void SoftTimerInterrupt(void)
 {
   extern void _OSTimerInterruptHandler(void);  /* Defined in the generic kernel */
   FinalizeContextSwitchPreparation();   // Correct possible inconsistent queue state
+  OSTrace(OS_TRACE_SOFT_ENTER,0,0);
   _OSTimerInterruptHandler(); // Jump to to the generic service routine of the timer
+  OSTrace(OS_TRACE_SOFT_LEAVE,0,0);
   // The CLREX instruction is done in _OSContextSwapHandler (PendSV handler) prior to
   // returning to a user task.
 } /* end of SoftTimerInterrupt */

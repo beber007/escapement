@@ -80,6 +80,34 @@ volatile BOOL _OSComparatorInterruptFlag = FALSE;
 #endif
 
 
+#ifdef ESCAPEMENT_TRACE
+   volatile OS_TRACE_ENTRY _OSTrace[OS_TRACE_SIZE];
+   volatile UINT32 _OSTraceCount = 0;
+   volatile UINT32 _OSTraceFrozen = 0;
+
+   /* _OSTraceEvent: Appends an event to the ring buffer, interrupts masked for the few
+   ** instructions it takes, since interrupts of every priority leave events too. */
+   void _OSTraceEvent(UINT8 event, UINT8 arg, UINT16 extra)
+   {
+     UINT32 primask;
+     volatile OS_TRACE_ENTRY *entry;
+     __asm volatile ("MRS %0, PRIMASK" : "=r" (primask) :: "memory");
+     _OSDisableInterrupts();
+     if (_OSTraceFrozen) {
+        __asm volatile ("MSR PRIMASK, %0" :: "r" (primask) : "memory");
+        return;
+     }
+     entry = &_OSTrace[_OSTraceCount & (OS_TRACE_SIZE - 1)];
+     entry->Time = TIMER_TIMERAWL;
+     entry->Event = event;
+     entry->Arg = arg;
+     entry->Extra = extra;
+     _OSTraceCount += 1;
+     __asm volatile ("MSR PRIMASK, %0" :: "r" (primask) : "memory");
+   } /* end of _OSTraceEvent */
+#endif
+
+
 /* Minimal descriptor retrieved by _OSIOHandler; its first field is the handler. */
 typedef struct TIMER_ISR_DATA {
   void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
@@ -217,9 +245,12 @@ BOOL _OSSetTimer(INT32 nextArrivalTime)
      UINT32 deadline = raw + (target - (now & TIME_MASK));
      TIMER_ALARM0 = deadline;
      /* The counter may have moved past the deadline while it was being armed. */
-     if ((INT32)(deadline - TIMER_TIMERAWL) > 0)
+     if ((INT32)(deadline - TIMER_TIMERAWL) > 0) {
+        OSTrace(OS_TRACE_SET_TIMER,1,(UINT16)(deadline - raw));
         return TRUE;
+     }
   }
+  OSTrace(OS_TRACE_SET_TIMER,0,0);
   /* Disarm, then drop any cause the alarm may have raised while it was being set:
   ** the caller is told the deadline has passed and processes the arrival itself, so
   ** a pending interrupt would only buy a second, redundant scheduling round. */
@@ -236,6 +267,7 @@ static void Alarm0Handler(struct TIMER_ISR_DATA *descriptor)
      CostStart = TIMER_TIMERAWL;
      CostPending = TRUE;
   #endif
+  OSTrace(OS_TRACE_ALARM0,0,0);
   TIMER_INTF_CLR = ALARM0_BIT; // release a possibly forced interrupt
   TIMER_INTR = ALARM0_BIT;     // acknowledge
   _OSComparatorInterruptFlag = TRUE;
@@ -246,6 +278,7 @@ static void Alarm0Handler(struct TIMER_ISR_DATA *descriptor)
 /* Alarm1Handler: The counter passed a 2^30 boundary; rearm for the next one. */
 static void Alarm1Handler(struct TIMER_ISR_DATA *descriptor)
 {
+  OSTrace(OS_TRACE_ALARM1,0,0);
   TIMER_INTR = ALARM1_BIT;     // acknowledge
   ArmOverflowAlarm();
   _OSOverflowInterruptFlag = TRUE;

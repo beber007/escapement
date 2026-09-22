@@ -23,6 +23,7 @@ AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -MMD -MP
 #   make KERNEL=SOFT                                the soft real-time kernel
 #   make KERNEL=PA                                  the power-aware kernel
 #   make KERNEL=PA UNDERVOLT=1                      the same, below the specified voltage
+#   make TRACE=1                                    with a trace of the scheduling in RAM
 ifdef SCHEDULER
    CFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
    AFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
@@ -37,6 +38,11 @@ ifeq ($(KERNEL),PA)
 endif
 ifdef UNDERVOLT
    CFLAGS += -DESCAPEMENT_RP2040_UNDERVOLT
+endif
+# make TRACE=1 records a trace of the scheduling in RAM, read over SWD
+# (Escapement_Trace.h, tools/read_trace.py).
+ifdef TRACE
+   CFLAGS += -DESCAPEMENT_TRACE
 endif
 
 # Every rule writes into build/ without ever creating it.

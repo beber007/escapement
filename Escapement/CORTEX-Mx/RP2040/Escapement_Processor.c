@@ -183,6 +183,7 @@ void OSSetProcessorSpeed(UINT8 speed)
   __asm volatile ("MRS %0, PRIMASK" : "=r" (primask) :: "memory");
   _OSDisableInterrupts();
   if (speed != CurrentSpeed && speed <= OS_MAX_SPEED) {
+     OSTrace(OS_TRACE_SPEED,speed,CurrentSpeed);
      if (CoreVoltage[speed] > CoreVoltage[CurrentSpeed])
         SetCoreVoltage(CoreVoltage[speed],TRUE);
      SetSystemClock(speed);

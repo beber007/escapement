@@ -77,6 +77,16 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       and three more builds of the `emulation-rp2040` job run it: write hooks
       check that the clock never runs faster than the voltage allows, on a model
       of the regulator the RP2040 models lack.
+- [x] **Run the power-aware kernel on the board.** Through a trace the firmware
+      writes and the debugger reads without stopping a core (`make TRACE=1`,
+      `tools/read_trace.py`), since stopping one made the tasks miss their
+      deadlines. It found a timer interrupt left pending by the previous image,
+      which stalled the kernel at start after a load from the debugger, now
+      cleared by the port; then showed the DVFS driver at work on the silicon,
+      down to 12 MHz for the probe and back to 125 MHz in the idle task
+      (`rp2040.md`). Left to do on the board: the timer events, undervolting
+      with a checked computation, the settling time of the regulator, and the
+      periods on the frequency counter.
 - [ ] Then build the current measurement bench described in `power-aware.md` — a
       plain Pico rather than a Pico W, an INA226 read from the Bus Pirate — and
       answer, on the target this documentation calls the most promising, whether

@@ -31,6 +31,7 @@
 #include "Escapement_Types.h"      /* Type definitions */
 #include "Escapement_Interrupts.h" /* Interrupt priorities and ISR index definitions */
 #include "Escapement_Processor.h"
+#include "Escapement_Trace.h"        /* Trace points, empty unless ESCAPEMENT_TRACE */
 
 #endif /* _ASM_ */
 
