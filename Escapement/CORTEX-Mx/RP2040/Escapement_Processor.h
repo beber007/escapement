@@ -14,9 +14,12 @@
 #include "Escapement_Config.h"
 #include "Escapement_CortexMx.h"
 
-#define OS_12MHZ_SPEED  0   /* crystal alone, PLL stopped */
-#define OS_48MHZ_SPEED  1
-#define OS_125MHZ_SPEED 2   /* nominal frequency of the RP2040 */
+/* Operating points of the power-aware variant, slowest first. The system PLL stays locked
+** at 1500 MHz whichever is selected: moving between them only changes a post divider or
+** the source of clk_sys, so none waits for the PLL to lock again. */
+#define OS_12MHZ_SPEED  0   /* clk_sys on the crystal, through clk_ref */
+#define OS_50MHZ_SPEED  1   /* 1500 MHz / 6 / 5 */
+#define OS_125MHZ_SPEED 2   /* 1500 MHz / 6 / 2, nominal frequency of the RP2040 */
 
 #define OS_MAX_SPEED    OS_125MHZ_SPEED
 
@@ -25,7 +28,12 @@
 void OSInitializeSystemClocks(void);
 
 #ifdef ESCAPEMENT_VERSION_HARD_PA
+   /* OSInitProcessorSpeed: Sets the core voltage of the fastest operating point, which
+   ** OSInitializeSystemClocks has selected, and with ESCAPEMENT_RP2040_UNDERVOLT lowers the
+   ** brown-out detection threshold. To be called after OSInitializeSystemClocks. */
    void OSInitProcessorSpeed(void);
+   /* OSGetProcessorSpeed: Returns the operating point in effect, one of OS_xxMHZ_SPEED. */
+   UINT8 OSGetProcessorSpeed(void);
    void OSSetProcessorSpeed(UINT8 speed);
    void OSSetMinimalProcessorSpeed(UINT8 speed);
 #endif

@@ -21,6 +21,8 @@ AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -MMD -MP
 # Build variants, which the CI also runs:
 #   make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING    the other scheduling algorithm
 #   make KERNEL=SOFT                                the soft real-time kernel
+#   make KERNEL=PA                                  the power-aware kernel
+#   make KERNEL=PA UNDERVOLT=1                      the same, below the specified voltage
 ifdef SCHEDULER
    CFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
    AFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
@@ -28,6 +30,13 @@ endif
 ifeq ($(KERNEL),SOFT)
    CFLAGS += -DESCAPEMENT_VERSION_SOFT
    AFLAGS += -DESCAPEMENT_VERSION_SOFT
+endif
+ifeq ($(KERNEL),PA)
+   CFLAGS += -DESCAPEMENT_VERSION_HARD_PA
+   AFLAGS += -DESCAPEMENT_VERSION_HARD_PA
+endif
+ifdef UNDERVOLT
+   CFLAGS += -DESCAPEMENT_RP2040_UNDERVOLT
 endif
 
 # Every rule writes into build/ without ever creating it.
@@ -51,7 +60,8 @@ COMMON = build/Escapement_RamEntry.o \
           build/Escapement_Timer.o \
           build/Escapement_Processor.o \
           build/EscapementHard.o \
-          build/EscapementSoft.o
+          build/EscapementSoft.o \
+          build/EscapementHardPA.o
 
 build/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
@@ -72,6 +82,8 @@ build/Escapement_UART.o : ../../Escapement_UART.c
 build/EscapementHard.o : ../../../../EscapementHard.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementSoft.o : ../../../../EscapementSoft.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/EscapementHardPA.o : ../../../../EscapementHardPA.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TaskLEDPico.o : TaskLEDPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<

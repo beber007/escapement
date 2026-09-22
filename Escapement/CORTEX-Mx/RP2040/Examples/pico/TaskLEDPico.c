@@ -58,6 +58,9 @@ int main(void)
   /* Leave the ring oscillator, imprecise and around 6 MHz, for the 12 MHz crystal: the
   ** microsecond tick of the timer, and therefore the task periods, depend on it. */
   OSInitializeSystemClocks();
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSInitProcessorSpeed();
+  #endif
   /* Release the two GPIO blocks from reset. */
   RESETS_RESET &= ~(RESETS_IO_BANK0 | RESETS_PADS_BANK0);
   while ((RESETS_RESET_DONE & (RESETS_IO_BANK0 | RESETS_PADS_BANK0)) !=
@@ -81,6 +84,11 @@ int main(void)
      ** instance in three is mandatory, the others run if the declared execution times,
      ** generous here, leave room for them. The probe stays (1,1), i.e. hard. */
      OSCreateTask(FixedDelayTask,100,0,10000,10000,1,3,0,TaskParameters);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     /* Under the power-aware kernel every task declares its worst case execution time
+     ** at 125 MHz, the same generous figures as the soft branch, which the kernel uses to
+     ** lower the frequency and the voltage as far as the deadlines allow. */
+     OSCreateTask(FixedDelayTask,100,0,10000,10000,TaskParameters);
   #else
      OSCreateTask(FixedDelayTask,0,10000,10000,TaskParameters);
   #endif
@@ -89,6 +97,8 @@ int main(void)
   TaskParameters->Delay = 1000;
   #if defined(ESCAPEMENT_VERSION_SOFT)
      OSCreateTask(FixedDelayTask,200,0,20000,20000,1,3,0,TaskParameters);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateTask(FixedDelayTask,200,0,20000,20000,TaskParameters);
   #else
      OSCreateTask(FixedDelayTask,0,20000,20000,TaskParameters);
   #endif
@@ -97,12 +107,16 @@ int main(void)
   TaskParameters->Delay = 4000;
   #if defined(ESCAPEMENT_VERSION_SOFT)
      OSCreateTask(VariableDelayTask,1000,0,60000,60000,1,1,0,TaskParameters);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateTask(VariableDelayTask,1000,0,60000,60000,TaskParameters);
   #else
      OSCreateTask(VariableDelayTask,0,60000,60000,TaskParameters);
   #endif
   /* Measurement probe, 1 ms period, no payload. */
   #if defined(ESCAPEMENT_VERSION_SOFT)
      OSCreateTask(ProbeTask,20,0,1000,1000,1,1,0,NULL);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateTask(ProbeTask,20,0,1000,1000,NULL);
   #else
      OSCreateTask(ProbeTask,0,1000,1000,NULL);
   #endif

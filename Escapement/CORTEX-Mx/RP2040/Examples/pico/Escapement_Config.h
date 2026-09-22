@@ -29,11 +29,17 @@
 
 
 /* Select which Escapement version to use: the hard real-time kernel, unless the build asks
-** for the soft one with make KERNEL=SOFT. */
-#ifndef ESCAPEMENT_VERSION_SOFT
+** for the soft one with make KERNEL=SOFT or the power-aware one with make KERNEL=PA. */
+#if !defined(ESCAPEMENT_VERSION_SOFT) && !defined(ESCAPEMENT_VERSION_HARD_PA)
    #define ESCAPEMENT_VERSION_HARD
 #endif
-//#define ESCAPEMENT_VERSION_HARD_PA
+
+
+/* Power-aware variant only: lower the core voltage beyond the 1.05 V the datasheet
+** guarantees, down to 0.90 V at 12 MHz, for the measurement bench. The chip may then
+** compute wrong without failing visibly; see docs/power-aware.md. make UNDERVOLT=1 sets
+** it. */
+//#define ESCAPEMENT_RP2040_UNDERVOLT
 
 
 /* Maximum size of the permanent allocations performed by OSMalloc while main is running.

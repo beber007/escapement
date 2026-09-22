@@ -67,10 +67,15 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       deadline is not the same work. `tools/measure_cost.sh` does the run, with
       the instrumentation switched on in `Escapement_Config.h`.
 - [ ] Propose the two fixes to the Renode `Timers.STM32_Timer` upstream.
-- [ ] **Write the DVFS driver for the RP2040.** `Escapement_Processor.h` declares
-      12, 48 and 125 MHz, but `OSSetProcessorSpeed` does not exist: the PLL has to
-      be reconfigured and the core voltage set through `VREG_CTRL`. Testable under
-      emulation, and a prerequisite to measuring anything.
+- [x] **Write the DVFS driver for the RP2040.** `OSSetProcessorSpeed` moves
+      between 12, 50 and 125 MHz with the system PLL kept locked, so no change
+      waits for it, and sets the core voltage through `VREG`: 1.10 V at 125 MHz
+      and 1.05 V below, the bottom of what the datasheet guarantees. `make
+      UNDERVOLT=1` goes down to 0.95 and 0.90 V for the bench, outside the
+      specification (`power-aware.md`). `TaskLEDPico` has a power-aware branch,
+      and three more builds of the `emulation-rp2040` job run it: write hooks
+      check that the clock never runs faster than the voltage allows, on a model
+      of the regulator the RP2040 models lack.
 - [ ] Then build the current measurement bench described in `power-aware.md` — a
       plain Pico rather than a Pico W, an INA226 read from the Bus Pirate — and
       answer, on the target this documentation calls the most promising, whether
@@ -132,7 +137,7 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       now a matrix of the four builds, each running `escapement_pico.robot`. Run
       first on a Linux machine of the house, under podman, since the models need
       the linux-dotnet package (`emulation/renode/RP2040.md`). The power-aware
-      kernel is the one left: it waits on the DVFS driver above.
+      kernel followed with the DVFS driver above.
 - [x] **Settle `EscapementSoft` and deadline-monotonic scheduling: kept, and
       tested.** The host test now builds both kernels under both algorithms,
       adds an (m,k)-firm scenario under a declared overload of 220 % and

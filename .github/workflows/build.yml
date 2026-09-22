@@ -198,7 +198,8 @@ jobs:
         run: renode-test $(for suite in ${{ matrix.suites }}; do echo "emulation/renode/$suite"; done)
 
   emulation-rp2040:
-    # Every kernel and algorithm the Pico can build, each under the same suite.
+    # Every kernel and algorithm the Pico can build, each under the same suite, which
+    # checks the DVFS driver on the power-aware builds.
     name: Execution under Renode (RP2040, ${{ matrix.variant }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -215,6 +216,15 @@ jobs:
             make: KERNEL=SOFT
           - variant: soft, deadline-monotonic
             make: KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+          - variant: power-aware, EDF
+            make: KERNEL=PA
+            robot: --variable KERNEL:PA
+          - variant: power-aware, deadline-monotonic
+            make: KERNEL=PA SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+            robot: --variable KERNEL:PA
+          - variant: power-aware, undervolted
+            make: KERNEL=PA UNDERVOLT=1
+            robot: --variable KERNEL:PA --variable UNDERVOLT:1
     env:
       # The RP2040 models come from matgla/Renode_RP2040 and are built against the
       # Renode assemblies, which only the linux-dotnet package exposes: see
@@ -256,7 +266,7 @@ jobs:
         run: pip install --quiet robotframework==6.1 robotframework-retryfailed psutil pyyaml
 
       - name: Run the kernel
-        run: renode-test emulation/renode/escapement_pico.robot
+        run: renode-test ${{ matrix.robot }} emulation/renode/escapement_pico.robot
 
       - uses: actions/upload-artifact@v4
         if: always()

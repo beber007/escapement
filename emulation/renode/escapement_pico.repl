@@ -12,3 +12,20 @@ gpio:
     2 -> flag2@0
     3 -> flag3@0
     4 -> probe@0
+
+// The models leave the voltage regulator out, and the power-aware kernel writes it: VREG
+// and BOD keep what is written, ROK reads as in regulation while the regulator is enabled
+// and not in high impedance. Offsets from 0x100 hold what rp2040_dvfs_check.py counts.
+vreg: Python.PythonPeripheral @ sysbus 0x40064000
+    size: 0x1000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {0x0: 0xB1, 0x4: 0x91, 0x104: 0xF}
+elif request.IsRead:
+    request.Value = regs.get(request.Offset, 0)
+    if request.Offset == 0x0 and request.Value & 0x3 == 0x1:
+        request.Value |= 0x1000
+else:
+    regs[request.Offset] = request.Value & ~0x1000 if request.Offset == 0x0 else request.Value
+'''
