@@ -14,20 +14,7 @@
 #include "Escapement_Config.h"
 #include "Escapement_CortexMx.h"
 
-#ifdef ESCAPEMENT_VERSION_HARD_PA
-
-#define OS_4MHZ_SPEED  0
-#define OS_16MHZ_SPEED 1
-#define OS_32MHZ_SPEED 2
-
-#define OS_MAX_SPEED 2
-
-/* OSInitProcessorSpeed: */
-void OSInitProcessorSpeed(void);
-
-/* OSGetCurrentSpeed: */
-UINT8 OSGetProcessorSpeed(void);
-
-#endif /* ESCAPEMENT_VERSION_HARD_PA */
+/* The STM32 port no longer provides the power-aware kernel: its DVFS driver was written
+** for the STM32L1, removed with the examples of that family. The history keeps both. */
 
 #endif /* ESCAPEMENT_PROCESSOR_H_ */

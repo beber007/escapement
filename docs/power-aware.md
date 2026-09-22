@@ -1,50 +1,27 @@
 # The power-aware variant and DVFS
 
-`Escapement/CORTEX-Mx/STM32/Escapement_Processor.c` is a DVFS driver for the
-STM32L1: three steps at 4, 16 and 32 MHz, with the core voltage set through
-`PWR_CR`. The `stm32l-discovery-pa` example enables it — same application and
-same 90 % load as `stm32l-discovery`, except that each task declares its
-worst-case execution time, which the kernel uses to lower the frequency.
+The power-aware kernel, `EscapementHardPA`, lowers the frequency and the core voltage
+whenever the execution times the tasks declare leave room before the next deadline. Its
+driver is now the one of the RP2040, described below; the kernel itself also runs in the
+host test (`test/host`).
 
-```sh
-cd Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery-pa && make bin && cd -
-renode emulation/renode/escapement_l1_pa.resc
-```
+## The STM32L1 driver, removed
 
-**What works**: the variant builds (7,018 bytes against 6,116 for the Hard
-version, about 900 bytes of DVFS logic), it starts, the driver writes
-`PWR_CR = 0x800` — the 1.8 V range — and each of the three tasks runs one
-instance before the kernel reaches its PA-specific idle loop, which raises the
-frequency back before every `WFI`.
+The first DVFS driver of the project was written for the STM32L1 — three steps at 4, 16
+and 32 MHz, the core voltage set through `PWR_CR` — and ran in the `stm32l-discovery-pa`
+example. It was removed on 2026-09-22 with the L1 examples, once the Pico ran every test
+they ran; the history keeps it, with `IccMeasure.c`, the bench of the original authors
+that stepped through the three ranges and read the current of the STM32L-Discovery. That
+bench was never run: no board was at hand.
 
-The three tasks are scheduled at their periods, verified by a Robot test in CI.
-Over one emulated second:
+What the L1 had shown under Renode: the variant scheduled its three tasks at their
+periods and reprogrammed the PLL, eighteen times in half a second, while the voltage
+stayed in its highest range — the idle loop goes back to full speed before every `WFI`,
+and a 90 % load left little room. And one more platform defect: the Renode L151 platform
+declared TIM2 as a 32-bit counter where the L1 has a 16-bit one, so the 16-bit timer
+mode of the port never saw its overflow; the derived platform fixed it.
 
-| Output | Period | Toggles | Measured ratio | Theoretical ratio |
-|---|---:|---:|---:|---:|
-| PB12 | 500 | 625 | 5.95 | 6.00 |
-| PB13 | 1000 | 313 | 2.98 | 3.00 |
-| PB14 | 3000 | 105 | 1.00 | 1.00 |
-
-The DVFS driver does get exercised: **18 PLL reprogrammings** over half a
-second. The core voltage, however, stays at range 1 — the idle loop of the PA
-variant goes back to full speed before every `WFI`, and a 90 % load leaves
-little room to step down.
-
-## A third platform defect
-
-On an STM32L152RB, `OS_IO_TIM5` does not exist, so the kernel falls back to its
-**16-bit timer mode**, where the upper half of the clock is rebuilt from the
-overflow interrupt. But the Renode L151 platform declares TIM2 with
-`initialLimit: 0xFFFFFFFF`, making it a **32-bit** counter — whereas TIM2 on an
-STM32L1 is a 16-bit timer.
-
-As a result the counter never wrapped at 65,536, the overflow interrupt never
-came, and the upper half of the time stayed frozen. Measured directly:
-`CNT = 93,741` after 0.3 s, well beyond what a 16-bit counter can reach. The
-derived platform sets `initialLimit` to `0xFFFF`.
-
-## Is DVFS worth anything on an STM32?
+## Is DVFS worth anything?
 
 An open question, and one worth asking honestly before investing in this
 variant.
@@ -55,7 +32,7 @@ Lowering *f* alone gains nothing, and even lengthens the active time and
 therefore the leakage energy. The only lever is **V²**, and V can only be
 lowered by lowering f.
 
-**What makes the STM32L1 interesting.** Three regulator ranges — 1.8 V up to
+**What made the STM32L1 interesting**, the first target. Three regulator ranges — 1.8 V up to
 32 MHz, 1.5 V up to 16 MHz, 1.2 V up to 4.2 MHz. That is (1.8/1.2)² =
 **2.25×** in theory on dynamic energy. And the range is selected by software:
 most firmwares set range 1 at start-up and never touch it again, so there is
@@ -88,31 +65,10 @@ lowered without missing a deadline**, which is what DRA, OTE and DM_SLACK
 compute from the declared WCETs. That is a scheduling contribution, and it
 stands even if the measured gain proves modest.
 
-## The measurement bench already exists
+## Measuring the RP2040
 
-`Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery/IccMeasure.c` steps
-through the three ranges and reads the current through the Icc measurement
-built into the STM32L-Discovery board:
-
-```c
-OSSetProcessorSpeed(OS_32MHZ_SPEED);   ...
-OSSetProcessorSpeed(OS_16MHZ_SPEED);   ...
-OSSetProcessorSpeed(OS_4MHZ_SPEED);    ...
-```
-
-The original authors had set up exactly the experiment that is needed. It did
-not build when the project was taken over; it now builds with the power-aware
-kernel, as a target of `stm32l-discovery-pa`, and the CI keeps it that way. It
-has not been run: **until it is, everything above remains reasoning, not
-measurement.** A Discovery board settles it for good, and the result belongs in
-this documentation whatever it turns out to be — including if it is
-disappointing.
-
-## Measuring the RP2040 instead
-
-The L1 board is not the only way to settle the question, and it may not be the best one:
-this documentation already argues that the RP2040 is where DVFS has a niche, because it
-sleeps poorly. Measuring it needs a bench, which is described here so that it can be built
+This documentation argues that the RP2040 is where DVFS has a niche, because it sleeps
+poorly, and it is the board at hand. Measuring it needs a bench, which is described here so that it can be built
 when the time comes.
 
 **Where to insert the measurement.** On a Pico, 5 V from `VSYS` goes through a buck-boost
@@ -192,7 +148,7 @@ risks:
 `escapement_pico.repl` adds a model of `VREG`, and `escapement_pico.robot` hooks the writes
 to it, to `CLK_SYS_CTRL` and to the post dividers (`rp2040_dvfs_check.py`): over 100 ms of
 `TaskLEDPico`, clk_sys never runs faster than the voltage allows, the voltage does change
-and reaches its lowest setting. As on the L1, the emulated core does not slow down with its
+and reaches its lowest setting. The emulated core does not slow down with its
 clock: the registers are driven in the right order, and nothing is said about energy.
 
 ## Which MCU to port to next?
@@ -229,18 +185,18 @@ management.
 
 **But the order matters.** Measuring comes before porting: until there is a
 figure from hardware, choosing the next target is done blind. The bench described
-above uses a board that is already at hand, which is why it now comes before
-buying an L1 Discovery.
+above uses a board that is already at hand.
 
-One practical note on any STM32 beyond the two families kept here: Renode
+One practical note on any STM32 beyond the F4 kept here: Renode
 provides platforms for the F0, F1, F4, F7, G0, H7, L0, L1, L5 and W families, but
 **none for the L4 or the U5**. Porting to either means writing its platform as
 well, or giving up the emulation level of verification for that target.
 
 ## What emulation will never tell
 
-The L151 platform models neither RCC nor PWR: the writes of the driver are
-visible but have no effect on the real speed of the core. **No emulator will
+Neither the RP2040 models nor the L151 platform before them tie the speed of the
+emulated core to its clock, and none models a supply voltage: the writes of a
+driver are visible but have no effect on the speed of the core. **No emulator will
 validate DVFS** — that would require modelling the effect of a voltage change
 on execution speed. What emulation proves here is that the kernel schedules
 correctly *and* drives the right registers; not that it saves energy. That

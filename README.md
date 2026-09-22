@@ -90,8 +90,8 @@ drops chosen instances instead of missing arbitrary deadlines.
 **Energy management driven by the scheduler.** Tasks declare their worst-case
 execution time; the kernel uses it to know *by how much* it may slow the core
 down without endangering a deadline — which is what the DRA, OTE and DM_SLACK
-algorithms compute. Whether that lever actually saves energy on an STM32 is
-examined, without indulgence, in [`docs/power-aware.md`](docs/power-aware.md).
+algorithms compute. Whether that lever actually saves energy is examined,
+without indulgence, in [`docs/power-aware.md`](docs/power-aware.md).
 
 **A time base independent of the core, on the RP2040.** Its counter is fed by a
 one-microsecond tick derived from the reference clock: changing the processor

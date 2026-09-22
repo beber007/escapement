@@ -16,17 +16,17 @@ the sequel to the RP2040 and the better reason to write the ARMv8-M kernel port
 it needs: its regulator switches rather than dissipates. It comes after the
 RP2040 bench, and only if that bench shows DVFS beating race-to-sleep.
 
-The **STM32** examples stay as they are, with no new example or port. They cost
-nothing to keep, being built and run in CI, and they repeat on another port
-the regression tests of the kernel — the 2^30 wrap, the timer events, the soft
-kernel and deadline-monotonic variants, the power-aware kernel — which the Pico
-now runs as well. They also keep the kernel from becoming specific to the
-RP2040, whose suite runs on third-party Renode models and only on Linux. The **STM32L4** and **STM32U5**,
+Of the **STM32**, only the F4 example stays, with no new example or port. The
+Pico runs every test the STM32 ran, so the L1 examples went on 2026-09-22 with
+their DVFS driver; the F4 is kept because it alone executes the Cortex-M3/M4
+path of the context switch, from which an RP2350 port would start, because its
+suites run on the Mac where those of the Pico need Linux, and because they rest
+on the platforms of Renode itself rather than on third-party models. Once an
+RP2350 port runs that path, the F4 can be reconsidered. The **STM32L4** and **STM32U5**,
 once the next steps, are set aside: the L4 would need its own Renode platform,
 and the U5 sleeps too well for DVFS to have much to gain (`power-aware.md`).
 
-Today `EscapementHardPA` is referenced by both ports, and `stm32l-discovery-pa`
-demonstrates it on Cortex-M.
+Today `EscapementHardPA` runs on the RP2040 alone, and in the host test.
 
 ## The MSP430 port was removed
 
@@ -59,8 +59,9 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       periods under Renode (see `emulation.md`).
 - [x] Emulation replayed in CI with `renode-test`: running the kernel has
       become a regression test.
-- [x] **Power-aware variant on Cortex-M**: `stm32l-discovery-pa` schedules its
-      three tasks and reprograms the PLL, verified in CI.
+- [x] **Power-aware variant on Cortex-M**: `stm32l-discovery-pa` scheduled its
+      three tasks and reprogrammed the PLL, verified in CI — removed since with
+      the L1, the Pico having taken over.
 - [ ] **Measure the per-activation cost again on the Pico.** The published
       figures — 3.2 µs mean, 8 µs worst case — were taken while the kernel still
       selected deadline-monotonic scheduling; ordering the ready queue by
@@ -85,10 +86,6 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       a switching core regulator, and a PLL and regulator scheme close to the
       RP2040's. Its sleep is better, which has to be weighed on the bench too;
       see the table in `power-aware.md`.
-- [ ] Only if that answer calls for it: an STM32L-Discovery board would allow
-      `IccMeasure.c`, written by the original authors and still here, to be
-      replayed on the L1. Needs a board nobody has, and the RP2040 bench above
-      needs none.
 - [x] **Fix what `-O2` exposed**: pending an exception did not take effect
       before the next instruction, so an optimised `OSEndTask` returned instead
       of switching context and faulted with `INVPC`. Barriers added; the build

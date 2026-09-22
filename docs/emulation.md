@@ -9,7 +9,7 @@ renode emulation/renode/escapement_f4.resc
 (monitor) emulation RunFor "1"
 ```
 
-Four Robot suites replay such runs on every push, in the `emulation` job of the CI
+Three Robot suites replay such runs on every push, in the `emulation` job of the CI
 (the RP2040 has its own job and suite, run on every kernel and algorithm, see
 `emulation/renode/RP2040.md`), and the
 `variants` job runs them again on the soft kernel and under deadline-monotonic
@@ -18,7 +18,7 @@ scheduling, built with `make KERNEL=SOFT` and `make SCHEDULER=...`:
 ```sh
 pip install robotframework==6.1 robotframework-retryfailed psutil pyyaml
 renode-test emulation/renode/escapement_f4.robot emulation/renode/escapement_f4_wrap.robot \
-            emulation/renode/escapement_l1_pa.robot emulation/renode/escapement_f4_events.robot
+            emulation/renode/escapement_f4_events.robot
 ```
 
 | Test | What it proves |
@@ -26,7 +26,6 @@ renode-test emulation/renode/escapement_f4.robot emulation/renode/escapement_f4_
 | The three periodic tasks are scheduled | each of the three tasks raises **and** lowers its output within its time window |
 | The UART echo answers | the kernel also schedules interrupt-driven processing |
 | Scheduling survives the 2^30 wrap | the kernel keeps scheduling across the wraparound of its clock |
-| The power-aware variant schedules its three tasks | the DVFS variant schedules and drives the PLL |
 | Timer events wake the event-driven tasks | a timer-event handler on TIM14 wakes event-driven tasks on time: PB13 high 8.40 ms out of every 41.00 ms, PB14 16.80 ms out of every 82.00 ms, within 2 % |
 
 ## Crossing the 2^30 boundary

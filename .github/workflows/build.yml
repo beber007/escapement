@@ -17,12 +17,6 @@ jobs:
           - example: stm32f4-discovery
             dir: Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
             cpu: Cortex-M4
-          - example: stm32l-discovery
-            dir: Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery
-            cpu: Cortex-M3
-          - example: stm32l-discovery-pa
-            dir: Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery-pa
-            cpu: Cortex-M3
           - example: rp2040-pico
             dir: Escapement/CORTEX-Mx/RP2040/Examples/pico
             cpu: Cortex-M0+
@@ -106,7 +100,6 @@ jobs:
       - name: Build the examples and their raw images
         run: |
           make -C "${{ env.DIR }}" bin
-          make -C Escapement/CORTEX-Mx/STM32/Examples/stm32l-discovery-pa bin
 
       - name: Install Renode
         run: |
@@ -124,7 +117,6 @@ jobs:
           renode-test
           emulation/renode/escapement_f4.robot
           emulation/renode/escapement_f4_wrap.robot
-          emulation/renode/escapement_l1_pa.robot
           emulation/renode/escapement_f4_events.robot
 
       - uses: actions/upload-artifact@v4
@@ -151,17 +143,15 @@ jobs:
         include:
           - variant: hard, deadline-monotonic
             make: SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
-            build: stm32f4-discovery stm32l-discovery stm32l-discovery-pa
-            suites: >-
-              escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
-              escapement_l1_pa.robot
+            build: stm32f4-discovery
+            suites: escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
           - variant: soft, EDF
             make: KERNEL=SOFT
-            build: stm32f4-discovery stm32l-discovery
+            build: stm32f4-discovery
             suites: escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
           - variant: soft, deadline-monotonic
             make: KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
-            build: stm32f4-discovery stm32l-discovery
+            build: stm32f4-discovery
             suites: escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
     env:
       RENODE_VERSION: 1.17.0

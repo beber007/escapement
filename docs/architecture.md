@@ -41,10 +41,14 @@ The Pico examples are written for the hard kernel only, and the power-aware one 
 ## Supported targets
 
 - **ARM Cortex-M0 / M3 / M4** — port under `Escapement/CORTEX-Mx/`. The ST
-  libraries are bundled for the STM32F4 and L1 families, the two the examples
-  use. Support for the F0, F1 and F2 families was removed on 2026-09-20: those
+  libraries are bundled for the STM32F4 only, the one family the examples use.
+  Support for the F0, F1 and F2 families was removed on 2026-09-20: those
   examples were only ever compiled, and this is a demonstration of what the
-  kernel does, not a catalogue of the parts it could run on.
+  kernel does, not a catalogue of the parts it could run on. The L1 followed on
+  2026-09-22, with its DVFS driver: the Pico had come to run every test it ran,
+  and the F4 is kept for the Cortex-M3/M4 path of the context switch, which only
+  it executes. The port still carries branches for the families removed; none is
+  built.
 - **Raspberry Pi RP2040** — Cortex-M0+, port under
   `Escapement/CORTEX-Mx/RP2040/`. A 64-bit timer with four alarms, clocked
   **independently of the core clock**.
