@@ -35,8 +35,10 @@ make KERNEL=SOFT                               # soft kernel, earliest deadline 
 make KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
 ```
 
-The Pico examples are written for the hard kernel only, and the power-aware one takes
-`SCHEDULER` but not `KERNEL`.
+On the Pico, `make KERNEL=PA` builds the power-aware kernel as well, and
+`make KERNEL=PA UNDERVOLT=1` the same below the specified core voltage, for the
+measurement bench only (`power-aware.md`). The STM32 port no longer provides the
+power-aware kernel.
 
 ## Supported targets
 
@@ -51,7 +53,9 @@ The Pico examples are written for the hard kernel only, and the power-aware one 
   built.
 - **Raspberry Pi RP2040** — Cortex-M0+, port under
   `Escapement/CORTEX-Mx/RP2040/`. A 64-bit timer with four alarms, clocked
-  **independently of the core clock**.
+  **independently of the core clock**: the kernel takes two of them, the timer
+  events one of the other two. The target of the power-aware kernel, with the
+  DVFS driver of the project (`power-aware.md`).
 Escapement began life on the TI MSP430, and that port was removed on
 2026-09-20: see `roadmap.md`. The history keeps it, and so does the archived
 `beber007/zottaos`.
@@ -64,10 +68,13 @@ Escapement/
   EscapementSoft.{c,h}      (m,k)-firm real-time kernel
   Escapement_Modes.h        names of the scheduling algorithms
   EscapementHardPA.{c,h}    power-aware hard real-time kernel
-  CORTEX-Mx/                ARM port (STM32, CMSIS)
-  CORTEX-Mx/STM32/Examples/ five examples with a Makefile
-  CORTEX-Mx/RP2040/Examples/ Raspberry Pi Pico example
+  CORTEX-Mx/                ARM port: generic Cortex-M layer, STM32, RP2040
+  CORTEX-Mx/STM32/Examples/ the STM32F4-Discovery example
+  CORTEX-Mx/RP2040/Examples/ the Raspberry Pi Pico example
+test/host/                  the three kernels built for the host
+emulation/renode/           Renode platforms, models and Robot suites
 tools/                      trace capture and figure generation
-.github/workflows/build.yml builds the four examples, runs three under Renode
-                            and the scheduler on the host
+.github/workflows/build.yml builds both examples, runs them under Renode on
+                            every kernel and algorithm, and the kernels on
+                            the host
 ```

@@ -32,8 +32,12 @@ The code is compiled freestanding and linked without a C library
 (`-nostdlib`), with only `libgcc` for the routines the hardware does not
 provide (integer division on Cortex-M0 and M3). No newlib is needed.
 
-> **Only the RP2040 port has been run on hardware** (see `rp2040.md`). All the
-> examples are executed under Renode in CI.
+> **Only the RP2040 port has been run on hardware** (see `rp2040.md`), and there
+> the hard kernel only: the DVFS driver and the timer events have been seen under
+> emulation alone. All the examples are executed under Renode in CI.
+
+On the Pico, `make KERNEL=SOFT`, `make KERNEL=PA` and `make SCHEDULER=...` build
+the other kernels and algorithms; see `architecture.md`.
 
 Flashing is done through OpenOCD (`openocd.cfg` is provided under
 `Escapement/CORTEX-Mx/STM32/Examples/`).
