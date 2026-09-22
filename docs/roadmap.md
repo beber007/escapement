@@ -86,6 +86,23 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       a switching core regulator, and a PLL and regulator scheme close to the
       RP2040's. Its sleep is better, which has to be weighed on the bench too;
       see the table in `power-aware.md`.
+      No Renode model of the RP2350 exists (checked 2026-09-22): Renode ships
+      none, and the `rp2350Blinking` branch of matgla/Renode_RP2040, begun in
+      November 2024, stopped at a GPIO and a SIO — its author has since frozen
+      the project, porting every peripheral being too costly. Renode does emulate
+      the Cortex-M33 core. What the Escapement tests use is small: the core and
+      its SRAM, the timer (the fixed copy of `Escapement_RP2040_Timer.cs`, moved
+      to the addresses of the RP2350), a PL011 UART, which Renode models, the
+      GPIO outputs of the SIO, and ready bits for the clocks, the PLL, the resets
+      and the regulator, as the VREG model of `escapement_pico.repl` does. A
+      platform of our own, a few hundred lines, would keep the port under
+      emulation; without it, the port could be checked on the board alone.
+      Nothing else covers the RP2350 either: QEMU has an RFC for the RP2040 only
+      (v3, September 2026, not merged; it models the timer, the clocks, VREG,
+      the SIO and the UART, and could replace the frozen models for the Pico
+      once merged) and a mere feature request for the RP2350; Wokwi runs in the
+      cloud, closed, with an RP2350 still incomplete. The lasting answer is a
+      bench on the board, run by the CI from a machine of the house.
 - [x] **Fix what `-O2` exposed**: pending an exception did not take effect
       before the next instruction, so an optimised `OSEndTask` returned instead
       of switching context and faulted with `INVPC`. Barriers added; the build
