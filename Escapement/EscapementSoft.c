@@ -85,23 +85,6 @@ typedef struct TCB {
 
 OSCheckTCBLayout();
 
-/* List head sentinel */
-typedef struct {
-  TCB *Next[2];                  // [0]: first TCB in the ready queue link Next
-                                 // [1]: first TCB in the arrival queue link
-} TCB_HEAD;
-
-/* List tail sentinel, which also corresponds to the idle task */
-typedef struct {
-  TCB *Next[2];                  // [0] and [1] are queue end markers
-  UINT8 TaskState;               // Current state of the idle task
-  INT32 NextArrivalTimeLow;      // Set to INT32_MAX
-  #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-     UINT8 Priority;             // Priority of the running idle task
-     UINT8 StaticPriority;       // Base task priority. Must be the lowest in the system.
-  #endif
-  void (*TaskCodePtr)(void *);   // Pointer to the first instruction of the idle task
-} TCB_TAIL;
 
 
 /* EVENT-DRIVEN OR SYNCHRONOUS TASK CONTROL BLOCK */
@@ -146,8 +129,13 @@ typedef struct ETCB {
 ** arrival queue if it has expired its processor load with it's last execution. */
 #define BLOCKQ    ARRIVALQ
 
+/* The sentinels of the queues, the tail being also the idle task. Both are whole TCBs,
+** zeroed as the rest of .bss: the kernel reads task fields through the tail, and blocks
+** allocated to the size of the fields a sentinel uses made those reads fall past them —
+** into the next allocation or past the end of the RAM. */
+static TCB QueueHeadSentinel, QueueTailSentinel;
 TCB *_OSQueueHead = NULL;
-TCB_TAIL *_OSQueueTail = NULL;
+TCB *_OSQueueTail = NULL;
 
 #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
   /* EVENT-DRIVEN TASKING UNDER DEADLINE MONOTONIC SCHEDULING
@@ -255,13 +243,10 @@ static void EmptyRescheduleSynchronousTaskList(INT32 currentTime);
 ** Returned value: (BOOL) TRUE on success and FALSE otherwise. */
 BOOL Initialize(void)
 {
-  /* Allocate TCB blocks to hold the sentinel heads and tails of the ready and arrival
-  ** queues. */
-  if ((_OSQueueHead = (TCB *)OSMalloc(sizeof(TCB_HEAD))) == NULL)
-     return FALSE;
-  if ((_OSQueueTail = (TCB_TAIL *)OSMalloc(sizeof(TCB_TAIL))) == NULL)
-     return FALSE;
-  _OSQueueHead->Next[READYQ] = (TCB *)_OSQueueTail;
+  /* The sentinel heads and tails of the ready and arrival queues. */
+  _OSQueueHead = &QueueHeadSentinel;
+  _OSQueueTail = &QueueTailSentinel;
+  _OSQueueHead->Next[READYQ] = _OSQueueTail;
   _OSQueueTail->Next[READYQ] = NULL;
   /* Create the idle task as the tail of the ready queue. */
   _OSQueueTail->TaskCodePtr = IdleTask;
@@ -269,7 +254,7 @@ BOOL Initialize(void)
      _OSQueueTail->StaticPriority = 0;
   #endif
   /* Make an empty arrival queue. */
-  _OSQueueHead->Next[ARRIVALQ] = (TCB *)_OSQueueTail;
+  _OSQueueHead->Next[ARRIVALQ] = _OSQueueTail;
   _OSQueueTail->Next[ARRIVALQ] = NULL;
   _OSQueueTail->TaskState = STATE_INIT | TASKTYPE_BLOCKING;
   _OSQueueTail->NextArrivalTimeLow = INT32_MAX;
@@ -282,7 +267,7 @@ BOOL Initialize(void)
 ** The argument parameter to the idle task is undefined. */
 void IdleTask(void *argument)
 {
-  if (_OSQueueHead->Next[ARRIVALQ] != (TCB *)_OSQueueTail || SynchronousTaskList != NULL) {
+  if (_OSQueueHead->Next[ARRIVALQ] != _OSQueueTail || SynchronousTaskList != NULL) {
      #ifdef NonMaskableSoftwareTimer
         /* Switch to normal processing of task signaling, see EnqueueRescheduleQueue-
         ** BeforeBoot defined below. */
@@ -376,7 +361,7 @@ UINT8 GetTaskPriority(INT32 deadline)
         nextTCB->StaticPriority++;
      else
         nbTasks++;
-  } while (nextTCB != (TCB *)_OSQueueTail);
+  } while (nextTCB != _OSQueueTail);
   /* There may also be event-driven tasks that may have higher priority. Because these
   ** are not sorted, the whole list must be traversed. */
   for (nextETCB = SynchronousTaskList; nextETCB != NULL; nextETCB = nextETCB->NextETCB)
@@ -421,7 +406,7 @@ void ScheduleNextTask(void)
 {
   _OSActiveTask = _OSQueueHead->Next[READYQ];
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-     while (_OSActiveTask != (TCB *)_OSQueueTail && _OSActiveTask->TaskState == STATE_INIT) {
+     while (_OSActiveTask != _OSQueueTail && _OSActiveTask->TaskState == STATE_INIT) {
         /* Only periodic tasks are considered. */
         if (_OSActiveTask->Priority < _OSQueueTail->StaticPriority) // Is task mandatory?
            break; // Yes, schedule it
@@ -439,7 +424,7 @@ void ScheduleNextTask(void)
         _OSActiveTask = _OSQueueHead->Next[READYQ];
      }
   #else
-     if (_OSActiveTask == (TCB *)_OSQueueTail) {
+     if (_OSActiveTask == _OSQueueTail) {
         /* No mandatory instance to execute: Check out optional tasks that are after the
         ** sentinel marked by _OSQueueTail. */
         while ((_OSActiveTask = _OSQueueTail->Next[READYQ]) != NULL) {
@@ -450,7 +435,7 @@ void ScheduleNextTask(void)
                  _OSActiveTask->TaskState |= STATE_ACTIVATE;
                  _OSQueueHead->Next[READYQ] = _OSActiveTask;
                  _OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];
-                 _OSActiveTask->Next[READYQ] = (TCB *)_OSQueueTail;
+                 _OSActiveTask->Next[READYQ] = _OSQueueTail;
                  _OSActiveTask->TaskState = STATE_INIT;
                  break;
               }
@@ -466,7 +451,7 @@ void ScheduleNextTask(void)
   #endif
   /* The idle task is in the same state as an event-driven task, but has no period, and
   ** its arrival time has to stay at INT32_MAX for it to sort after every other. */
-  if (_OSActiveTask->TaskState == TASKTYPE_BLOCKING && _OSActiveTask != (TCB *)_OSQueueTail)
+  if (_OSActiveTask->TaskState == TASKTYPE_BLOCKING && _OSActiveTask != _OSQueueTail)
      _OSActiveTask->NextArrivalTimeLow = _OSGetActualTime() + _OSActiveTask->PeriodLow;
   _OSScheduleTask();
 } /* end of ScheduleNextTask */
@@ -485,7 +470,7 @@ BOOL IsTaskSchedulable(void)
   /* Because _OSActiveTask->NextDeadline - _OSTime is <= 0x3FFFFFFF, the amount of work
   ** that can be done in this interval is also <= 0x3FFFFFFF. */
   totalWork = _OSActiveTask->WCET;
-  for (tcb = _OSQueueHead; (tcb = tcb->Next[ARRIVALQ]) != (TCB *)_OSQueueTail; ) {
+  for (tcb = _OSQueueHead; (tcb = tcb->Next[ARRIVALQ]) != _OSQueueTail; ) {
      if (tcb->TaskState & TASKTYPE_BLOCKING)
         continue;
      if (tcb->NextArrivalTimeHigh > deadlineHigh ||
@@ -599,11 +584,11 @@ void _OSTimerInterruptHandler(void)
         ** variables. Because all these variables are signed, their relative values are pre-
         ** served. */
         /* Time shift all deadlines of periodic tasks in the ready queue. */
-        for (arrival = _OSQueueHead; (arrival = arrival->Next[READYQ]) != (TCB *)_OSQueueTail; )
+        for (arrival = _OSQueueHead; (arrival = arrival->Next[READYQ]) != _OSQueueTail; )
            if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0)
               arrival->NextDeadline -= ShiftTimeLimit;
         /* Time shift all tasks in the arrival queue. */
-        for (arrival = _OSQueueHead; (arrival = arrival->Next[ARRIVALQ]) != (TCB *)_OSQueueTail; ) {
+        for (arrival = _OSQueueHead; (arrival = arrival->Next[ARRIVALQ]) != _OSQueueTail; ) {
            if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0) {
               if (arrival->NextArrivalTimeHigh > 0)
                  arrival->NextArrivalTimeHigh--;
@@ -658,11 +643,11 @@ void _OSTimerInterruptHandler(void)
                  ** overload, the non-zombie instance may also be mandatory and should be de-
                  ** tectable while testing the application. */
                  #ifdef DEBUG_MODE
-                    for (tmp = _OSQueueHead; tmp != (TCB *)_OSQueueTail; tmp = tmp->Next[READYQ])
+                    for (tmp = _OSQueueHead; tmp != _OSQueueTail; tmp = tmp->Next[READYQ])
                        if (tmp == arrival)
                           while (TRUE); // If we get here, the processor utilization > 100%.
                  #endif
-                 for (tmp = (TCB *)_OSQueueTail; tmp->Next[READYQ] != NULL; tmp = tmp->Next[READYQ])
+                 for (tmp = _OSQueueTail; tmp->Next[READYQ] != NULL; tmp = tmp->Next[READYQ])
                     if (tmp->Next[READYQ] == arrival) {
                        tmp->Next[READYQ] = arrival->Next[READYQ];
                        break;
@@ -747,7 +732,7 @@ void _OSTimerInterruptHandler(void)
         EmptyRescheduleSynchronousTaskList(currentTime);
         /* Set arrival timer to the next arrival time. */
         arrival = _OSQueueHead->Next[ARRIVALQ];
-        if (arrival != (TCB *)_OSQueueTail &&
+        if (arrival != _OSQueueTail &&
                ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {
            /* Set the timer comparator to the next periodic task arrival time. */
            if (_OSSetTimer(arrival->NextArrivalTimeLow))
@@ -789,7 +774,7 @@ void InsertQueue(SEARCHFUNCTION TestKey, UINT8 offsetNext, TCB *newNode)
   left = _OSQueueHead;
   while (TRUE) {
      /* Always insert before the tail or if the selection function succeeds. */
-     if ((right = left->Next[offsetNext]) == (TCB *)_OSQueueTail || TestKey(newNode,right))
+     if ((right = left->Next[offsetNext]) == _OSQueueTail || TestKey(newNode,right))
         break; // found the right node
      left = right;
   }
@@ -839,7 +824,7 @@ void OptionalReadyQueueInsert(TCB *newNode)
 {
   TCB *right, *left;
   /* Get left and right TCB neighbors */
-  for (left = (TCB *)_OSQueueTail; (right = left->Next[READYQ]) != NULL; left = right)
+  for (left = _OSQueueTail; (right = left->Next[READYQ]) != NULL; left = right)
      if (ReadyQueueInsertTestKey(newNode,right))
         break;
   newNode->Next[READYQ] = right;
@@ -1144,13 +1129,13 @@ BOOL OSStartMultitasking(void (*f)(void *), void *arg)
      _OSQueueTail->Priority = _OSQueueTail->StaticPriority << 1;
      /* Transfer the tasks from the ready queue into the arrival queue. The first in-
      ** stance of each task to arrive corresponds the first mandatory task. */
-     for (tcb = _OSQueueHead->Next[READYQ]; tcb != (TCB *)_OSQueueTail; tcb = tcb->Next[READYQ]) {
+     for (tcb = _OSQueueHead->Next[READYQ]; tcb != _OSQueueTail; tcb = tcb->Next[READYQ]) {
         tcb->NextArrivalTimeHigh = (UINT16)tcb->NextMandatoryArrivalTimeHigh;
         tcb->NextArrivalTimeLow = tcb->NextMandatoryArrivalTimeLow;
         ArrivalQueueInsert(tcb);
      }
      /* The only task that is now ready is the idle task. */
-     _OSQueueHead->Next[READYQ] = (TCB *)_OSQueueTail;
+     _OSQueueHead->Next[READYQ] = _OSQueueTail;
   #endif
   /* Create the FIFO array of tasks for all created event descriptors. */
   for (etcb = SynchronousTaskList; etcb != NULL; etcb = etcb->NextETCB) {
@@ -1166,7 +1151,7 @@ BOOL OSStartMultitasking(void (*f)(void *), void *arg)
   }
   /* There are periodic tasks in the system when the arrival queue is not empty. Note
   ** that periodic tasks are initially inserted in this queue before starting Escapement. */
-  if (_OSQueueHead->Next[ARRIVALQ] != (TCB *)_OSQueueTail || SynchronousTaskList != NULL)
+  if (_OSQueueHead->Next[ARRIVALQ] != _OSQueueTail || SynchronousTaskList != NULL)
      /* Initialize the timer which starts counting as soon as the idle task begins. At
      ** this point, the timer's input divider is selected but it is halted. */
      _OSInitializeTimer();

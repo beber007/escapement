@@ -156,6 +156,16 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       whole, which would have cleared the bits of another alarm; it now goes
       through the atomic set and clear aliases. The Pico suite runs on a fixed
       copy of the timer model, whose alarms interfered with one another.
+- [x] **Make the queue sentinels whole task control blocks.** The head and the
+      tail of the queues, the tail being the idle task, were allocated to the size
+      of the few fields they use and then handled as tasks: two defects this year
+      came from reading a task field through the idle task, past its block. They
+      are now whole TCBs in `.bss`, zeroed at start-up, for about sixty bytes of
+      RAM per kernel. The analyser of GCC (`-fanalyzer`) was tried on the kernels
+      first: it reports nothing on them, and nothing either on the code as it was
+      before those two defects were fixed, since the blocks come from `OSMalloc`
+      and reach the fields through casts. It was left out of the CI; what caught
+      one of the two is AddressSanitizer in the host test.
 - [x] **Settle `EscapementSoft` and deadline-monotonic scheduling: kept, and
       tested.** The host test now builds both kernels under both algorithms,
       adds an (m,k)-firm scenario under a declared overload of 220 % and
