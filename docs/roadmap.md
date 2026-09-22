@@ -15,7 +15,9 @@ A **STM32L4** would come next among the STM32 parts, being a Cortex-M4 the
 generic layer already covers. It is a larger job than it looks: Renode ships no
 L4 platform, so the port would have to bring its own. The **STM32U5** is further
 still, being a Cortex-M33 and therefore a kernel port to ARMv8-M rather than a
-board port. Today `EscapementHardPA` is referenced by
+board port. The **RP2350** needs that same ARMv8-M port and is the better
+reason to write it: it follows the RP2040, and its regulator switches rather
+than dissipates. Today `EscapementHardPA` is referenced by
 both ports, and `stm32l-discovery-pa` demonstrates it on Cortex-M.
 
 ## The MSP430 port was removed
@@ -65,6 +67,11 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       plain Pico rather than a Pico W, an INA226 read from the Bus Pirate — and
       answer, on the target this documentation calls the most promising, whether
       DVFS beats race-to-sleep.
+- [ ] If it does, port to the **RP2350** (Pico 2) rather than the STM32U5: the
+      same ARMv8-M kernel port, on a target where DVFS stands a better chance —
+      a switching core regulator, and a PLL and regulator scheme close to the
+      RP2040's. Its sleep is better, which has to be weighed on the bench too;
+      see the table in `power-aware.md`.
 - [ ] Only if that answer calls for it: an STM32L-Discovery board would allow
       `IccMeasure.c`, written by the original authors and still here, to be
       replayed on the L1. Needs a board nobody has, and the RP2040 bench above
