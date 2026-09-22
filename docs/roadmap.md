@@ -11,14 +11,22 @@ argues, in `power-aware.md`, that it is where dynamic voltage and frequency
 scaling has a real niche, because it sleeps poorly — and it is the one board
 here that has been verified on hardware.
 
-A **STM32L4** would come next among the STM32 parts, being a Cortex-M4 the
-generic layer already covers. It is a larger job than it looks: Renode ships no
-L4 platform, so the port would have to bring its own. The **STM32U5** is further
-still, being a Cortex-M33 and therefore a kernel port to ARMv8-M rather than a
-board port. The **RP2350** needs that same ARMv8-M port and is the better
-reason to write it: it follows the RP2040, and its regulator switches rather
-than dissipates. Today `EscapementHardPA` is referenced by
-both ports, and `stm32l-discovery-pa` demonstrates it on Cortex-M.
+New work goes to the **Pico and the Pico 2** only. The RP2350 of the Pico 2 is
+the sequel to the RP2040 and the better reason to write the ARMv8-M kernel port
+it needs: its regulator switches rather than dissipates. It comes after the
+RP2040 bench, and only if that bench shows DVFS beating race-to-sleep.
+
+The **STM32** examples stay as they are, with no new example or port. They cost
+nothing to keep, being built and run in CI, and they carry most of the
+regression tests of the kernel: the 2^30 wrap, the timer events, the soft kernel
+and deadline-monotonic variants, and the power-aware kernel on the L1. They also
+keep the kernel from becoming specific to the RP2040, whose suite runs on
+third-party Renode models and only on Linux. The **STM32L4** and **STM32U5**,
+once the next steps, are set aside: the L4 would need its own Renode platform,
+and the U5 sleeps too well for DVFS to have much to gain (`power-aware.md`).
+
+Today `EscapementHardPA` is referenced by both ports, and `stm32l-discovery-pa`
+demonstrates it on Cortex-M.
 
 ## The MSP430 port was removed
 
