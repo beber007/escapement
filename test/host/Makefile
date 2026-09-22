@@ -16,7 +16,7 @@
 CC ?= cc
 # An integer division by zero traps on x86 but yields 0 on arm64, so a test could pass on
 # one host and crash on the other: the sanitizer makes it an error on both.
-CFLAGS = -I. -I../../Escapement -Wall -O1 -g -fsanitize=integer-divide-by-zero \
+CFLAGS = -I. -I../../Escapement -Wall -O1 -g -fsanitize=integer-divide-by-zero,signed-integer-overflow \
          -fno-sanitize-recover=all
 HARD = ../../Escapement/EscapementHard.c
 SOFT = ../../Escapement/EscapementSoft.c

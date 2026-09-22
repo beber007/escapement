@@ -78,9 +78,10 @@
 
 /* The two kernels take different parameters to create a task. Under the soft kernel every
 ** periodic task here is (1,1)-firm, i.e. hard, with no declared execution time. Its
-** event-driven tasks take their workload directly under deadline-monotonic scheduling but
-** compute it under EDF, as (wcet << 8) / aperiodicUtilization: half the workload at an
-** utilisation of 128 gives it back, where zero for both divides by zero. */
+** event-driven tasks take their workload directly under deadline-monotonic scheduling;
+** under EDF they take it too when it is given, and otherwise compute it as
+** (wcet << 8) / aperiodicUtilization: half the workload at an utilisation of 128 gives it
+** back. TestEvents takes the other path once. */
 #if defined(ESCAPEMENT_VERSION_SOFT)
    #define CREATE_TASK(code, period, arg) OSCreateTask(code, 0, 0, period, period, 1, 1, 0, arg)
    #define CREATE_SYNCHRONOUS_TASK(code, workload, event, arg) \
@@ -424,10 +425,20 @@ static void TestEvents(void)
   void *selfEvent = OSCreateEventDescriptor(), *sharedEvent = OSCreateEventDescriptor();
   void *bufferEvent = OSCreateEventDescriptor();
   char label[80];
+  #if defined(ESCAPEMENT_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST
+     BOOL noWorkLoadRefused;
+  #endif
 
   ToSignaled.Event = OSCreateEventDescriptor();
   CREATE_TASK(SignalerTask, 100, &ToSignaled);
-  CREATE_SYNCHRONOUS_TASK(SignaledTask, 20, ToSignaled.Event, NULL);
+  #if defined(ESCAPEMENT_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST
+     /* Before any utilization is declared, a workload of 0 leaves nothing to compute it
+     ** from; a given one is taken as is, as TestTimerEventF4 does. */
+     noWorkLoadRefused = !OSCreateSynchronousTask(SignaledTask, 0, 0, 0, ToSignaled.Event, NULL);
+     OSCreateSynchronousTask(SignaledTask, 0, 20, 0, ToSignaled.Event, NULL);
+  #else
+     CREATE_SYNCHRONOUS_TASK(SignaledTask, 20, ToSignaled.Event, NULL);
+  #endif
 
   CREATE_SYNCHRONOUS_TASK(SelfTask, 20, selfEvent, selfEvent);
 
@@ -444,6 +455,9 @@ static void TestEvents(void)
   RunFor(duration);
 
   printf("\n%d ticks of simulated time, event-driven tasks\n\n", duration);
+  #if defined(ESCAPEMENT_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST
+     Check("  no workload and no utilization: refused", noWorkLoadRefused);
+  #endif
   snprintf(label, sizeof label, "  one wake-up per signal: %u for %u", SignaledRuns, ToSignaled.Runs);
   Check(label, SignaledRuns <= ToSignaled.Runs && SignaledRuns + 1 >= ToSignaled.Runs);
   snprintf(label, sizeof label, "  signal before the timer, then to itself: %u runs", SelfRuns);

@@ -160,12 +160,12 @@ jobs:
             make: KERNEL=SOFT
             build: stm32f4-discovery stm32l-discovery
             pico: false
-            suites: escapement_f4.robot escapement_f4_wrap.robot
+            suites: escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
           - variant: soft, deadline-monotonic
             make: KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
             build: stm32f4-discovery stm32l-discovery
             pico: false
-            suites: escapement_f4.robot escapement_f4_wrap.robot
+            suites: escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
     env:
       RENODE_VERSION: 1.17.0
 

@@ -215,7 +215,8 @@ void *OSCreateEventDescriptor(void);
 **   (3) (INT32) workload: equal to the task's worst-case execution time divided by the
 **       available processor load; this is the same as the period and deadline of the
 **       task. This task behaves like any other periodic task but has to be explicitly
-**       started. With EDF scheduling, this parameter can be set to 0.
+**       started. With EDF scheduling, this parameter can be set to 0, in which case the
+**       workload is computed as wcet * 256 / aperiodicUtilization.
 **   (4) (UINT8) Total processor utilization of all aperiodic tasks * 256; this parameter
 **       is only used for EDF and can be set to 0 under Deadline Monotonic Scheduling.
 **       For maximum reactivity of event-driven task, the best setting is given by:
@@ -228,7 +229,8 @@ void *OSCreateEventDescriptor(void);
 **   (5) (void *) event: Descriptor returned by OSCreateSynchronousTask();
 **   (6) (void *) argument: An instance specific pointer width value.
 ** Returned value: TRUE if the task creation was successful and FALSE otherwise. The
-**   function fails when there's a memory allocation failure. */
+**   function fails when there's a memory allocation failure, or under EDF when neither
+**   a workload nor an aperiodic utilization is given. */
 BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
                              UINT8 aperiodicUtilization, void *event, void *argument);
 

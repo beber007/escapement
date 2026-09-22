@@ -718,8 +718,9 @@ void _OSTimerInterruptHandler(void)
                     arrival->NextMandatoryInstance = (UINT8)nextMandatoryInstance;
               }
               #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-                 else
-                    arrival->NextDeadline = arrival->NextArrivalTimeLow + arrival->Deadline;
+                 /* Only optional instances read it, but the time shift above applies to
+                 ** every instance in the ready queue: left unset, it would overflow. */
+                 arrival->NextDeadline = arrival->NextArrivalTimeLow + arrival->Deadline;
               #endif
               if (arrival->Instance + 1 >= arrival->K)
                  arrival->NextInstanceMandatory = arrival->NextMandatoryInstance == 0;
@@ -924,6 +925,11 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
                                  UINT8 aperiodicUtilization, void *event, void *arg)
 {
   ETCB *etcb;
+  #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
+     /* The workload is given, or computed from the WCET and the aperiodic utilization. */
+     if (workLoad <= 0 && aperiodicUtilization == 0 && AperiodicUtilization == 0)
+        return FALSE;
+  #endif
   if (_OSQueueHead == NULL && !Initialize())
      return FALSE;
   /* Get a new TCB and initialize it. */
@@ -940,7 +946,7 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
   #else
      if (AperiodicUtilization < aperiodicUtilization) // All aperiodicUtilization should
         AperiodicUtilization = aperiodicUtilization;  // be the same => only 1 time here
-     etcb->WorkLoad = (wcet << 8) / AperiodicUtilization;
+     etcb->WorkLoad = workLoad > 0 ? workLoad : (wcet << 8) / AperiodicUtilization;
      etcb->NextDeadline = 0;
   #endif
   etcb->EventQueue = (FIFOQUEUE *)event;

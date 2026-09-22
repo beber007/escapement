@@ -129,14 +129,17 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       always said. Of the deliberate defects in the soft kernel, one is not
       caught: ignoring the interference of other tasks in the schedulability
       test of optional instances, which only shows when tasks take time.
-- [ ] Two things the soft kernel leaves to its caller. Under EDF it computes the
-      workload of an event-driven task as `(wcet << 8) / aperiodicUtilization`
-      and ignores the one passed: `TestTimerEventF4` passes 0 for both in its
-      soft branch, which divides by zero — 0 on a Cortex-M, a crash on x86,
-      which is how the host test found it in its own calls. And under
-      deadline-monotonic scheduling it shifts at every 2^30 wrap the deadline
-      of mandatory instances, which it never sets, until the value overflows:
-      harmless as nothing reads it, but undefined behaviour in C.
+- [x] **Two things the soft kernel left to its caller.** Under EDF it computed
+      the workload of an event-driven task as `(wcet << 8) / aperiodicUtilization`
+      and ignored the one passed: `TestTimerEventF4` and `TestTimerEventL1` pass 0
+      for both in their soft branch, which divides by zero — 0 on a Cortex-M, a
+      crash on x86. A workload given is now taken as is, and a creation with
+      neither is refused. And under deadline-monotonic scheduling it shifted at
+      every 2^30 wrap the deadline of mandatory instances, which it never set,
+      until the value overflowed; it is now set for every instance. The host test
+      builds with `-fsanitize=signed-integer-overflow` and fails on the old code;
+      both soft variants in CI now run `escapement_f4_events.robot` too, the soft
+      branch of the example taking the periods of the hard one.
 - [x] **Give the STM32 port a defined starting time.** The kernel assumed its
       counter started near zero; `_OSStartTimer` now clears it, which costs one
       store. Shown under Renode: started with the counter at 0x3FFFF000 the
