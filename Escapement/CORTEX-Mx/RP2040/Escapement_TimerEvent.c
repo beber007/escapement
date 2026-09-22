@@ -25,6 +25,7 @@
 #define TIMER_BASE          0x40054000
 #define TIMER_ALARM(n)      *((volatile UINT32 *)(TIMER_BASE + 0x10 + 4 * (n)))
 #define TIMER_TIMERAWL      *((volatile UINT32 *)(TIMER_BASE + 0x28))
+#define TIMER_ARMED         *((volatile UINT32 *)(TIMER_BASE + 0x20))
 #define TIMER_INTR          *((volatile UINT32 *)(TIMER_BASE + 0x34))
 #define TIMER_INTE_SET      *((volatile UINT32 *)(TIMER_BASE + 0x2000 + 0x38))
 #define TIMER_INTF_SET      *((volatile UINT32 *)(TIMER_BASE + 0x2000 + 0x3C))
@@ -35,6 +36,7 @@
 #define RESETS_TIMER_BIT    (1u << 21)
 
 #define NVIC_ISER           *((volatile UINT32 *)0xE000E100)
+#define NVIC_ICPR           *((volatile UINT32 *)0xE000E280)
 #define NVIC_IPR            ((volatile UINT32 *)0xE000E400)
 
 
@@ -93,11 +95,16 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex)
   ** alarm needs it now. */
   RESETS_RESET &= ~RESETS_TIMER_BIT;
   while ((RESETS_RESET_DONE & RESETS_TIMER_BIT) == 0);
+  /* Clear what a previous program may have left on the alarm, see _OSInitializeTimer. */
+  TIMER_ARMED = device->AlarmBit;
+  TIMER_INTR = device->AlarmBit;
+  TIMER_INTF_CLR = device->AlarmBit;
   TIMER_INTE_SET = device->AlarmBit;
   /* Priority in the 2 most significant bits of the byte of the interrupt. */
   shift = (interruptIndex & 0x3) << 3;
   word = NVIC_IPR[interruptIndex >> 2] & ~(0xFFu << shift);
   NVIC_IPR[interruptIndex >> 2] = word | ((UINT32)((priority << 6) & 0xFF) << shift);
+  NVIC_ICPR = 1u << interruptIndex;
   NVIC_ISER = 1u << interruptIndex;
 } /* end of OSInitTimerEvent */
 

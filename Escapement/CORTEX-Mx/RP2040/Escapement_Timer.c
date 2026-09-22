@@ -48,6 +48,7 @@
 #define WATCHDOG_TICK_ENABLE (1u << 9)
 
 #define NVIC_ISER           *((volatile UINT32 *)0xE000E100)
+#define NVIC_ICPR           *((volatile UINT32 *)0xE000E280)
 #define NVIC_IPR            ((volatile UINT32 *)0xE000E400)
 
 #define ALARM0_BIT          0x1
@@ -150,6 +151,12 @@ void _OSInitializeTimer(void)
   OSSetISRDescriptor(OS_IO_TIMER_1, &Alarm1Descriptor);
   SetIRQPriority(OS_IO_TIMER_0, TIMER_PRIORITY);
   SetIRQPriority(OS_IO_TIMER_1, TIMER_PRIORITY);
+  /* A reset of the processors alone, as a debugger does to load an image, leaves the timer
+  ** as the previous program left it: an alarm still armed fires, and the NVIC keeps its
+  ** interrupt pending although it is not enabled. Taken as soon as it is, that interrupt
+  ** ran the kernel before the idle task had set the origin of time. The causes are cleared
+  ** above; the pending state is cleared here. */
+  NVIC_ICPR = (1u << OS_IO_TIMER_0) | (1u << OS_IO_TIMER_1);
   NVIC_ISER = (1u << OS_IO_TIMER_0) | (1u << OS_IO_TIMER_1);
 } /* end of _OSInitializeTimer */
 
