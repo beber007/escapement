@@ -42,12 +42,14 @@ endif
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p build)
 
-all: build/TaskLEDPico.elf build/UARTEchoPico.elf build/TaskWrapPico.elf
+all: build/TaskLEDPico.elf build/UARTEchoPico.elf build/TaskWrapPico.elf \
+     build/TestTimerEventPico.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
 
-bin: all build/TaskLEDPico.bin build/UARTEchoPico.bin build/TaskWrapPico.bin
+bin: all build/TaskLEDPico.bin build/UARTEchoPico.bin build/TaskWrapPico.bin \
+     build/TestTimerEventPico.bin
 
 build/%.bin : build/%.elf
 	$(OBJCOPY) -O binary $< $@
@@ -79,6 +81,8 @@ build/Escapement_Processor.o : ../../Escapement_Processor.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/Escapement_UART.o : ../../Escapement_UART.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_TimerEvent.o : ../../Escapement_TimerEvent.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementHard.o : ../../../../EscapementHard.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementSoft.o : ../../../../EscapementSoft.c
@@ -91,6 +95,8 @@ build/UARTEchoPico.o : UARTEchoPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TaskWrapPico.o : TaskWrapPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/TestTimerEventPico.o : TestTimerEventPico.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskLEDPico.elf : $(COMMON) build/TaskLEDPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/TaskLEDPico.o -T$(LINKERFILE) -lgcc
@@ -98,6 +104,8 @@ build/UARTEchoPico.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o -T$(LINKERFILE) -lgcc
 build/TaskWrapPico.elf : $(COMMON) build/TaskWrapPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/TaskWrapPico.o -T$(LINKERFILE) -lgcc
+build/TestTimerEventPico.elf : $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico.o -T$(LINKERFILE) -lgcc
 
 # The .d files produced by -MMD list the headers of each object: without them, a change
 # to Escapement_Config.h triggers no rebuild at all and the next test runs against a

@@ -21,29 +21,21 @@ Load Escapement
     ...                       Core 1, which the kernel never starts and which sleeps in the
     ...                       bootrom on the board, is halted: a second time domain would
     ...                       make the LED tester time some edges from the wrong core.
+    ...                       The timer of the models is replaced by the fixed copy in
+    ...                       Escapement_RP2040_Timer.cs, whose alarms do not interfere with
+    ...                       one another. The steps of the board script of the models are
+    ...                       spelt out: the copy has to be compiled once their assembly is
+    ...                       loaded, and a platform description cannot redeclare the timer
+    ...                       with another type, so it is unregistered first.
     [Arguments]               ${binary}
-    Execute Command           $platform_file=@${CURDIR}/escapement_pico.repl
-    Execute Command           include @${CURDIR}/rp2040/boards/initialize_custom_board.resc
-    Execute Command           sysbus LoadELF @${EXAMPLE}/build/${binary}.elf
-    Execute Command           sysbus.cpu0 VectorTableOffset 0x00000000
-    Execute Command           sysbus.cpu1 VectorTableOffset 0x00000000
-    Execute Command           sysbus.cpu0 PC 0x20000000
-    Execute Command           sysbus.cpu1 IsHalted true
-
-Load Escapement With A Fast Timer
-    [Documentation]           Loads TaskWrapPico on the same board, with the timer replaced by
-    ...                       the copy in Escapement_RP2040_Timer.cs clocked at 1 GHz
-    ...                       (escapement_pico_wrap.repl). The steps of the board script of the
-    ...                       models are spelt out: the copy has to be compiled once their
-    ...                       assembly is loaded, and before a platform refers to it.
     Execute Command           $machine_name="raspberry_pico"
     Execute Command           include @${CURDIR}/rp2040/cores/initialize_peripherals.resc
     Execute Command           include @${CURDIR}/Escapement_RP2040_Timer.cs
     Execute Command           machine LoadPlatformDescription @${CURDIR}/escapement_pico.repl
     Execute Command           sysbus LoadELF @${CURDIR}/rp2040/bootroms/rp2040/b2.elf
     Execute Command           sysbus Unregister sysbus.timer
-    Execute Command           machine LoadPlatformDescription @${CURDIR}/escapement_pico_wrap.repl
-    Execute Command           sysbus LoadELF @${EXAMPLE}/build/TaskWrapPico.elf
+    Execute Command           machine LoadPlatformDescription @${CURDIR}/escapement_pico_timer.repl
+    Execute Command           sysbus LoadELF @${EXAMPLE}/build/${binary}.elf
     Execute Command           sysbus.cpu0 VectorTableOffset 0x00000000
     Execute Command           sysbus.cpu1 VectorTableOffset 0x00000000
     Execute Command           sysbus.cpu0 PC 0x20000000
@@ -110,6 +102,24 @@ The UART echo answers
     Write Line To Uart        escapement  waitForEcho=false
     Wait For Prompt On Uart   escapement  testerId=${uart}
 
+Timer events wake the event-driven tasks
+    [Documentation]           TestTimerEventPico pairs each periodic task with an event-driven
+    ...                       one, as TestTimerEventF4 does. SetLed1Task raises GPIO 2 every
+    ...                       5 ms and asks the event manager on alarm 2 to wake ClearLed1Task
+    ...                       1 ms later, which lowers it; SetLed2Task and ClearLed2Task do the
+    ...                       same on GPIO 3 every 10 ms, for 2 ms. The period checks the
+    ...                       kernel's alarms, the high time the event manager's, and both
+    ...                       that each event-driven task ran when it was woken.
+    Load Escapement           TestTimerEventPico
+
+    ${flag1}=                 Create LED Tester  sysbus.gpio.flag2
+    ${flag2}=                 Create LED Tester  sysbus.gpio.flag3
+
+    Start Emulation
+
+    Assert LED Is Blinking    testDuration=0.1  onDuration=0.001  offDuration=0.004  tolerance=0.02  testerId=${flag1}  pauseEmulation=true
+    Assert LED Is Blinking    testDuration=0.1  onDuration=0.002  offDuration=0.008  tolerance=0.02  testerId=${flag2}  pauseEmulation=true
+
 Scheduling survives the 2^30 wrap of the kernel clock
     [Documentation]           The kernel counts time modulo 2^30 and shifts every temporal
     ...                       variable back when its counter wraps; the port rebuilds that
@@ -120,7 +130,8 @@ Scheduling survives the 2^30 wrap of the kernel clock
     ...                       boundary at 1.07 s of emulated time for an unchanged load.
     ...                       Every task must still run afterwards, and the probe, toggled
     ...                       every 50 ms, must keep its period within 2 %.
-    Load Escapement With A Fast Timer
+    Load Escapement           TaskWrapPico
+    Execute Command           sysbus.timer Frequency 1000000000
 
     ${flag1}=                 Create LED Tester  sysbus.gpio.led  defaultTimeout=1
     ${flag2}=                 Create LED Tester  sysbus.gpio.flag2  defaultTimeout=1

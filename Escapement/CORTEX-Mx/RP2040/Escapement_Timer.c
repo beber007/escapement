@@ -28,8 +28,13 @@
 #define TIMER_DBGPAUSE      *((volatile UINT32 *)(TIMER_BASE + 0x2C))
 #define TIMER_TIMERAWL      *((volatile UINT32 *)(TIMER_BASE + 0x28))
 #define TIMER_INTR          *((volatile UINT32 *)(TIMER_BASE + 0x34))
-#define TIMER_INTE          *((volatile UINT32 *)(TIMER_BASE + 0x38))
-#define TIMER_INTF          *((volatile UINT32 *)(TIMER_BASE + 0x3C))
+/* INTE and INTF are shared with the alarms of Escapement_TimerEvent.c: each side sets and
+** clears its own bits through the atomic aliases of the register block, which a read-
+** modify-write interrupted by the other side would not be. */
+#define TIMER_INTE_SET      *((volatile UINT32 *)(TIMER_BASE + 0x2000 + 0x38))
+#define TIMER_INTE_CLR      *((volatile UINT32 *)(TIMER_BASE + 0x3000 + 0x38))
+#define TIMER_INTF_SET      *((volatile UINT32 *)(TIMER_BASE + 0x2000 + 0x3C))
+#define TIMER_INTF_CLR      *((volatile UINT32 *)(TIMER_BASE + 0x3000 + 0x3C))
 
 #define RESETS_BASE         0x4000C000
 #define RESETS_RESET        *((volatile UINT32 *)(RESETS_BASE + 0x00))
@@ -134,10 +139,10 @@ void _OSInitializeTimer(void)
      TIMER_DBGPAUSE = 0x7;
   #endif
   /* Disarm both alarms and clear any pending cause. */
-  TIMER_INTE = 0;
+  TIMER_INTE_CLR = ALARM0_BIT | ALARM1_BIT;
   TIMER_ARMED = ALARM0_BIT | ALARM1_BIT;
   TIMER_INTR = ALARM0_BIT | ALARM1_BIT;
-  TIMER_INTF = 0;
+  TIMER_INTF_CLR = ALARM0_BIT | ALARM1_BIT;
   /* Install the two handlers and enable their interrupts. */
   Alarm0Descriptor.TimerIntHandler = Alarm0Handler;
   Alarm1Descriptor.TimerIntHandler = Alarm1Handler;
@@ -156,8 +161,8 @@ void _OSStartTimer(void)
 {
   TimeOrigin = TIMER_TIMERAWL;
   ArmOverflowAlarm();
-  TIMER_INTE = ALARM0_BIT | ALARM1_BIT;
-  TIMER_INTF = ALARM0_BIT;   // force the first comparator interrupt
+  TIMER_INTE_SET = ALARM0_BIT | ALARM1_BIT;
+  TIMER_INTF_SET = ALARM0_BIT;   // force the first comparator interrupt
 } /* end of _OSStartTimer */
 
 
@@ -224,7 +229,7 @@ static void Alarm0Handler(struct TIMER_ISR_DATA *descriptor)
      CostStart = TIMER_TIMERAWL;
      CostPending = TRUE;
   #endif
-  TIMER_INTF = 0;              // release a possibly forced interrupt
+  TIMER_INTF_CLR = ALARM0_BIT; // release a possibly forced interrupt
   TIMER_INTR = ALARM0_BIT;     // acknowledge
   _OSComparatorInterruptFlag = TRUE;
   _OSGenerateSoftTimerInterrupt();

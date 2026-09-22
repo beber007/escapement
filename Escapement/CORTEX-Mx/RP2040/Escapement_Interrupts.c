@@ -32,8 +32,8 @@ __attribute__ ((section(".isr_vector_specific")))
 void (* const RP2040VectorTable[])(void) = {
   _OSIOHandler,       /*  0  TIMER_IRQ_0   */
   _OSIOHandler,       /*  1  TIMER_IRQ_1   */
-  UndefinedInterrupt, /*  2  TIMER_IRQ_2   */
-  UndefinedInterrupt, /*  3  TIMER_IRQ_3   */
+  _OSIOHandler,       /*  2  TIMER_IRQ_2   (Escapement_TimerEvent.c) */
+  _OSIOHandler,       /*  3  TIMER_IRQ_3   (Escapement_TimerEvent.c) */
   UndefinedInterrupt, /*  4  PWM_IRQ_WRAP  */
   UndefinedInterrupt, /*  5  USBCTRL_IRQ   */
   UndefinedInterrupt, /*  6  XIP_IRQ       */

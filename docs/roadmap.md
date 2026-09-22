@@ -17,11 +17,11 @@ it needs: its regulator switches rather than dissipates. It comes after the
 RP2040 bench, and only if that bench shows DVFS beating race-to-sleep.
 
 The **STM32** examples stay as they are, with no new example or port. They cost
-nothing to keep, being built and run in CI, and they carry most of the
-regression tests of the kernel: the 2^30 wrap, the timer events, the soft kernel
-and deadline-monotonic variants, and the power-aware kernel on the L1. They also
-keep the kernel from becoming specific to the RP2040, whose suite runs on
-third-party Renode models and only on Linux. The **STM32L4** and **STM32U5**,
+nothing to keep, being built and run in CI, and they repeat on another port
+the regression tests of the kernel — the 2^30 wrap, the timer events, the soft
+kernel and deadline-monotonic variants, the power-aware kernel — which the Pico
+now runs as well. They also keep the kernel from becoming specific to the
+RP2040, whose suite runs on third-party Renode models and only on Linux. The **STM32L4** and **STM32U5**,
 once the next steps, are set aside: the L4 would need its own Renode platform,
 and the U5 sleeps too well for DVFS to have much to gain (`power-aware.md`).
 
@@ -142,15 +142,20 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       kernel clock with `ALARM1`, eighteen minutes after the kernel starts at the
       1 µs tick: no test had reached it, on the board or under Renode. The
       `escapement_pico.robot` suite now runs `TaskWrapPico` on a copy of the
-      timer model clocked at 1 GHz (`Escapement_RP2040_Timer.cs`, the model of
-      matgla/Renode_RP2040 fixing its frequency), periods scaled to match: after
+      timer model clocked at 1 GHz (`Escapement_RP2040_Timer.cs`, since the model
+      of matgla/Renode_RP2040 fixes its frequency), periods scaled to match: after
       the boundary every task still runs and the probe keeps its 50 ms within 2 %.
-- [ ] **Timer events and event-driven tasks on the Pico**, which the F4 runs with
-      `TestTimerEventF4` and the Pico not at all: the port has no counterpart of
-      `Escapement_TimerEvent.c`, and no Pico example creates an event-driven task.
-      A driver on the two free alarms, a `TestTimerEventPico` and its test. The
-      context switch defect found with the DVFS driver would have hit exactly
-      these tasks.
+- [x] **Timer events and event-driven tasks on the Pico**, which the F4 ran with
+      `TestTimerEventF4` and the Pico not at all. `Escapement_TimerEvent.c` now
+      has an RP2040 counterpart on alarm 2 or 3: event times are the lower 32
+      bits of the counter, compared by signed difference, so nothing is ever
+      shifted, and the queue is guarded by masking interrupts over at most its
+      few nodes. `TestTimerEventPico` and its test run on every Pico build. Two
+      things stood in the way: the vector table sent alarms 2 and 3 to the
+      handler of undefined interrupts, and the port wrote `INTE` and `INTF`
+      whole, which would have cleared the bits of another alarm; it now goes
+      through the atomic set and clear aliases. The Pico suite runs on a fixed
+      copy of the timer model, whose alarms interfered with one another.
 - [x] **Settle `EscapementSoft` and deadline-monotonic scheduling: kept, and
       tested.** The host test now builds both kernels under both algorithms,
       adds an (m,k)-firm scenario under a declared overload of 220 % and

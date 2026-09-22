@@ -1,9 +1,25 @@
 //
-// Escapement_RP2040_Timer: a copy of Timers.RP2040Timer from matgla/Renode_RP2040, at the
-// commit the CI pins (5aca847c9f57ed96603e55d28e8ceeefa09e55f6), with one change: the
-// frequency of the counter and of its four alarms, fixed there at the 1 MHz of the chip,
-// is a parameter. escapement_pico_wrap.repl raises it so that the 2^30 boundary of the
-// kernel clock arrives within a test.
+// Escapement_RP2040_Timer: a fixed copy of Timers.RP2040Timer from matgla/Renode_RP2040, at
+// the commit the CI pins (5aca847c9f57ed96603e55d28e8ceeefa09e55f6). escapement_pico.repl
+// puts it in place of the original, whose alarms interfere with one another as soon as
+// more than one is in use — which the kernel does with two, and the timer events with a
+// third:
+//   1. writing INTR lowered the interrupt of all four alarms, not of those written with a
+//      one;
+//   2. writing INTF set the forced state of all four, so that forcing one alarm cleared a
+//      forced or pending interrupt of another;
+//   3. writing INTE enabled all four and could disable none;
+//   4. writing ARMED disarmed the alarms written with a one and re-armed the others;
+//   5. an alarm fired when its clock reached the value written, counted from the whole
+//      64-bit counter, where the chip compares the lower 32 bits.
+// Here each alarm keeps a raw, a forced and an enabled bit, and its interrupt line is
+// (raw | forced) & enabled, as the datasheet describes; an alarm fires when the lower 32
+// bits of the counter reach its value, so a value already past waits for the next wrap
+// of those bits, as on the chip.
+//
+// And the frequency of the counter, fixed there at the 1 MHz of the chip, is a property:
+// the wrap test raises it so that the 2^30 boundary of the kernel clock comes within a
+// test.
 //
 // Original source: emulation/peripherals/timer/rp2040_timer.cs,
 // Copyright (c) 2025 Mateusz Stadnik, MIT License:
@@ -25,74 +41,19 @@
 // CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
 // THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
+using System;
 using Antmicro.Renode.Core;
 using Antmicro.Renode.Core.Structure.Registers;
-using System;
-using Antmicro.Renode.Time;
 using Antmicro.Renode.Peripherals.Miscellaneous;
+using Antmicro.Renode.Time;
 
 namespace Antmicro.Renode.Peripherals.Timers
 {
-
-    public class EscapementRP2040Alarm
-    {
-        public bool IrqEnabled { get; set; }
-        public GPIO Irq { get; set; }
-
-        public bool Fired { get; set; }
-        public LimitTimer Clock { get; private set; }
-
-        public EscapementRP2040Alarm(EscapementRP2040Timer timer, IMachine machine, int id, ulong frequency)
-        {
-            Irq = new GPIO();
-            IrqEnabled = false;
-
-            Clock = new LimitTimer(machine.ClockSource, frequency, timer, "AlarmTimer" + id, direction: Direction.Ascending, enabled: false, workMode: WorkMode.OneShot, eventEnabled: true, autoUpdate: true)
-            {
-                AutoUpdate = true,
-                Value = 0
-            };
-            Clock.LimitReached += OnCounterFired;
-        }
-
-        public void Reset()
-        {
-            Irq.Unset();
-            IrqEnabled = false;
-            Clock.Enabled = false;
-            Clock.Value = 0;
-            Clock.Limit = 0;
-        }
-
-        public void Enable(bool value)
-        {
-            Clock.Enabled = value;
-        }
-        public void SetAlarm(ulong currentTicks, ulong limit)
-        {
-            Fired = false;
-            Clock.Limit = limit;
-            Clock.Value = currentTicks;
-        }
-
-        private void OnCounterFired()
-        {
-            if (IrqEnabled)
-            {
-                Fired = true;
-                Clock.Enabled = false;
-                Irq.Set(true);
-            }
-        }
-    }
     public class EscapementRP2040Timer : RP2040PeripheralBase, IKnownSize
     {
         private enum Registers
         {
             ALARM0 = 0x10,
-            ALARM1 = 0x14,
-            ALARM2 = 0x18,
-            ALARM3 = 0x1c,
             ARMED = 0x20,
             TIMERAWH = 0x24,
             TIMERAWL = 0x28,
@@ -102,103 +63,136 @@ namespace Antmicro.Renode.Peripherals.Timers
             INTS = 0x40
         }
 
-        EscapementRP2040Alarm[] alarms;
-        public EscapementRP2040Timer(Machine machine, ulong address, ulong frequency = 1000000) : base(machine, address)
-        {
-            IRQs = new GPIO[4];
-            for (int i = 0; i < 4; ++i)
-            {
-                IRQs[i] = new GPIO();
-            }
-            alarms = new EscapementRP2040Alarm[4];
-            for (int i = 0; i < alarms.Length; ++i)
-            {
-                alarms[i] = new EscapementRP2040Alarm(this, machine, i, frequency)
-                {
-                    Irq = IRQs[i]
-                };
-            }
+        private const int NumberOfAlarms = 4;
 
-            Clock = new LimitTimer(machine.ClockSource, frequency, this, "SystemClock", limit: 0xffffffffffffffff, direction: Direction.Ascending, eventEnabled: false, enabled: true, workMode: WorkMode.Periodic);
+        public EscapementRP2040Timer(Machine machine, ulong address) : base(machine, address)
+        {
+            IRQs = new GPIO[NumberOfAlarms];
+            alarms = new LimitTimer[NumberOfAlarms];
+            raw = new bool[NumberOfAlarms];
+            forced = new bool[NumberOfAlarms];
+            enabled = new bool[NumberOfAlarms];
+            counter = new LimitTimer(machine.ClockSource, DefaultFrequency, this, "Counter", limit: ulong.MaxValue,
+                direction: Direction.Ascending, eventEnabled: false, enabled: true, workMode: WorkMode.Periodic);
+            for (int i = 0; i < NumberOfAlarms; ++i)
+            {
+                int id = i;
+                IRQs[i] = new GPIO();
+                alarms[i] = new LimitTimer(machine.ClockSource, DefaultFrequency, this, "Alarm" + i,
+                    direction: Direction.Ascending, enabled: false, workMode: WorkMode.OneShot, eventEnabled: true);
+                alarms[i].LimitReached += () => OnAlarm(id);
+            }
             DefineRegisters();
             Reset();
         }
 
         public override void Reset()
         {
-            for (int i = 0; i < IRQs.Length; ++i)
+            for (int i = 0; i < NumberOfAlarms; ++i)
             {
+                alarms[i].Enabled = false;
+                raw[i] = forced[i] = enabled[i] = false;
                 IRQs[i].Unset();
             }
-            for (int i = 0; i < alarms.Length; ++i)
-            {
-                alarms[i].Reset();
-            }
         }
-        public void DefineRegisters()
+
+        /* Counts per second of the counter and of the alarms, 1 MHz on the chip. */
+        public ulong Frequency
         {
-            Registers.TIMERAWH.Define(this)
-                .WithValueField(0, 32, FieldMode.Read,
-                    valueProviderCallback: _ => (Clock.Value >> 32) & 0xffffffff,
-                    name: "TIMERAWH");
-            Registers.TIMERAWL.Define(this)
-                .WithValueField(0, 32, FieldMode.Read,
-                    valueProviderCallback: _ => Clock.Value & 0xffffffff,
-                    name: "TIMERAWL");
-
-            Registers.INTR.Define(this)
-                .WithFlags(0, 4, FieldMode.Write,
-                    writeCallback: (i, _, value) =>
-                    {
-                        alarms[i].Irq.Unset();
-                    },
-                    name: "INTR");
-
-            Registers.ARMED.Define(this)
-                .WithFlags(0, 4, FieldMode.Write,
-                    writeCallback: (i, _, value) => alarms[i].Enable(!value),
-                    name: "ARMED");
-
-            Registers.INTS.Define(this)
-                .WithFlags(0, 4, FieldMode.Read,
-                    valueProviderCallback: (i, _) => alarms[i].IrqEnabled,
-                    name: "INTS");
-
-            Registers.INTE.Define(this)
-                .WithFlags(0, 4, FieldMode.Write | FieldMode.Read,
-                    writeCallback: (i, _, value) => alarms[i].IrqEnabled = true,
-                    name: "INTE");
-
-            Registers.INTF.Define(this)
-                .WithFlags(0, 4, FieldMode.Write | FieldMode.Read,
-                    writeCallback: (i, _, value) => alarms[i].Irq.Set(value),
-                    name: "INTF");
-
-            int alarmNumber = 0;
-            foreach (Registers r in Enum.GetValues(typeof(Registers)))
+            get { return counter.Frequency; }
+            set
             {
-                if (r >= Registers.ALARM0 && r <= Registers.ALARM3)
+                counter.Frequency = value;
+                foreach (var alarm in alarms)
                 {
-                    int id = alarmNumber;
-                    r.Define(this)
-                        .WithValueField(0, 32, FieldMode.Write | FieldMode.Read,
-                            writeCallback: (_, val) =>
-                            {
-                                alarms[id].SetAlarm(Clock.Value, val);
-                                alarms[id].Enable(true);
-                            },
-                            valueProviderCallback: _ => alarms[id].Clock.Value,
-                            name: "ALARM" + id);
-                    alarmNumber++;
+                    alarm.Frequency = value;
                 }
             }
         }
+
         public GPIO[] IRQs { get; private set; }
         public GPIO IRQ0 => IRQs[0];
         public GPIO IRQ1 => IRQs[1];
         public GPIO IRQ2 => IRQs[2];
         public GPIO IRQ3 => IRQs[3];
 
-        private LimitTimer Clock;
+        private void DefineRegisters()
+        {
+            Registers.TIMERAWH.Define(this)
+                .WithValueField(0, 32, FieldMode.Read, valueProviderCallback: _ => counter.Value >> 32, name: "TIMERAWH");
+            Registers.TIMERAWL.Define(this)
+                .WithValueField(0, 32, FieldMode.Read, valueProviderCallback: _ => counter.Value & 0xffffffff, name: "TIMERAWL");
+
+            for (int i = 0; i < NumberOfAlarms; ++i)
+            {
+                int id = i;
+                ((Registers)((long)Registers.ALARM0 + 4 * i)).Define(this)
+                    .WithValueField(0, 32, valueProviderCallback: _ => alarmValue[id],
+                        writeCallback: (_, value) => Arm(id, (uint)value), name: "ALARM" + i);
+            }
+
+            /* Write 1 to disarm; the others are left as they are. */
+            Registers.ARMED.Define(this)
+                .WithFlags(0, NumberOfAlarms, valueProviderCallback: (i, _) => alarms[i].Enabled,
+                    writeCallback: (i, _, value) => { if (value) alarms[i].Enabled = false; }, name: "ARMED")
+                .WithReservedBits(NumberOfAlarms, 32 - NumberOfAlarms);
+
+            /* Raw interrupts, write 1 to clear. */
+            Registers.INTR.Define(this)
+                .WithFlags(0, NumberOfAlarms, valueProviderCallback: (i, _) => raw[i],
+                    writeCallback: (i, _, value) => { if (value) { raw[i] = false; Update(i); } }, name: "INTR")
+                .WithReservedBits(NumberOfAlarms, 32 - NumberOfAlarms);
+
+            Registers.INTE.Define(this)
+                .WithFlags(0, NumberOfAlarms, valueProviderCallback: (i, _) => enabled[i],
+                    writeCallback: (i, _, value) => { enabled[i] = value; Update(i); }, name: "INTE")
+                .WithReservedBits(NumberOfAlarms, 32 - NumberOfAlarms);
+
+            Registers.INTF.Define(this)
+                .WithFlags(0, NumberOfAlarms, valueProviderCallback: (i, _) => forced[i],
+                    writeCallback: (i, _, value) => { forced[i] = value; Update(i); }, name: "INTF")
+                .WithReservedBits(NumberOfAlarms, 32 - NumberOfAlarms);
+
+            Registers.INTS.Define(this)
+                .WithFlags(0, NumberOfAlarms, FieldMode.Read, valueProviderCallback: (i, _) => Pending(i), name: "INTS")
+                .WithReservedBits(NumberOfAlarms, 32 - NumberOfAlarms);
+        }
+
+        /* Arms an alarm: it fires when the lower 32 bits of the counter next equal the
+        ** value, after as many ticks as separate them modulo 2^32. */
+        private void Arm(int id, uint value)
+        {
+            uint ticks = value - (uint)counter.Value;
+            alarmValue[id] = value;
+            alarms[id].Enabled = false;
+            alarms[id].Value = 0;
+            alarms[id].Limit = ticks == 0 ? 1 : ticks;
+            alarms[id].Enabled = true;
+        }
+
+        private void OnAlarm(int id)
+        {
+            alarms[id].Enabled = false;
+            raw[id] = true;
+            Update(id);
+        }
+
+        private bool Pending(int id)
+        {
+            return (raw[id] || forced[id]) && enabled[id];
+        }
+
+        private void Update(int id)
+        {
+            IRQs[id].Set(Pending(id));
+        }
+
+        private const ulong DefaultFrequency = 1000000;
+        private readonly LimitTimer counter;
+        private readonly LimitTimer[] alarms;
+        private readonly uint[] alarmValue = new uint[NumberOfAlarms];
+        private readonly bool[] raw;
+        private readonly bool[] forced;
+        private readonly bool[] enabled;
     }
 }
