@@ -10,7 +10,8 @@ renode emulation/renode/escapement_f4.resc
 ```
 
 Four Robot suites replay such runs on every push, in the `emulation` job of the CI
-(the RP2040 has its own job and suite, see `emulation/renode/RP2040.md`), and the
+(the RP2040 has its own job and suite, run on every kernel and algorithm, see
+`emulation/renode/RP2040.md`), and the
 `variants` job runs them again on the soft kernel and under deadline-monotonic
 scheduling, built with `make KERNEL=SOFT` and `make SCHEDULER=...`:
 

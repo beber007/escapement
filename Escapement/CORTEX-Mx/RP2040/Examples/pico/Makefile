@@ -50,7 +50,8 @@ COMMON = build/Escapement_RamEntry.o \
           build/Escapement_Interrupts.o \
           build/Escapement_Timer.o \
           build/Escapement_Processor.o \
-          build/EscapementHard.o
+          build/EscapementHard.o \
+          build/EscapementSoft.o
 
 build/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
@@ -69,6 +70,8 @@ build/Escapement_Processor.o : ../../Escapement_Processor.c
 build/Escapement_UART.o : ../../Escapement_UART.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementHard.o : ../../../../EscapementHard.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/EscapementSoft.o : ../../../../EscapementSoft.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TaskLEDPico.o : TaskLEDPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<

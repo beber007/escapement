@@ -125,6 +125,14 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       echo, on Renode 1.16.1 and the models of matgla/Renode_RP2040, both
       pinned. Core 1 has to be halted, or the LED tester times edges from the
       wrong core (`emulation/renode/RP2040.md`).
+- [x] **Validate every kernel on the Pico.** `TaskLEDPico` gained the soft branch
+      it lacked — the first two tasks (1,3)-firm as in `TaskLEDF4`, the 60 ms task
+      and the 1 ms probe hard — and the `Makefile` links `EscapementSoft.o`, which
+      it never did: `make KERNEL=SOFT` did not build. The `emulation-rp2040` job is
+      now a matrix of the four builds, each running `escapement_pico.robot`. Run
+      first on a Linux machine of the house, under podman, since the models need
+      the linux-dotnet package (`emulation/renode/RP2040.md`). The power-aware
+      kernel is the one left: it waits on the DVFS driver above.
 - [x] **Settle `EscapementSoft` and deadline-monotonic scheduling: kept, and
       tested.** The host test now builds both kernels under both algorithms,
       adds an (m,k)-firm scenario under a declared overload of 220 % and

@@ -76,17 +76,36 @@ int main(void)
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->Pin = FLAG1_PIN;
   TaskParameters->Delay = 500;
-  OSCreateTask(FixedDelayTask,0,10000,10000,TaskParameters);
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     /* Under the soft kernel the first two tasks are (1,3)-firm, as in TaskLEDF4: one
+     ** instance in three is mandatory, the others run if the declared execution times,
+     ** generous here, leave room for them. The probe stays (1,1), i.e. hard. */
+     OSCreateTask(FixedDelayTask,100,0,10000,10000,1,3,0,TaskParameters);
+  #else
+     OSCreateTask(FixedDelayTask,0,10000,10000,TaskParameters);
+  #endif
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->Pin = FLAG2_PIN;
   TaskParameters->Delay = 1000;
-  OSCreateTask(FixedDelayTask,0,20000,20000,TaskParameters);
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     OSCreateTask(FixedDelayTask,200,0,20000,20000,1,3,0,TaskParameters);
+  #else
+     OSCreateTask(FixedDelayTask,0,20000,20000,TaskParameters);
+  #endif
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->Pin = FLAG3_PIN;
   TaskParameters->Delay = 4000;
-  OSCreateTask(VariableDelayTask,0,60000,60000,TaskParameters);
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     OSCreateTask(VariableDelayTask,1000,0,60000,60000,1,1,0,TaskParameters);
+  #else
+     OSCreateTask(VariableDelayTask,0,60000,60000,TaskParameters);
+  #endif
   /* Measurement probe, 1 ms period, no payload. */
-  OSCreateTask(ProbeTask,0,1000,1000,NULL);
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     OSCreateTask(ProbeTask,20,0,1000,1000,1,1,0,NULL);
+  #else
+     OSCreateTask(ProbeTask,0,1000,1000,NULL);
+  #endif
   /* Start the OS so that it starts scheduling the user tasks */
   return OSStartMultitasking(NULL,NULL);
 } /* end of main */

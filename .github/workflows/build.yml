@@ -152,19 +152,16 @@ jobs:
           - variant: hard, deadline-monotonic
             make: SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
             build: stm32f4-discovery stm32l-discovery stm32l-discovery-pa
-            pico: true
             suites: >-
               escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
               escapement_l1_pa.robot
           - variant: soft, EDF
             make: KERNEL=SOFT
             build: stm32f4-discovery stm32l-discovery
-            pico: false
             suites: escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
           - variant: soft, deadline-monotonic
             make: KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
             build: stm32f4-discovery stm32l-discovery
-            pico: false
             suites: escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
     env:
       RENODE_VERSION: 1.17.0
@@ -185,9 +182,6 @@ jobs:
             if grep -q '^bin:' "$dir/Makefile"; then target=bin; else target=all; fi
             make -C "$dir" $target ${{ matrix.make }}
           done
-          if [ "${{ matrix.pico }}" = true ]; then
-            make -C Escapement/CORTEX-Mx/RP2040/Examples/pico ${{ matrix.make }}
-          fi
 
       - name: Install Renode
         run: |
@@ -204,10 +198,23 @@ jobs:
         run: renode-test $(for suite in ${{ matrix.suites }}; do echo "emulation/renode/$suite"; done)
 
   emulation-rp2040:
-    name: Execution under Renode (RP2040)
+    # Every kernel and algorithm the Pico can build, each under the same suite.
+    name: Execution under Renode (RP2040, ${{ matrix.variant }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: examples
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: hard, EDF
+            make: ''
+          - variant: hard, deadline-monotonic
+            make: SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+          - variant: soft, EDF
+            make: KERNEL=SOFT
+          - variant: soft, deadline-monotonic
+            make: KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
     env:
       # The RP2040 models come from matgla/Renode_RP2040 and are built against the
       # Renode assemblies, which only the linux-dotnet package exposes: see
@@ -218,10 +225,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: rp2040-pico-elf
-          path: Escapement/CORTEX-Mx/RP2040/Examples/pico/build
+      - name: Install the bare-metal ARM toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi
+
+      - name: Build the examples
+        run: make -C Escapement/CORTEX-Mx/RP2040/Examples/pico ${{ matrix.make }}
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -251,7 +261,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: renode-report-rp2040
+          name: renode-report-rp2040-${{ strategy.job-index }}
           path: |
             report.html
             log.html
