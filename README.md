@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-dark.svg">
-    <img src="docs/images/banner-light.svg" alt="Escapement — tickless EDF real-time kernel for microcontrollers" width="100%">
+    <img src="docs/images/banner-light.svg" alt="Escapement — tickless EDF and deadline-monotonic real-time kernel for microcontrollers" width="100%">
   </picture>
 </p>
 

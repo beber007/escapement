@@ -10,7 +10,7 @@
 <circle cx="170" cy="150" r="18.92" fill="#d4a656"/>
 <circle cx="170" cy="150" r="6.88" fill="#0d1117"/>
 <text x="330" y="140" font-size="72" font-weight="700" fill="#e6edf3" letter-spacing="-1.5">Escapement</text>
-<text x="333" y="184" font-size="24" fill="#9198a1">Tickless EDF real-time kernel for microcontrollers</text>
+<text x="333" y="184" font-size="22" fill="#9198a1">Tickless EDF and deadline-monotonic real-time kernel for microcontrollers</text>
 <rect x="333" y="212" width="161" height="34" rx="17" fill="#161b22" stroke="#30363d"/>
 <text x="413" y="234" font-size="16" fill="#e6edf3" text-anchor="middle">power-aware DVFS</text>
 <rect x="505.8" y="212" width="152" height="34" rx="17" fill="#161b22" stroke="#30363d"/>

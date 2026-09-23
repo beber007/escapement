@@ -88,6 +88,13 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       kernels. Left to do on the board: undervolting with a checked computation,
       the settling time of the regulator, and the periods on the frequency
       counter.
+- [ ] **Test the other power-management policies.** The power-aware kernel offers
+      four, chosen by `POWER_MANAGEMENT` in `EscapementHardPA.h`: OTE, the default,
+      under either scheduling algorithm; DRA and DR_OTE, which force EDF*; DM_SLACK,
+      which forces deadline-monotonic. Only OTE has ever run — on the host, under
+      Renode and on the board, and on the board under EDF only. The three others
+      compile and nothing more: host test first, since it checks the speeds the
+      kernel asks for, then Renode, then the board.
 - [ ] Then build the current measurement bench described in `power-aware.md` — a
       plain Pico rather than a Pico W, an INA226 read from the Bus Pirate — and
       answer, on the target this documentation calls the most promising, whether
