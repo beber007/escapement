@@ -40,6 +40,32 @@ On the Pico, `make KERNEL=PA` builds the power-aware kernel as well, and
 measurement bench only (`power-aware.md`). The STM32 port no longer provides the
 power-aware kernel.
 
+## Synchronisation
+
+The kernels mask interrupts only at start-up and in the traps of `DEBUG_MODE`: their
+queues are updated with load-linked / store-conditional pairs, `LDREX`/`STREX` on the
+Cortex-M3 and M4 and an emulation on the Cortex-M0+, where a flag stands for the
+reservation and every context switch and every interrupt clears it on its way out
+(`Escapement_Atomic.c`, `_OSIOHandler`, the end of `_OSContextSwapHandler`). The
+application gets the same guarantees from two mechanisms:
+
+- **FIFO queues** (`OSInitFIFOQueue`), shared by any number of tasks and interrupt
+  handlers, with buffers allocated once. They build on the array-based LL/SC queue of
+  Evéquoz (ICPP 2008), with one operation announced at a time and completed by any
+  caller that preempts it, so that every operation ends in a bounded number of steps.
+- **Slot buffers** (`OSInitBuffer`), from one writer to one reader, neither waiting for
+  the other: four slots after Simpson (1990), without atomic instructions, or three
+  after Chen and Burns (1997), with an LL/SC pair. `test/model/fourslot.py` explores
+  every interleaving of the four-slot writer, an interrupt handler, with its reader, and
+  checks that no read mixes two records and none goes backwards — the properties Rushby
+  model-checked for Simpson's algorithm; the CI runs it.
+
+All of this assumes **one processor**. The emulated LL/SC and the announced operation of
+the queue both rely on preemptions nesting, which two cores do not give; the kernel runs
+on core 0 of the RP2040 alone. Of the three mechanisms, only Simpson's works between two
+cores as it stands. The references are listed in the README, and the roadmap keeps the
+idea of showing the mechanisms between the cores of the Pico and the Pico 2.
+
 ## Supported targets
 
 - **ARM Cortex-M0 / M3 / M4** — port under `Escapement/CORTEX-Mx/`. The ST

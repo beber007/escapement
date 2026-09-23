@@ -58,8 +58,15 @@ static void TestFIFO(void)
   node = OSGetFreeNodeFIFO(other);
   Check("  a full queue refuses one more node", !OSEnqueueFIFO(queue, node, 99));
   OSReleaseNodeFIFO(other, node);
-  for (i = 0; i < NODES; i += 1)
-     OSReleaseNodeFIFO(queue, OSDequeueFIFO(queue, &size));
+  ok = 1;
+  for (i = 0; i < NODES; i += 1) {
+     if ((node = OSDequeueFIFO(queue, &size)) == NULL || size != i)
+        ok = 0;
+     else
+        OSReleaseNodeFIFO(queue, node);
+  }
+  Check("  and still holds its nodes, in order, and nothing else",
+        ok && OSDequeueFIFO(queue, &size) == NULL);
 
   /* Enough rounds for the head and tail indices to wrap around their 16-bit range. */
   ok = 1;

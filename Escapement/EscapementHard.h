@@ -332,7 +332,14 @@ void *OSGetISRDescriptor(UINT16 entry);
 ** Restrictions:
 ** (1) When using multiple fifo queues, an available buffer taken from one queue, must be
 **     released to the same queue (see OSInitFIFOQueue).
-** (2) The data content size of a buffer is bounded when the fifo queue is created. */
+** (2) The data content size of a buffer is bounded when the fifo queue is created.
+** (3) The queue serves the tasks and interrupt handlers of a single processor. It builds
+**     on the array-based LL/SC queue of Evequoz (ICPP 2008) and adds one announced
+**     operation, which a caller that preempts it completes before its own: every
+**     operation then ends in a bounded number of steps, provided preemptions nest, as
+**     they do on one core. Two processors could announce at once; sharing a queue
+**     between the cores of a dual-core chip calls for the multiprocessor form of the
+**     algorithm instead. The LL/SC pair emulated on the Cortex-M0 holds on one core too. */
 
 /* OSInitFIFOQueue: Creates and initializes a concurrent FIFO queue that can be used for
 ** inter-task communications following a multiple producer and consumer paradigm. To

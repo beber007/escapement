@@ -1290,7 +1290,8 @@ UINT8 OSWriteBuffer(void *descriptor, UINT8 *data, UINT8 size)
            buf->Latest = wpair;                         // Writer indicates pair
            /* Prepare for the next time the writer gets a new byte. */
            buf->CurrentWriterPair = !buf->Reading;
-           buf->CurrentWriterIndex = !buf->Index[wpair];
+           /* As in Simpson's writer, the slot of the chosen pair that is not its latest. */
+           buf->CurrentWriterIndex = !buf->Index[buf->CurrentWriterPair];
            buf->CurrentWriter = &buf->Slot[buf->CurrentWriterPair][buf->CurrentWriterIndex];
            buf->CurrentWriter->BufferItems = 0;
         }
