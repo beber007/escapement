@@ -335,6 +335,10 @@ void FinalizeContextSwitchPreparation(void)
 /* _OSIOHandler: Default interrupt handler that calls the appropriate handler depending
 ** upon the interrupt source. Note that if no handler is associated with the interrupt
 ** source, the processor may go haywire after it proceeds to an invalid address. */
+#ifdef ESCAPEMENT_VERSION_HARD_PA
+   volatile BOOL _OSIdleAsleep = FALSE;   /* raised by the idle task before its WFI */
+#endif
+
 void _OSIOHandler(void)
 {
   #if defined(CORTEX_M0)
@@ -348,6 +352,13 @@ void _OSIOHandler(void)
   extern void *_OSTabDevice[];
   MinimalIODescriptor *peripheralIODescriptor;
   /* Retrieve the specific handler from _OSTabDevice */
+  #ifdef ESCAPEMENT_VERSION_HARD_PA
+     /* Woken from a slow sleep: run the handler, and the kernel after it, at full speed. */
+     if (OS_SLEEP_SPEED != OS_MAX_SPEED && _OSIdleAsleep) {
+        _OSIdleAsleep = FALSE;
+        OSSetProcessorSpeed(OS_MAX_SPEED);
+     }
+  #endif
   peripheralIODescriptor = _OSTabDevice[(*((volatile UINT32 *)0xE000ED04) & 0x1FF) - 16];
   #ifdef DEBUG_MODE
      if (peripheralIODescriptor == NULL) {

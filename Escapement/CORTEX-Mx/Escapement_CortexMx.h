@@ -84,14 +84,25 @@ void _OSIOHandler(void);
 
 /* _OSSleep: Sets the processor to its lowest possible sleep mode. */
 #ifdef ESCAPEMENT_VERSION_HARD_PA
-   /* Operating point the idle task sleeps at. The timer handler raises the speed to the
-   ** maximum as it enters, and the loop below sets this one again each time the idle task
-   ** resumes. make SLEEP_SPEED=n chooses another (docs/rp2040.md). */
+   /* Operating point the idle task sleeps at, the maximum unless make SLEEP_SPEED=n
+   ** chooses another (docs/rp2040.md). Sleeping slower, the idle task raises a flag before
+   ** each WFI, and the interrupt that wakes it raises the speed to the maximum as it enters
+   ** (_OSIOHandler), so that little runs slow; the loop sets the sleep speed again each
+   ** time the idle task resumes. Only the idle task is sped up that way: the kernel counts
+   ** the work of an interrupted task at the speed it ran at.
+   ** The comparison with OS_MAX_SPEED is made in C, not by the preprocessor: this file is
+   ** read before the port defines the operating points, where an undefined name would
+   ** count as 0. The compiler drops the dead branch. */
    #ifndef OS_SLEEP_SPEED
       #define OS_SLEEP_SPEED OS_MAX_SPEED
    #endif
+   #ifndef _ASM_
+      extern volatile BOOL _OSIdleAsleep;
+   #endif
    #define _OSSleep() while (TRUE) { \
                          OSSetProcessorSpeed(OS_SLEEP_SPEED); \
+                         if (OS_SLEEP_SPEED != OS_MAX_SPEED) \
+                            _OSIdleAsleep = TRUE; \
                          __asm("WFI"); \
                       };
 #else
