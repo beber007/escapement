@@ -19,3 +19,4 @@ snapshots/
 
 # RP2040 models, checked out by the CI or by hand (emulation/renode/RP2040.md)
 emulation/renode/rp2040/
+__pycache__/

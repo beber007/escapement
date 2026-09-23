@@ -187,6 +187,7 @@ static void TimerIntHandler(TIMER_ISR_DATA *device)
      }
      device->EventQueue = node->Next;
      event = node->Event;
+     OSTrace(OS_TRACE_EVENT,device->AlarmBit,(UINT16)(TIMER_TIMERAWL - node->Time));
      node->Next = device->FreeNodes;
      device->FreeNodes = node;
      LeaveCritical(primask);

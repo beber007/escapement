@@ -20,7 +20,7 @@ declared by the tasks — without ever missing a deadline.
 | | |
 |---|---|
 | **5,156 bytes** | the whole kernel and four periodic tasks, on a Cortex-M0+ |
-| **3.2 µs** | cost of one scheduling round, measured on the board — 0.43 % of the processor at 1,340 activations per second. Measured before the kernel was switched to EDF, and to be measured again: see the note in [`docs/rp2040.md`](docs/rp2040.md) |
+| **3.2 µs** | cost of one scheduling round of the hard kernel, measured on the board — 0.33 % of the processor at 1,000 activations per second, under EDF as under deadline-monotonic: see [`docs/rp2040.md`](docs/rp2040.md) |
 | **+28 ppm** | deviation of the periods read by an external frequency counter: the tolerance of the crystal on the board, not that of the scheduler |
 
 ## Verified at five levels

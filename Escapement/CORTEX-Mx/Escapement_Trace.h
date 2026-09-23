@@ -28,6 +28,7 @@
 #define OS_TRACE_SET_TIMER   5   /* deadline armed: arg 1 ahead, 0 passed; extra: ticks ahead */
 #define OS_TRACE_SPEED       6   /* speed changed: arg new, extra old */
 #define OS_TRACE_MARK        7   /* left by the application: arg and extra its own */
+#define OS_TRACE_EVENT       8   /* timer event delivered: arg the alarm; extra us late */
 
 #if defined(ESCAPEMENT_TRACE) && !defined(_ASM_)
    #define OS_TRACE_SIZE 256     /* a power of two */

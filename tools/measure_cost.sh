@@ -4,7 +4,7 @@
 # Reads back the counters that Escapement_Timer.c keeps under
 # ESCAPEMENT_MEASURE_SCHEDULING_COST; the example must be built with that option.
 #
-#   tools/measure_cost.sh [seconds]
+#   tools/measure_cost.sh [seconds [elf]]
 #
 # Needs OpenOCD and a CMSIS-DAP probe (the Raspberry Pi Debug Probe).
 #
@@ -21,8 +21,8 @@
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-ELF=$ROOT/Escapement/CORTEX-Mx/RP2040/Examples/pico/build/TaskLEDPico.elf
 RUN_SECONDS=${1:-10}
+ELF=${2:-$ROOT/Escapement/CORTEX-Mx/RP2040/Examples/pico/build/TaskLEDPico.elf}
 
 [ -f "$ELF" ] || { echo "build the example first" >&2; exit 1; }
 

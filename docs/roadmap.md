@@ -62,11 +62,11 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
 - [x] **Power-aware variant on Cortex-M**: `stm32l-discovery-pa` scheduled its
       three tasks and reprogrammed the PLL, verified in CI — removed since with
       the L1, the Pico having taken over.
-- [ ] **Measure the per-activation cost again on the Pico.** The published
-      figures — 3.2 µs mean, 8 µs worst case — were taken while the kernel still
-      selected deadline-monotonic scheduling; ordering the ready queue by
-      deadline is not the same work. `tools/measure_cost.sh` does the run, with
-      the instrumentation switched on in `Escapement_Config.h`.
+- [x] **Measure the per-activation cost again on the Pico.** Under EDF as under
+      deadline-monotonic, 3.2 µs on average and 8 µs at worst; 4.4 µs for the
+      soft kernel and 4.2 µs for the power-aware one (`rp2040.md`). The share of
+      the processor first published, 0.43 % at 1,340 rounds a second, did not
+      reproduce, even from the revision that published it: 0.33 % at 1,000.
 - [ ] Propose the two fixes to the Renode `Timers.STM32_Timer` upstream.
 - [x] **Write the DVFS driver for the RP2040.** `OSSetProcessorSpeed` moves
       between 12, 50 and 125 MHz with the system PLL kept locked, so no change
@@ -84,9 +84,10 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       which stalled the kernel at start after a load from the debugger, now
       cleared by the port; then showed the DVFS driver at work on the silicon,
       down to 12 MHz for the probe and back to 125 MHz in the idle task
-      (`rp2040.md`). Left to do on the board: the timer events, undervolting
-      with a checked computation, the settling time of the regulator, and the
-      periods on the frequency counter.
+      (`rp2040.md`). The timer events followed on 2026-09-23, on all three
+      kernels. Left to do on the board: undervolting with a checked computation,
+      the settling time of the regulator, and the periods on the frequency
+      counter.
 - [ ] Then build the current measurement bench described in `power-aware.md` — a
       plain Pico rather than a Pico W, an INA226 read from the Bus Pirate — and
       answer, on the target this documentation calls the most promising, whether

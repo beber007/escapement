@@ -33,8 +33,8 @@ The code is compiled freestanding and linked without a C library
 provide (integer division on Cortex-M0 and M3). No newlib is needed.
 
 > **Only the RP2040 port has been run on hardware** (see `rp2040.md`): the hard
-> kernel, and the power-aware one with its DVFS driver; the timer events and
-> undervolting have been seen under emulation alone. All the examples are executed
+> kernel, and the power-aware one with its DVFS driver, and the timer events; the
+> wrap and undervolting have been seen under emulation alone. All the examples are executed
 > under Renode in CI.
 
 On the Pico, `make KERNEL=SOFT`, `make KERNEL=PA` and `make SCHEDULER=...` build

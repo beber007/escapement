@@ -104,6 +104,7 @@ static void InitializeFlag(UINT8 pin)
 static void SetLed1Task(void *argument)
 {
   SIO_GPIO_OUT_SET = 1u << FLAG1_PIN;
+  OSTrace(OS_TRACE_MARK,FLAG1_PIN,0);
   OSScheduleTimerEvent(argument,1000,EVENT_TIMER_INDEX);
   OSEndTask();
 } /* end of SetLed1Task */
@@ -113,6 +114,7 @@ static void SetLed1Task(void *argument)
 static void ClearLed1Task(void *argument)
 {
   SIO_GPIO_OUT_CLR = 1u << FLAG1_PIN;
+  OSTrace(OS_TRACE_MARK,FLAG1_PIN,1);
   OSSuspendSynchronousTask();
 } /* end of ClearLed1Task */
 
@@ -121,6 +123,7 @@ static void ClearLed1Task(void *argument)
 static void SetLed2Task(void *argument)
 {
   SIO_GPIO_OUT_SET = 1u << FLAG2_PIN;
+  OSTrace(OS_TRACE_MARK,FLAG2_PIN,0);
   OSScheduleTimerEvent(argument,2000,EVENT_TIMER_INDEX);
   OSEndTask();
 } /* end of SetLed2Task */
@@ -130,5 +133,6 @@ static void SetLed2Task(void *argument)
 static void ClearLed2Task(void *argument)
 {
   SIO_GPIO_OUT_CLR = 1u << FLAG2_PIN;
+  OSTrace(OS_TRACE_MARK,FLAG2_PIN,1);
   OSSuspendSynchronousTask();
 } /* end of ClearLed2Task */

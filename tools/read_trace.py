@@ -6,7 +6,10 @@ tool sets the flag that suspends the recording, reads the buffer in one transfer
 lets the recording go on, and prints the events in order with their times — without
 ever stopping a core, which would make the tasks miss their deadlines.
 
-    tools/read_trace.py path/to/TaskLEDPico.elf [--last N] [--keep-frozen]
+    tools/read_trace.py path/to/TaskLEDPico.elf [--last N] [--keep-frozen] [--pins]
+
+With --pins, it summarises instead the marks the tasks leave on each output: the period
+from one start to the next, and the time from a start to its end.
 
 Needs OpenOCD and a CMSIS-DAP probe (the Raspberry Pi Debug Probe), and the
 arm-none-eabi binutils for the addresses of the symbols.
@@ -19,7 +22,7 @@ import sys
 
 SIZE = 256   # OS_TRACE_SIZE
 EVENTS = {1: "alarm0", 2: "alarm1", 3: "soft>", 4: "soft<", 5: "set_timer",
-          6: "speed", 7: "mark"}
+          6: "speed", 7: "mark", 8: "event"}
 SPEEDS = {0: "12 MHz", 1: "50 MHz", 2: "125 MHz"}
 TIMERAWL = 0x40054028
 
@@ -53,7 +56,28 @@ def describe(event, arg, extra):
         return f"{name} {SPEEDS.get(extra, extra)} -> {SPEEDS.get(arg, arg)}"
     if event == 7:
         return f"{name} gpio {arg} {'end' if extra else 'start'}"
+    if event == 8:
+        return f"{name} alarm bit {arg:#x}, {extra} us late"
     return name
+
+
+def pin_summary(entries):
+    starts, periods, highs = {}, {}, {}
+    for time, event, arg, extra in entries:
+        if event != 7:
+            continue
+        if extra == 0:
+            if arg in starts:
+                periods.setdefault(arg, []).append((time - starts[arg]) & 0xFFFFFFFF)
+            starts[arg] = time
+        elif arg in starts:
+            highs.setdefault(arg, []).append((time - starts[arg]) & 0xFFFFFFFF)
+    for pin in sorted(set(periods) | set(highs)):
+        line = f"gpio {pin:2d}"
+        for name, values in (("period", periods.get(pin)), ("high", highs.get(pin))):
+            if values:
+                line += f"  {name} {min(values)}..{max(values)} us ({len(values)})"
+        print(line)
 
 
 def main():
@@ -62,6 +86,8 @@ def main():
     parser.add_argument("--last", type=int, default=SIZE, help="events to print")
     parser.add_argument("--keep-frozen", action="store_true",
                         help="leave the recording suspended after reading")
+    parser.add_argument("--pins", action="store_true",
+                        help="summarise the periods and high times of the marks")
     args = parser.parse_args()
 
     sym = symbols(args.elf)
@@ -93,6 +119,9 @@ def main():
 
     print(f"{count} events recorded, the last {n} kept")
     if not entries:
+        return
+    if args.pins:
+        pin_summary(entries)
         return
     first = entries[0][0]
     previous = first
