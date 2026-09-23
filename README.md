@@ -46,7 +46,7 @@ core; `tools/dvfs_figure.py` draws it from [the data](docs/data/pico-pa-trace.cs
 The trace also shows what is left to settle: the idle task sleeps at 125 MHz, which
 only a current measurement will price — see [`docs/rp2040.md`](docs/rp2040.md).
 
-## Verified at five levels
+## Verified at six levels
 
 Each level is independent of the ones before it, and they answer different
 questions: the instrument says the periods are right, the host test says the
@@ -56,16 +56,21 @@ scheduler decided what it was supposed to decide.
 |---|---|---|
 | Compilation | GitHub Actions, with a toolchain other than the developer's | the examples of the Pico and of the STM32F4, on every push |
 | The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for — 87 to 90 % of the lines of each kernel |
+| Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
 | Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the STM32F4 and the RP2040; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after — all as regression tests |
-| Internal state on hardware | OpenOCD and SWD on a Pico | deadlines armed ahead of the counter, cost counters read back from SRAM |
+| Internal state on hardware | OpenOCD and SWD on a Pico | a trace of the scheduling read without stopping a core: deadlines armed ahead of the counter, timer events delivered on the microsecond, the clock changed by the power-aware kernel; cost counters read back from SRAM |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
 
 That last level reads 500.02 Hz, 50.0014 Hz and 16.66713 Hz for declared periods
-of 1, 20 and 60 ms. Details in [`docs/rp2040.md`](docs/rp2040.md).
+of 1, 20 and 60 ms, and 100.0031 Hz for the 10 ms output of the timer events under
+each of the three kernels. Details in [`docs/rp2040.md`](docs/rp2040.md).
 
-None of this is decoration. The host test was added last, and it found that the
-other four had all been green on a kernel that was not running the algorithm
-this page advertises. That story is in [`docs/method.md`](docs/method.md).
+None of this is decoration. The host test, when it came, found that the levels
+before it had all been green on a kernel that was not running the algorithm this
+page advertises. The models, added after, found two defects every other level had
+passed: a 3-slot reader that could read past its array when an interrupt came at
+the wrong instruction, and an event queue whose signal could wake two tasks. Those
+stories are in [`docs/method.md`](docs/method.md).
 
 ![Chronogram of three periodic tasks scheduled by Escapement](docs/images/f4-schedule.svg)
 
@@ -152,6 +157,15 @@ reader, neither ever blocking the other: with four slots after Simpson [2],
 without any atomic instruction, or with three slots after Chen and Burns [3],
 using less memory and a load-linked / store-conditional pair.
 
+**Checked over every interleaving.** Each of the three has a model in
+[`test/model`](test/model), explored exhaustively in CI: the reader and the writer
+of the slot buffers, the operations of the queue preempting one another at every
+access, the load-linked / store-conditional pair as the Cortex-M0+ emulates it.
+They found two defects, now fixed: the 3-slot reader had not allowed for a
+store-conditional failing, as it does, unlike a compare-and-swap, whenever an
+interrupt merely came between it and its load-linked; and a queue of event-driven
+tasks could let one signal wake two of them.
+
 **References**
 
 1. C. Evéquoz, [*Non-Blocking Concurrent FIFO Queues with Single Word
@@ -173,7 +187,7 @@ using less memory and a load-linked / store-conditional pair.
 ## How this project is built
 
 This project is developed with the help of an AI, under one standing rule:
-**the AI proposes, the instrument decides.** The five levels of verification
+**the AI proposes, the instrument decides.** The six levels of verification
 above exist for that reason.
 
 The documentation therefore keeps a record of the hypotheses that turned out to
