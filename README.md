@@ -164,7 +164,10 @@ access, the load-linked / store-conditional pair as the Cortex-M0+ emulates it.
 They found two defects, now fixed: the 3-slot reader had not allowed for a
 store-conditional failing, as it does, unlike a compare-and-swap, whenever an
 interrupt merely came between it and its load-linked; and a queue of event-driven
-tasks could let one signal wake two of them.
+tasks could let one signal wake two of them. Neither lies in the published
+algorithms: the first came from carrying a compare-and-swap over to a
+store-conditional tried once, a pitfall the literature knows, the second from the
+signal and the announced operation that ZottaOS added to Evéquoz's queue.
 
 **References**
 
