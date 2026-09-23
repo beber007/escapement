@@ -1,6 +1,18 @@
-# Escapement
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-dark.svg">
+    <img src="docs/images/banner-light.svg" alt="Escapement — tickless EDF real-time kernel for microcontrollers" width="100%">
+  </picture>
+</p>
 
-[![build](https://github.com/beber007/escapement/actions/workflows/build.yml/badge.svg)](https://github.com/beber007/escapement/actions/workflows/build.yml)
+<p align="center">
+  <a href="https://github.com/beber007/escapement/actions/workflows/build.yml"><img src="https://github.com/beber007/escapement/actions/workflows/build.yml/badge.svg" alt="build"></a>
+  <img src="https://img.shields.io/badge/language-C-555555" alt="C">
+  <img src="https://img.shields.io/badge/RP2040-Cortex--M0%2B-c51a4a?logo=raspberrypi&logoColor=white" alt="RP2040">
+  <img src="https://img.shields.io/badge/STM32F4-Cortex--M4-03234b?logo=stmicroelectronics&logoColor=white" alt="STM32F4">
+  <img src="https://img.shields.io/badge/emulated-Renode-2f6f9f" alt="Renode">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-permissive-3fb950" alt="licence"></a>
+</p>
 
 **A preemptive deadline-driven real-time kernel for microcontrollers with a few
 kilobytes of RAM.**
@@ -22,6 +34,17 @@ declared by the tasks — without ever missing a deadline.
 | **5,156 bytes** | the whole kernel and four periodic tasks, on a Cortex-M0+ |
 | **3.2 µs** | cost of one scheduling round of the hard kernel, measured on the board — 0.33 % of the processor at 1,000 activations per second, under EDF as under deadline-monotonic: see [`docs/rp2040.md`](docs/rp2040.md) |
 | **+28 ppm** | deviation of the periods read by an external frequency counter: the tolerance of the crystal on the board, not that of the scheduler |
+
+## On the silicon
+
+![The power-aware kernel moving the clock of a Raspberry Pi Pico between 125, 50 and 12 MHz around its tasks](docs/images/pico-dvfs.svg)
+
+A Raspberry Pi Pico running the power-aware kernel: 50 MHz is enough for the 20 ms
+task to meet its deadline, 12 MHz for the 1 ms probe, and the rest runs at 125 MHz.
+The firmware writes the trace into RAM and the debugger reads it without stopping a
+core; `tools/dvfs_figure.py` draws it from [the data](docs/data/pico-pa-trace.csv).
+The trace also shows what is left to settle: the idle task sleeps at 125 MHz, which
+only a current measurement will price — see [`docs/rp2040.md`](docs/rp2040.md).
 
 ## Verified at five levels
 

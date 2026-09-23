@@ -6,10 +6,12 @@ tool sets the flag that suspends the recording, reads the buffer in one transfer
 lets the recording go on, and prints the events in order with their times — without
 ever stopping a core, which would make the tasks miss their deadlines.
 
-    tools/read_trace.py path/to/TaskLEDPico.elf [--last N] [--keep-frozen] [--pins]
+    tools/read_trace.py path/to/TaskLEDPico.elf [--last N] [--keep-frozen] [--pins|--csv]
 
 With --pins, it summarises instead the marks the tasks leave on each output: the period
-from one start to the next, and the time from a start to its end.
+from one start to the next, and the time from a start to its end. With --csv, it
+prints the raw events, times counted from the first one kept (tools/dvfs_figure.py
+draws them).
 
 Needs OpenOCD and a CMSIS-DAP probe (the Raspberry Pi Debug Probe), and the
 arm-none-eabi binutils for the addresses of the symbols.
@@ -88,6 +90,8 @@ def main():
                         help="leave the recording suspended after reading")
     parser.add_argument("--pins", action="store_true",
                         help="summarise the periods and high times of the marks")
+    parser.add_argument("--csv", action="store_true",
+                        help="print the raw events as CSV")
     args = parser.parse_args()
 
     sym = symbols(args.elf)
@@ -117,11 +121,17 @@ def main():
         time, packed = words[2 * k], words[2 * k + 1]
         entries.append((time, packed & 0xFF, (packed >> 8) & 0xFF, packed >> 16))
 
-    print(f"{count} events recorded, the last {n} kept")
+    print(f"{count} events recorded, the last {n} kept",
+          file=sys.stderr if args.csv else sys.stdout)
     if not entries:
         return
     if args.pins:
         pin_summary(entries)
+        return
+    if args.csv:
+        print("time_us,event,arg,extra")
+        for time, event, arg, extra in entries:
+            print(f"{(time - entries[0][0]) & 0xFFFFFFFF},{event},{arg},{extra}")
         return
     first = entries[0][0]
     previous = first

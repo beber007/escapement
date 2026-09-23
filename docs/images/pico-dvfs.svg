@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="586" viewBox="0 0 900 586" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="900" height="586" fill="#ffffff"/>
+<text x="128" y="26" font-size="15" font-weight="600" fill="#1f2328">The power-aware kernel changing the clock of a real Raspberry Pi Pico</text>
+<text x="128" y="43" font-size="12" fill="#59636e">Written by the firmware into RAM, read over SWD without stopping a core, timed to the microsecond</text>
+<text x="128" y="64" font-size="12.5" font-weight="600" fill="#1f2328">The whole trace, 34 ms</text>
+<line x1="128.0" y1="72" x2="128.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="128.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">0</text>
+<line x1="172.0" y1="72" x2="172.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="172.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">2</text>
+<line x1="216.0" y1="72" x2="216.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="216.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">4</text>
+<line x1="260.0" y1="72" x2="260.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="260.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">6</text>
+<line x1="304.0" y1="72" x2="304.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="304.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">8</text>
+<line x1="348.0" y1="72" x2="348.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="348.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">10</text>
+<line x1="392.0" y1="72" x2="392.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="392.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">12</text>
+<line x1="436.0" y1="72" x2="436.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="436.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">14</text>
+<line x1="480.0" y1="72" x2="480.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="480.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">16</text>
+<line x1="524.0" y1="72" x2="524.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="524.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">18</text>
+<line x1="568.0" y1="72" x2="568.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="568.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">20</text>
+<line x1="612.0" y1="72" x2="612.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="612.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">22</text>
+<line x1="656.0" y1="72" x2="656.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="656.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">24</text>
+<line x1="700.0" y1="72" x2="700.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="700.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">26</text>
+<line x1="744.0" y1="72" x2="744.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="744.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">28</text>
+<line x1="788.0" y1="72" x2="788.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="788.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">30</text>
+<line x1="832.0" y1="72" x2="832.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="832.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">32</text>
+<line x1="876.0" y1="72" x2="876.0" y2="272" stroke="#e7ecf0" stroke-width="1"/>
+<text x="876.0" y="287" font-size="11" fill="#59636e" text-anchor="middle">34</text>
+<text x="876" y="302" font-size="11" fill="#59636e" text-anchor="end">ms</text>
+<text x="118" y="86" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP4</text>
+<text x="118" y="97" font-size="10" fill="#59636e" text-anchor="end">probe · 1 ms</text>
+<line x1="128" y1="94" x2="876" y2="94" stroke="#1a7f37" stroke-width="1.2" opacity="0.4"/>
+<rect x="128.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="150.24" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="172.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="194.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="216.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="238.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="260.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="282.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="304.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="326.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="348.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="370.20" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="392.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="414.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="436.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="458.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="480.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="502.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="524.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="546.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="568.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="590.29" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="612.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="634.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="656.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="678.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="700.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="722.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="744.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="766.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="788.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="810.20" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="832.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<rect x="854.64" y="80" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<text x="118" y="114" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP25</text>
+<text x="118" y="125" font-size="10" fill="#59636e" text-anchor="end">LED · 10 ms</text>
+<line x1="128" y1="122" x2="876" y2="122" stroke="#1f6feb" stroke-width="1.2" opacity="0.4"/>
+<rect x="150.31" y="108" width="1.60" height="14" rx="1" fill="#1f6feb"/>
+<rect x="370.42" y="108" width="2.22" height="14" rx="1" fill="#1f6feb"/>
+<rect x="590.35" y="108" width="1.60" height="14" rx="1" fill="#1f6feb"/>
+<rect x="810.42" y="108" width="2.22" height="14" rx="1" fill="#1f6feb"/>
+<text x="118" y="142" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP2</text>
+<text x="118" y="153" font-size="10" fill="#59636e" text-anchor="end">task · 20 ms</text>
+<line x1="128" y1="150" x2="876" y2="150" stroke="#6f42c1" stroke-width="1.2" opacity="0.4"/>
+<rect x="151.41" y="136" width="4.42" height="14" rx="1" fill="#6f42c1"/>
+<rect x="591.30" y="136" width="1.76" height="14" rx="1" fill="#6f42c1"/>
+<text x="118" y="170" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP3</text>
+<text x="118" y="181" font-size="10" fill="#59636e" text-anchor="end">task · 60 ms</text>
+<line x1="128" y1="178" x2="876" y2="178" stroke="#bc4c00" stroke-width="1.2" opacity="0.4"/>
+<rect x="593.12" y="164" width="1.60" height="14" rx="1" fill="#bc4c00"/>
+<line x1="128" y1="265.3" x2="876" y2="265.3" stroke="#e7ecf0" stroke-width="1"/>
+<text x="118" y="269.3" font-size="10.5" fill="#59636e" text-anchor="end">12 MHz</text>
+<line x1="128" y1="244.0" x2="876" y2="244.0" stroke="#e7ecf0" stroke-width="1"/>
+<text x="118" y="248.0" font-size="10.5" fill="#59636e" text-anchor="end">50 MHz</text>
+<line x1="128" y1="202.0" x2="876" y2="202.0" stroke="#e7ecf0" stroke-width="1"/>
+<text x="118" y="206.0" font-size="10.5" fill="#59636e" text-anchor="end">125 MHz</text>
+<line x1="128" y1="272" x2="876" y2="272" stroke="#59636e" stroke-width="1" opacity="0.5"/>
+<path d="M128 202.0 H128.15 V265.3 H129.03 V202.0 H151.23 V244.0 H155.94 V202.0 H172.15 V265.3 H173.03 V202.0 H194.15 V265.3 H195.03 V202.0 H216.15 V265.3 H217.03 V202.0 H238.15 V265.3 H239.03 V202.0 H260.15 V265.3 H261.03 V202.0 H282.15 V265.3 H283.03 V202.0 H304.15 V265.3 H305.03 V202.0 H326.15 V265.3 H327.03 V202.0 H348.15 V265.3 H349.03 V202.0 H370.24 V244.0 H372.75 V202.0 H392.15 V265.3 H393.03 V202.0 H414.15 V265.3 H415.03 V202.0 H436.15 V265.3 H437.03 V202.0 H458.15 V265.3 H459.03 V202.0 H480.15 V265.3 H481.03 V202.0 H502.15 V265.3 H503.03 V202.0 H524.15 V265.3 H525.03 V202.0 H546.15 V265.3 H547.03 V202.0 H568.15 V265.3 H569.03 V202.0 H612.15 V265.3 H613.03 V202.0 H634.15 V265.3 H635.03 V202.0 H656.15 V265.3 H657.03 V202.0 H678.15 V265.3 H679.03 V202.0 H700.15 V265.3 H701.03 V202.0 H722.15 V265.3 H723.03 V202.0 H744.15 V265.3 H745.03 V202.0 H766.15 V265.3 H767.03 V202.0 H788.15 V265.3 H789.03 V202.0 H810.24 V244.0 H812.75 V202.0 H832.15 V265.3 H833.03 V202.0 H854.15 V265.3 H855.03 V202.0 H876" fill="none" stroke="#1f2328" stroke-width="1.6" stroke-linejoin="miter"/>
+<text x="128" y="199" font-size="10.5" fill="#59636e">clock of the core</text>
+<text x="128" y="330" font-size="12.5" font-weight="600" fill="#1f2328">Zoom: 50 MHz for the 20 ms task</text>
+<line x1="142.5" y1="338" x2="142.5" y2="538" stroke="#e7ecf0" stroke-width="1"/>
+<text x="142.5" y="553" font-size="11" fill="#59636e" text-anchor="middle">1</text>
+<line x1="215.1" y1="338" x2="215.1" y2="538" stroke="#e7ecf0" stroke-width="1"/>
+<text x="215.1" y="553" font-size="11" fill="#59636e" text-anchor="middle">1.05</text>
+<line x1="287.7" y1="338" x2="287.7" y2="538" stroke="#e7ecf0" stroke-width="1"/>
+<text x="287.7" y="553" font-size="11" fill="#59636e" text-anchor="middle">1.1</text>
+<line x1="360.4" y1="338" x2="360.4" y2="538" stroke="#e7ecf0" stroke-width="1"/>
+<text x="360.4" y="553" font-size="11" fill="#59636e" text-anchor="middle">1.15</text>
+<line x1="433.0" y1="338" x2="433.0" y2="538" stroke="#e7ecf0" stroke-width="1"/>
+<text x="433.0" y="553" font-size="11" fill="#59636e" text-anchor="middle">1.2</text>
+<line x1="505.6" y1="338" x2="505.6" y2="538" stroke="#e7ecf0" stroke-width="1"/>
+<text x="505.6" y="553" font-size="11" fill="#59636e" text-anchor="middle">1.25</text>
+<line x1="578.2" y1="338" x2="578.2" y2="538" stroke="#e7ecf0" stroke-width="1"/>
+<text x="578.2" y="553" font-size="11" fill="#59636e" text-anchor="middle">1.3</text>
+<text x="592.72" y="568" font-size="11" fill="#59636e" text-anchor="end">ms</text>
+<text x="118" y="352" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP4</text>
+<text x="118" y="363" font-size="10" fill="#59636e" text-anchor="end">probe · 1 ms</text>
+<line x1="128" y1="360" x2="592.72" y2="360" stroke="#1a7f37" stroke-width="1.2" opacity="0.4"/>
+<rect x="158.50" y="346" width="4.36" height="14" rx="1" fill="#1a7f37"/>
+<text x="118" y="380" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP25</text>
+<text x="118" y="391" font-size="10" fill="#59636e" text-anchor="end">LED · 10 ms</text>
+<line x1="128" y1="388" x2="592.72" y2="388" stroke="#1f6feb" stroke-width="1.2" opacity="0.4"/>
+<rect x="162.85" y="374" width="58.09" height="14" rx="1" fill="#1f6feb"/>
+<text x="118" y="408" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP2</text>
+<text x="118" y="419" font-size="10" fill="#59636e" text-anchor="end">task · 20 ms</text>
+<line x1="128" y1="416" x2="592.72" y2="416" stroke="#6f42c1" stroke-width="1.2" opacity="0.4"/>
+<rect x="235.47" y="402" width="291.90" height="14" rx="1" fill="#6f42c1"/>
+<text x="118" y="436" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP3</text>
+<text x="118" y="447" font-size="10" fill="#59636e" text-anchor="end">task · 60 ms</text>
+<line x1="128" y1="444" x2="592.72" y2="444" stroke="#bc4c00" stroke-width="1.2" opacity="0.4"/>
+<line x1="128" y1="531.3" x2="592.72" y2="531.3" stroke="#e7ecf0" stroke-width="1"/>
+<text x="118" y="535.3" font-size="10.5" fill="#59636e" text-anchor="end">12 MHz</text>
+<line x1="128" y1="510.0" x2="592.72" y2="510.0" stroke="#e7ecf0" stroke-width="1"/>
+<text x="118" y="514.0" font-size="10.5" fill="#59636e" text-anchor="end">50 MHz</text>
+<line x1="128" y1="468.0" x2="592.72" y2="468.0" stroke="#e7ecf0" stroke-width="1"/>
+<text x="118" y="472.0" font-size="10.5" fill="#59636e" text-anchor="end">125 MHz</text>
+<line x1="128" y1="538" x2="592.72" y2="538" stroke="#59636e" stroke-width="1" opacity="0.5"/>
+<path d="M128 468.0 H223.85 V510.0 H534.63 V468.0 H592.72" fill="none" stroke="#1f2328" stroke-width="1.6" stroke-linejoin="miter"/>
+<text x="128" y="465" font-size="10.5" fill="#59636e">clock of the core</text>
+<text x="620.72" y="330" font-size="12.5" font-weight="600" fill="#1f2328">12 MHz for the probe</text>
+<line x1="636.7" y1="338" x2="636.7" y2="538" stroke="#e7ecf0" stroke-width="1"/>
+<text x="636.7" y="553" font-size="11" fill="#59636e" text-anchor="middle">2</text>
+<line x1="700.5" y1="338" x2="700.5" y2="538" stroke="#e7ecf0" stroke-width="1"/>
+<text x="700.5" y="553" font-size="11" fill="#59636e" text-anchor="middle">2.02</text>
+<line x1="764.3" y1="338" x2="764.3" y2="538" stroke="#e7ecf0" stroke-width="1"/>
+<text x="764.3" y="553" font-size="11" fill="#59636e" text-anchor="middle">2.04</text>
+<line x1="828.1" y1="338" x2="828.1" y2="538" stroke="#e7ecf0" stroke-width="1"/>
+<text x="828.1" y="553" font-size="11" fill="#59636e" text-anchor="middle">2.06</text>
+<text x="876" y="568" font-size="11" fill="#59636e" text-anchor="end">ms</text>
+<line x1="620.72" y1="360" x2="876" y2="360" stroke="#1a7f37" stroke-width="1.2" opacity="0.4"/>
+<rect x="729.21" y="346" width="57.44" height="14" rx="1" fill="#1a7f37"/>
+<line x1="620.72" y1="388" x2="876" y2="388" stroke="#1f6feb" stroke-width="1.2" opacity="0.4"/>
+<line x1="620.72" y1="416" x2="876" y2="416" stroke="#6f42c1" stroke-width="1.2" opacity="0.4"/>
+<line x1="620.72" y1="444" x2="876" y2="444" stroke="#bc4c00" stroke-width="1.2" opacity="0.4"/>
+<line x1="620.72" y1="531.3" x2="876" y2="531.3" stroke="#e7ecf0" stroke-width="1"/>
+<line x1="620.72" y1="510.0" x2="876" y2="510.0" stroke="#e7ecf0" stroke-width="1"/>
+<line x1="620.72" y1="468.0" x2="876" y2="468.0" stroke="#e7ecf0" stroke-width="1"/>
+<line x1="620.72" y1="538" x2="876" y2="538" stroke="#59636e" stroke-width="1" opacity="0.5"/>
+<path d="M620.72 468.0 H659.01 V531.3 H786.65 V468.0 H876" fill="none" stroke="#1f2328" stroke-width="1.6" stroke-linejoin="miter"/>
+</svg>
