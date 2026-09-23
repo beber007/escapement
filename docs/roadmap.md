@@ -85,9 +85,11 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       cleared by the port; then showed the DVFS driver at work on the silicon,
       down to 12 MHz for the probe and back to 125 MHz in the idle task
       (`rp2040.md`). The timer events followed on 2026-09-23, on all three
-      kernels. Left to do on the board: undervolting with a checked computation,
-      the settling time of the regulator, and the periods on the frequency
-      counter.
+      kernels, the periods on the frequency counter the same day, and the time
+      the regulator takes to report its output in regulation on 2026-09-24. Left
+      to do on the board: undervolting with a checked computation, and the full
+      settling of the regulator, which only an instrument on the core supply
+      can show.
 - [ ] **Test the other power-management policies.** The power-aware kernel offers
       four, chosen by `POWER_MANAGEMENT` in `EscapementHardPA.h`: OTE, the default,
       under either scheduling algorithm; DRA and DR_OTE, which force EDF*; DM_SLACK,

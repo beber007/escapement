@@ -128,6 +128,8 @@ build/TestTimerEventPico.o : TestTimerEventPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/BenchDVFSPico.o : BenchDVFSPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/BenchVregPico.o : BenchVregPico.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskLEDPico.elf : $(COMMON) build/TaskLEDPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/TaskLEDPico.o -T$(LINKERFILE) -lgcc
@@ -139,10 +141,13 @@ build/TestTimerEventPico.elf : $(COMMON) build/Escapement_TimerEvent.o build/Tes
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico.o -T$(LINKERFILE) -lgcc
 
 # make KERNEL=PA bench: times the changes of operating point of the DVFS driver, which
-# only the power-aware kernel builds (BenchDVFSPico.c).
-bench: build/BenchDVFSPico.elf
+# only the power-aware kernel builds (BenchDVFSPico.c), and the settling of the core
+# regulator (BenchVregPico.c, which runs the chip below its specified voltage).
+bench: build/BenchDVFSPico.elf build/BenchVregPico.elf
 build/BenchDVFSPico.elf : $(COMMON) build/BenchDVFSPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/BenchDVFSPico.o -T$(LINKERFILE) -lgcc
+build/BenchVregPico.elf : $(COMMON) build/BenchVregPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/BenchVregPico.o -T$(LINKERFILE) -lgcc
 
 # The .d files produced by -MMD list the headers of each object: without them, a change
 # to Escapement_Config.h triggers no rebuild at all and the next test runs against a

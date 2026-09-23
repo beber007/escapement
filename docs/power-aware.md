@@ -140,9 +140,10 @@ risks:
 - **spread between chips and temperatures**, with the regulator itself within 3 %: a
   setting of 0.90 V may deliver 0.873 V;
 - **the order of a change**: the voltage has to rise before the frequency and fall after.
-  The driver does so, and when raising waits `RP2040_VREG_SETTLING_US` — 100 µs, a guess the
-  bench has to replace, the datasheet giving no settling time and `ROK` only reporting 90 %
-  of the target — with interrupts masked, which the kernel's latency pays for.
+  The driver does so, and when raising waits `RP2040_VREG_SETTLING_US` — 100 µs, twice the
+  49 µs at most that `ROK` takes to come back from 0.90 to 1.10 V on the board
+  (`rp2040.md`), `ROK` only reporting some 90 % of the target and the datasheet giving no
+  settling time — with interrupts masked, which the kernel's latency pays for.
 
 **What emulation proves.** The RP2040 models have no voltage regulator, so
 `escapement_pico.repl` adds a model of `VREG`, and `escapement_pico.robot` hooks the writes

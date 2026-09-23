@@ -137,8 +137,10 @@ const UINT8 _OSSlowdownRatios[] = {24,    /*  12 / 125 * 256 = 24.6  */
    ** work, 0.85 V what has been reported not to; the regulator itself is within 3 %. */
    static const UINT8 CoreVoltage[] = {VSEL_0_90V, VSEL_0_95V, VSEL_1_10V};
    /* Time allowed for the regulator to settle after raising the voltage, before the clock
-   ** follows. The datasheet gives no figure: the SDK waits 1 ms when it raises the voltage
-   ** at start-up, which would hold the interrupts far too long here. To be measured. */
+   ** follows. The datasheet gives no figure, and the SDK waits 1 ms when it raises the
+   ** voltage at start-up, which would hold the interrupts far too long here. Measured on
+   ** the board (BenchVregPico.c, docs/rp2040.md), ROK comes back 49 us at most after
+   ** 0.90 -> 1.10 V; but ROK only reports some 90 % of the target, so the margin is kept. */
    #ifndef RP2040_VREG_SETTLING_US
       #define RP2040_VREG_SETTLING_US 100
    #endif
