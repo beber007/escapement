@@ -197,6 +197,38 @@ void OSSetProcessorSpeed(UINT8 speed)
 } /* end of OSSetProcessorSpeed */
 
 
+/* _OSRaiseSpeedOnWake: OSSetProcessorSpeed(OS_MAX_SPEED) for the interrupt that wakes the
+** idle task, everything of which runs at the sleep speed, some 83 ns an instruction at
+** 12 MHz: only the tests the way up needs, and from 12 MHz no parking of clk_sys on the
+** reference, where it already is. The flag of the idle task is tested and cleared with
+** interrupts masked, so that an interrupt of higher priority arriving meanwhile raises
+** the speed itself rather than run slow. */
+void _OSRaiseSpeedOnWake(void)
+{
+  UINT32 primask;
+  __asm volatile ("MRS %0, PRIMASK" : "=r" (primask) :: "memory");
+  _OSDisableInterrupts();
+  if (_OSIdleAsleep) {
+     _OSIdleAsleep = FALSE;
+     if (CurrentSpeed != OS_MAX_SPEED) {
+        OSTrace(OS_TRACE_SPEED,OS_MAX_SPEED,CurrentSpeed);
+        if (CoreVoltage[OS_MAX_SPEED] > CoreVoltage[CurrentSpeed])
+           SetCoreVoltage(CoreVoltage[OS_MAX_SPEED],TRUE);
+        if (CurrentSpeed == OS_12MHZ_SPEED) {
+           /* clk_sys runs from the reference, with the PLL already its auxiliary source. */
+           PLL_PRIM = PLL_PRIM_125MHZ;
+           CLK_SYS_CTRL = CLK_SYS_AUXSRC_PLL | CLK_SYS_SRC_AUX;
+           while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_AUX)) == 0);
+        }
+        else
+           SetSystemClock(OS_MAX_SPEED);
+        CurrentSpeed = OS_MAX_SPEED;
+     }
+  }
+  __asm volatile ("MSR PRIMASK, %0" :: "r" (primask) : "memory");
+} /* end of _OSRaiseSpeedOnWake */
+
+
 /* SetCoreVoltage: Within the specification there is nothing to wait for: every voltage
 ** used is valid at every frequency, the lower one included. Undervolting, the clock must
 ** not rise before the voltage has: ROK only says the output is above 90 % of the target,

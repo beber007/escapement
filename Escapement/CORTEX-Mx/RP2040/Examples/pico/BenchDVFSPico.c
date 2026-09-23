@@ -17,7 +17,7 @@
 ** BenchSum holds the sums, in the order listed above its definition, over BENCH_REPS
 ** repetitions each; BenchDone becomes 1 at the end. Read them over SWD without stopping a
 ** core, as tools/read_trace.py does for the trace, e.g.
-**   openocd ... -c init -c "mdw <address of BenchSum> 13" -c exit
+**   openocd ... -c init -c "mdw <address of BenchSum> 15" -c exit
 ** Platform version: RP2040.
 */
 
@@ -44,8 +44,9 @@
 /*  0- 5: OSSetProcessorSpeed from one operating point to another
 **  6- 8: two reads of the counter, at 12, 50 and 125 MHz
 **  9-12: the steps of 12 -> 125 MHz, at 12 MHz: VREG, clk_sys onto the reference (already
-**        there), the post-divider of the PLL, clk_sys onto the PLL */
-volatile UINT32 BenchSum[13];
+**        there), the post-divider of the PLL, clk_sys onto the PLL
+** 13-14: _OSRaiseSpeedOnWake from 12 and from 50 MHz, the wake-up path of a slow idle task */
+volatile UINT32 BenchSum[15];
 volatile UINT32 BenchDone = 0;
 
 static const UINT8 Pairs[6][2] = {{0,2},{2,0},{1,2},{2,1},{0,1},{1,0}};
@@ -120,6 +121,18 @@ int main(void)
      CLK_SYS_CTRL = CLK_SYS_SRC_REF;
      while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_REF)) == 0);
      VREG = VREG_VSEL(VSEL_1_05V) | VREG_EN;
+  }
+  for (k = 0; k < 2; k += 1) {
+     sum = 0;
+     for (i = 0; i < BENCH_REPS; i += 1) {
+        OSSetProcessorSpeed(k);
+        _OSIdleAsleep = TRUE;
+        Dither();
+        t = TIMER_TIMERAWL;
+        _OSRaiseSpeedOnWake();
+        sum += TIMER_TIMERAWL - t;
+     }
+     BenchSum[13 + k] = sum;
   }
   BenchDone = 1;
   while (TRUE)

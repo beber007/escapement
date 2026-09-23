@@ -55,6 +55,10 @@ void OSInitializeSystemClocks(void);
    UINT8 OSGetProcessorSpeed(void);
    void OSSetProcessorSpeed(UINT8 speed);
    void OSSetMinimalProcessorSpeed(UINT8 speed);
+   /* _OSRaiseSpeedOnWake: The path _OSIOHandler takes when an interrupt wakes the idle task
+   ** from a sleep below the maximum speed (_OSIdleAsleep, Escapement_CortexMx.h): to the
+   ** maximum, with the least work done at the slow speed. */
+   void _OSRaiseSpeedOnWake(void);
 #endif
 
 #endif /* ESCAPEMENT_PROCESSOR_H */
