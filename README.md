@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-dark.svg">
-    <img src="docs/images/banner-light.svg" alt="Escapement — tickless EDF and deadline-monotonic real-time kernel for microcontrollers" width="100%">
+    <img src="docs/images/banner-light.svg" alt="Escapement — tickless EDF and DM real-time kernel for microcontrollers" width="100%">
   </picture>
 </p>
 
@@ -17,9 +17,9 @@
 **A preemptive deadline-driven real-time kernel for microcontrollers with a few
 kilobytes of RAM.**
 
-Escapement schedules by earliest deadline first (EDF) and has **no periodic
-tick**: it arms a comparator on the next deadline and wakes the processor for
-that instant alone. Its *power-aware* variant lowers the core voltage and
+Escapement schedules by earliest deadline first (EDF) or by deadline-monotonic
+priorities (DM), and has **no periodic tick**: it arms a comparator on the next
+deadline and wakes the processor for that instant alone. Its *power-aware* variant lowers the core voltage and
 frequency according to the actual load, using the worst-case execution times
 declared by the tasks — without ever missing a deadline.
 
@@ -32,7 +32,7 @@ declared by the tasks — without ever missing a deadline.
 | | |
 |---|---|
 | **5,156 bytes** | the whole kernel and four periodic tasks, on a Cortex-M0+ |
-| **3.2 µs** | cost of one scheduling round of the hard kernel, measured on the board — 0.33 % of the processor at 1,000 activations per second, under EDF as under deadline-monotonic: see [`docs/rp2040.md`](docs/rp2040.md) |
+| **3.2 µs** | cost of one scheduling round of the hard kernel, measured on the board — 0.33 % of the processor at 1,000 activations per second, under EDF as under DM: see [`docs/rp2040.md`](docs/rp2040.md) |
 | **+28 ppm** | deviation of the periods read by an external frequency counter: the tolerance of the crystal on the board, not that of the scheduler |
 
 ## On the silicon
@@ -55,7 +55,7 @@ scheduler decided what it was supposed to decide.
 | Level | Means | What it establishes |
 |---|---|---|
 | Compilation | GitHub Actions, with a toolchain other than the developer's | the examples of the Pico and of the STM32F4, on every push |
-| The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and deadline-monotonic scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for — 87 to 90 % of the lines of each kernel |
+| The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for — 87 to 90 % of the lines of each kernel |
 | Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the STM32F4 and the RP2040; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after — all as regression tests |
 | Internal state on hardware | OpenOCD and SWD on a Pico | deadlines armed ahead of the counter, cost counters read back from SRAM |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
@@ -102,8 +102,8 @@ openocd -f interface/cmsis-dap.cfg -c 'adapter speed 5000' -f target/rp2040.cfg 
 **EDF without a tick.** Mainstream real-time kernels schedule at fixed
 priorities, paced by a periodic tick. Here tasks declare a period and a deadline,
 the scheduler elects the one whose deadline is nearest, and the hardware
-interrupts the processor at that moment only. Deadline-monotonic scheduling is
-available too, selected in the configuration of an application.
+interrupts the processor at that moment only. DM scheduling is available too,
+selected in the configuration of an application.
 
 **Overload that degrades by design.** A second kernel schedules (m,k)-firm tasks:
 out of every k instances of a task, m are guaranteed, and the others run only if a
