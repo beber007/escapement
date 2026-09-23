@@ -58,6 +58,10 @@ endif
 ifdef UNDERVOLT
    CFLAGS += -DESCAPEMENT_RP2040_UNDERVOLT
 endif
+# make KERNEL=PA SLEEP_SPEED=0 lets the idle task sleep at 12 MHz rather than 125.
+ifdef SLEEP_SPEED
+   CFLAGS += -DOS_SLEEP_SPEED=$(SLEEP_SPEED)
+endif
 # make TRACE=1 records a trace of the scheduling in RAM, read over SWD
 # (Escapement_Trace.h, tools/read_trace.py).
 ifdef TRACE

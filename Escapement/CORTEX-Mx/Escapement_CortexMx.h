@@ -84,8 +84,14 @@ void _OSIOHandler(void);
 
 /* _OSSleep: Sets the processor to its lowest possible sleep mode. */
 #ifdef ESCAPEMENT_VERSION_HARD_PA
+   /* Operating point the idle task sleeps at. The timer handler raises the speed to the
+   ** maximum as it enters, and the loop below sets this one again each time the idle task
+   ** resumes. make SLEEP_SPEED=n chooses another (docs/rp2040.md). */
+   #ifndef OS_SLEEP_SPEED
+      #define OS_SLEEP_SPEED OS_MAX_SPEED
+   #endif
    #define _OSSleep() while (TRUE) { \
-                         OSSetProcessorSpeed(OS_MAX_SPEED); \
+                         OSSetProcessorSpeed(OS_SLEEP_SPEED); \
                          __asm("WFI"); \
                       };
 #else
