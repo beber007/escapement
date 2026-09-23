@@ -1,4 +1,7 @@
 #!/bin/sh
+# Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+# LICENSE at the root of this repository.
+#
 # Every tracked file of this project must be valid UTF-8.
 #
 # This is not housekeeping. A file in another encoding breaks grep silently: the tool

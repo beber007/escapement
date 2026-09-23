@@ -1,4 +1,7 @@
 #!/bin/sh
+# Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+# LICENSE at the root of this repository.
+#
 # Capture the GPIO transitions of the stm32f4 example under Renode, with virtual
 # time, and write them as CSV on standard output.
 #

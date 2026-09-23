@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+# LICENSE at the root of this repository.
+#
 """Exhaustive check of the FIFO queue of the kernels, on one core.
 
 FIFOEnqueue, FIFODequeue, their helpers and IncrementFifoQueueIndex (EscapementHard.c
-and its two siblings) are modelled access by access: every read or write of the queue,
+and its two siblings) build on the array-based LL/SC queue of C. Evéquoz, "Non-Blocking
+Concurrent FIFO Queues with Single Word Synchronization Primitives", ICPP 2008
+(doi:10.1109/ICPP.2008.82), and add to it, as ZottaOS did, an announced operation that
+a preempting caller completes and a SIGNAL marker for events. They are modelled access
+by access: every read or write of the queue,
 of its array, of PendingOp or of a descriptor is a step. The LL/SC pair is the one the
 Cortex-M0+ emulates (Escapement_Atomic.c): LL raises a single reservation flag, SC
 writes only if it is still up and lowers it, and the end of every preempting operation

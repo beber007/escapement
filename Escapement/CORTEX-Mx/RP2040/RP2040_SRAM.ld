@@ -1,3 +1,6 @@
+/* Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+** LICENSE at the root of this repository.
+*/
 /* Linker script for an RP2040 firmware running entirely from SRAM.
 **
 ** The RP2040 normally boots from an external QSPI flash, which requires a 256 byte second

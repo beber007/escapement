@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+# LICENSE at the root of this repository.
+#
 """Read back the scheduling trace of a Pico built with make TRACE=1.
 
 The trace is a ring buffer in RAM (Escapement/CORTEX-Mx/Escapement_Trace.h). This

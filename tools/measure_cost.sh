@@ -1,4 +1,7 @@
 #!/bin/sh
+# Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+# LICENSE at the root of this repository.
+#
 # Measure the per-activation cost of the kernel on a Raspberry Pi Pico.
 #
 # Reads back the counters that Escapement_Timer.c keeps under

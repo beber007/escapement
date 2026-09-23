@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Bertrand Hurst. All rights reserved.
 ** Escapement - Lightweight Power-Aware Real-Time OS.
-** Derived from prior work; see LICENSE and NOTICE at the root of this repository.
+** Distributed under the terms of LICENSE at the root of this repository.
 */
 /* File Escapement_Trace.h: A trace of what the port does, kept in RAM and read back over
 ** SWD after the fact.

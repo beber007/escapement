@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+# LICENSE at the root of this repository.
+#
 """Exhaustive check of the 3-slot buffer of the kernels, on one core.
 
 OSWriteBuffer and GetReadyBuffer3Slot (EscapementHard.c and its two siblings) follow

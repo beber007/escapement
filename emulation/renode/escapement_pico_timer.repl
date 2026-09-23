@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+// LICENSE at the root of this repository.
+//
 // The timer of the Pico for Escapement: the fixed copy in Escapement_RP2040_Timer.cs, loaded
 // over escapement_pico.repl once the timer of the models has been unregistered
 // (escapement_pico.robot), since a platform description cannot redeclare a peripheral with

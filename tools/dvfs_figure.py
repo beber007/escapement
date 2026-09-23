@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+# LICENSE at the root of this repository.
+#
 """Draw the power-aware kernel changing the clock of a Pico, from a trace, as an SVG.
 
 Reads the CSV that tools/read_trace.py --csv writes for TaskLEDPico built with

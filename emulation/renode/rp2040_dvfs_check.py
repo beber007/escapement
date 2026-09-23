@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+# LICENSE at the root of this repository.
+#
 # Checks, from write hooks on the bus, that the DVFS driver of the RP2040 never lets clk_sys
 # run faster than the core voltage allows, and counts what it did. escapement_pico.robot
 # installs the hooks; the results go to scratch registers of the VREG model declared in

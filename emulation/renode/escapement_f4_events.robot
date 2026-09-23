@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+# LICENSE at the root of this repository.
+#
 *** Settings ***
 Suite Setup                   Setup
 Suite Teardown                Teardown

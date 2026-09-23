@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+# LICENSE at the root of this repository.
+#
 """Draw the scheduling chronogram of the stm32f4 example as an SVG.
 
 Reads the CSV produced by trace_gpio.sh and writes a standalone SVG. No

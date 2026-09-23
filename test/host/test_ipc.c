@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Bertrand Hurst. All rights reserved.
 ** Escapement - Lightweight Power-Aware Real-Time OS.
-** Derived from prior work; see LICENSE and NOTICE at the root of this repository.
+** Distributed under the terms of LICENSE at the root of this repository.
 */
 /* File test_ipc.c: Exercises the inter-task communication of the kernel on the host: the
 ** concurrent FIFO queue and the 3- and 4-slot buffers.

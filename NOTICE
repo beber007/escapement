@@ -4,7 +4,8 @@ Escapement
 Escapement is derived from ZottaOS, released under a permissive license whose
 terms require the original copyright notice and authors to be retained in all
 copies. That notice is reproduced below and applies to the portions of this
-repository derived from ZottaOS.
+repository derived from ZottaOS, and is kept at the head of each source file derived
+from it, followed by a line for the changes made since.
 
     Copyright (c) 2006-2012 MIS Institute of the HEIG-VD affiliated to the
     University of Applied Sciences of Western Switzerland. All rights reserved.
@@ -46,9 +47,11 @@ source files:
     Escapement/CORTEX-Mx/STM32/Libraries/CMSIS/Device/
     Escapement/CORTEX-Mx/STM32/Examples/*/system_stm32*.c
 
-  * Renode timer models, copied into the emulation to be changed there, MIT
-    License, notices kept at the head of each file:
+  * Renode files, copied into the emulation to be changed there, MIT License,
+    notices and license text kept at the head of each file:
     emulation/renode/Escapement_STM32_Timer.cs, from Timers.STM32_Timer of
     renode/renode-infrastructure, Copyright (c) 2010-2026 Antmicro;
+    emulation/renode/stm32f4_escapement_cpu.repl, from platforms/cpus/stm32f4.repl
+    of renode/renode, Copyright (c) Antmicro;
     emulation/renode/Escapement_RP2040_Timer.cs, from Timers.RP2040Timer of
     matgla/Renode_RP2040, Copyright (c) 2025 Mateusz Stadnik.

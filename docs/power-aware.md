@@ -201,3 +201,18 @@ validate DVFS** — that would require modelling the effect of a voltage change
 on execution speed. What emulation proves here is that the kernel schedules
 correctly *and* drives the right registers; not that it saves energy. That
 measurement will need hardware.
+
+## Sources
+
+- Raspberry Pi, [*RP2040 Datasheet*](https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf):
+  the core regulator, its output voltages and the range the chip is specified for,
+  the brown-out detector, the system PLL and the clock dividers.
+- Raspberry Pi, [*RP2350 Datasheet*](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf):
+  the switching core regulator and the power domains of the Pico 2.
+- Raspberry Pi, pico-sdk: after raising the core voltage at start-up it waits
+  `SYS_CLK_VREG_VOLTAGE_AUTO_ADJUST_DELAY_US`, 1000 µs by default
+  ([`hardware/clocks.h`](https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/hardware_clocks/include/hardware/clocks.h),
+  [`runtime_init_clocks.c`](https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/pico_runtime_init/runtime_init_clocks.c)).
+- Texas Instruments, [*INA226*](https://www.ti.com/product/INA226), and Nordic
+  Semiconductor, [*Power Profiler Kit II*](https://www.nordicsemi.com/Products/Development-hardware/Power-Profiler-Kit-2):
+  the two current benches weighed above.

@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+# LICENSE at the root of this repository.
+#
 """Exhaustive check of the 4-slot buffer of the kernels, on one core.
 
-OSWriteBuffer and GetReadyBuffer4Slot (EscapementHard.c and its two siblings) are
-modelled statement by statement. The writer is an interrupt handler: each of its steps
+OSWriteBuffer and GetReadyBuffer4Slot (EscapementHard.c and its two siblings) follow
+H. R. Simpson, "Four-slot fully asynchronous communication mechanism", IEE Proceedings E,
+137(1), 1990 (doi:10.1049/ip-e.1990.0002), and are modelled statement by statement. The writer is an interrupt handler: each of its steps
 runs whole between two steps of the reader, a task — one core, the writer preempting.
 A writer step either writes one byte into the slot chosen in advance, or, once that
 slot is full, publishes it and chooses the next one. The reader takes the latest pair,

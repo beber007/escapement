@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+# LICENSE at the root of this repository.
+#
 :name: Escapement on STM32F4-Discovery
 :description: Starts TaskLEDF4 on an emulated STM32F407VG.
 

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+// LICENSE at the root of this repository.
+//
 // Raspberry Pi Pico for Escapement: the board of matgla/Renode_RP2040, checked out
 // under emulation/renode/rp2040 (see RP2040.md), with the three other outputs of
 // TaskLEDPico declared as LEDs to be testable. GPIO 25, the on-board LED, is already

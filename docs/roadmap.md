@@ -105,7 +105,11 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       way, is the negative control. The port must first start core 1. On the Pico
       2, the three-slot buffer and the FIFO queue too, with `LDREX`/`STREX` made
       coherent between the cores by `ACTLR.EXTEXCLALL` (the SIO spinlocks are
-      unreliable there, erratum RP2350-E2), and the FIFO in the multiprocessor
+      unreliable there, erratum RP2350-E2 of the
+      [RP2350 datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf);
+      see how [TinyGo](https://github.com/tinygo-org/tinygo/pull/5708) and the
+      [pico-sdk](https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/hardware_sync_spin_lock/include/hardware/sync/spin_lock.h)
+      deal with both), and the FIFO in the multiprocessor
       form of Evéquoz's paper: the announced operation of the kernel's queue
       assumes a single core.
 - [ ] Then build the current measurement bench described in `power-aware.md` — a
