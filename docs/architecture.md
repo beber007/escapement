@@ -55,10 +55,14 @@ application gets the same guarantees from two mechanisms:
   caller that preempts it, so that every operation ends in a bounded number of steps.
 - **Slot buffers** (`OSInitBuffer`), from one writer to one reader, neither waiting for
   the other: four slots after Simpson (1990), without atomic instructions, or three
-  after Chen and Burns (1997), with an LL/SC pair. `test/model/fourslot.py` explores
-  every interleaving of the four-slot writer, an interrupt handler, with its reader, and
-  checks that no read mixes two records and none goes backwards — the properties Rushby
-  model-checked for Simpson's algorithm; the CI runs it.
+  after Chen and Burns (1997), with an LL/SC pair. `test/model/fourslot.py` and
+  `threeslot.py` explore every interleaving of the writer, an interrupt handler, with
+  its reader, the LL/SC pair emulated as on the Cortex-M0+, and check that no read mixes
+  two records and none goes backwards — the properties Rushby model-checked for
+  Simpson's algorithm; the CI runs both. The second found that a store-conditional,
+  unlike the compare-and-swap of Chen and Burns, fails when an interrupt merely came
+  between it and its load-linked, which left the reader on a slot that does not exist;
+  the reader now tries again.
 
 All of this assumes **one processor**. The emulated LL/SC and the announced operation of
 the queue both rely on preemptions nesting, which two cores do not give; the kernel runs

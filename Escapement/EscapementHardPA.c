@@ -2169,12 +2169,11 @@ UINT8 OSGetReferenceBuffer(void *descriptor, UINT8 readMode, UINT8 **data)
   BUFFER_DATA *buffer;
   /* Check that the port was allocated and that there is something to read. */
   if (descript != NULL && descript->Status != BUFFER_INIT) {
-     if (!readMode) {
-        if (OSUINT8_LL(&descript->Status) != BUFFER_UNREAD)
-           goto fail;
-        if (!OSUINT8_SC(&descript->Status,BUFFER_READ))
-           goto fail;
-     }
+     if (!readMode)   // take the unread slot, again if an interrupt made the SC fail
+        do
+           if (OSUINT8_LL(&descript->Status) != BUFFER_UNREAD)
+              goto fail;
+        while (!OSUINT8_SC(&descript->Status,BUFFER_READ));
      /* Get the slot holding the most recent written data. */
      if (descript->BufferSlotType == OS_BUFFER_TYPE_4_SLOT)
         buffer = GetReadyBuffer4Slot(descript);
@@ -2206,12 +2205,11 @@ UINT8 OSGetCopyBuffer(void *descriptor, UINT8 readMode, UINT8 *data)
   BUFFER_DATA *buffer;
   /* Check that the port was allocated and that there is something to read. */
   if (descript != NULL && descript->Status != BUFFER_INIT) {
-     if (!readMode) {
-        if (OSUINT8_LL(&descript->Status) != BUFFER_UNREAD)
-           goto fail;
-        if (!OSUINT8_SC(&descript->Status,BUFFER_READ))
-           goto fail;
-     }
+     if (!readMode)   // take the unread slot, again if an interrupt made the SC fail
+        do
+           if (OSUINT8_LL(&descript->Status) != BUFFER_UNREAD)
+              goto fail;
+        while (!OSUINT8_SC(&descript->Status,BUFFER_READ));
      if (descript->BufferSlotType == OS_BUFFER_TYPE_4_SLOT)
         buffer = GetReadyBuffer4Slot(descript);
      else
@@ -2248,8 +2246,12 @@ BUFFER_DATA *GetReadyBuffer3Slot(BUFFER_DESCRIPTOR *descriptor)
 {
   BUFFER_3_SLOT *buffer = (BUFFER_3_SLOT *)descriptor->Buffer;
   buffer->Reading = 3;
-  if (OSUINT8_LL(&buffer->Reading) == 3)
-     OSUINT8_SC(&buffer->Reading,buffer->Latest);
+  /* Unlike the compare-and-swap of Chen and Burns, an SC also fails when an interrupt
+  ** merely came between it and its LL, with Reading still 3: try again until the SC
+  ** succeeds or the writer has chosen for the reader (test/model/threeslot.py). */
+  while (OSUINT8_LL(&buffer->Reading) == 3)
+     if (OSUINT8_SC(&buffer->Reading,buffer->Latest))
+        break;
   return &buffer->Slot[buffer->Reading];
 } /* end of GetReadyBuffer3Slot */
 

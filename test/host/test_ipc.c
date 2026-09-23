@@ -6,8 +6,9 @@
 ** concurrent FIFO queue and the 3- and 4-slot buffers.
 **
 ** Both are data structures that need no scheduling, so they are driven directly. What
-** this cannot show is their behaviour under preemption: the host runs single threaded and
-** its load-linked never loses a reservation (see host_port.c).
+** this cannot show is their behaviour under preemption: the host runs single threaded.
+** It can make store-conditionals fail, as an interrupt between an LL and its SC does on
+** the target (see host_port.c); test/model explores the interleavings themselves.
 */
 
 #include <signal.h>
@@ -133,6 +134,20 @@ static void TestBuffer(UINT8 type, const char *name)
   OSWriteBuffer(buffer, bytes, SLOT);
   ok = OSGetReferenceBuffer(buffer, OS_READ_ONLY_ONCE, &ref) == SLOT && memcmp(ref, bytes, SLOT) == 0;
   Check("  the reader gets the most recent slot", ok);
+
+  /* An interrupt between an LL and its SC makes the SC fail although nothing changed:
+  ** the reader must try again, not give up or take a slot that does not exist. */
+  OSWriteBuffer(buffer, bytes + SLOT, SLOT);
+  HostFailingSC = 1;
+  ok = OSGetCopyBuffer(buffer, OS_READ_ONLY_ONCE, copy) == SLOT && memcmp(copy, bytes + SLOT, SLOT) == 0;
+  HostFailingSC = 1;
+  ok = ok && OSGetCopyBuffer(buffer, OS_READ_MULTIPLE, copy) == SLOT &&
+       memcmp(copy, bytes + SLOT, SLOT) == 0;
+  HostFailingSC = 2;
+  ok = ok && OSGetReferenceBuffer(buffer, OS_READ_MULTIPLE, &ref) == SLOT &&
+       memcmp(ref, bytes + SLOT, SLOT) == 0;
+  HostFailingSC = 0;
+  Check("  a store-conditional that fails is tried again", ok);
 
   /* Reads and writes interleaved so that the slots rotate through every combination: the
   ** writer must never write into the slot the reader holds, however many slots it fills

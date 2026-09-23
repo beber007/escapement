@@ -94,19 +94,24 @@ void _OSIOHandler(void) { }
 /* Allocation: the kernel never frees, so neither does this. */
 void *OSMalloc(UINT16 size) { return calloc(1, size); }
 
-/* Atomics. Single threaded and never preempted here, so a reservation always holds. */
+/* Atomics. Single threaded and never preempted here, so a reservation holds — unless a
+** test sets HostFailingSC to make that many store-conditionals fail, as an interrupt
+** between the LL and the SC does on the target. */
+unsigned HostFailingSC = 0;
+#define SC(a, v) do { if (HostFailingSC > 0) { HostFailingSC -= 1; return FALSE; } \
+                      *(a) = (v); return TRUE; } while (0)
 UINT8  OSUINT8_LL(UINT8 *a)   { return *a; }
-BOOL   OSUINT8_SC(UINT8 *a, UINT8 v)   { *a = v; return TRUE; }
+BOOL   OSUINT8_SC(UINT8 *a, UINT8 v)   { SC(a, v); }
 UINT16 OSUINT16_LL(UINT16 *a) { return *a; }
-BOOL   OSUINT16_SC(UINT16 *a, UINT16 v) { *a = v; return TRUE; }
+BOOL   OSUINT16_SC(UINT16 *a, UINT16 v) { SC(a, v); }
 INT16  OSINT16_LL(INT16 *a)   { return *a; }
-BOOL   OSINT16_SC(INT16 *a, INT16 v)   { *a = v; return TRUE; }
+BOOL   OSINT16_SC(INT16 *a, INT16 v)   { SC(a, v); }
 UINT32 OSUINT32_LL(UINT32 *a) { return *a; }
-BOOL   OSUINT32_SC(UINT32 *a, UINT32 v) { *a = v; return TRUE; }
+BOOL   OSUINT32_SC(UINT32 *a, UINT32 v) { SC(a, v); }
 INT32  OSINT32_LL(INT32 *a)   { return *a; }
-BOOL   OSINT32_SC(INT32 *a, INT32 v)   { *a = v; return TRUE; }
+BOOL   OSINT32_SC(INT32 *a, INT32 v)   { SC(a, v); }
 UINTPTR OSUINTPTR_LL(UINTPTR *a) { return *a; }
-BOOL   OSUINTPTR_SC(UINTPTR *a, UINTPTR v) { *a = v; return TRUE; }
+BOOL   OSUINTPTR_SC(UINTPTR *a, UINTPTR v) { SC(a, v); }
 
 
 #ifdef ESCAPEMENT_VERSION_HARD_PA
