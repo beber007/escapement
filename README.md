@@ -99,6 +99,8 @@ openocd -f interface/cmsis-dap.cfg -c 'adapter speed 5000' -f target/rp2040.cfg 
 
 ## What sets this kernel apart
 
+### Scheduling
+
 **EDF without a tick.** Mainstream real-time kernels schedule at fixed
 priorities, paced by a periodic tick. Here tasks declare a period and a deadline,
 the scheduler elects the one whose deadline is nearest, and the hardware
@@ -113,13 +115,60 @@ drops chosen instances instead of missing arbitrary deadlines.
 **Energy management driven by the scheduler.** Tasks declare their worst-case
 execution time; the kernel uses it to know *by how much* it may slow the core
 down without endangering a deadline — which is what the DRA, OTE and DM_SLACK
-algorithms compute. Whether that lever actually saves energy is examined,
-without indulgence, in [`docs/power-aware.md`](docs/power-aware.md).
+algorithms compute. The power-aware kernel schedules by EDF\*, an EDF whose ties
+are broken deterministically, so that it can forecast when each task will end.
+Whether that lever actually saves energy is examined, without indulgence, in
+[`docs/power-aware.md`](docs/power-aware.md).
 
 **A time base independent of the core, on the RP2040.** Its counter is fed by a
 one-microsecond tick derived from the reference clock: changing the processor
 frequency does not move the time base of the kernel, which makes this chip a
 good target for the power-aware variant.
+
+### Concurrency without locks
+
+**A kernel that takes no lock.** None of the three kernels masks interrupts to
+protect its queues: they are updated with load-linked / store-conditional pairs,
+`LDREX`/`STREX` on the Cortex-M3 and M4. The Cortex-M0+ has no such instructions;
+there the reservation is a flag that every context switch and every interrupt
+clears on its way out, and only the store-conditional runs with interrupts masked,
+for a few instructions. No task ever waits for another, so no priority inversion
+can arise inside the kernel. The emulation holds on one core: on the RP2040 the
+kernel runs on core 0 alone. The RP2040 port itself masks interrupts in a few short
+places — a change of speed, the list of pending timer events, the trace.
+
+**FIFO queues shared with interrupt handlers.** `OSInitFIFOQueue` gives any number
+of producers and consumers, interrupt handlers included, a queue whose buffers are
+allocated once, when it is created. It is an array-based queue built on the
+load-linked / store-conditional algorithm of Evéquoz [1], to which the kernel adds
+one announced operation that any preempting caller completes first: on a single
+core, every operation finishes in a bounded number of steps. The same queue holds
+the tasks waiting for an event, and a marker left in it by a signal that found no
+task waiting keeps the wake-up from being lost.
+
+**Reader and writer that never wait for each other.** `OSInitBuffer` hands the
+latest complete data from one writer — typically a sensor interrupt — to one
+reader, neither ever blocking the other: with four slots after Simpson [2],
+without any atomic instruction, or with three slots after Chen and Burns [3],
+using less memory and a load-linked / store-conditional pair.
+
+**References**
+
+1. C. Evéquoz, [*Non-Blocking Concurrent FIFO Queues with Single Word
+   Synchronization Primitives*](https://doi.org/10.1109/ICPP.2008.82), 37th
+   International Conference on Parallel Processing (ICPP), 2008, pp. 397–405.
+   The author worked at the HEIG-VD, where the kernel Escapement continues was
+   developed.
+2. H. R. Simpson, [*Four-slot fully asynchronous communication
+   mechanism*](https://doi.org/10.1049/ip-e.1990.0002), IEE Proceedings E, 137(1),
+   1990, pp. 17–30. J. Rushby [model-checked
+   it](http://www.cs.ox.ac.uk/ucs/rushbysimpson.pdf) (SRI, 2002): correct
+   provided its control variables are atomic, which single bytes are on a
+   Cortex-M.
+3. J. Chen and A. Burns, [*A three-slot asynchronous reader/writer mechanism for
+   multiprocessor real-time
+   systems*](https://www.semanticscholar.org/paper/9329db8087ba6a3eb87ac9dc2ba75ff74ddb3076),
+   Technical Report YCS-286, University of York, 1997.
 
 ## How this project is built
 

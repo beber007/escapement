@@ -13,10 +13,12 @@
 <text x="333" y="184" font-size="22" fill="#59636e">Tickless EDF and DM real-time kernel for microcontrollers</text>
 <rect x="333" y="212" width="161" height="34" rx="17" fill="#f6f8fa" stroke="#d1d9e0"/>
 <text x="413" y="234" font-size="16" fill="#1f2328" text-anchor="middle">power-aware DVFS</text>
-<rect x="505.8" y="212" width="152" height="34" rx="17" fill="#f6f8fa" stroke="#d1d9e0"/>
-<text x="582" y="234" font-size="16" fill="#1f2328" text-anchor="middle">Cortex-M0+ · M4</text>
-<rect x="670.3" y="212" width="70" height="34" rx="17" fill="#f6f8fa" stroke="#d1d9e0"/>
-<text x="705" y="234" font-size="16" fill="#1f2328" text-anchor="middle">~5 KB</text>
-<rect x="751.8" y="212" width="186" height="34" rx="17" fill="#f6f8fa" stroke="#d1d9e0"/>
-<text x="845" y="234" font-size="16" fill="#1f2328" text-anchor="middle">verified on silicon</text>
+<rect x="505.8" y="212" width="103" height="34" rx="17" fill="#f6f8fa" stroke="#d1d9e0"/>
+<text x="557" y="234" font-size="16" fill="#1f2328" text-anchor="middle">lock-free</text>
+<rect x="620.5" y="212" width="152" height="34" rx="17" fill="#f6f8fa" stroke="#d1d9e0"/>
+<text x="697" y="234" font-size="16" fill="#1f2328" text-anchor="middle">Cortex-M0+ · M4</text>
+<rect x="785.0" y="212" width="70" height="34" rx="17" fill="#f6f8fa" stroke="#d1d9e0"/>
+<text x="820" y="234" font-size="16" fill="#1f2328" text-anchor="middle">~5 KB</text>
+<rect x="866.5" y="212" width="186" height="34" rx="17" fill="#f6f8fa" stroke="#d1d9e0"/>
+<text x="959" y="234" font-size="16" fill="#1f2328" text-anchor="middle">verified on silicon</text>
 </svg>
