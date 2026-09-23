@@ -53,13 +53,20 @@ application gets the same guarantees from two mechanisms:
   handlers, with buffers allocated once. They build on the array-based LL/SC queue of
   Evéquoz (ICPP 2008), with one operation announced at a time and completed by any
   caller that preempts it, so that every operation ends in a bounded number of steps.
+  `test/model/fifo.py` explores every run of a few operations, each of which may preempt
+  the one running at any access, from full queues and indices about to wrap, and checks
+  that every run is linearizable — that some order of its operations gives them their
+  results from a plain queue. It found that a dequeue signalling an event left its
+  descriptor unmarked once the signal was in place: under two nested preemptions, a
+  late helper put a second signal back after an enqueue had taken the first, and one
+  event woke two tasks. The dequeue now marks itself done there.
 - **Slot buffers** (`OSInitBuffer`), from one writer to one reader, neither waiting for
   the other: four slots after Simpson (1990), without atomic instructions, or three
   after Chen and Burns (1997), with an LL/SC pair. `test/model/fourslot.py` and
   `threeslot.py` explore every interleaving of the writer, an interrupt handler, with
   its reader, the LL/SC pair emulated as on the Cortex-M0+, and check that no read mixes
   two records and none goes backwards — the properties Rushby model-checked for
-  Simpson's algorithm; the CI runs both. The second found that a store-conditional,
+  Simpson's algorithm; the CI runs both, and the FIFO model. The second found that a store-conditional,
   unlike the compare-and-swap of Chen and Burns, fails when an interrupt merely came
   between it and its load-linked, which left the reader on a slot that does not exist;
   the reader now tries again.

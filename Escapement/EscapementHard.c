@@ -939,8 +939,15 @@ void FIFODequeueHelper(FIFOQUEUE *queue, UINTPTR signal, DEQUEUE_DESCRIPTOR *des
   if (des->SlotReturn != signal)
      while (TRUE) {
         slot = OSUINTPTR_LL(&queue->Q[h]);
-        if (des->Done || slot == SIGNAL)
+        if (des->Done)
            break;
+        else if (slot == SIGNAL) {
+           /* The signal this dequeue left: mark it done, or a helper coming later, once
+           ** an enqueue has taken the signal, would leave a second one
+           ** (test/model/fifo.py). */
+           des->Done = TRUE;
+           break;
+        }
         else if (slot == NULL)
            if (des->SlotReturn == NULL) {
               if (OSUINTPTR_SC(&queue->Q[h],SIGNAL)) {

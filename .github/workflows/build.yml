@@ -79,10 +79,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run both kernels under both scheduling algorithms
         run: make -C test/host run
-      - name: Check the slot buffers over every interleaving
+      - name: Check the slot buffers and the FIFO queue over every interleaving
         run: |
           python3 test/model/fourslot.py
           python3 test/model/threeslot.py
+          python3 test/model/fifo.py
 
   emulation:
     name: Execution under Renode (STM32F407VG)
