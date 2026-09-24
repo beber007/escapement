@@ -56,7 +56,7 @@ scheduler decided what it was supposed to decide.
 |---|---|---|
 | Compilation | GitHub Actions, with a toolchain other than the developer's | the examples of the Pico and of the STM32F4, on every push |
 | The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for — 87 to 90 % of the lines of each kernel |
-| Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access, the 4-slot buffer on two cores too: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
+| Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access, both slot buffers on two cores too: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
 | Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the STM32F4 and the RP2040; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after — all as regression tests |
 | Internal state on hardware | OpenOCD and SWD on a Pico | a trace of the scheduling read without stopping a core: deadlines armed ahead of the counter, timer events delivered on the microsecond, the clock changed by the power-aware kernel; cost counters read back from SRAM |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
@@ -67,10 +67,11 @@ each of the three kernels. Details in [`docs/rp2040.md`](docs/rp2040.md).
 
 None of this is decoration. The host test, when it came, found that the levels
 before it had all been green on a kernel that was not running the algorithm this
-page advertises. The models, added after, found two defects every other level had
+page advertises. The models, added after, found three defects every other level had
 passed: a 3-slot reader that could read past its array when an interrupt came at
-the wrong instruction, and an event queue whose signal could wake two tasks. Those
-stories are in [`docs/method.md`](docs/method.md).
+the wrong instruction, an event queue whose signal could wake two tasks, and, once
+a model covered two cores, a 3-slot writer that could hand the reader the very slot
+it was writing. Those stories are in [`docs/method.md`](docs/method.md).
 
 ![Chronogram of three periodic tasks scheduled by Escapement](docs/images/f4-schedule.svg)
 
@@ -164,13 +165,16 @@ tore one in twenty ([`docs/rp2040.md`](docs/rp2040.md)).
 [`test/model`](test/model), explored exhaustively in CI: the reader and the writer
 of the slot buffers, the operations of the queue preempting one another at every
 access, the load-linked / store-conditional pair as the Cortex-M0+ emulates it.
-They found two defects, now fixed: the 3-slot reader had not allowed for a
+They found three defects, now fixed: the 3-slot reader had not allowed for a
 store-conditional failing, as it does, unlike a compare-and-swap, whenever an
-interrupt merely came between it and its load-linked; and a queue of event-driven
-tasks could let one signal wake two of them. Neither lies in the published
-algorithms: the first came from carrying a compare-and-swap over to a
-store-conditional tried once, a pitfall the literature knows, the second from the
-signal and the announced operation that ZottaOS added to Evéquoz's queue.
+interrupt merely came between it and its load-linked; a queue of event-driven
+tasks could let one signal wake two of them; and the 3-slot writer tried its
+store-conditional once too — harmless on one core, where the interrupt that makes
+it fail clears the reader's reservation as well, not between two cores, where the
+reader's survives. None lies in the published algorithms: the first and the third
+came from carrying a compare-and-swap over to a store-conditional tried once, a
+pitfall the literature knows, the second from the signal and the announced
+operation that ZottaOS added to Evéquoz's queue.
 
 **References**
 

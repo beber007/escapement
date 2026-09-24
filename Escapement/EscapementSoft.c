@@ -1656,8 +1656,15 @@ UINT8 OSWriteBuffer(void *descriptor, UINT8 *data, UINT8 size)
            BUFFER_3_SLOT *buffer;
            buffer = (BUFFER_3_SLOT*)((BUFFER_DESCRIPTOR*)descriptor)->Buffer;
            buffer->Latest = windex = buffer->CurrentWriterIndex;
-           if (OSUINT8_LL(&buffer->Reading) == 3)
-              OSUINT8_SC(&buffer->Reading,windex);
+           /* Hand the slot over if the reader asks for one, again until the SC succeeds or
+           ** the reader has taken one: an SC also fails when an interrupt merely came
+           ** between it and its LL. On one core that interrupt clears the reader's
+           ** reservation too, so a single try did no harm; between two cores the reader's
+           ** survives, its SC hands it a Latest read before this one, and the slot chosen
+           ** below is the one it reads (test/model/threeslot.py, two cores). */
+           while (OSUINT8_LL(&buffer->Reading) == 3)
+              if (OSUINT8_SC(&buffer->Reading,windex))
+                 break;
            /* Prepare for the next time the writer gets a new byte. */
            buffer->CurrentWriterIndex = windex = next[buffer->Reading][buffer->Latest];
            buffer->CurrentWriter = &buffer->Slot[windex];

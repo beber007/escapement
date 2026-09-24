@@ -69,15 +69,21 @@ application gets the same guarantees from two mechanisms:
   Simpson's algorithm; the CI runs both, and the FIFO model. The second found that a store-conditional,
   unlike the compare-and-swap of Chen and Burns, fails when an interrupt merely came
   between it and its load-linked, which left the reader on a slot that does not exist;
-  the reader now tries again.
+  the reader now tries again. Taken to two cores, each with its own reservation, the
+  same model found the writer at fault the same way: it tried its SC once, and the
+  reader, whose reservation an interrupt of the writer's core no longer cleared, took
+  the slot being written. The writer now tries again too.
 
 All of this assumes **one processor**. The emulated LL/SC and the announced operation of
 the queue both rely on preemptions nesting, which two cores do not give; the kernel runs
 on core 0 of the RP2040 alone. Of the three mechanisms, only Simpson's works between two
-cores as it stands: `fourslot.py` checks it on two cores as well, and on the Pico it
+cores of the RP2040: `fourslot.py` checks it on two cores as well, and on the Pico it
 carried 320,000 reads from core 1 to a task on core 0 without a torn one, where a plain
-array tore one in twenty (`rp2040.md`, `FourSlotCoresPico`). The references are listed
-in the README, and the roadmap keeps the other two for the Pico 2.
+array tore one in twenty (`rp2040.md`, `FourSlotCoresPico`). The 3-slot buffer holds on
+two cores in its model since its writer retries, provided the exclusive monitors of
+each core see the stores of the other — ACTLR.EXTEXCLALL on the RP2350, without which
+the model catches it failing. The references are listed in the README, and the roadmap
+keeps the 3-slot buffer and the queue across the cores for the Pico 2.
 
 ## Supported targets
 
