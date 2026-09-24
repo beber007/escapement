@@ -65,12 +65,14 @@ endif
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p build)
 
-all: build/TaskLEDPico2.elf
+all: build/TaskLEDPico2.elf build/UARTEchoPico2.elf build/TestTimerEventPico2.elf \
+     build/FourSlotCoresPico2.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
 
-bin: all build/TaskLEDPico2.bin
+bin: all build/TaskLEDPico2.bin build/UARTEchoPico2.bin build/TestTimerEventPico2.bin \
+     build/FourSlotCoresPico2.bin
 
 build/%.bin : build/%.elf
 	$(OBJCOPY) -O binary $< $@
@@ -100,6 +102,12 @@ build/Escapement_Timer.o : ../../Escapement_Timer.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/Escapement_Processor.o : ../../Escapement_Processor.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_UART.o : ../../Escapement_UART.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_TimerEvent.o : ../../Escapement_TimerEvent.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Core1.o : ../../Escapement_Core1.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementHard.o : ../../../../EscapementHard.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementSoft.o : ../../../../EscapementSoft.c
@@ -108,9 +116,21 @@ build/EscapementHardPA.o : ../../../../EscapementHardPA.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TaskLEDPico2.o : TaskLEDPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/UARTEchoPico2.o : UARTEchoPico2.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/TestTimerEventPico2.o : TestTimerEventPico2.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/FourSlotCoresPico2.o : FourSlotCoresPico2.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskLEDPico2.elf : $(COMMON) build/TaskLEDPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/TaskLEDPico2.o -T$(LINKERFILE) -lgcc
+build/UARTEchoPico2.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_UART.o build/UARTEchoPico2.o -T$(LINKERFILE) -lgcc
+build/TestTimerEventPico2.elf : $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico2.o -T$(LINKERFILE) -lgcc
+build/FourSlotCoresPico2.elf : $(COMMON) build/Escapement_Core1.o build/FourSlotCoresPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/FourSlotCoresPico2.o -T$(LINKERFILE) -lgcc
 
 # The .d files produced by -MMD list the headers of each object: without them, a change
 # to Escapement_Config.h triggers no rebuild at all and the next test runs against a

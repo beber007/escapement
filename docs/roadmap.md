@@ -175,8 +175,8 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       Begun on 2026-09-24 ahead of the measurement, since the lock-free mechanisms
       across the cores need no energy figure: first the generic layer on ARMv8-M,
       compiled for the three kernels (`architecture.md`); then the port, whose hard
-      and soft kernels build `TaskLEDPico2` in the CI, the UART, core 1 and the DVFS
-      driver still to come; then a Renode platform of our own; then the board.
+      and soft kernels build the four examples of the Pico in the CI, the DVFS driver
+      still to come; then a Renode platform of our own; then the board.
 - [x] **Fix what `-O2` exposed**: pending an exception did not take effect
       before the next instruction, so an optimised `OSEndTask` returned instead
       of switching context and faulted with `INVPC`. Barriers added; the build
