@@ -144,10 +144,13 @@ and every reset is acknowledged whatever was written. Only the board will say th
 1 is not modelled, so `FourSlotCoresPico2` is not run.
 
 `escapement_pico2.robot` runs the checks of the RP2040 suite the examples allow — the
-1 ms probe, the three periodic tasks, the UART echo, the timer events — on the hard and
-the soft kernel under both algorithms, in the CI and on a Mac: the platform needs no
-models to build, so Renode's portable package runs it as it is. On 2026-09-24 the four
-tests passed under the four builds, and failed where they should on ports made faulty
-on purpose: the UART enabled in the first word of the NVIC's registers, as the RP2040
-driver does for its interrupts below 32, failed the echo alone; the interrupt registers
-of the timer at their RP2040 offsets failed the three tests that depend on it.
+1 ms probe, the three periodic tasks, the UART echo, the timer events, and the crossing
+of the 2^30 boundary of the kernel clock by `TaskWrapPico2`, the timer model raised to
+1 GHz as on the RP2040 — on the hard and the soft kernel under both algorithms, in the
+CI and on a Mac: the platform needs no models to build, so Renode's portable package
+runs it as it is. On 2026-09-24 the five tests passed under the four builds, and failed
+where they should on ports made faulty on purpose: the UART enabled in the first word
+of the NVIC's registers, as the RP2040 driver does for its interrupts below 32, failed
+the echo alone; the interrupt registers of the timer at their RP2040 offsets failed the
+three tests that depend on them; an ALARM1 that no longer signalled the wrap failed the
+wrap test alone.
