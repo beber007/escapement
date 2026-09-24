@@ -1,0 +1,313 @@
+/* Copyright (c) 2006-2012 MIS Institute of the HEIG-VD affiliated to the University of
+** Applied Sciences of Western Switzerland. All rights reserved.
+** Permission to use, copy, modify, and distribute this software and its documentation
+** for any purpose, without fee, and without written agreement is hereby granted, pro-
+** vided that the above copyright notice, the following three sentences and the authors
+** appear in all copies of this software and in the software where it is used.
+** IN NO EVENT SHALL THE MIS INSTITUTE NOR THE HEIG-VD NOR THE UNIVERSITY OF APPLIED
+** SCIENCES OF WESTERN SWITZERLAND BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL,
+** INCIDENTAL, OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+** DOCUMENTATION, EVEN IF THE MIS INSTITUTE OR THE HEIG-VD OR THE UNIVERSITY OF APPLIED
+** SCIENCES OF WESTERN SWITZERLAND HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+** THE MIS INSTITUTE, THE HEIG-VD AND THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWIT-
+** ZERLAND SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+** IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFT-
+** WARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE MIS INSTITUTE NOR THE HEIG-VD
+** AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
+** TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+** Authors: MIS-TIC
+**
+** Escapement - Lightweight Power-Aware Real-Time OS, derived from ZottaOS.
+** Modifications Copyright (c) 2026 Bertrand Hurst, distributed under the same terms;
+** see LICENSE and NOTICE at the root of this repository.
+*/
+/* File Escapement_Timer.c: Hardware abstract timer layer for the RP2350, transposed from
+** the RP2040 port, whose logic it keeps. What differs: TIMER0 at another address, its
+** interrupt registers four words further since LOCKED and SOURCE come before them, the
+** 1 us tick from a TICKS block of its own rather than from the watchdog, and 4 bits of
+** interrupt priority instead of 2 (RP2350 datasheet; pico-sdk, hardware/regs/timer.h,
+** ticks.h, resets.h). A fix to the logic here goes to the RP2040 port too, and back.
+**
+** The RP2350 timer is a free running 64-bit counter fed by a fixed 1 us tick derived from
+** clk_ref, and therefore *independent of the core clock*. Changing the core frequency, as
+** the power-aware variant does, does not move the kernel's time base — unlike the STM32,
+** where the timer clock follows the core clock through the APB prescaler.
+**
+** Escapement expects a counter that wraps at 2^30 and signals each wraparound, so that it
+** can shift all its time values back. The counter never wraps within any practical
+** run, so the wraparound is reproduced with a second alarm armed on each 2^30 boundary:
+**   ALARM0 carries the deadline set by _OSSetTimer;
+**   ALARM1 marks the 2^30 boundary and plays the role of the overflow interrupt.
+**
+** Platform version: RP2350 (Raspberry Pi Pico 2).
+*/
+
+#include "Escapement.h"
+#include "Escapement_Timer.h"
+
+#define TIMER_BASE          0x400B0000   /* TIMER0 */
+#define TIMER_ALARM0        *((volatile UINT32 *)(TIMER_BASE + 0x10))
+#define TIMER_ALARM1        *((volatile UINT32 *)(TIMER_BASE + 0x14))
+#define TIMER_ARMED         *((volatile UINT32 *)(TIMER_BASE + 0x20))
+#define TIMER_DBGPAUSE      *((volatile UINT32 *)(TIMER_BASE + 0x2C))
+#define TIMER_TIMERAWL      *((volatile UINT32 *)(TIMER_BASE + 0x28))
+#define TIMER_INTR          *((volatile UINT32 *)(TIMER_BASE + 0x3C))
+/* INTE and INTF are shared with the alarms of Escapement_TimerEvent.c: each side sets and
+** clears its own bits through the atomic aliases of the register block, which a read-
+** modify-write interrupted by the other side would not be. */
+#define TIMER_INTE_SET      *((volatile UINT32 *)(TIMER_BASE + 0x2000 + 0x40))
+#define TIMER_INTE_CLR      *((volatile UINT32 *)(TIMER_BASE + 0x3000 + 0x40))
+#define TIMER_INTF_SET      *((volatile UINT32 *)(TIMER_BASE + 0x2000 + 0x44))
+#define TIMER_INTF_CLR      *((volatile UINT32 *)(TIMER_BASE + 0x3000 + 0x44))
+
+#define RESETS_BASE         0x40020000
+#define RESETS_RESET        *((volatile UINT32 *)(RESETS_BASE + 0x00))
+#define RESETS_RESET_DONE   *((volatile UINT32 *)(RESETS_BASE + 0x08))
+#define RESETS_TIMER_BIT    (1u << 23)   /* TIMER0 */
+
+/* The 1 us tick of TIMER0 comes from its generator in the TICKS block, told how many
+** clk_ref cycles make a microsecond, the count first, then the enable, as the pico-sdk
+** does. On a Raspberry Pi Pico 2 clk_ref is the 12 MHz crystal. The SOURCE register of
+** the timer is left at its reset value, which selects that tick. */
+#define TICKS_TIMER0_CTRL   *((volatile UINT32 *)(0x40108000 + 0x18))
+#define TICKS_TIMER0_CYCLES *((volatile UINT32 *)(0x40108000 + 0x1C))
+#define TICKS_ENABLE        (1u << 0)
+
+#define NVIC_ISER           *((volatile UINT32 *)0xE000E100)
+#define NVIC_ICPR           *((volatile UINT32 *)0xE000E280)
+#define NVIC_IPR            ((volatile UINT32 *)0xE000E400)
+
+#define ALARM0_BIT          0x1
+#define ALARM1_BIT          0x2
+#define TIME_MASK           0x3FFFFFFFu   /* Escapement counts modulo 2^30 */
+
+/* Interrupt cause marked by the ISR and processed by the lower priority handler
+** _OSTimerInterruptHandler. */
+/* Value of the counter when the kernel started. The counter is free running since
+** power-up and is never reset, whereas Escapement expects its clock to start near zero: on
+** a board that has been running for a while the kernel would otherwise believe every
+** deadline already missed. All kernel times are therefore counted from this origin. */
+static UINT32 TimeOrigin = 0;
+
+volatile BOOL _OSOverflowInterruptFlag = FALSE;
+volatile BOOL _OSComparatorInterruptFlag = FALSE;
+
+#ifdef ESCAPEMENT_MEASURE_SCHEDULING_COST
+   /* Cost of a scheduling round, in microseconds: from the hardware timer interrupt that
+   ** signals an arrival, to the moment the kernel arms the next deadline through
+   ** _OSSetTimer. Covers the interrupt, the software timer handler, the transfer of
+   ** arrivals to the ready queue and the election of the next task. Read over SWD. */
+   volatile UINT32 _OSCostLast = 0;
+   volatile UINT32 _OSCostMax = 0;
+   volatile UINT32 _OSCostSum = 0;
+   volatile UINT32 _OSCostCount = 0;
+   static volatile UINT32 CostStart = 0;
+   static volatile BOOL CostPending = FALSE;
+#endif
+
+
+#ifdef ESCAPEMENT_TRACE
+   volatile OS_TRACE_ENTRY _OSTrace[OS_TRACE_SIZE];
+   volatile UINT32 _OSTraceCount = 0;
+   volatile UINT32 _OSTraceFrozen = 0;
+
+   /* _OSTraceEvent: Appends an event to the ring buffer, interrupts masked for the few
+   ** instructions it takes, since interrupts of every priority leave events too. */
+   void _OSTraceEvent(UINT8 event, UINT8 arg, UINT16 extra)
+   {
+     UINT32 primask;
+     volatile OS_TRACE_ENTRY *entry;
+     __asm volatile ("MRS %0, PRIMASK" : "=r" (primask) :: "memory");
+     _OSDisableInterrupts();
+     if (_OSTraceFrozen) {
+        __asm volatile ("MSR PRIMASK, %0" :: "r" (primask) : "memory");
+        return;
+     }
+     entry = &_OSTrace[_OSTraceCount & (OS_TRACE_SIZE - 1)];
+     entry->Time = TIMER_TIMERAWL;
+     entry->Event = event;
+     entry->Arg = arg;
+     entry->Extra = extra;
+     _OSTraceCount += 1;
+     __asm volatile ("MSR PRIMASK, %0" :: "r" (primask) : "memory");
+   } /* end of _OSTraceEvent */
+#endif
+
+
+/* Minimal descriptor retrieved by _OSIOHandler; its first field is the handler. */
+typedef struct TIMER_ISR_DATA {
+  void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
+} TIMER_ISR_DATA;
+
+static TIMER_ISR_DATA Alarm0Descriptor;
+static TIMER_ISR_DATA Alarm1Descriptor;
+
+static void Alarm0Handler(struct TIMER_ISR_DATA *descriptor);
+static void Alarm1Handler(struct TIMER_ISR_DATA *descriptor);
+
+
+/* ArmOverflowAlarm: Arms ALARM1 on the next 2^30 boundary of the counter. */
+static void ArmOverflowAlarm(void)
+{
+  UINT32 raw = TIMER_TIMERAWL;
+  TIMER_ALARM1 = raw + ((TIME_MASK + 1) - ((raw - TimeOrigin) & TIME_MASK));
+} /* end of ArmOverflowAlarm */
+
+
+/* SetIRQPriority: Sets the priority of a peripheral interrupt. The Cortex-M33 of the
+** RP2350 holds 16 priority levels in the 4 most significant bits of each byte of the IPR
+** words, which group 4 interrupts each. */
+static void SetIRQPriority(UINT8 irq, UINT8 priority)
+{
+  UINT32 word = NVIC_IPR[irq >> 2];
+  UINT8 shift = (irq & 0x3) << 3;
+  word &= ~(0xFFu << shift);
+  /* Only the 4 most significant bits of the byte are implemented; masking keeps a
+  ** priority above 15 from spilling into the neighbouring interrupt. */
+  word |= ((UINT32)((priority << 4) & 0xFF) << shift);
+  NVIC_IPR[irq >> 2] = word;
+} /* end of SetIRQPriority */
+
+
+/* _OSInitializeTimer: Brings the timer out of reset and prepares its two alarms, without
+** starting to count arrivals. The kernel calls _OSStartTimer later, from the idle task. */
+void _OSInitializeTimer(void)
+{
+  /* Release the timer from reset and wait for it to answer. */
+  RESETS_RESET &= ~RESETS_TIMER_BIT;
+  while ((RESETS_RESET_DONE & RESETS_TIMER_BIT) == 0);
+  /* Produce the 1 us tick from the 12 MHz reference clock. */
+  TICKS_TIMER0_CYCLES = 12;
+  TICKS_TIMER0_CTRL = TICKS_ENABLE;
+  /* The RP2350, as the RP2040, freezes its timer as soon as a core is halted by the
+  ** debugger. Keeping that behaviour is deliberate: without it, every inspection lets
+  ** the kernel's clock run on while the tasks are stopped, and on resume the kernel
+  ** finds every deadline missed — which trips its overload guard as soon as a task has
+  ** a short period. Debugging a real-time kernel requires its clock to stop with it.
+  ** Measuring is the one case that wants the opposite. The probe has to hold a core
+  ** halted while it loads the image, which freezes the clock; the kernel then arms a
+  ** deadline computed on a stopped clock, and since an alarm fires on
+  ** equality, a deadline the counter has already passed once it resumes is never
+  ** reached again. Letting the clock run from the start avoids that dead end. */
+  #ifdef ESCAPEMENT_MEASURE_SCHEDULING_COST
+     TIMER_DBGPAUSE = 0x0;   /* wall time, including across debugger halts */
+  #else
+     TIMER_DBGPAUSE = 0x7;   /* its reset value: paused while either core is halted */
+  #endif
+  /* Disarm both alarms and clear any pending cause. */
+  TIMER_INTE_CLR = ALARM0_BIT | ALARM1_BIT;
+  TIMER_ARMED = ALARM0_BIT | ALARM1_BIT;
+  TIMER_INTR = ALARM0_BIT | ALARM1_BIT;
+  TIMER_INTF_CLR = ALARM0_BIT | ALARM1_BIT;
+  /* Install the two handlers and enable their interrupts. */
+  Alarm0Descriptor.TimerIntHandler = Alarm0Handler;
+  Alarm1Descriptor.TimerIntHandler = Alarm1Handler;
+  OSSetISRDescriptor(OS_IO_TIMER_0, &Alarm0Descriptor);
+  OSSetISRDescriptor(OS_IO_TIMER_1, &Alarm1Descriptor);
+  SetIRQPriority(OS_IO_TIMER_0, TIMER_PRIORITY);
+  SetIRQPriority(OS_IO_TIMER_1, TIMER_PRIORITY);
+  /* A reset of the processors alone, as a debugger does to load an image, leaves the timer
+  ** as the previous program left it: an alarm still armed fires, and the NVIC keeps its
+  ** interrupt pending although it is not enabled. Taken as soon as it is, that interrupt
+  ** ran the kernel before the idle task had set the origin of time. The causes are cleared
+  ** above; the pending state is cleared here. */
+  NVIC_ICPR = (1u << OS_IO_TIMER_0) | (1u << OS_IO_TIMER_1);
+  NVIC_ISER = (1u << OS_IO_TIMER_0) | (1u << OS_IO_TIMER_1);
+} /* end of _OSInitializeTimer */
+
+
+/* _OSStartTimer: Starts scheduling arrivals. The counter is already running, so this only
+** arms the wraparound alarm and forces a first comparator interrupt, which gives the
+** kernel the opportunity to compute its first deadline. */
+void _OSStartTimer(void)
+{
+  TimeOrigin = TIMER_TIMERAWL;
+  ArmOverflowAlarm();
+  TIMER_INTE_SET = ALARM0_BIT | ALARM1_BIT;
+  TIMER_INTF_SET = ALARM0_BIT;   // force the first comparator interrupt
+} /* end of _OSStartTimer */
+
+
+/* _OSGetActualTime: Returns the current time, counted modulo 2^30. */
+INT32 _OSGetActualTime(void)
+{
+  return (INT32)((TIMER_TIMERAWL - TimeOrigin) & TIME_MASK);
+} /* end of _OSGetActualTime */
+
+
+/* _OSTimerIsOverflow: Tells whether the counter passed a 2^30 boundary since the last
+** call, in which case the kernel shifts all its time values back by that amount. */
+BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
+{
+  if (_OSOverflowInterruptFlag) {
+     _OSOverflowInterruptFlag = FALSE;
+     return TRUE;
+  }
+  return FALSE;
+} /* end of _OSTimerIsOverflow */
+
+
+/* _OSSetTimer: Arms the comparator on the next arrival time.
+** Returned value: TRUE when the deadline lies ahead, FALSE when it already passed, in
+**   which case the caller processes it immediately. */
+BOOL _OSSetTimer(INT32 nextArrivalTime)
+{
+  UINT32 raw = TIMER_TIMERAWL;
+  UINT32 now = raw - TimeOrigin;
+  UINT32 target = (UINT32)nextArrivalTime;
+  #ifdef ESCAPEMENT_MEASURE_SCHEDULING_COST
+     if (CostPending) {
+        UINT32 cost = raw - CostStart;
+        CostPending = FALSE;
+        _OSCostLast = cost;
+        _OSCostSum += cost;
+        _OSCostCount += 1;
+        if (cost > _OSCostMax)
+           _OSCostMax = cost;
+     }
+  #endif
+  if (target > (now & TIME_MASK)) {
+     /* Keep the armed value: reading ALARM0 back does not return it, the register is
+     ** cleared as soon as the alarm fires. */
+     UINT32 deadline = raw + (target - (now & TIME_MASK));
+     TIMER_ALARM0 = deadline;
+     /* The counter may have moved past the deadline while it was being armed. */
+     if ((INT32)(deadline - TIMER_TIMERAWL) > 0) {
+        OSTrace(OS_TRACE_SET_TIMER,1,(UINT16)(deadline - raw));
+        return TRUE;
+     }
+  }
+  OSTrace(OS_TRACE_SET_TIMER,0,0);
+  /* Disarm, then drop any cause the alarm may have raised while it was being set:
+  ** the caller is told the deadline has passed and processes the arrival itself, so
+  ** a pending interrupt would only buy a second, redundant scheduling round. */
+  TIMER_ARMED = ALARM0_BIT;
+  TIMER_INTR = ALARM0_BIT;
+  return FALSE;
+} /* end of _OSSetTimer */
+
+
+/* Alarm0Handler: Comparator interrupt, a task arrival is due. */
+static void Alarm0Handler(struct TIMER_ISR_DATA *descriptor)
+{
+  #ifdef ESCAPEMENT_MEASURE_SCHEDULING_COST
+     CostStart = TIMER_TIMERAWL;
+     CostPending = TRUE;
+  #endif
+  OSTrace(OS_TRACE_ALARM0,0,0);
+  TIMER_INTF_CLR = ALARM0_BIT; // release a possibly forced interrupt
+  TIMER_INTR = ALARM0_BIT;     // acknowledge
+  _OSComparatorInterruptFlag = TRUE;
+  _OSGenerateSoftTimerInterrupt();
+} /* end of Alarm0Handler */
+
+
+/* Alarm1Handler: The counter passed a 2^30 boundary; rearm for the next one. */
+static void Alarm1Handler(struct TIMER_ISR_DATA *descriptor)
+{
+  OSTrace(OS_TRACE_ALARM1,0,0);
+  TIMER_INTR = ALARM1_BIT;     // acknowledge
+  ArmOverflowAlarm();
+  _OSOverflowInterruptFlag = TRUE;
+  _OSGenerateSoftTimerInterrupt();
+} /* end of Alarm1Handler */

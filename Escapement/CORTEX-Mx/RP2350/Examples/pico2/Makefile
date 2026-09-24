@@ -1,0 +1,118 @@
+## Copyright (c) 2006-2012 MIS Institute of the HEIG-VD affiliated to the University of
+## Applied Sciences of Western Switzerland. All rights reserved.
+## Permission to use, copy, modify, and distribute this software and its documentation
+## for any purpose, without fee, and without written agreement is hereby granted, pro-
+## vided that the above copyright notice, the following three sentences and the authors
+## appear in all copies of this software and in the software where it is used.
+## IN NO EVENT SHALL THE MIS INSTITUTE NOR THE HEIG-VD NOR THE UNIVERSITY OF APPLIED
+## SCIENCES OF WESTERN SWITZERLAND BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL,
+## INCIDENTAL, OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+## DOCUMENTATION, EVEN IF THE MIS INSTITUTE OR THE HEIG-VD OR THE UNIVERSITY OF APPLIED
+## SCIENCES OF WESTERN SWITZERLAND HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+## THE MIS INSTITUTE, THE HEIG-VD AND THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWIT-
+## ZERLAND SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+## IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFT-
+## WARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE MIS INSTITUTE NOR THE HEIG-VD
+## AND NOR THE UNIVERSITY OF APPLIED SCIENCES OF WESTERN SWITZERLAND HAVE NO OBLIGATION
+## TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+## Authors: MIS-TIC
+##
+## Escapement - Lightweight Power-Aware Real-Time OS, derived from ZottaOS.
+## Modifications Copyright (c) 2026 Bertrand Hurst, distributed under the same terms;
+## see LICENSE and NOTICE at the root of this repository.
+
+# The Raspberry Pi Pico 2 (RP2350, Cortex-M33), transposed from ../../../RP2040/Examples/pico.
+# Built for a Cortex-M33 without its floating-point unit, so that the compiler can never
+# use it: the generic layer saves the context of a Cortex-M33 as that of a Cortex-M4
+# without one (Escapement_CortexMx_a.S).
+
+# Bare-metal ARM toolchain. Overridable:
+#   make CROSS_COMPILE=/path/to/arm-none-eabi-
+CROSS_COMPILE ?= arm-none-eabi-
+CC = $(CROSS_COMPILE)gcc
+OBJCOPY = $(CROSS_COMPILE)objcopy
+
+CPU = cortex-m33+nofp
+LINKERFILE = ../../RP2350_SRAM.ld
+
+INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
+
+CFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wall -c -g -fdata-sections \
+         -ffunction-sections -ffreestanding -Werror=comment -O2 -MMD -MP
+AFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wall -c -g -MMD -MP
+LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
+
+# Build variants, which the CI also runs:
+#   make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING    the other scheduling algorithm
+#   make KERNEL=SOFT                                the soft real-time kernel
+#   make TRACE=1                                    with a trace of the scheduling in RAM
+# The power-aware kernel is not ported yet.
+ifeq ($(KERNEL),PA)
+   $(error the power-aware kernel is not ported to the RP2350 yet)
+endif
+ifdef SCHEDULER
+   CFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
+   AFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
+endif
+ifeq ($(KERNEL),SOFT)
+   CFLAGS += -DESCAPEMENT_VERSION_SOFT
+   AFLAGS += -DESCAPEMENT_VERSION_SOFT
+endif
+ifdef TRACE
+   CFLAGS += -DESCAPEMENT_TRACE
+endif
+
+# Every rule writes into build/ without ever creating it.
+$(shell mkdir -p build)
+
+all: build/TaskLEDPico2.elf
+
+clean:
+	rm -f build/*.o build/*.elf build/*.bin build/*.d
+
+bin: all build/TaskLEDPico2.bin
+
+build/%.bin : build/%.elf
+	$(OBJCOPY) -O binary $< $@
+
+COMMON = build/Escapement_RamEntry.o \
+          build/Escapement_CortexMx.o \
+          build/Escapement_CortexMx_a.o \
+          build/Escapement_Atomic.o \
+          build/Escapement_Interrupts.o \
+          build/Escapement_Timer.o \
+          build/Escapement_Processor.o \
+          build/EscapementHard.o \
+          build/EscapementSoft.o \
+          build/EscapementHardPA.o
+
+build/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
+	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
+	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Atomic.o : ../../../Escapement_Atomic.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Interrupts.o : ../../Escapement_Interrupts.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Timer.o : ../../Escapement_Timer.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Processor.o : ../../Escapement_Processor.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/EscapementHard.o : ../../../../EscapementHard.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/EscapementSoft.o : ../../../../EscapementSoft.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/EscapementHardPA.o : ../../../../EscapementHardPA.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/TaskLEDPico2.o : TaskLEDPico2.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+
+build/TaskLEDPico2.elf : $(COMMON) build/TaskLEDPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/TaskLEDPico2.o -T$(LINKERFILE) -lgcc
+
+# The .d files produced by -MMD list the headers of each object: without them, a change
+# to Escapement_Config.h triggers no rebuild at all and the next test runs against a
+# stale binary.
+-include $(wildcard build/*.d)

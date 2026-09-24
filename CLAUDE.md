@@ -25,6 +25,9 @@ tools/dvfs_bench.py <elf>                     # BenchDVFSPico: means of each cha
 # STM32F4 examples — the only test of the Cortex-M3/M4 assembler path
 make -C Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
 
+# Pico 2 (RP2350, Cortex-M33) — compiled only for now; no KERNEL=PA yet
+make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
+
 # The scheduler on the host, every kernel and algorithm, under AddressSanitizer
 make -C test/host run
 
@@ -47,7 +50,8 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
   its images byte for byte identical: compare `arm-none-eabi-objcopy -O binary` outputs
   against those of `main`.
 - The three kernels (`EscapementHard.c`, `EscapementSoft.c`, `EscapementHardPA.c`) share
-  their FIFO queue and slot-buffer code: a fix to one goes to all three.
+  their FIFO queue and slot-buffer code: a fix to one goes to all three. Likewise the
+  RP2040 and RP2350 ports share the logic of their timer: a fix to one goes to both.
 - A result stated in the docs is a measured one, with its date; one that did not
   reproduce is said so, not quietly replaced (`docs/method.md`).
 

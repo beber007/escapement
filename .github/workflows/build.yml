@@ -38,6 +38,9 @@ jobs:
           - example: rp2040-pico
             dir: Escapement/CORTEX-Mx/RP2040/Examples/pico
             cpu: Cortex-M0+
+          - example: rp2350-pico2
+            dir: Escapement/CORTEX-Mx/RP2350/Examples/pico2
+            cpu: Cortex-M33
     env:
       DIR: ${{ matrix.dir }}
 
