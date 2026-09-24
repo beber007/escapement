@@ -23,6 +23,7 @@
 #   BOARD_CI_TOKEN   file holding a token allowed to write commit statuses, nothing else
 #                    (~/.config/escapement-board-ci/token); without it, nothing is posted
 set -eu
+STARTED_AS=$(cksum <"$0")   # before the checkout below can replace this very file
 
 if [ "$(uname)" = Darwin ]; then containers=""; else containers=yes; fi
 WORK=${BOARD_CI_WORK:-$HOME/escapement-rp2040}
@@ -39,7 +40,9 @@ mkdir -p "$DIR/logs"
 # One run at a time. A directory, since mkdir is atomic everywhere and flock is not on
 # macOS; a lock whose run has died is taken over.
 LOCK=$DIR/lock
-if ! mkdir "$LOCK" 2>/dev/null; then
+if [ "${BOARD_CI_RESTARTED:-}" = yes ]; then
+    :   # started again by itself, below: the lock is already ours
+elif ! mkdir "$LOCK" 2>/dev/null; then
     if kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
         echo "another run holds $LOCK"; exit 0
     fi
@@ -56,6 +59,13 @@ if [ "${1:-}" != "--force" ] && [ "$(cat "$DIR/last" 2>/dev/null)" = "$SHA" ]; t
 fi
 git -C "$SRC" checkout --quiet --force --detach "$SHA"
 git -C "$SRC" clean --quiet -fdx
+# The timer runs this script from the checkout it has just updated, and the shell goes on
+# reading the file it opened: a change to the script took effect one run late, and the
+# first run of a new check reported the old ones. Start the new script instead, once.
+if [ "${BOARD_CI_RESTARTED:-}" != yes ] &&
+   [ "$STARTED_AS" != "$(cksum <"$SRC/tools/board_ci.sh")" ]; then
+    BOARD_CI_RESTARTED=yes exec sh "$SRC/tools/board_ci.sh" --force
+fi
 LOG=$DIR/logs/$(date +%Y%m%d-%H%M%S)-$(echo "$SHA" | cut -c1-7).log
 
 status() {   # state description
