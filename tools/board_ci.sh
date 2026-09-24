@@ -78,11 +78,11 @@ in_probe() {
     else (cd "$SRC" && sh -c "$1"); fi
 }
 
-# build <name> <make arguments>: FourSlotCoresPico and TaskLEDPico into $DIR/fw/<name>.
+# build <name> <make arguments>: the three examples the checks run, into $DIR/fw/<name>.
 build() {
-    in_build "make clean >/dev/null && make $2 build/FourSlotCoresPico.elf build/TaskLEDPico.elf" &&
+    in_build "make clean >/dev/null && make $2 build/FourSlotCoresPico.elf build/TaskLEDPico.elf build/TestTimerEventPico.elf" &&
     mkdir -p "$DIR/fw/$1" && cp "$SRC/$PICO/build/FourSlotCoresPico.elf" \
-        "$SRC/$PICO/build/TaskLEDPico.elf" "$DIR/fw/$1/"
+        "$SRC/$PICO/build/TaskLEDPico.elf" "$SRC/$PICO/build/TestTimerEventPico.elf" "$DIR/fw/$1/"
 }
 
 # fourslot <name>: no read of the 4-slot buffer torn or going backwards, and the plain
@@ -110,24 +110,48 @@ cost() {
         END { exit !(rounds >= 9990 && rounds <= 11000 && mean <= 5.0) }'
 }
 
+# events <name>: TestTimerEventPico, five readings of its trace. GPIO 2 every 5 ms and
+# GPIO 3 every 10 ms within 5 us, high for 1 and 2 ms plus the path from the alarm to the
+# event-driven task (12 to 13 us on 2026-09-23, docs/rp2040.md) within 20 us, and every
+# event delivered at most 2 us after its alarm (0 then).
+events() {
+    out=$(in_probe "python3 tools/timer_events.py $SEEN/fw/$1/TestTimerEventPico.elf")
+    echo "$out"
+    echo "$out" | awk '
+        function within(value, low, high) { return value >= low && value <= high }
+        $1 == "gpio" && $2 == 2 { pin2 = within($5, 4995, 5005) && within($6, 4995, 5005) &&
+                                          within($10, 1000, 1020) && within($11, 1000, 1020) &&
+                                          substr($8, 2) + 0 >= 20 }
+        $1 == "gpio" && $2 == 3 { pin3 = within($5, 9995, 10005) && within($6, 9995, 10005) &&
+                                          within($10, 2000, 2020) && within($11, 2000, 2020) &&
+                                          substr($8, 2) + 0 >= 10 }
+        /^events delivered/     { events = $4 + 0 > 0 && $7 <= 2 }
+        END { exit !(pin2 && pin3 && events) }'
+}
+
 status pending "running on the Pico"
 failed=""
 {
     echo "main at $SHA, $(date)"
-    for check in "fourslot hard" "fourslot pa" "cost hard"; do
+    for check in "fourslot hard" "fourslot pa" "cost hard" \
+                 "events hard" "events soft" "events pa"; do
         set -- $check
         case $2 in
             hard) args="" ;;
+            soft) args="KERNEL=SOFT" ;;
             pa)   args="KERNEL=PA" ;;
         esac
         echo "=== $check"
-        if [ "$1" = cost ]; then
+        if [ "$1" = events ]; then
+            args="$args TRACE=1"
+        fi
+        if [ "$1" = cost ] || [ "$1" = events ]; then
             # The counters are off in the example as shipped; this checkout is ours. (No
             # sed -i: GNU and BSD disagree on it.)
             config=$SRC/$PICO/Escapement_Config.h
             sed 's|^//#define ESCAPEMENT_MEASURE_SCHEDULING_COST|#define ESCAPEMENT_MEASURE_SCHEDULING_COST|' \
                 "$config" >"$config.new" && mv "$config.new" "$config"
-            name=cost_$2
+            name=$1_$2
         else
             name=$2
         fi
@@ -143,7 +167,7 @@ failed=""
 
 echo "$SHA" >"$DIR/last"
 if [ -z "$failed" ]; then
-    status success "4-slot across cores (hard, PA) and round cost"
+    status success "4-slot across cores, round cost, timer events"
 else
     status failure "failed:$failed"
 fi

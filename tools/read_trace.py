@@ -66,7 +66,8 @@ def describe(event, arg, extra):
     return name
 
 
-def pin_summary(entries):
+def pin_stats(entries):
+    """The periods and high times of the marks on each output, in microseconds."""
     starts, periods, highs = {}, {}, {}
     for time, event, arg, extra in entries:
         if event != 7:
@@ -77,6 +78,11 @@ def pin_summary(entries):
             starts[arg] = time
         elif arg in starts:
             highs.setdefault(arg, []).append((time - starts[arg]) & 0xFFFFFFFF)
+    return periods, highs
+
+
+def pin_summary(entries):
+    periods, highs = pin_stats(entries)
     for pin in sorted(set(periods) | set(highs)):
         line = f"gpio {pin:2d}"
         for name, values in (("period", periods.get(pin)), ("high", highs.get(pin))):
@@ -85,19 +91,10 @@ def pin_summary(entries):
         print(line)
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("elf")
-    parser.add_argument("--last", type=int, default=SIZE, help="events to print")
-    parser.add_argument("--keep-frozen", action="store_true",
-                        help="leave the recording suspended after reading")
-    parser.add_argument("--pins", action="store_true",
-                        help="summarise the periods and high times of the marks")
-    parser.add_argument("--csv", action="store_true",
-                        help="print the raw events as CSV")
-    args = parser.parse_args()
-
-    sym = symbols(args.elf)
+def read(elf, keep_frozen=False):
+    """Reads the trace without stopping a core: the count of events recorded, the time
+    of the read, and the events kept, oldest first, as (time, event, arg, extra)."""
+    sym = symbols(elf)
     for name in ("_OSTrace", "_OSTraceCount", "_OSTraceFrozen"):
         if name not in sym:
             sys.exit(f"{name} not found: build with make TRACE=1")
@@ -105,7 +102,7 @@ def main():
                 f"echo \"COUNT [read_memory {sym['_OSTraceCount']:#x} 32 1]\"",
                 f"echo \"NOW [read_memory {TIMERAWL:#x} 32 1]\"",
                 f"echo \"DATA [read_memory {sym['_OSTrace']:#x} 32 {2 * SIZE}]\""]
-    if not args.keep_frozen:
+    if not keep_frozen:
         commands.append(f"write_memory {sym['_OSTraceFrozen']:#x} 32 {{0}}")
     out = openocd(commands)
     count = re.search(r"COUNT (\S+)", out)
@@ -123,7 +120,23 @@ def main():
         k = (start + i) % SIZE
         time, packed = words[2 * k], words[2 * k + 1]
         entries.append((time, packed & 0xFF, (packed >> 8) & 0xFF, packed >> 16))
+    return count, now, entries
 
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("elf")
+    parser.add_argument("--last", type=int, default=SIZE, help="events to print")
+    parser.add_argument("--keep-frozen", action="store_true",
+                        help="leave the recording suspended after reading")
+    parser.add_argument("--pins", action="store_true",
+                        help="summarise the periods and high times of the marks")
+    parser.add_argument("--csv", action="store_true",
+                        help="print the raw events as CSV")
+    args = parser.parse_args()
+
+    count, now, entries = read(args.elf, args.keep_frozen)
+    n = len(entries)
     print(f"{count} events recorded, the last {n} kept",
           file=sys.stderr if args.csv else sys.stdout)
     if not entries:

@@ -139,8 +139,8 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       across the cores under the hard and the power-aware kernel and the cost of a
       round, and posts the commit status `board/pico` (`rp2040.md`). Pulled, not
       pushed: a self-hosted runner on a public repository would have run pull
-      requests on that machine too. Left: more of the board's measurements in it —
-      the timer events, the DVFS timings.
+      requests on that machine too. The timer events joined it under each kernel.
+      Left: more of the board's measurements in it — the DVFS timings.
 - [ ] Then build the current measurement bench described in `power-aware.md` — a
       plain Pico rather than a Pico W, an INA226 read from the Bus Pirate — and
       answer, on the target this documentation calls the most promising, whether
