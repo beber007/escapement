@@ -12,20 +12,23 @@
 # its owner pushes to it: a pull request, from a fork or not, runs nothing here — which
 # a self-hosted runner on a public repository could not promise.
 #
-# It builds in one container and drives the probe from another, as the bench does:
-#   BOARD_CI_WORK    host directory both containers mount (~/escapement-rp2040)
+# On Linux it builds in one container and drives the probe from another, as the bench
+# on pc-bertrand did; on macOS, with the toolchain and OpenOCD from Homebrew, it runs
+# both on the machine itself:
+#   BOARD_CI_WORK    working directory (~/escapement-rp2040), which the containers mount
 #   BOARD_CI_MOUNT   where they mount it (/work)
-#   BOARD_CI_BUILD   container with the ARM toolchain (esc)
-#   BOARD_CI_PROBE   container with OpenOCD and the probe (hw)
+#   BOARD_CI_BUILD   container with the ARM toolchain (esc on Linux, none on macOS)
+#   BOARD_CI_PROBE   container with OpenOCD and the probe (hw on Linux, none on macOS)
 #   BOARD_CI_REPO    owner/name on GitHub (beber007/escapement)
 #   BOARD_CI_TOKEN   file holding a token allowed to write commit statuses, nothing else
 #                    (~/.config/escapement-board-ci/token); without it, nothing is posted
 set -eu
 
+if [ "$(uname)" = Darwin ]; then containers=""; else containers=yes; fi
 WORK=${BOARD_CI_WORK:-$HOME/escapement-rp2040}
 MOUNT=${BOARD_CI_MOUNT:-/work}
-BUILD=${BOARD_CI_BUILD:-esc}
-PROBE=${BOARD_CI_PROBE:-hw}
+BUILD=${BOARD_CI_BUILD-${containers:+esc}}
+PROBE=${BOARD_CI_PROBE-${containers:+hw}}
 REPO=${BOARD_CI_REPO:-beber007/escapement}
 TOKEN=${BOARD_CI_TOKEN:-$HOME/.config/escapement-board-ci/token}
 DIR=$WORK/board-ci
@@ -33,8 +36,17 @@ SRC=$DIR/src
 PICO=Escapement/CORTEX-Mx/RP2040/Examples/pico
 
 mkdir -p "$DIR/logs"
-exec 9>"$DIR/lock"
-flock -n 9 || { echo "another run holds $DIR/lock"; exit 0; }
+# One run at a time. A directory, since mkdir is atomic everywhere and flock is not on
+# macOS; a lock whose run has died is taken over.
+LOCK=$DIR/lock
+if ! mkdir "$LOCK" 2>/dev/null; then
+    if kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
+        echo "another run holds $LOCK"; exit 0
+    fi
+    rm -rf "$LOCK" && mkdir "$LOCK"
+fi
+echo $$ >"$LOCK/pid"
+trap 'rm -rf "$LOCK"' EXIT
 
 [ -d "$SRC/.git" ] || git clone --quiet "https://github.com/$REPO.git" "$SRC"
 git -C "$SRC" fetch --quiet origin main
@@ -54,8 +66,17 @@ status() {   # state description
         --data @- "https://api.github.com/repos/$REPO/statuses/$SHA" || true
 }
 
-in_build() { podman exec "$BUILD" sh -c "cd $MOUNT/board-ci/src/$PICO && $1"; }
-in_probe() { podman exec "$PROBE" sh -c "cd $MOUNT/board-ci/src && $1"; }
+# in_build and in_probe run a command in the example's directory and at the root of the
+# checkout, in the container when there is one; SEEN is $DIR as the command sees it.
+if [ -n "$BUILD$PROBE" ]; then SEEN=$MOUNT/board-ci; else SEEN=$DIR; fi
+in_build() {
+    if [ -n "$BUILD" ]; then podman exec "$BUILD" sh -c "cd $SEEN/src/$PICO && $1"
+    else (cd "$SRC/$PICO" && sh -c "$1"); fi
+}
+in_probe() {
+    if [ -n "$PROBE" ]; then podman exec "$PROBE" sh -c "cd $SEEN/src && $1"
+    else (cd "$SRC" && sh -c "$1"); fi
+}
 
 # build <name> <make arguments>: FourSlotCoresPico and TaskLEDPico into $DIR/fw/<name>.
 build() {
@@ -67,7 +88,7 @@ build() {
 # fourslot <name>: no read of the 4-slot buffer torn or going backwards, and the plain
 # array beside it torn at least once, or the check proved nothing.
 fourslot() {
-    out=$(in_probe "sh tools/fourslot_cores.sh 10 $MOUNT/board-ci/fw/$1/FourSlotCoresPico.elf")
+    out=$(in_probe "sh tools/fourslot_cores.sh 10 $SEEN/fw/$1/FourSlotCoresPico.elf")
     echo "$out"
     echo "$out" | awk '
         /^4-slot buffer/ { reads = $4; bad = $6 + $8 }
@@ -76,14 +97,17 @@ fourslot() {
 }
 
 # cost <name>: the 1 ms round of TaskLEDPico, 10 s of it, and at most 5 us on average
-# (3.2 measured for the hard kernel on 2026-09-23, docs/rp2040.md).
+# (3.2 measured for the hard kernel on 2026-09-23, docs/rp2040.md). The rounds count from
+# the load to the reading, which takes the probe longer on some machines than on others:
+# 10,067 on pc-bertrand, 10,135 on the Mac mini. The upper bound only catches a kernel
+# that runs its round too often.
 cost() {
-    out=$(in_probe "sh tools/measure_cost.sh 10 $MOUNT/board-ci/fw/$1/TaskLEDPico.elf")
+    out=$(in_probe "sh tools/measure_cost.sh 10 $SEEN/fw/$1/TaskLEDPico.elf")
     echo "$out"
     echo "$out" | awk '
         /^rounds/ { rounds = $3 }
         /^mean/   { mean = $3 }
-        END { exit !(rounds >= 9990 && rounds <= 10100 && mean <= 5.0) }'
+        END { exit !(rounds >= 9990 && rounds <= 11000 && mean <= 5.0) }'
 }
 
 status pending "running on the Pico"
@@ -98,9 +122,11 @@ failed=""
         esac
         echo "=== $check"
         if [ "$1" = cost ]; then
-            # The counters are off in the example as shipped; this checkout is ours.
-            sed -i 's|^//#define ESCAPEMENT_MEASURE_SCHEDULING_COST|#define ESCAPEMENT_MEASURE_SCHEDULING_COST|' \
-                "$SRC/$PICO/Escapement_Config.h"
+            # The counters are off in the example as shipped; this checkout is ours. (No
+            # sed -i: GNU and BSD disagree on it.)
+            config=$SRC/$PICO/Escapement_Config.h
+            sed 's|^//#define ESCAPEMENT_MEASURE_SCHEDULING_COST|#define ESCAPEMENT_MEASURE_SCHEDULING_COST|' \
+                "$config" >"$config.new" && mv "$config.new" "$config"
             name=cost_$2
         else
             name=$2
