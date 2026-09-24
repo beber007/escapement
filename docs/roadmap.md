@@ -95,22 +95,25 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       under either scheduling algorithm; DRA and DR_OTE, which force EDF*; DM_SLACK,
       which forces deadline-monotonic. Only OTE had ever run — on the host, under
       Renode and on the board, and on the board under EDF only. The three others
-      were said to compile and nothing more; on 2026-09-24 they did not compile
-      at all, on the target or on the host, and their host test found four
-      defects (`method.md`). They now pass it, including `busy`, `early` and
-      `slack`, where tasks take time and the speed the kernel picks decides
-      whether they meet their deadlines; `make KERNEL=PA POWER=DRA` builds them
-      for the Pico, and the CI runs all three under Renode: DR_OTE and DM_SLACK
-      pass the whole RP2040 suite; DRA passes it too, but never changes speed in
-      `TaskLEDPico`, having nothing to reclaim there, which the suite now expects.
-      On the board, on 2026-09-24, all three keep every period of `TaskLEDPico`:
-      DRA without changing speed, DR_OTE and DM_SLACK taking the speeds of OTE; a
-      round costs 7.4 µs under DRA, 6.5 under DR_OTE, 4.2 under DM_SLACK as under
-      OTE (`rp2040.md`). Left for the energy bench: whether any of them saves
-      anything over OTE. Two things the host test does not catch, found by giving it faulty kernels: DM_SLACK's slack never
-      running out, and DM_SLACK reclaiming nothing at all — at the three speeds
-      of the RP2040 its slack is almost never enough to drop a step, and it
-      picked the same speeds as OTE in every run.
+      were said to compile and nothing more; on 2026-09-24 they did not compile at
+      all, on the target or on the host, and their host test found four defects
+      (`method.md`). They now pass it, including `busy`, `early` and `slack`, where
+      tasks take time and the speed the kernel picks decides whether they meet their
+      deadlines, and `expiry`, where the slack DM_SLACK hands on must run out while
+      the processor idles; `make KERNEL=PA POWER=DRA` builds them for the Pico, and
+      the CI runs all three under Renode: DR_OTE and DM_SLACK pass the whole RP2040
+      suite; DRA passes it too, but never changes speed in `TaskLEDPico`, having
+      nothing to reclaim there, which the suite now expects. On the board, on
+      2026-09-24, all three keep every period of `TaskLEDPico`: DRA without changing
+      speed, DR_OTE and DM_SLACK taking the speeds of OTE; a round costs 7.4 µs
+      under DRA, 6.5 under DR_OTE, 4.2 under DM_SLACK as under OTE (`rp2040.md`).
+      Left for the energy bench: whether any of them saves anything over OTE. One
+      thing the host test does not catch, found by giving it a faulty kernel:
+      DM_SLACK reclaiming nothing at all — at the three speeds of the RP2040 its
+      slack is almost never enough to drop a step, and it picked the same speeds as
+      OTE in every run. A slack that never ran out went unseen as well until
+      `expiry`, a task set found by searching random ones for a deadline that such a
+      kernel misses (2026-09-24).
 - [ ] **Show the lock-free mechanisms between the two cores.** The scheduler stays
       on one core; what can be shown is the communication between them. On the
       Pico, only Simpson's four slots work across cores — the Cortex-M0+ has no
