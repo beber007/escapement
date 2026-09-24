@@ -9,15 +9,17 @@
 ** task, on one core; here they cross from one core to the other, as the algorithm meant.
 ** Core 1, bare, writes records of eight words, all eight the same counter, rising by one
 ** from each record to the next, as fast as it can, into two places: a 4-slot buffer and
-** a plain array. A task on core 0 reads both, 32 times each millisecond, and counts the
-** reads that mix two records (torn) and those that go back to an older one: the two
+** a plain array. A task on core 0 reads both, 32 times each millisecond — every 2 ms
+** under the power-aware kernel, which then changes speed under both cores — and counts
+** the reads that mix two records (torn) and those that go back to an older one: the two
 ** properties Rushby model-checked for Simpson's algorithm, and test/model/fourslot.py
 ** for the kernel's, on one core and on two. The plain array is the negative control: the
 ** same writer and the same reader, without the mechanism, must tear.
 **
-** Only OS_READ_MULTIPLE is used. OS_READ_ONLY_ONCE marks the slot read with an LL/SC pair,
-** which the Cortex-M0+ emulates with a reservation bit that interrupts clear: a store from
-** the other core would leave it set, so it holds on one core only (Escapement_Atomic.c).
+** Only OS_READ_MULTIPLE is used. OS_READ_ONLY_ONCE marks the slot read with an LL/SC
+** pair, which the Cortex-M0+ emulates with a reservation bit that interrupts clear: a
+** store from the other core would leave it set, so it holds on one core only
+** (Escapement_Atomic.c).
 **
 ** The counts sit in Results, which tools/fourslot_cores.sh reads over SWD while both
 ** cores run, loading the image without ever stopping core 1 (docs/rp2040.md).
@@ -74,9 +76,11 @@ int main(void)
   #if defined(ESCAPEMENT_VERSION_SOFT)
      OSCreateTask(ReaderTask,0,0,1000,1000,1,1,0,NULL);
   #elif defined(ESCAPEMENT_VERSION_HARD_PA)
-     /* 32 reads of each place took 311 us at most at 125 MHz, core 1 contending for the
-     ** memory (Results.LongestRun, hard kernel, 2026-09-24). */
-     OSCreateTask(ReaderTask,400,0,1000,1000,NULL);
+     /* 32 reads of each place took 314 us at most at 125 MHz, core 1 contending for the
+     ** memory (Results.LongestRun, hard kernel, 2026-09-24). Every millisecond, those
+     ** 400 us left no lower speed; every 2 ms, the kernel runs the reader at 50 MHz and
+     ** the idle task at 125, and core 1, on the same clock, writes through both. */
+     OSCreateTask(ReaderTask,400,0,2000,2000,NULL);
   #else
      OSCreateTask(ReaderTask,0,1000,1000,NULL);
   #endif
