@@ -37,6 +37,13 @@
 ** number in the table. */
 #if POWER_MANAGEMENT != NONE
    extern const UINT8 _OSSlowdownRatios[];
+   /* The work done in a time at a speed below the fastest, the time times its ratio over
+   ** 256, rounded down. Multiplied whole, a time of more than 2^31 / 256 ticks, 21 s at
+   ** 1 µs, overflowed: a ready queue whose tasks declare long WCETs gives the reclaiming
+   ** policies such times, and the host test ran into it. Split, it cannot. */
+   #define Slowdown(time,speed) \
+      (((time) >> 8) * _OSSlowdownRatios[speed] + \
+       ((((time) & 0xFF) * _OSSlowdownRatios[speed]) >> 8))
 #endif
 
 
@@ -67,12 +74,8 @@
 
 /* PERIODIC TASK CONTROL BLOCK */
 typedef struct TCB {
-  #if POWER_MANAGEMENT != DRA && POWER_MANAGEMENT != DR_OTE
-     struct TCB *Next[2];           // Next TCB in the list where this task is located
+  struct TCB *Next[2];           // Next TCB in the list where this task is located
                                  // [0]: ready queue link, [1]: arrival queue link
-  #else
-     struct TCB *Next[3];        // Ditto with an extra link for the simulation queue
-  #endif
   UINT8 TaskState;               // Current state of the task
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      UINT8 Priority;             // Current instance running priority
@@ -83,6 +86,11 @@ typedef struct TCB {
   void *Argument;                // An instance specific pointer width value
   #if SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST_STAR
      INT32 CurrentArrivalTimeLow; // Claude
+  #endif
+  #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
+     /* The link of the simulation queue comes after the fields the context switch reads,
+     ** Next[] ending where they begin: a third entry there moved them all four bytes. */
+     struct TCB *NextSim;        // Next TCB in the simulation queue
   #endif
   #ifdef STATIC_POWER_MANAGEMENT
      UINT8 FrequencyIndex;       // Static frequency setting
@@ -117,12 +125,8 @@ OSCheckTCBLayout();
 /* EVENT-DRIVEN OR SYNCHRONOUS TASK CONTROL BLOCK */
 struct FIFOQUEUE;
 typedef struct ETCB {
-  #if POWER_MANAGEMENT != DRA && POWER_MANAGEMENT != DR_OTE
-     struct ETCB *Next[2];       // Next TCB in the list where this task is located
+  struct ETCB *Next[2];          // Next TCB in the list where this task is located
                                  // [0]: ready queue link, [1]: event queue link
-  #else
-     struct ETCB *Next[3];       // Ditto with an extra link for the simulation queue
-  #endif
   UINT8 TaskState;               // Current state of the task
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      UINT8 Priority;             // Static task priority
@@ -133,6 +137,9 @@ typedef struct ETCB {
   void *Argument;                // An instance specific pointer width value
   #if SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST_STAR
      INT32 CurrentArrivalTimeLow; // Claude
+  #endif
+  #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
+     struct ETCB *NextSim;       // At the same place as in the TCB
   #endif
   #ifdef STATIC_POWER_MANAGEMENT
      UINT8 FrequencyIndex;       // Static frequency setting
@@ -168,9 +175,6 @@ typedef struct ETCB {
 #define ARRIVALQ  1
 /* Simulation queue: Simulated list of running tasks giving the task events when these
 ** task use their WCETs. This list is needed to extract the excess times with DRA. */
-#if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
-   #define SIMQ   2
-#endif
 /* Queue of event-driven tasks that are blocked for an event: Event-driven tasks can be
 ** blocked, running or waiting. In the blocked state, the task is placed in the queue as-
 ** sociated with the event using the same link as ARRIVALQ. The task can also be in the
@@ -334,7 +338,7 @@ void _OSTimerInterruptHandler(void);
   static void DMSlackCalculateSlack(TCB *task, UINT8 currentSpeed, INT32 newTime);
   static BOOL DMSlackUpdateSlack(void);
 #elif POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
-  #define DRASimQueueInsert(newNode) InsertQueue(ReadyQueueInsertTestKey,SIMQ,newNode)
+  static void DRASimQueueInsert(TCB *newNode);
   static void UpdateRemainingWork(TCB *task, UINT8 currentSpeed, INT32 newTime);
   static void DRASimUpdateElapseTime(INT32 newTime);
   static void InterruptibleINT32CAS2(INT32 *, INT32, INT32, INT32 *, INT32, INT32, BOOL);
@@ -372,8 +376,8 @@ BOOL Initialize(void)
   OSQueueTail->TaskState = STATE_INIT | TASKTYPE_BLOCKING;
   OSQueueTail->NextArrivalTimeLow = INT32_MAX;
   #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
-    _OSQueueHead->Next[SIMQ] = OSQueueTail;
-    OSQueueTail->Next[SIMQ] = NULL;
+    _OSQueueHead->NextSim = OSQueueTail;
+    OSQueueTail->NextSim = NULL;
   #endif
   return TRUE;
 } /* end of Initialize */
@@ -650,7 +654,9 @@ void _OSTimerInterruptHandler(void)
         #endif
         #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
            DRASimTime -= ShiftTimeLimit;
-           AperiodicExcessTime -= ShiftTimeLimit;
+           /* Only an event-driven task brings this time forward: without one, shifting it
+           ** overflowed at the third wraparound. Moved to zero, it only loses excess. */
+           SubOrZeroIfNeg(AperiodicExcessTime,ShiftTimeLimit);
         #endif
      }
      while (TRUE) {
@@ -725,10 +731,10 @@ void _OSTimerInterruptHandler(void)
         #if POWER_MANAGEMENT == DM_SLACK
            if (DMSlackUpdateSlack()) {
               if (_OSActiveTask != OSQueueTail)
-                 UpdateRemainingWork(_OSActiveTask,SavedCurrentSpeed,_OSTime);
-              if ((DMSlackAmount -= _OSTime - LastRemainingWorkUpdate) < 0)
+                 UpdateRemainingWork(_OSActiveTask,SavedCurrentSpeed,currentTime);
+              if ((DMSlackAmount -= currentTime - LastRemainingWorkUpdate) < 0)
                  DMSlackAmount = 0;
-              LastRemainingWorkUpdate = _OSTime;
+              LastRemainingWorkUpdate = currentTime;
            }
         #elif POWER_MANAGEMENT != NONE
            /* Because the Idle task is considered as a TASKTYPE_BLOCKING type, it suffices to
@@ -782,7 +788,7 @@ void _OSTimerInterruptHandler(void)
            }
         #elif POWER_MANAGEMENT == DM_SLACK
            if (_OSActiveTask != arrival || SetActiveTaskRemainingTime) {
-              LastRemainingWorkUpdate = _OSTime;
+              LastRemainingWorkUpdate = currentTime;
               SavedCurrentSpeed = GetProcessorSpeed(currentTime);
            }
         #else /*  POWER_MANAGEMENT == OTE */
@@ -1202,7 +1208,6 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
                     DRASimUpdateElapseTime(currentTime);
                     doSimUpdateElapseTime = FALSE;
                  }
-                 // beber etcb->Next[SIMQ] = (ETCB *)GetMarkedReference(etcb->Next[SIMQ]);
                  DRASimQueueInsert((TCB *)etcb);
               #elif POWER_MANAGEMENT == DM_SLACK
                 etcb->RemainingWork = etcb->WCET;
@@ -1225,10 +1230,8 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
 void UpdateRemainingWork(TCB *task, UINT8 currentSpeed, INT32 newTime)
 {
   INT32 completed = newTime - LastRemainingWorkUpdate;
-  if (currentSpeed != OS_MAX_SPEED) {
-     completed *= _OSSlowdownRatios[currentSpeed];
-     completed >>= 8;
-  }
+  if (currentSpeed != OS_MAX_SPEED)
+     completed = Slowdown(completed,currentSpeed);
   task->RemainingWork -= completed;
   LastRemainingWorkUpdate = newTime;
 } /* end of UpdateRemainingWork */
@@ -1256,10 +1259,8 @@ void DMSlackCalculateSlack(TCB *task, UINT8 currentSpeed, INT32 newTime)
   do {
      OSUINT8_LL(&DMSlackInterrupt);
      dmRemaindingWork = newTime - LastRemainingWorkUpdate;
-     if (currentSpeed != OS_MAX_SPEED) {
-        dmRemaindingWork *= _OSSlowdownRatios[currentSpeed];
-        dmRemaindingWork >>= 8;
-     }
+     if (currentSpeed != OS_MAX_SPEED)
+        dmRemaindingWork = Slowdown(dmRemaindingWork,currentSpeed);
      if ((DMTmpRemaindingWork = task->RemainingWork - dmRemaindingWork) < 0)
         DMTmpRemaindingWork = 0;
      DMTmpLastRemainingWorkUpdate = newTime;
@@ -1310,20 +1311,6 @@ INT32 GetSuspendedSchedulingDeadline(ETCB *etcb, INT32 currentTime)
 ** Note: Before calling this function, there should be no pending interruptible CAS2
 ** operations. */
 
-/* Claude supprimer le CAS */
-#define CAS(memAddr,compare,update,failJump) \
-{ \
-  _disable_interrupt(); \
-  if (*memAddr == compare) { \
-     *memAddr = update; \
-     _enable_interrupt(); \
-  } \
-  else { \
-     _enable_interrupt(); \
-     goto failJump; \
-  } \
-}
-
 
 void DRASimUpdateElapseTime(INT32 newTime)
 {
@@ -1371,9 +1358,14 @@ void DRASimUpdateElapseTime(INT32 newTime)
   /* Get the amount of work done up to the actual time that needs to be deducted from the
   ** WCET of the tasks. */
   while (completed > 0) {
-     if ((simTask = _OSQueueHead->Next[SIMQ]) == OSQueueTail) {
-        /* Claude supprimer le CAS */
-        CAS(&DRASimTime,oldTime,newTime,skipUpdate);
+     if ((simTask = _OSQueueHead->NextSim) == OSQueueTail) {
+        /* Nothing left to simulate: the simulation clock catches up with the wall clock,
+        ** unless an interrupting call already moved it. A store-conditional can fail
+        ** although DRASimTime did not change, so only a changed value gives up. */
+        do {
+           if (OSINT32_LL(&DRASimTime) != oldTime)
+              return;
+        } while (!OSINT32_SC(&DRASimTime,newTime));
         break;
      }
      if ((newExcess = simTask->CompletionTime) > completed) { // Got some remaining slack
@@ -1384,10 +1376,9 @@ void DRASimUpdateElapseTime(INT32 newTime)
      completed -= newExcess;
      newExcess += oldTime;
      InterruptibleMixCAS2(&DRASimTime,oldTime,newExcess,
-                          &_OSQueueHead->Next[SIMQ],simTask,simTask->Next[SIMQ],FALSE);
+                          &_OSQueueHead->NextSim,simTask,simTask->NextSim,FALSE);
      oldTime = newExcess;
   }
-skipUpdate: ;
 } /* end of DRASimUpdateElapseTime */
 #endif
 
@@ -1469,7 +1460,10 @@ void OSSetMinimalProcessorSpeed(UINT8 speed)
 ** justed dynmanically to meet the task specifications with minimal speed. */
 UINT8 GetProcessorSpeed(INT32 time)
 {
-  INT32 completionTime, tmp;
+  INT32 completionTime;
+  #if POWER_MANAGEMENT != DRA
+     INT32 tmp;
+  #endif
   #if POWER_MANAGEMENT == DR_OTE
      INT32 oteCompletionTime;
   #endif
@@ -1569,7 +1563,11 @@ UINT8 GetProcessorSpeed(INT32 time)
                  return OS_MAX_SPEED;
               #endif
         }
-        else if (_OSActiveTask->Priority < DMSlackPriority && DMSlackAmount > 0)
+        /* The slack goes to tasks of lower priority than its owner, a larger number:
+        ** only they counted the owner's WCET in their response time. The comparison
+        ** read <, giving it to tasks of higher priority, which the host test caught
+        ** missing deadlines. */
+        else if (_OSActiveTask->Priority > DMSlackPriority && DMSlackAmount > 0)
            completionTime = DMSlackAmount + _OSActiveTask->RemainingWork;
         else
            #ifdef STATIC_POWER_MANAGEMENT
@@ -1578,17 +1576,18 @@ UINT8 GetProcessorSpeed(INT32 time)
               return OS_MAX_SPEED;
            #endif
      #endif
-     /* Find the speed to apply to the task. */
-     time = _OSActiveTask->RemainingWork << 8;
+     /* Find the speed to apply to the task: the slowest that does the work left in the
+     ** time given. The work, an integer, exceeds the rounded down product exactly when it
+     ** exceeds the product itself, so the comparison is the one of RemainingWork << 8
+     ** with the ratio times completionTime, which overflowed. */
      #ifdef STATIC_POWER_MANAGEMENT
         speed = _OSActiveTask->FrequencyIndex;  // first frequency setting
      #else
         speed = OS_MAX_SPEED;                      // first frequency setting
      #endif
-     while ((speed -= 1) >= MinimalProcessorSpeed) {
-        tmp = _OSSlowdownRatios[speed] * completionTime;
-        if (time > tmp) return speed + 1;
-     }
+     while ((speed -= 1) >= MinimalProcessorSpeed)
+        if (_OSActiveTask->RemainingWork > Slowdown(completionTime,speed))
+           return speed + 1;
      return MinimalProcessorSpeed;
   }
   else
@@ -1633,15 +1632,45 @@ INT32 GetEarliestAperiodicArrival(void)
 ** of all completionTime fields before it constitutes the instance's slack time.
 ** GetDRASlackTime returns this value augmented by the instance completion time. In other
 ** words, this function returns the total time that may be allotted to complete the in-
-** stance. */
+** stance.
+** An instance still running once the simulation has used up its WCET is no longer in the
+** simulated queue: it overran its WCET, or ended with it at the instant a timer interrupt
+** took it out. The search then went past the tail and read through a null link; no time
+** is left to give, and the task goes on at the fastest speed. */
 INT32 GetDRASlackTime(void)
 {
   TCB *task;
   INT32 completionTime = _OSActiveTask->CompletionTime;
-  for (task = _OSQueueHead; (task = task->Next[SIMQ]) != _OSActiveTask; )
+  for (task = _OSQueueHead; (task = task->NextSim) != _OSActiveTask; ) {
+     if (task == OSQueueTail)
+        return 0;
      completionTime += task->CompletionTime;
+  }
   return completionTime;
 } /* end of GetDRASlackTime */
+
+
+/* DRASimQueueInsert: Inserts a new instance into the simulation queue, in the order of
+** the ready queue. Its TCB can still hold the previous instance, when the simulation has
+** not yet used up the WCET of that one: the TCB is then taken out on the way, which it
+** always is before the place of the new instance, whose deadline is later. Inserting it
+** as it stood would link it twice and loop the queue. Only the timer interrupt calls
+** this function. */
+void DRASimQueueInsert(TCB *newNode)
+{
+  TCB *right, *left = _OSQueueHead;
+  while (TRUE) {
+     if ((right = left->NextSim) == newNode) {
+        left->NextSim = newNode->NextSim;
+        continue;
+     }
+     if (right == OSQueueTail || ReadyQueueInsertTestKey(newNode,right))
+        break;
+     left = right;
+  }
+  newNode->NextSim = right;
+  left->NextSim = newNode;
+} /* end of DRASimQueueInsert */
 #endif
 
 

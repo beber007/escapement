@@ -9,12 +9,15 @@
 ** board cannot give: task sets far larger than the three an example carries, and the
 ** 2^30 wraparound of the kernel clock, eighteen minutes away on hardware.
 **
-** Up to four runs, one per process since the kernel keeps its state in statics:
+** Up to seven runs, one per process since the kernel keeps its state in statics:
 **   test_scheduler         ten tasks, the clock advanced one tick at a time
 **   test_scheduler wrap    long periods, the clock jumped from one event to the next
 **                          across three wraparounds
 **   test_scheduler events  event-driven tasks woken by periodic tasks, by themselves
 **                          and by a buffer slot filling up
+**   test_scheduler busy    tasks that take time, each instance its WCET
+**   test_scheduler early   the same, instances ending before their WCET
+**   test_scheduler slack   the same, one instance leaving time to others
 **   test_scheduler firm    (m,k)-firm tasks under overload, soft kernel only
 **
 ** Under the power-aware kernel every run also checks the speeds it asks for: always one
@@ -68,6 +71,25 @@
      UINT16 PeriodHigh;
      UINT16 NextArrivalTimeHigh;
    } HostTCB;
+#elif defined(ESCAPEMENT_VERSION_HARD_PA) && SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST_STAR
+   /* EDF*, which DRA and DR_OTE impose, keeps the arrival that breaks ties between equal
+   ** deadlines, and those two the link and times of their simulation queue. */
+   typedef struct HostTCB {
+     struct HostTCB *Next[2];
+     UINT8 TaskState;
+     INT32 NextArrivalTimeLow;
+     void (*TaskCodePtr)(void *);
+     void *Argument;
+     INT32 CurrentArrivalTimeLow;
+     #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
+        struct HostTCB *NextSim;
+        INT32 WCET;
+        INT32 CompletionTime;
+     #endif
+     INT32 PeriodLow;
+     INT32 NextDeadline;
+     INT32 Deadline;
+   } HostTCB;
 #elif defined(ESCAPEMENT_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
    typedef struct HostTCB {
      struct HostTCB *Next[2];
@@ -120,6 +142,10 @@
 #endif
 
 #define TASKTYPE_BLOCKING 0x08   /* set on event-driven tasks and on the idle sentinel */
+
+/* Scheduling by deadline, EDF or the EDF* of the power-aware kernel, rather than by
+** priority. */
+#define BY_DEADLINE (SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING)
 
 extern HostTCB *_OSActiveTask;
 extern void _OSTimerInterruptHandler(void);
@@ -190,7 +216,7 @@ static void StartKernel(void (*f)(void *), void *arg)
 ** task keeps there the end of its current period too. */
 static BOOL IsLate(const HostTCB *task, INT32 now)
 {
-  #if SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST
+  #if BY_DEADLINE
      return task->NextDeadline < now;
   #else
      if (task->TaskState & TASKTYPE_BLOCKING)
@@ -206,7 +232,7 @@ static BOOL IsOutOfReach(const HostTCB *task, INT32 now)
 {
   if (task->TaskState & TASKTYPE_BLOCKING)
      return FALSE;
-  #if SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST
+  #if BY_DEADLINE
      return task->NextDeadline - now > task->Deadline;
   #else
      return task->NextArrivalTimeHigh == 0 && task->NextArrivalTimeLow - now > task->PeriodLow;
@@ -224,7 +250,7 @@ static void ServeSoftTimer(void)
 
 /* PriorityKey: What orders periodic tasks in the ready queue, the smaller first: the
 ** absolute deadline under EDF, the priority under deadline-monotonic scheduling. */
-#if SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST
+#if BY_DEADLINE
    #define PriorityKey(task) ((task)->NextDeadline)
 #else
    #define PriorityKey(task) ((INT32)(task)->Priority)
@@ -369,7 +395,14 @@ static void TestWrap(void)
   Check("  the kernel clock wrapped three times", HostClockWraps == 3);
   Check("  no deadline missed", LateArrivals == 0);
   Check("  every deadline shifted with the clock", DeadlinesOutOfReach == 0);
-  CheckSpeeds(TRUE);
+  /* DRA gives a task only the time left unused by instances of earlier deadline that have
+  ** ended, and here each instance is alone in the ready queue: it keeps the fastest speed.
+  ** The others also stretch the last task up to the next arrival. */
+  #if defined(ESCAPEMENT_VERSION_HARD_PA) && POWER_MANAGEMENT == DRA
+     CheckSpeeds(FALSE);
+  #else
+     CheckSpeeds(TRUE);
+  #endif
 }
 
 /* EVENT-DRIVEN TASKS ------------------------------------------------------------------ */
@@ -530,6 +563,211 @@ static void TestEvents(void)
 }
 
 
+/* TASKS THAT TAKE TIME ---------------------------------------------------------------- */
+/* Everywhere else a task ends the moment it is called, which says what the scheduler
+** elects but not whether the speed it picks leaves each task the time it needs. Here each
+** instance has work to do, counted in 256ths of a tick at the fastest speed: the test
+** hands the processor to the elected task until the next timer event, doing as much work
+** as the speed allows — a ratio of _OSSlowdownRatios per tick below the fastest — and
+** calls the task only when its work is done, so that it ends at that instant. A timer
+** event in between is a preemption: the kernel elects another task, and the work left
+** waits for its turn. The deadlines are checked against what the test itself knows of the
+** arrivals, not against the kernel's fields. The kernel's own code takes no time, nor does
+** a change of speed: what is checked is the policy, not its cost on a processor.
+**   busy   every instance takes its WCET: the case each policy must survive
+**   early  instances end between a quarter of their WCET and all of it, as real tasks do,
+**          which leaves the reclaiming policies time to slow down
+**   slack  a task of low priority ends early just before two of higher priority arrive:
+**          the time it leaves may go to tasks of lower priority than it only, since they
+**          alone counted its WCET in their response time */
+
+typedef enum { TIMED_BUSY, TIMED_EARLY, TIMED_SLACK } TimedMode;
+
+typedef struct TimedTask {
+  INT32 WCET, Period, Deadline;
+  INT32 Takes;                /* what each instance takes, 0 when the mode decides */
+  unsigned Instance;          /* the one running or next to run, numbered from 0 */
+  INT32 Work;                 /* left to do by that instance, in 256ths of a tick */
+  unsigned Misses, EarlyStarts;
+} TimedTask;
+
+#define TIMED_TASKS 4
+static TimedTask Timed[TIMED_TASKS];
+static unsigned NbTimed;
+static TimedMode TimedRun;
+static UINT32 TimedSeed = 12345;
+static long long BusyAt[8], IdleTime;
+
+#if defined(ESCAPEMENT_VERSION_SOFT)
+   #define CREATE_TIMED_TASK(code, wcet, period, deadline, arg) \
+              OSCreateTask(code, wcet, 0, period, deadline, 1, 1, 0, arg)
+#elif defined(ESCAPEMENT_VERSION_HARD_PA)
+   #define CREATE_TIMED_TASK(code, wcet, period, deadline, arg) \
+              OSCreateTask(code, wcet, 0, period, deadline, arg)
+#else
+   #define CREATE_TIMED_TASK(code, wcet, period, deadline, arg) \
+              OSCreateTask(code, 0, period, deadline, arg)
+#endif
+
+/* Speed: The one the processor runs at, and the work it does per tick. */
+static UINT8 Speed(void)
+{
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     return OSGetProcessorSpeed();
+  #else
+     return 0;
+  #endif
+}
+
+static INT32 WorkPerTick(UINT8 speed)
+{
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     extern const UINT8 _OSSlowdownRatios[];
+     if (speed != OS_MAX_SPEED)
+        return _OSSlowdownRatios[speed];
+  #endif
+  (void)speed;
+  return 256;
+}
+
+/* NextWork: What the next instance takes, in 256ths of a tick. */
+static INT32 NextWork(const TimedTask *task)
+{
+  INT32 quarter = task->WCET / 4;
+  if (task->Takes != 0)
+     return task->Takes * 256;
+  if (TimedRun != TIMED_EARLY)
+     return task->WCET * 256;
+  TimedSeed = TimedSeed * 1103515245u + 12345u;
+  return (quarter + (INT32)((TimedSeed >> 16) % (UINT32)(task->WCET - quarter + 1))) * 256;
+}
+
+/* TimedTaskCode: Called once the work of the instance is done. */
+static void TimedTaskCode(void *argument)
+{
+  TimedTask *task = (TimedTask *)argument;
+  if (HostClockNow() > (INT32)task->Instance * task->Period + task->Deadline)
+     task->Misses += 1;
+  task->Instance += 1;
+  task->Work = NextWork(task);
+  OSEndTask();
+}
+
+/* RunTimed: Gives the processor to the elected task from one timer event to the next. */
+static void RunTimed(INT32 duration)
+{
+  _OSTimerInterruptHandler();        /* the arrivals at time zero */
+  while (HostClockNow() < duration) {
+     INT32 now, event, step;
+     HostTCB *active;
+     ServeSoftTimer();
+     now = HostClockNow();
+     event = now + HostTicksToNextEvent();
+     step = (event < duration ? event : duration) - now;
+     active = _OSActiveTask;
+     if (active != IdleTCB) {
+        TimedTask *task = (TimedTask *)active->Argument;
+        UINT8 speed = Speed();
+        INT32 rate = WorkPerTick(speed), toEnd = (task->Work + rate - 1) / rate;
+        if (now < (INT32)task->Instance * task->Period)
+           task->EarlyStarts += 1;
+        if (toEnd < step)
+           step = toEnd;
+        task->Work -= step * rate;
+        BusyAt[speed] += step;
+        HostAdvanceBy(step);
+        if (task->Work <= 0)
+           active->TaskCodePtr(active->Argument);
+     }
+     else {
+        IdleTime += step;
+        HostAdvanceBy(step);
+     }
+     if (HostClockNow() == event)
+        _OSTimerInterruptHandler();
+  }
+}
+
+static void CreateTimedTask(INT32 wcet, INT32 period, INT32 deadline, INT32 takes)
+{
+  TimedTask *task = &Timed[NbTimed++];
+  task->WCET = wcet;
+  task->Period = period;
+  task->Deadline = deadline;
+  task->Takes = takes;
+  task->Work = NextWork(task);
+  CREATE_TIMED_TASK(TimedTaskCode, wcet, period, deadline, task);
+}
+
+static void TestTimed(TimedMode mode)
+{
+  static const char *const what[] = {"their WCET", "a quarter of their WCET to all of it",
+                                     "their WCET but one, which ends early"};
+  INT32 duration;
+  long long busy = 0;
+  unsigned i, misses = 0, earlyStarts = 0;
+  char label[80];
+
+  TimedRun = mode;
+  if (mode != TIMED_SLACK) {
+     /* Deadline-monotonic scheduling meets these deadlines too: its worst response times
+     ** are 200, 500, 1300 and 2700 ticks. The processor is loaded at 70 %. */
+     duration = 240000;              /* twenty hyperperiods */
+     CreateTimedTask(200, 1000, 1000, 0);
+     CreateTimedTask(300, 1500, 1500, 0);
+     CreateTimedTask(600, 4000, 4000, 0);
+     CreateTimedTask(900, 6000, 6000, 0);
+  }
+  else {
+     /* Worst response times 200, 450 and 1900 ticks under deadline-monotonic scheduling,
+     ** against deadlines of 400, 500 and 4000. The first instance of the last task runs
+     ** from 450 to 990 and leaves 460 ticks of its WCET, when the two others arrive at
+     ** 1000. Given to the first of them, that time stretches its 200 ticks past its
+     ** deadline at 1400, which no response time allowed for. */
+     duration = 40000;
+     CreateTimedTask(200, 1000, 400, 0);
+     CreateTimedTask(250, 1000, 500, 0);
+     CreateTimedTask(1000, 4000, 4000, 540);
+  }
+  StartKernel(NULL, NULL);
+  RunTimed(duration);
+
+  printf("\n%d ticks of simulated time, tasks taking %s\n\n", duration, what[mode]);
+  for (i = 0; i < NbTimed; i += 1) {
+     misses += Timed[i].Misses;
+     earlyStarts += Timed[i].EarlyStarts;
+     snprintf(label, sizeof label, "  period %5d: %u instances ended (expected %d)",
+              Timed[i].Period, Timed[i].Instance, duration / Timed[i].Period);
+     Check(label, WithinOne(Timed[i].Instance, (unsigned)(duration / Timed[i].Period)));
+  }
+  Check("  no instance started before its arrival", earlyStarts == 0);
+  snprintf(label, sizeof label, "  no deadline missed: %u", misses);
+  Check(label, misses == 0);
+  for (i = 0; i < 8; i += 1)
+     busy += BusyAt[i];
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     printf("  busy %.1f %% of the time: %.1f %% at 12 MHz, %.1f %% at 50, %.1f %% at 125\n",
+            100.0 * busy / duration, 100.0 * BusyAt[0] / duration,
+            100.0 * BusyAt[1] / duration, 100.0 * BusyAt[2] / duration);
+     /* Taking their WCET, the tasks leave DRA nothing to reclaim; the others can still
+     ** stretch the last task of a busy period to the next arrival. What the slack run
+     ** checks is the deadlines. */
+     if (mode == TIMED_SLACK) {
+        extern unsigned HostInvalidSpeeds;
+        Check("  every speed asked for is an operating point", HostInvalidSpeeds == 0);
+     }
+     else
+        #if POWER_MANAGEMENT == DRA
+           CheckSpeeds(mode == TIMED_EARLY);
+        #else
+           CheckSpeeds(TRUE);
+        #endif
+  #else
+     printf("  busy %.1f %% of the time\n", 100.0 * busy / duration);
+  #endif
+}
+
+
 #if defined(ESCAPEMENT_VERSION_SOFT)
 /* (m,k)-FIRM TASKS -------------------------------------------------------------------- */
 /* The soft kernel splits the instances of an (m,k)-firm task into mandatory ones, always
@@ -651,6 +889,12 @@ int main(int argc, char *argv[])
      TestWrap();
   else if (argc > 1 && strcmp(argv[1], "events") == 0)
      TestEvents();
+  else if (argc > 1 && strcmp(argv[1], "busy") == 0)
+     TestTimed(TIMED_BUSY);
+  else if (argc > 1 && strcmp(argv[1], "early") == 0)
+     TestTimed(TIMED_EARLY);
+  else if (argc > 1 && strcmp(argv[1], "slack") == 0)
+     TestTimed(TIMED_SLACK);
   #if defined(ESCAPEMENT_VERSION_SOFT)
      else if (argc > 1 && strcmp(argv[1], "firm") == 0)
         TestFirm();

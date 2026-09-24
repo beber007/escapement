@@ -125,7 +125,9 @@
 #define DR_OTE    3  /* DRA with OTE */
 #define DM_SLACK  4  /* Deadline monotonic scheduling with slack reclamation */
 
-#define POWER_MANAGEMENT OTE
+#ifndef POWER_MANAGEMENT
+   #define POWER_MANAGEMENT OTE
+#endif
 
 /* All power management schemes (even NONE) can be combined with a static frequency set-
 ** ting. This is the frequency of the task that guarantees that all tasks meet their

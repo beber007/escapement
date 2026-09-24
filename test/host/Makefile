@@ -8,8 +8,9 @@
 # from one event to the next: three wraparounds of the kernel clock, an hour of real time
 # on the board, take a fraction of a second.
 #
-# Everything is built six times: the hard, the soft and the power-aware kernel, each
-# under earliest deadline first (edf) and deadline-monotonic scheduling (dm).
+# Everything is built nine times: the hard, the soft and the power-aware kernel, each
+# under earliest deadline first (edf) and deadline-monotonic scheduling (dm), and the
+# power-aware kernel with its three other power-management policies.
 #
 #   make -C test/host run
 
@@ -28,19 +29,27 @@ PA = ../../Escapement/EscapementHardPA.c
 HEADERS = Escapement.h Escapement_Config.h Escapement_Types.h Escapement_Processor.h \
           Escapement_Timer.h Escapement_Interrupts.h
 
-BUILDS = hard_edf hard_dm soft_edf soft_dm pa_edf pa_dm
+BUILDS = hard_edf hard_dm soft_edf soft_dm pa_edf pa_dm pa_dra pa_drote pa_dmslack
 FLAGS_hard_edf = -DHOST_SCHEDULER=1
 FLAGS_hard_dm  = -DHOST_SCHEDULER=2
 FLAGS_soft_edf = -DHOST_SCHEDULER=1 -DHOST_KERNEL_SOFT
 FLAGS_soft_dm  = -DHOST_SCHEDULER=2 -DHOST_KERNEL_SOFT
 FLAGS_pa_edf   = -DHOST_SCHEDULER=1 -DHOST_KERNEL_PA
 FLAGS_pa_dm    = -DHOST_SCHEDULER=2 -DHOST_KERNEL_PA
+# The other power-management policies each impose their algorithm: EDF* for DRA and
+# DR_OTE, deadline-monotonic scheduling for DM_SLACK.
+FLAGS_pa_dra     = -DHOST_KERNEL_PA -DPOWER_MANAGEMENT=DRA
+FLAGS_pa_drote   = -DHOST_KERNEL_PA -DPOWER_MANAGEMENT=DR_OTE
+FLAGS_pa_dmslack = -DHOST_KERNEL_PA -DPOWER_MANAGEMENT=DM_SLACK
 KERNEL_hard_edf = $(HARD)
 KERNEL_hard_dm  = $(HARD)
 KERNEL_soft_edf = $(SOFT)
 KERNEL_soft_dm  = $(SOFT)
 KERNEL_pa_edf   = $(PA)
 KERNEL_pa_dm    = $(PA)
+KERNEL_pa_dra     = $(PA)
+KERNEL_pa_drote   = $(PA)
+KERNEL_pa_dmslack = $(PA)
 
 $(shell mkdir -p build)
 
@@ -48,7 +57,8 @@ run: $(BUILDS:%=build/test_scheduler_%) build/test_ipc_hard build/test_ipc_soft 
 	@for b in $(BUILDS); do \
 	   echo; echo "=== $$b"; \
 	   ./build/test_scheduler_$$b && ./build/test_scheduler_$$b wrap && \
-	   ./build/test_scheduler_$$b events || exit 1; \
+	   ./build/test_scheduler_$$b events && ./build/test_scheduler_$$b busy && \
+	   ./build/test_scheduler_$$b early && ./build/test_scheduler_$$b slack || exit 1; \
 	   case $$b in soft_*) ./build/test_scheduler_$$b firm || exit 1;; esac; \
 	done
 	@echo; echo "=== hard"; ./build/test_ipc_hard

@@ -42,6 +42,7 @@ AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -MMD -MP
 #   make KERNEL=SOFT                                the soft real-time kernel
 #   make KERNEL=PA                                  the power-aware kernel
 #   make KERNEL=PA UNDERVOLT=1                      the same, below the specified voltage
+#   make KERNEL=PA POWER=DRA                        another power-management policy
 #   make TRACE=1                                    with a trace of the scheduling in RAM
 ifdef SCHEDULER
    CFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
@@ -57,6 +58,11 @@ ifeq ($(KERNEL),PA)
 endif
 ifdef UNDERVOLT
    CFLAGS += -DESCAPEMENT_RP2040_UNDERVOLT
+endif
+# make KERNEL=PA POWER=DRA picks another power-management policy than OTE: DRA or DR_OTE,
+# which impose EDF*, or DM_SLACK, which imposes deadline-monotonic scheduling.
+ifdef POWER
+   CFLAGS += -DPOWER_MANAGEMENT=$(POWER)
 endif
 # make KERNEL=PA SLEEP_SPEED=0 lets the idle task sleep at 12 MHz rather than 125.
 ifdef SLEEP_SPEED
