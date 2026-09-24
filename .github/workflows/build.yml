@@ -9,7 +9,7 @@ on:
 jobs:
   examples:
     name: ${{ matrix.example }} (${{ matrix.cpu }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -24,7 +24,7 @@ jobs:
       DIR: ${{ matrix.dir }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the bare-metal ARM toolchain
         run: |
@@ -57,7 +57,7 @@ jobs:
           make
           arm-none-eabi-size build/*.elf
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.example }}-elf
           path: ${{ env.DIR }}/build/*.elf
@@ -65,18 +65,18 @@ jobs:
 
   encoding:
     name: Tracked files are UTF-8
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: sh tools/check_encoding.sh
 
   host-scheduler:
     name: Kernel on the host
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Run both kernels under both scheduling algorithms
         run: make -C test/host run
       - name: Check the slot buffers and the FIFO queue over every interleaving
@@ -87,7 +87,7 @@ jobs:
 
   emulation:
     name: Execution under Renode (STM32F407VG)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: examples
     env:
@@ -95,7 +95,7 @@ jobs:
       RENODE_VERSION: 1.17.0
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the bare-metal ARM toolchain
         run: |
@@ -124,7 +124,7 @@ jobs:
           emulation/renode/escapement_f4_wrap.robot
           emulation/renode/escapement_f4_events.robot
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: renode-report
@@ -139,7 +139,7 @@ jobs:
     # kernel and deadline-monotonic scheduling are built and run here, from the same
     # sources: make KERNEL=SOFT and make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING.
     name: Variant under Renode (${{ matrix.variant }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: examples
     strategy:
@@ -162,7 +162,7 @@ jobs:
       RENODE_VERSION: 1.17.0
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the bare-metal ARM toolchain
         run: |
@@ -196,7 +196,7 @@ jobs:
     # Every kernel and algorithm the Pico can build, each under the same suite, which
     # checks the DVFS driver on the power-aware builds.
     name: Execution under Renode (RP2040, ${{ matrix.variant }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     needs: examples
     strategy:
@@ -237,7 +237,7 @@ jobs:
       RP2040_MODELS_COMMIT: 5aca847c9f57ed96603e55d28e8ceeefa09e55f6
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the bare-metal ARM toolchain
         run: |
@@ -247,7 +247,7 @@ jobs:
       - name: Build the examples
         run: make -C Escapement/CORTEX-Mx/RP2040/Examples/pico ${{ matrix.make }}
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -272,7 +272,7 @@ jobs:
       - name: Run the kernel
         run: renode-test ${{ matrix.robot }} emulation/renode/escapement_pico.robot
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: renode-report-rp2040-${{ strategy.job-index }}
