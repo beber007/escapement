@@ -52,7 +52,7 @@
 ** meaningful where the assembler context switch actually runs: a host build of the kernel,
 ** for testing the scheduler, has wider pointers and a different layout, and no assembler
 ** that cares. */
-#if !defined(_ASM_) && (defined(CORTEX_M0) || defined(CORTEX_M3) || defined(CORTEX_M4))
+#if !defined(_ASM_) && (defined(CORTEX_M0) || defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33))
    #define OSCheckTCBLayout() \
       _Static_assert(__builtin_offsetof(TCB,TaskState) == OS_TCB_STATE_OFFSET, \
                      "TaskState moved; Escapement_CortexMx_a.S reads it at another offset"); \

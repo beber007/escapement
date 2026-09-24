@@ -110,7 +110,7 @@ void (* const CortexMxVectorTable[])(void) =
 ** after which the application supplied main() routine is called. */
 void _OSResetHandler(void)
 {
-  #if defined(CORTEX_M3) || defined(CORTEX_M4)
+  #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      /* CortexM3 registers setting the number interrupt priority levels. */
      #define AIRCR *((volatile UINT32 *)0xE000ED0C) // Application Interrupt/Reset Control Reg.
   #endif
@@ -133,7 +133,10 @@ void _OSResetHandler(void)
   for (pulDest = &_bss; pulDest < &_ebss; )
      *(pulDest++) = 0;
   /* Initialize interrupts priority system */
-  #if defined(CORTEX_M3) || defined(CORTEX_M4)
+  #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
+     /* On ARMv8-M with its security extension, the bits of AIRCR this write clears keep
+     ** faults and priorities as they are after reset, in the Secure state (BFHFNMINS,
+     ** PRIS). */
      AIRCR = 0x05FA0000 | (PRIGROUP << 8); // Set preemption priority and subpriority
      switch (PRIGROUP) {
         case 0:   // indicates 7 bits of preemption priority, 1 bit of subpriority
@@ -369,7 +372,7 @@ void _OSIOHandler(void)
   /* Call the specific handler */
   peripheralIODescriptor->PeripheralInterruptHandler(peripheralIODescriptor);
   // Make all pending SC() fail
-  #if defined(CORTEX_M3) || defined(CORTEX_M4)
+  #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      __asm("CLREX;"); 
   #elif defined(CORTEX_M0)
      _OSLLReserveBit = FALSE;

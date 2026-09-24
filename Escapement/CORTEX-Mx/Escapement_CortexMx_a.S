@@ -117,7 +117,11 @@
 #endif
 
 
-#if defined(CORTEX_M3) || defined(CORTEX_M4)
+#if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
+/* The Cortex-M33 (ARMv8-M Mainline) takes this path as it stands: the same registers to
+** save, and the same exception frame as long as its floating-point unit stays off, which
+** building with -mfloat-abi=soft and never setting CPACR ensures (Arm, ARMv8-M
+** Architecture Reference Manual, on exception entry and the stack frame). */
 /* _OSContextSwapHandler: Last part of a return from the timer interrupt or from the end
 ** of an application task. This interrupt is done at the lowest priority and resumes or
 ** starts executing the next task in the ready queue.
@@ -191,7 +195,9 @@ _OSContextSwapHandler_CreateNewContext:
   /* The stacked PC must be halfword aligned: clear the Thumb bit carried by the
   ** function pointer, otherwise the exception return is UNPREDICTABLE on v7-M. */
   BIC R2,R2,#1                             // R2 <- entry point & ~1
-  /* Set link register to return to thread mode and on return use the main stack */
+  /* Set link register to return to thread mode and on return use the main stack. A task
+  ** never returns through it, since it ends with OSEndTask(). On ARMv8-M the value also
+  ** says Secure state and the standard frame, which is where the RP2350 runs. */
   MOV R1,#0xFFFFFFF9                       // R1 <- new LR
   /* Set status register to thumb state */
   MOV R3,#0x01000000                       // R3 <- new PSR

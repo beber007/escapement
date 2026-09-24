@@ -90,6 +90,11 @@ in the README, and the roadmap keeps the other two for the Pico 2.
   and the F4 is kept for the Cortex-M3/M4 path of the context switch, which only
   it executes. The port still carries branches for the families removed; none is
   built.
+- **ARM Cortex-M33** (ARMv8-M Mainline), toward the RP2350 of the Pico 2: the generic
+  layer takes it down the Cortex-M3/M4 path — the same registers to save, the same
+  frame with the floating-point unit left off, `LDREX`/`STREX`/`CLREX` — under
+  `CORTEX_M33`. Compiled only, on 2026-09-24, for the three kernels with
+  `-mcpu=cortex-m33 -mfloat-abi=soft`: no port uses it yet, and nothing has run it.
 - **Raspberry Pi RP2040** — Cortex-M0+, port under
   `Escapement/CORTEX-Mx/RP2040/`. A 64-bit timer with four alarms, clocked
   **independently of the core clock**: the kernel takes two of them, the timer

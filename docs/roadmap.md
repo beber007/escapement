@@ -172,6 +172,10 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       once merged) and a mere feature request for the RP2350; Wokwi runs in the
       cloud, closed, with an RP2350 still incomplete. The lasting answer is a
       bench on the board, run by the CI from a machine of the house.
+      Begun on 2026-09-24 ahead of the measurement, since the lock-free mechanisms
+      across the cores need no energy figure: first the generic layer on ARMv8-M,
+      compiled for the three kernels (`architecture.md`); next the port, then a
+      Renode platform of our own, then the board.
 - [x] **Fix what `-O2` exposed**: pending an exception did not take effect
       before the next instruction, so an optimised `OSEndTask` returned instead
       of switching context and faulted with `INVPC`. Barriers added; the build
