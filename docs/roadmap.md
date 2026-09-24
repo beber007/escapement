@@ -107,13 +107,14 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       2026-09-24, all three keep every period of `TaskLEDPico`: DRA without changing
       speed, DR_OTE and DM_SLACK taking the speeds of OTE; a round costs 7.4 µs
       under DRA, 6.5 under DR_OTE, 4.2 under DM_SLACK as under OTE (`rp2040.md`).
-      Left for the energy bench: whether any of them saves anything over OTE. One
-      thing the host test does not catch, found by giving it a faulty kernel:
-      DM_SLACK reclaiming nothing at all — at the three speeds of the RP2040 its
-      slack is almost never enough to drop a step, and it picked the same speeds as
-      OTE in every run. A slack that never ran out went unseen as well until
-      `expiry`, a task set found by searching random ones for a deadline that such a
-      kernel misses (2026-09-24).
+      Left for the energy bench: whether any of them saves anything over OTE. Two
+      defects the host test did not catch at first, found by giving it faulty
+      kernels, it now does, each through a task set that such a kernel alone fails:
+      a slack that never ran out (`expiry`, found by searching random task sets for
+      a deadline that such a kernel misses) and DM_SLACK reclaiming nothing at all,
+      which at the three speeds of the RP2040 picked the same speeds as OTE in every
+      other run (`reclaim`, where a task that is not the last of its busy period can
+      slow down on the slack alone; 2026-09-24).
 - [ ] **Show the lock-free mechanisms between the two cores.** The scheduler stays
       on one core; what can be shown is the communication between them. On the
       Pico, only Simpson's four slots work across cores — the Cortex-M0+ has no

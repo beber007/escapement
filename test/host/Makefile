@@ -59,7 +59,7 @@ run: $(BUILDS:%=build/test_scheduler_%) build/test_ipc_hard build/test_ipc_soft 
 	   ./build/test_scheduler_$$b && ./build/test_scheduler_$$b wrap && \
 	   ./build/test_scheduler_$$b events && ./build/test_scheduler_$$b busy && \
 	   ./build/test_scheduler_$$b early && ./build/test_scheduler_$$b slack && \
-	   ./build/test_scheduler_$$b expiry || exit 1; \
+	   ./build/test_scheduler_$$b expiry && ./build/test_scheduler_$$b reclaim || exit 1; \
 	   case $$b in soft_*) ./build/test_scheduler_$$b firm || exit 1;; esac; \
 	done
 	@echo; echo "=== hard"; ./build/test_ipc_hard

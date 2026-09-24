@@ -9,7 +9,7 @@
 ** board cannot give: task sets far larger than the three an example carries, and the
 ** 2^30 wraparound of the kernel clock, eighteen minutes away on hardware.
 **
-** Up to eight runs, one per process since the kernel keeps its state in statics:
+** Up to nine runs, one per process since the kernel keeps its state in statics:
 **   test_scheduler         ten tasks, the clock advanced one tick at a time
 **   test_scheduler wrap    long periods, the clock jumped from one event to the next
 **                          across three wraparounds
@@ -19,6 +19,7 @@
 **   test_scheduler early   the same, instances ending before their WCET
 **   test_scheduler slack   the same, one instance leaving time to others
 **   test_scheduler expiry  the same, the time left running out while the processor idles
+**   test_scheduler reclaim the same, the time left slowing down a task that is not the last
 **   test_scheduler firm    (m,k)-firm tasks under overload, soft kernel only
 **
 ** Under the power-aware kernel every run also checks the speeds it asks for: always one
@@ -583,9 +584,11 @@ static void TestEvents(void)
 **          alone counted its WCET in their response time
 **   expiry a task ends early and the processor then idles: the time it leaves lasts
 **          only as long as the WCET it stands for would have run, and is gone by the
-**          next arrivals */
+**          next arrivals
+**   reclaim the first of three tasks ends early each time: the time it leaves may slow
+**          down the second, which the third still follows, and DM_SLACK must use it */
 
-typedef enum { TIMED_BUSY, TIMED_EARLY, TIMED_SLACK, TIMED_EXPIRY } TimedMode;
+typedef enum { TIMED_BUSY, TIMED_EARLY, TIMED_SLACK, TIMED_EXPIRY, TIMED_RECLAIM } TimedMode;
 
 typedef struct TimedTask {
   INT32 WCET, Period, Deadline;
@@ -594,6 +597,7 @@ typedef struct TimedTask {
   unsigned Instance;          /* the one running or next to run, numbered from 0 */
   INT32 Work;                 /* left to do by that instance, in 256ths of a tick */
   unsigned Misses, EarlyStarts;
+  INT32 Slow;                 /* ticks run below the fastest speed */
 } TimedTask;
 
 #define TIMED_TASKS 4
@@ -680,6 +684,10 @@ static void RunTimed(INT32 duration)
            step = toEnd;
         task->Work -= step * rate;
         BusyAt[speed] += step;
+        #if defined(ESCAPEMENT_VERSION_HARD_PA)
+           if (speed != OS_MAX_SPEED)
+              task->Slow += step;
+        #endif
         HostAdvanceBy(step);
         if (task->Work <= 0)
            active->TaskCodePtr(active->Argument);
@@ -709,7 +717,8 @@ static void TestTimed(TimedMode mode)
 {
   static const char *const what[] = {"their WCET", "a quarter of their WCET to all of it",
                                      "their WCET but one, which ends early",
-                                     "their WCET but one, which ends early before an idle time"};
+                                     "their WCET but one, which ends early before an idle time",
+                                     "their WCET but the first, which ends early"};
   INT32 duration;
   long long busy = 0;
   unsigned i, misses = 0, earlyStarts = 0;
@@ -736,7 +745,7 @@ static void TestTimed(TimedMode mode)
      CreateTimedTask(250, 1000, 500, 0, -1);
      CreateTimedTask(1000, 4000, 4000, 540, -1);
   }
-  else {
+  else if (mode == TIMED_EXPIRY) {
      /* Worst response times 100, 300, 350 and 700 ticks under deadline-monotonic
      ** scheduling, against deadlines of 600, 630, 700 and 720. The third instance of the
      ** first task runs from 1600 to 1651 and leaves 80 ticks of its WCET; the processor
@@ -750,6 +759,19 @@ static void TestTimed(TimedMode mode)
      CreateTimedTask(200, 1200, 630, 0, -1);
      CreateTimedTask(50, 750, 700, 0, -1);
      CreateTimedTask(350, 2000, 720, 0, -1);
+  }
+  else {
+     /* Worst response times 1000, 1200 and 1600 ticks under deadline-monotonic
+     ** scheduling, against deadlines of 2000, 2500 and 3000. The first task ends after
+     ** 100 of its 1000 ticks and leaves the rest to the two others. OTE slows down only
+     ** the last task of a busy period, the third here; the second, which the third
+     ** follows, can slow down only on that time, as DM_SLACK gives it: 900 ticks of
+     ** slack and 200 of its own run its 200 ticks at the middle speed. A DM_SLACK that
+     ** reclaimed nothing picked the speeds of OTE and passed every other run. */
+     duration = 40000;
+     CreateTimedTask(1000, 4000, 2000, 100, -1);
+     CreateTimedTask(200, 4000, 2500, 0, -1);
+     CreateTimedTask(400, 4000, 3000, 0, -1);
   }
   StartKernel(NULL, NULL);
   RunTimed(duration);
@@ -774,9 +796,16 @@ static void TestTimed(TimedMode mode)
      /* Taking their WCET, the tasks leave DRA nothing to reclaim; the others can still
      ** stretch the last task of a busy period to the next arrival. What the slack run
      ** checks is the deadlines. */
-     if (mode == TIMED_SLACK || mode == TIMED_EXPIRY) {
+     if (mode == TIMED_SLACK || mode == TIMED_EXPIRY || mode == TIMED_RECLAIM) {
         extern unsigned HostInvalidSpeeds;
         Check("  every speed asked for is an operating point", HostInvalidSpeeds == 0);
+        #if POWER_MANAGEMENT == DM_SLACK
+           if (mode == TIMED_RECLAIM) {
+              snprintf(label, sizeof label, "  the second task slows down: %d ticks below the fastest",
+                       Timed[1].Slow);
+              Check(label, Timed[1].Slow > 0);
+           }
+        #endif
      }
      else
         #if POWER_MANAGEMENT == DRA
@@ -919,6 +948,8 @@ int main(int argc, char *argv[])
      TestTimed(TIMED_SLACK);
   else if (argc > 1 && strcmp(argv[1], "expiry") == 0)
      TestTimed(TIMED_EXPIRY);
+  else if (argc > 1 && strcmp(argv[1], "reclaim") == 0)
+     TestTimed(TIMED_RECLAIM);
   #if defined(ESCAPEMENT_VERSION_SOFT)
      else if (argc > 1 && strcmp(argv[1], "firm") == 0)
         TestFirm();
