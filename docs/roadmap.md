@@ -103,8 +103,11 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       for the Pico, and the CI runs all three under Renode: DR_OTE and DM_SLACK
       pass the whole RP2040 suite; DRA passes it too, but never changes speed in
       `TaskLEDPico`, having nothing to reclaim there, which the suite now expects.
-      Left: the board. Two things the host test does
-      not catch, found by giving it faulty kernels: DM_SLACK's slack never
+      On the board, on 2026-09-24, all three keep every period of `TaskLEDPico`:
+      DRA without changing speed, DR_OTE and DM_SLACK taking the speeds of OTE; a
+      round costs 7.4 µs under DRA, 6.5 under DR_OTE, 4.2 under DM_SLACK as under
+      OTE (`rp2040.md`). Left for the energy bench: whether any of them saves
+      anything over OTE. Two things the host test does not catch, found by giving it faulty kernels: DM_SLACK's slack never
       running out, and DM_SLACK reclaiming nothing at all — at the three speeds
       of the RP2040 its slack is almost never enough to drop a step, and it
       picked the same speeds as OTE in every run.
