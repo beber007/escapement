@@ -100,7 +100,10 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       defects (`method.md`). They now pass it, including `busy`, `early` and
       `slack`, where tasks take time and the speed the kernel picks decides
       whether they meet their deadlines; `make KERNEL=PA POWER=DRA` builds them
-      for the Pico. Left: Renode, then the board. Two things the host test does
+      for the Pico, and the CI runs all three under Renode: DR_OTE and DM_SLACK
+      pass the whole RP2040 suite; DRA passes it too, but never changes speed in
+      `TaskLEDPico`, having nothing to reclaim there, which the suite now expects.
+      Left: the board. Two things the host test does
       not catch, found by giving it faulty kernels: DM_SLACK's slack never
       running out, and DM_SLACK reclaiming nothing at all — at the three speeds
       of the RP2040 its slack is almost never enough to drop a step, and it

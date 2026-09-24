@@ -11,9 +11,11 @@ Resource                      ${RENODEKEYWORDS}
 *** Variables ***
 ${EXAMPLE}                    ${CURDIR}/../../Escapement/CORTEX-Mx/RP2040/Examples/pico
 # How the examples were built, given by renode-test --variable: KERNEL:PA for make
-# KERNEL=PA, and UNDERVOLT:1 as well for make KERNEL=PA UNDERVOLT=1.
+# KERNEL=PA, UNDERVOLT:1 as well for make KERNEL=PA UNDERVOLT=1, and POWER:DRA for
+# make KERNEL=PA POWER=DRA, likewise for the other power-management policies.
 ${KERNEL}                     HARD
 ${UNDERVOLT}                  0
+${POWER}                      OTE
 ${CHECK}                      p = r'${CURDIR}'; import sys; p in sys.path or sys.path.insert(0, p); import rp2040_dvfs_check as c
 
 *** Keywords ***
@@ -189,6 +191,14 @@ The power-aware kernel scales the frequency and the voltage
     ${violations}=            Read Counter  0x40064108
     Should Be Equal As Integers  ${violations}  0
     ${changes}=               Read Counter  0x40064100
+    # DRA gives a task only the time left by instances of earlier deadline that have
+    # ended, and does not stretch the last one to the next arrival as OTE does: in
+    # TaskLEDPico nothing is left to it, and it keeps the fastest speed, as it does in
+    # test_scheduler wrap on the host. Measured under Renode on 2026-09-24: 0 changes.
+    IF  '${POWER}' == 'DRA'
+        Should Be Equal As Integers  ${changes}  0
+        Pass Execution        DRA had nothing to reclaim and kept the fastest speed
+    END
     Should Be True            ${changes} >= 100
     ${lowest}=                Read Counter  0x40064104
     ${expected}=              Set Variable If  '${UNDERVOLT}' == '1'  ${7}  ${10}

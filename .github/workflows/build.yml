@@ -220,6 +220,15 @@ jobs:
           - variant: power-aware, undervolted
             make: KERNEL=PA UNDERVOLT=1
             robot: --variable KERNEL:PA --variable UNDERVOLT:1
+          - variant: power-aware, DRA
+            make: KERNEL=PA POWER=DRA
+            robot: --variable KERNEL:PA --variable POWER:DRA
+          - variant: power-aware, DR_OTE
+            make: KERNEL=PA POWER=DR_OTE
+            robot: --variable KERNEL:PA --variable POWER:DR_OTE
+          - variant: power-aware, DM_SLACK
+            make: KERNEL=PA POWER=DM_SLACK
+            robot: --variable KERNEL:PA --variable POWER:DM_SLACK
     env:
       # The RP2040 models come from matgla/Renode_RP2040 and are built against the
       # Renode assemblies, which only the linux-dotnet package exposes: see
