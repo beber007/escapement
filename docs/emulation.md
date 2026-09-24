@@ -118,7 +118,8 @@ plugin on the fly, so there is nothing to rebuild. The CPU platform is derived
 in `stm32f4_escapement_cpu.repl` — since Renode does not allow a node to be
 redeclared, the file has to be copied to change the type of TIM2.
 
-**Both fixes are to be proposed upstream to Antmicro.**
+Both fixes stay in this copy, which the CI loads: no test waits on a release of Renode
+that carries them, and proposing them upstream, once planned, was dropped (2026-09-24).
 
 QEMU was tried first (`-machine netduinoplus2`): the kernel starts but its
 timer is never woken, and it takes two exceptions in 60 seconds.

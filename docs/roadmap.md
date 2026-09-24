@@ -67,7 +67,11 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       soft kernel and 4.2 µs for the power-aware one (`rp2040.md`). The share of
       the processor first published, 0.43 % at 1,340 rounds a second, did not
       reproduce, even from the revision that published it: 0.33 % at 1,000.
-- [ ] Propose the two fixes to the Renode `Timers.STM32_Timer` upstream.
+- [x] ~~Propose the two fixes to the Renode `Timers.STM32_Timer` upstream.~~ Dropped
+      on 2026-09-24: the fixed copy lives in `emulation/renode` and the CI loads it,
+      so nothing waits on Renode taking them. The STM32 port stays: it is the only
+      one that runs the exclusive instructions (`LDREX`, `STREX`, `CLREX`), which the
+      Cortex-M0+ of the RP2040 lacks and the Cortex-M33 of the RP2350 will use.
 - [x] **Write the DVFS driver for the RP2040.** `OSSetProcessorSpeed` moves
       between 12, 50 and 125 MHz with the system PLL kept locked, so no change
       waits for it, and sets the core voltage through `VREG`: 1.10 V at 125 MHz
