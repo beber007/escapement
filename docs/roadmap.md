@@ -117,12 +117,14 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
 - [ ] **Show the lock-free mechanisms between the two cores.** The scheduler stays
       on one core; what can be shown is the communication between them. On the
       Pico, only Simpson's four slots work across cores — the Cortex-M0+ has no
-      exclusive accesses, and the emulated LL/SC holds on one core: core 1, bare,
-      writes records whose bytes all carry the same rising counter, a task on
-      core 0 reads them and counts torn reads and values going backwards, the two
-      properties Rushby model-checked; a single unprotected buffer, run the same
-      way, is the negative control. The port must first start core 1. On the Pico
-      2, the three-slot buffer and the FIFO queue too, with `LDREX`/`STREX` made
+      exclusive accesses, and the emulated LL/SC holds on one core. Done on
+      2026-09-24 (`FourSlotCoresPico`, `rp2040.md`): core 1, started by the port,
+      writes records whose words all carry the same rising counter, a task on
+      core 0 reads them; in 320,000 reads under each kernel none was torn and none
+      went backwards, the two properties Rushby model-checked, while a plain array
+      run the same way tore one read in twenty; `fourslot.py` checks the buffer on
+      two cores as well. Left: on the Pico 2, the three-slot buffer and the FIFO
+      queue too, with `LDREX`/`STREX` made
       coherent between the cores by `ACTLR.EXTEXCLALL` (the SIO spinlocks are
       unreliable there, erratum RP2350-E2 of the
       [RP2350 datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf);

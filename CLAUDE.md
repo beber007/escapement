@@ -17,6 +17,7 @@ make KERNEL=PA UNDERVOLT=1                    # below the specified voltage, ben
 make KERNEL=PA SLEEP_SPEED=0                  # idle task sleeps at 12 MHz (default 125)
 make TRACE=1                                  # scheduling trace in RAM (tools/read_trace.py)
 make KERNEL=PA bench                          # BenchDVFSPico, BenchVregPico: board timings
+tools/fourslot_cores.sh                       # FourSlotCoresPico: 4-slot buffer across cores
 
 # STM32F4 examples — the only test of the Cortex-M3/M4 assembler path
 make -C Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
@@ -72,6 +73,10 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
   image leaves the previous one's timer interrupts behind. Observe a running board with
   the trace, not by halting it.
 - At 12 MHz the core and the 1 µs timer run off the same crystal: a timing loop meets
-  the counter at the same phase every time. Dither before each measurement.
+  the counter at the same phase every time. Dither before each measurement. Two loops
+  on the two cores fall into step the same way.
+- OpenOCD halts both cores and resumes core 0 only. That held core 1 also paused the
+  watchdog a flash firmware may have armed: an image that runs core 1 must be loaded
+  with `set USE_CORE 0` and disarm the watchdog, or the chip reboots within a second.
 - Emulation proves scheduling and register sequences, not energy; the board and an
   instrument decide.

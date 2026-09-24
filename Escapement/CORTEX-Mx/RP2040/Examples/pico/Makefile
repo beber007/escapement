@@ -78,13 +78,13 @@ endif
 $(shell mkdir -p build)
 
 all: build/TaskLEDPico.elf build/UARTEchoPico.elf build/TaskWrapPico.elf \
-     build/TestTimerEventPico.elf
+     build/TestTimerEventPico.elf build/FourSlotCoresPico.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
 
 bin: all build/TaskLEDPico.bin build/UARTEchoPico.bin build/TaskWrapPico.bin \
-     build/TestTimerEventPico.bin
+     build/TestTimerEventPico.bin build/FourSlotCoresPico.bin
 
 build/%.bin : build/%.elf
 	$(OBJCOPY) -O binary $< $@
@@ -118,6 +118,8 @@ build/Escapement_UART.o : ../../Escapement_UART.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/Escapement_TimerEvent.o : ../../Escapement_TimerEvent.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Core1.o : ../../Escapement_Core1.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementHard.o : ../../../../EscapementHard.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementSoft.o : ../../../../EscapementSoft.c
@@ -132,6 +134,8 @@ build/TaskWrapPico.o : TaskWrapPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TestTimerEventPico.o : TestTimerEventPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/FourSlotCoresPico.o : FourSlotCoresPico.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/BenchDVFSPico.o : BenchDVFSPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/BenchVregPico.o : BenchVregPico.c
@@ -145,6 +149,8 @@ build/TaskWrapPico.elf : $(COMMON) build/TaskWrapPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/TaskWrapPico.o -T$(LINKERFILE) -lgcc
 build/TestTimerEventPico.elf : $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico.o -T$(LINKERFILE) -lgcc
+build/FourSlotCoresPico.elf : $(COMMON) build/Escapement_Core1.o build/FourSlotCoresPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_Core1.o build/FourSlotCoresPico.o -T$(LINKERFILE) -lgcc
 
 # make KERNEL=PA bench: times the changes of operating point of the DVFS driver, which
 # only the power-aware kernel builds (BenchDVFSPico.c), and the settling of the core

@@ -56,7 +56,7 @@ scheduler decided what it was supposed to decide.
 |---|---|---|
 | Compilation | GitHub Actions, with a toolchain other than the developer's | the examples of the Pico and of the STM32F4, on every push |
 | The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for — 87 to 90 % of the lines of each kernel |
-| Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
+| Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access, the 4-slot buffer on two cores too: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
 | Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the STM32F4 and the RP2040; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after — all as regression tests |
 | Internal state on hardware | OpenOCD and SWD on a Pico | a trace of the scheduling read without stopping a core: deadlines armed ahead of the counter, timer events delivered on the microsecond, the clock changed by the power-aware kernel; cost counters read back from SRAM |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
@@ -155,7 +155,10 @@ task waiting keeps the wake-up from being lost.
 latest complete data from one writer — typically a sensor interrupt — to one
 reader, neither ever blocking the other: with four slots after Simpson [2],
 without any atomic instruction, or with three slots after Chen and Burns [3],
-using less memory and a load-linked / store-conditional pair.
+using less memory and a load-linked / store-conditional pair. The four slots also
+cross between the two cores of the Pico, as Simpson meant them to: 320,000 reads by a
+task on core 0 of what bare code on core 1 wrote, none torn, where a plain array
+tore one in twenty ([`docs/rp2040.md`](docs/rp2040.md)).
 
 **Checked over every interleaving.** Each of the three has a model in
 [`test/model`](test/model), explored exhaustively in CI: the reader and the writer

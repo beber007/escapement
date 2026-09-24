@@ -1,0 +1,76 @@
+/* Copyright (c) 2026 Bertrand Hurst. All rights reserved.
+** Escapement - Lightweight Power-Aware Real-Time OS.
+** Distributed under the terms of LICENSE at the root of this repository.
+*/
+/* File Escapement_Core1.c: Starts the second core of the RP2040.
+**
+** At reset the bootrom parks core 1 in a loop that waits on the inter-core FIFO of the
+** SIO for the sequence 0, 0, 1, vector table, stack pointer, entry point, and echoes
+** each word back; a wrong echo sends the sequence back to its start (RP2040 datasheet,
+** section 2.8.2, "Launching code on processor core 1"). Core 1 is first forced off and
+** on again through the power-on state machine (section 2.13), as the pico-sdk does in
+** multicore_reset_core1(): a previous image, loaded without a reset of the chip, may have
+** left it running anything.
+**
+** Platform version: RP2040 (Raspberry Pi Pico).
+*/
+
+#include "Escapement.h"
+#include "Escapement_Core1.h"
+
+#define PSM_FRCE_OFF      *((volatile UINT32 *)(0x40010000 + 0x04))
+#define PSM_FRCE_OFF_SET  *((volatile UINT32 *)(0x40010000 + 0x2000 + 0x04))
+#define PSM_FRCE_OFF_CLR  *((volatile UINT32 *)(0x40010000 + 0x3000 + 0x04))
+#define PSM_PROC1         (1u << 16)
+
+#define SIO_FIFO_ST       *((volatile UINT32 *)(0xD0000000 + 0x50))
+#define SIO_FIFO_WR       *((volatile UINT32 *)(0xD0000000 + 0x54))
+#define SIO_FIFO_RD       *((volatile UINT32 *)(0xD0000000 + 0x58))
+#define SIO_FIFO_VLD      (1u << 0)   /* something to read */
+#define SIO_FIFO_RDY      (1u << 1)   /* room to write */
+
+static void Push(UINT32 word);
+static UINT32 Pop(void);
+
+
+/* OSLaunchCore1: The bootrom's handshake. */
+void OSLaunchCore1(void (*entry)(void), UINT32 *stackTop)
+{
+  extern void (* const CortexMxVectorTable[])(void);
+  const UINT32 sequence[] = {0, 0, 1, (UINT32)CortexMxVectorTable, (UINT32)stackTop,
+                             (UINT32)entry};
+  UINT32 i = 0;
+  PSM_FRCE_OFF_SET = PSM_PROC1;
+  while ((PSM_FRCE_OFF & PSM_PROC1) == 0);
+  PSM_FRCE_OFF_CLR = PSM_PROC1;
+  /* Once out of reset, the bootrom of core 1 announces itself with a 0. */
+  Pop();
+  while (i < sizeof sequence / sizeof sequence[0]) {
+     if (sequence[i] == 0) {
+        /* Before each 0, drop what core 1 may have left in the FIFO. */
+        while (SIO_FIFO_ST & SIO_FIFO_VLD)
+           (void)SIO_FIFO_RD;
+        __asm volatile ("sev");
+     }
+     Push(sequence[i]);
+     i = Pop() == sequence[i] ? i + 1 : 0;
+  }
+} /* end of OSLaunchCore1 */
+
+
+/* Push: Writes a word to core 1, waking it if it waits for one. */
+static void Push(UINT32 word)
+{
+  while ((SIO_FIFO_ST & SIO_FIFO_RDY) == 0);
+  SIO_FIFO_WR = word;
+  __asm volatile ("sev");
+} /* end of Push */
+
+
+/* Pop: Waits for a word from core 1, which signals each one it writes with an event. */
+static UINT32 Pop(void)
+{
+  while ((SIO_FIFO_ST & SIO_FIFO_VLD) == 0)
+     __asm volatile ("wfe");
+  return SIO_FIFO_RD;
+} /* end of Pop */

@@ -64,7 +64,7 @@ application gets the same guarantees from two mechanisms:
   the other: four slots after Simpson (1990), without atomic instructions, or three
   after Chen and Burns (1997), with an LL/SC pair. `test/model/fourslot.py` and
   `threeslot.py` explore every interleaving of the writer, an interrupt handler, with
-  its reader, the LL/SC pair emulated as on the Cortex-M0+, and check that no read mixes
+  its reader — the first also with the writer on a core of its own — the LL/SC pair emulated as on the Cortex-M0+, and check that no read mixes
   two records and none goes backwards — the properties Rushby model-checked for
   Simpson's algorithm; the CI runs both, and the FIFO model. The second found that a store-conditional,
   unlike the compare-and-swap of Chen and Burns, fails when an interrupt merely came
@@ -74,8 +74,10 @@ application gets the same guarantees from two mechanisms:
 All of this assumes **one processor**. The emulated LL/SC and the announced operation of
 the queue both rely on preemptions nesting, which two cores do not give; the kernel runs
 on core 0 of the RP2040 alone. Of the three mechanisms, only Simpson's works between two
-cores as it stands. The references are listed in the README, and the roadmap keeps the
-idea of showing the mechanisms between the cores of the Pico and the Pico 2.
+cores as it stands: `fourslot.py` checks it on two cores as well, and on the Pico it
+carried 320,000 reads from core 1 to a task on core 0 without a torn one, where a plain
+array tore one in twenty (`rp2040.md`, `FourSlotCoresPico`). The references are listed
+in the README, and the roadmap keeps the other two for the Pico 2.
 
 ## Supported targets
 
