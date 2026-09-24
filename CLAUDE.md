@@ -20,6 +20,7 @@ make KERNEL=PA bench                          # BenchDVFSPico, BenchVregPico: bo
 tools/fourslot_cores.sh                       # FourSlotCoresPico: 4-slot buffer across cores
 tools/board_ci.sh --force                     # board checks, run by a timer on the bench
 tools/timer_events.py <elf>                   # TestTimerEventPico (TRACE=1 + cost build) summed up
+tools/dvfs_bench.py <elf>                     # BenchDVFSPico: means of each change of speed
 
 # STM32F4 examples — the only test of the Cortex-M3/M4 assembler path
 make -C Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery

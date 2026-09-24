@@ -88,11 +88,10 @@ in_probe() {
     else (cd "$SRC" && sh -c "$1"); fi
 }
 
-# build <name> <make arguments>: the three examples the checks run, into $DIR/fw/<name>.
+# build <name> <image> <make arguments>: one image into $DIR/fw/<name>.
 build() {
-    in_build "make clean >/dev/null && make $2 build/FourSlotCoresPico.elf build/TaskLEDPico.elf build/TestTimerEventPico.elf" &&
-    mkdir -p "$DIR/fw/$1" && cp "$SRC/$PICO/build/FourSlotCoresPico.elf" \
-        "$SRC/$PICO/build/TaskLEDPico.elf" "$SRC/$PICO/build/TestTimerEventPico.elf" "$DIR/fw/$1/"
+    in_build "make clean >/dev/null && make $3 build/$2.elf" &&
+    mkdir -p "$DIR/fw/$1" && cp "$SRC/$PICO/build/$2.elf" "$DIR/fw/$1/"
 }
 
 # fourslot <name>: no read of the 4-slot buffer torn or going backwards, and the plain
@@ -139,12 +138,32 @@ events() {
         END { exit !(pin2 && pin3 && events) }'
 }
 
+# dvfs <name>: BenchDVFSPico, each change of speed 10,000 times. Means of 2026-09-24 with
+# two reads of the counter included (docs/rp2040.md): 8.7 us from 12 to 125 MHz at most,
+# 6.0 by the wake-up path; allowed a quarter more. The wake-up path, which exists to be
+# the shorter one, must stay shorter than the general one from the same speed.
+dvfs() {
+    out=$(in_probe "python3 tools/dvfs_bench.py $SEEN/fw/$1/BenchDVFSPico.elf")
+    echo "$out"
+    echo "$out" | awk -F': ' '
+        { gsub(/ +$/, "", $1); us[$1] = $2 + 0 }
+        END {
+            ok = us["12 -> 125 MHz"] <= 11 && us["125 -> 12 MHz"] <= 6 &&
+                 us["50 -> 125 MHz"] <= 7 && us["125 -> 50 MHz"] <= 7 &&
+                 us["12 -> 50 MHz"] <= 10 && us["50 -> 12 MHz"] <= 6 &&
+                 us["wake from 12 MHz"] <= 8 && us["wake from 50 MHz"] <= 6 &&
+                 us["wake from 12 MHz"] < us["12 -> 125 MHz"] &&
+                 us["wake from 50 MHz"] < us["50 -> 125 MHz"]
+            for (row in us) if (row ~ /->|^wake/) { rows += 1; if (us[row] < 1) ok = 0 }
+            exit !(ok && rows == 8) }'
+}
+
 status pending "running on the Pico"
 failed=""
 {
     echo "main at $SHA, $(date)"
     for check in "fourslot hard" "fourslot pa" "cost hard" \
-                 "events hard" "events soft" "events pa"; do
+                 "events hard" "events soft" "events pa" "dvfs pa"; do
         set -- $check
         case $2 in
             hard) args="" ;;
@@ -152,20 +171,21 @@ failed=""
             pa)   args="KERNEL=PA" ;;
         esac
         echo "=== $check"
-        if [ "$1" = events ]; then
-            args="$args TRACE=1"
-        fi
+        case $1 in
+            fourslot) image=FourSlotCoresPico ;;
+            cost)     image=TaskLEDPico ;;
+            events)   image=TestTimerEventPico; args="$args TRACE=1" ;;
+            dvfs)     image=BenchDVFSPico ;;
+        esac
         if [ "$1" = cost ] || [ "$1" = events ]; then
             # The counters are off in the example as shipped; this checkout is ours. (No
             # sed -i: GNU and BSD disagree on it.)
             config=$SRC/$PICO/Escapement_Config.h
             sed 's|^//#define ESCAPEMENT_MEASURE_SCHEDULING_COST|#define ESCAPEMENT_MEASURE_SCHEDULING_COST|' \
                 "$config" >"$config.new" && mv "$config.new" "$config"
-            name=$1_$2
-        else
-            name=$2
         fi
-        if build "$name" "$args" >/dev/null 2>&1 && "$1" "$name"; then
+        name=$1_$2
+        if build "$name" "$image" "$args" >/dev/null 2>&1 && "$1" "$name"; then
             echo "ok"
         else
             echo "FAILED"
@@ -177,7 +197,7 @@ failed=""
 
 echo "$SHA" >"$DIR/last"
 if [ -z "$failed" ]; then
-    status success "4-slot across cores, round cost, timer events"
+    status success "4-slot across cores, round cost, timer events, DVFS"
 else
     status failure "failed:$failed"
 fi
