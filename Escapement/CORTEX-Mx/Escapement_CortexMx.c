@@ -127,9 +127,11 @@ void _OSResetHandler(void)
   asm("CPSID I");       // Disable all interrupt
   /* Copy the data segment initializers from flash to SRAM */
   pulSrc = &_sidata;
-  for (pulDest = &_data; pulDest < &_edata; *(pulDest++) = *(pulSrc++));
+  for (pulDest = &_data; pulDest < &_edata; )
+     *(pulDest++) = *(pulSrc++);
   /* Zero fill the bss segment  */
-  for (pulDest = &_bss; pulDest < &_ebss; *(pulDest++) = 0);
+  for (pulDest = &_bss; pulDest < &_ebss; )
+     *(pulDest++) = 0;
   /* Initialize interrupts priority system */
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
      AIRCR = 0x05FA0000 | (PRIGROUP << 8); // Set preemption priority and subpriority

@@ -221,8 +221,11 @@ void *_OSStackBasePointer;
 static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30 (i = 14)
 /* The while loop that empties the arrival uses a condition that simply depends upon the
 ** current time. To avoid crossing the tail sentinel, the arrival time of the sentinel
-** must be unreachable (unattainable arrival time). */
-#define INT32_MAX 0x7FFFFFFF   /* 2^31 - 1 */
+** must be unreachable (unattainable arrival time). The host build, which includes
+** <stdint.h>, already has it. */
+#ifndef INT32_MAX
+   #define INT32_MAX 0x7FFFFFFF   /* 2^31 - 1 */
+#endif
 
 
 /* INTERNAL FUNCTION PROTOTYPES AND MACROS */
