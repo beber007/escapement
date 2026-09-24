@@ -54,4 +54,6 @@ source files:
     emulation/renode/stm32f4_escapement_cpu.repl, from platforms/cpus/stm32f4.repl
     of renode/renode, Copyright (c) Antmicro;
     emulation/renode/Escapement_RP2040_Timer.cs, from Timers.RP2040Timer of
-    matgla/Renode_RP2040, Copyright (c) 2025 Mateusz Stadnik.
+    matgla/Renode_RP2040, Copyright (c) 2025 Mateusz Stadnik, and
+    emulation/renode/Escapement_RP2350_Timer.cs, which carries its logic over to the
+    timer of the RP2350.

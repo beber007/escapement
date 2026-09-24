@@ -25,8 +25,10 @@ tools/dvfs_bench.py <elf>                     # BenchDVFSPico: means of each cha
 # STM32F4 examples — the only test of the Cortex-M3/M4 assembler path
 make -C Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
 
-# Pico 2 (RP2350, Cortex-M33) — four examples, compiled only for now; no KERNEL=PA yet
+# Pico 2 (RP2350, Cortex-M33) — four examples; no KERNEL=PA yet. Its Renode suite runs
+# on a platform of our own, on the Mac too (Renode 1.17 portable, robotframework 6.1 venv)
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
+renode-test emulation/renode/escapement_pico2.robot
 
 # The scheduler on the host, every kernel and algorithm, under AddressSanitizer
 make -C test/host run

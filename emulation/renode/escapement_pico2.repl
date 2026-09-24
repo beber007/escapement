@@ -1,0 +1,204 @@
+// Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+// LICENSE at the root of this repository.
+//
+// Raspberry Pi Pico 2 (RP2350) for Escapement: a platform of our own, since Renode models
+// no RP2350 (docs/roadmap.md). Only what the examples of Escapement/CORTEX-Mx/RP2350 touch:
+// a Cortex-M33 with its NVIC, 4 bits of priority, the 520 KB of SRAM, TIMER0
+// (Escapement_RP2350_Timer.cs), the PL011 UART0, which Renode models, the GPIO outputs of
+// the SIO (Escapement_RP2350_SIO.cs) with the four pins of TaskLEDPico2 as LEDs, and the
+// blocks the start-up code waits on. Addresses from the pico-sdk (hardware/regs).
+//
+// Those blocks keep what is written, through the atomic aliases of the chip (+0x1000 XOR,
+// +0x2000 set, +0x3000 clear), and read the bits the code waits for as set: the crystal
+// stable, the PLL locked, every clock switch acknowledged, every block out of reset. So
+// this platform checks that the code runs and schedules, not that it programs the clocks
+// right: a wrong divider or a missing wait would pass here, and only the board tells.
+// Core 1 is not modelled.
+
+cpu0: CPU.CortexM @ sysbus
+    cpuType: "cortex-m33"
+    nvic: nvic0
+
+nvic0: IRQControllers.NVIC @ sysbus new Bus.BusPointRegistration {
+        address: 0xE000E000;
+        cpu: cpu0
+    }
+    priorityMask: 0xF0
+    systickFrequency: 150000000
+    IRQ -> cpu0@0
+
+sram: Memory.MappedMemory @ sysbus 0x20000000
+    size: 0x82000
+
+timer0: Timers.EscapementRP2350Timer @ sysbus 0x400B0000
+    IRQ0 -> nvic0@0
+    IRQ1 -> nvic0@1
+    IRQ2 -> nvic0@2
+    IRQ3 -> nvic0@3
+
+uart0: UART.PL011 @ sysbus 0x40070000
+    -> nvic0@33
+
+sio: GPIOPort.EscapementRP2350SIO @ sysbus 0xD0000000
+    2 -> flag2@0
+    3 -> flag3@0
+    4 -> probe@0
+    25 -> led@0
+
+led: Miscellaneous.LED @ sio 25
+flag2: Miscellaneous.LED @ sio 2
+flag3: Miscellaneous.LED @ sio 3
+probe: Miscellaneous.LED @ sio 4
+
+// CLOCKS: CLK_REF, CLK_SYS and CLK_PERI SELECTED acknowledge every switch.
+clocks: Python.PythonPeripheral @ sysbus 0x40010000
+    size: 0x4000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+    ready = {0x38: 0xFFFFFFFF, 0x44: 0xFFFFFFFF, 0x50: 0xFFFFFFFF}
+elif request.IsRead:
+    r = request.Offset & 0xFFF
+    request.Value = regs.get(r, 0) | ready.get(r, 0)
+else:
+    r = request.Offset & 0xFFF
+    v = regs.get(r, 0)
+    regs[r] = [request.Value, v ^ request.Value, v | request.Value, v & ~request.Value][(request.Offset >> 12) & 3] & 0xFFFFFFFF
+'''
+
+// PSM: FRCE_OFF keeps what is written.
+psm: Python.PythonPeripheral @ sysbus 0x40018000
+    size: 0x4000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+    ready = {}
+elif request.IsRead:
+    r = request.Offset & 0xFFF
+    request.Value = regs.get(r, 0) | ready.get(r, 0)
+else:
+    r = request.Offset & 0xFFF
+    v = regs.get(r, 0)
+    regs[r] = [request.Value, v ^ request.Value, v | request.Value, v & ~request.Value][(request.Offset >> 12) & 3] & 0xFFFFFFFF
+'''
+
+// RESETS: RESET_DONE reads every block out of reset.
+resets: Python.PythonPeripheral @ sysbus 0x40020000
+    size: 0x4000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+    ready = {0x8: 0xFFFFFFFF}
+elif request.IsRead:
+    r = request.Offset & 0xFFF
+    request.Value = regs.get(r, 0) | ready.get(r, 0)
+else:
+    r = request.Offset & 0xFFF
+    v = regs.get(r, 0)
+    regs[r] = [request.Value, v ^ request.Value, v | request.Value, v & ~request.Value][(request.Offset >> 12) & 3] & 0xFFFFFFFF
+'''
+
+// IO_BANK0: the function of each pin, kept.
+io_bank0: Python.PythonPeripheral @ sysbus 0x40028000
+    size: 0x4000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+    ready = {}
+elif request.IsRead:
+    r = request.Offset & 0xFFF
+    request.Value = regs.get(r, 0) | ready.get(r, 0)
+else:
+    r = request.Offset & 0xFFF
+    v = regs.get(r, 0)
+    regs[r] = [request.Value, v ^ request.Value, v | request.Value, v & ~request.Value][(request.Offset >> 12) & 3] & 0xFFFFFFFF
+'''
+
+// PADS_BANK0: the pads, kept.
+pads_bank0: Python.PythonPeripheral @ sysbus 0x40038000
+    size: 0x4000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+    ready = {}
+elif request.IsRead:
+    r = request.Offset & 0xFFF
+    request.Value = regs.get(r, 0) | ready.get(r, 0)
+else:
+    r = request.Offset & 0xFFF
+    v = regs.get(r, 0)
+    regs[r] = [request.Value, v ^ request.Value, v | request.Value, v & ~request.Value][(request.Offset >> 12) & 3] & 0xFFFFFFFF
+'''
+
+// XOSC: STATUS reads the crystal stable.
+xosc: Python.PythonPeripheral @ sysbus 0x40048000
+    size: 0x4000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+    ready = {0x4: 0x80000000}
+elif request.IsRead:
+    r = request.Offset & 0xFFF
+    request.Value = regs.get(r, 0) | ready.get(r, 0)
+else:
+    r = request.Offset & 0xFFF
+    v = regs.get(r, 0)
+    regs[r] = [request.Value, v ^ request.Value, v | request.Value, v & ~request.Value][(request.Offset >> 12) & 3] & 0xFFFFFFFF
+'''
+
+// PLL_SYS: CS reads the PLL locked.
+pll_sys: Python.PythonPeripheral @ sysbus 0x40050000
+    size: 0x4000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+    ready = {0x0: 0x80000000}
+elif request.IsRead:
+    r = request.Offset & 0xFFF
+    request.Value = regs.get(r, 0) | ready.get(r, 0)
+else:
+    r = request.Offset & 0xFFF
+    v = regs.get(r, 0)
+    regs[r] = [request.Value, v ^ request.Value, v | request.Value, v & ~request.Value][(request.Offset >> 12) & 3] & 0xFFFFFFFF
+'''
+
+// WATCHDOG: kept, never fires.
+watchdog: Python.PythonPeripheral @ sysbus 0x400D8000
+    size: 0x4000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+    ready = {}
+elif request.IsRead:
+    r = request.Offset & 0xFFF
+    request.Value = regs.get(r, 0) | ready.get(r, 0)
+else:
+    r = request.Offset & 0xFFF
+    v = regs.get(r, 0)
+    regs[r] = [request.Value, v ^ request.Value, v | request.Value, v & ~request.Value][(request.Offset >> 12) & 3] & 0xFFFFFFFF
+'''
+
+// TICKS: kept; the timer model counts at 1 MHz regardless.
+ticks: Python.PythonPeripheral @ sysbus 0x40108000
+    size: 0x4000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+    ready = {}
+elif request.IsRead:
+    r = request.Offset & 0xFFF
+    request.Value = regs.get(r, 0) | ready.get(r, 0)
+else:
+    r = request.Offset & 0xFFF
+    v = regs.get(r, 0)
+    regs[r] = [request.Value, v ^ request.Value, v | request.Value, v & ~request.Value][(request.Offset >> 12) & 3] & 0xFFFFFFFF
+'''

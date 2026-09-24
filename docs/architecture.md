@@ -99,8 +99,9 @@ in the README, and the roadmap keeps the other two for the Pico 2.
   clocks at 150 MHz, TIMER0 with its tick from the TICKS block, 52 interrupts, the pads
   released from their isolation, the UART, the timer events and the launch of core 1.
   The hard and the soft kernel build the four examples of the Pico under `pico2/` in the
-  CI; the power-aware kernel is not ported, and nothing has run the port yet — no board
-  and no emulator of the RP2350 at hand (`roadmap.md`).
+  CI, and run under Renode on a platform of our own (`emulation.md`), which shows that
+  they schedule, not that the clocks are programmed right. The power-aware kernel is
+  not ported, and no board has run the port yet.
 - **Raspberry Pi RP2040** — Cortex-M0+, port under
   `Escapement/CORTEX-Mx/RP2040/`. A 64-bit timer with four alarms, clocked
   **independently of the core clock**: the kernel takes two of them, the timer

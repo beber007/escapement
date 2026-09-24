@@ -123,3 +123,31 @@ that carries them, and proposing them upstream, once planned, was dropped (2026-
 
 QEMU was tried first (`-machine netduinoplus2`): the kernel starts but its
 timer is never woken, and it takes two exceptions in 60 seconds.
+
+## A platform of our own for the RP2350
+
+Renode models no RP2350, and the RP2350 branch of the RP2040 models stopped at its first
+commits (`roadmap.md`). `emulation/renode/escapement_pico2.repl` is therefore a platform
+of our own, with only what the examples of the RP2350 port touch: the Cortex-M33 and its
+NVIC, which Renode emulates, with 4 bits of priority as on the chip; the 520 KB of SRAM;
+the PL011 UART0, which Renode models; and two models written here,
+`Escapement_RP2350_Timer.cs`, TIMER0 with the logic of the fixed RP2040 timer and the
+atomic aliases decoded by the model itself, and `Escapement_RP2350_SIO.cs`, the GPIO
+outputs of the SIO driving the LEDs the tests watch. The clocks, the crystal, the PLL,
+the resets, the pins and the TICKS block are Python peripherals that keep what is
+written and read the bits the start-up code waits for as set.
+
+That last choice bounds what the suite shows. It proves that the kernel runs and
+schedules on a Cortex-M33, with the timer, the UART and the GPIO of the RP2350 at their
+addresses; it does not prove that the clocks are programmed right, since every switch
+and every reset is acknowledged whatever was written. Only the board will say that. Core
+1 is not modelled, so `FourSlotCoresPico2` is not run.
+
+`escapement_pico2.robot` runs the checks of the RP2040 suite the examples allow — the
+1 ms probe, the three periodic tasks, the UART echo, the timer events — on the hard and
+the soft kernel under both algorithms, in the CI and on a Mac: the platform needs no
+models to build, so Renode's portable package runs it as it is. On 2026-09-24 the four
+tests passed under the four builds, and failed where they should on ports made faulty
+on purpose: the UART enabled in the first word of the NVIC's registers, as the RP2040
+driver does for its interrupts below 32, failed the echo alone; the interrupt registers
+of the timer at their RP2040 offsets failed the three tests that depend on it.

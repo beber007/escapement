@@ -188,6 +188,54 @@ jobs:
       - name: Run the kernel
         run: renode-test $(for suite in ${{ matrix.suites }}; do echo "emulation/renode/$suite"; done)
 
+  emulation-rp2350:
+    # The RP2350 port on a platform of our own (escapement_pico2.repl), which Renode's
+    # portable package runs as it is: no models to fetch or build. Every kernel and
+    # algorithm the port builds, each under the same suite.
+    name: Execution under Renode (RP2350, ${{ matrix.variant }})
+    runs-on: ubuntu-26.04
+    container:
+      image: ghcr.io/beber007/escapement-ci:1
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    timeout-minutes: 15
+    needs: examples
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: hard, EDF
+            make: ''
+          - variant: hard, deadline-monotonic
+            make: SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+          - variant: soft, EDF
+            make: KERNEL=SOFT
+          - variant: soft, deadline-monotonic
+            make: KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the examples
+        run: make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2 ${{ matrix.make }}
+
+      - name: Use Renode 1.17.0
+        run: echo /opt/renode-1.17.0 >> "$GITHUB_PATH"
+
+      - name: Run the kernel
+        run: renode-test emulation/renode/escapement_pico2.robot
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: renode-report-rp2350-${{ strategy.job-index }}
+          path: |
+            report.html
+            log.html
+            robot_output.xml
+          retention-days: 14
+
   emulation-rp2040:
     # Every kernel and algorithm the Pico can build, each under the same suite, which
     # checks the DVFS driver on the power-aware builds.
