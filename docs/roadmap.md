@@ -134,6 +134,13 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       deal with both), and the FIFO in the multiprocessor
       form of Evéquoz's paper: the announced operation of the kernel's queue
       assumes a single core.
+- [x] **Check the board on every change of main.** `tools/board_ci.sh`, run by a
+      timer on the machine the Pico is wired to, pulls `main`, runs the 4-slot buffer
+      across the cores under the hard and the power-aware kernel and the cost of a
+      round, and posts the commit status `board/pico` (`rp2040.md`). Pulled, not
+      pushed: a self-hosted runner on a public repository would have run pull
+      requests on that machine too. Left: more of the board's measurements in it —
+      the timer events, the DVFS timings.
 - [ ] Then build the current measurement bench described in `power-aware.md` — a
       plain Pico rather than a Pico W, an INA226 read from the Bus Pirate — and
       answer, on the target this documentation calls the most promising, whether
