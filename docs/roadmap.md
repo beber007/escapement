@@ -278,5 +278,10 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       store. Shown under Renode: started with the counter at 0x3FFFF000 the
       kernel produced no output at all, and now produces the same 164 pulses in
       80 ms as a normal start.
-- [ ] Rebuild the user documentation (the original manual and reference notes
-      were removed along with the rebranding).
+- [x] **Rebuild the user documentation.** The original manual and reference notes
+      were removed along with the rebranding, leaving a five-step sketch of the hard
+      kernel. `api.md` is now a guide to writing an application under each kernel:
+      periodic and event-driven tasks, time, queues and slot buffers, interrupts,
+      memory, and the Pico. Written from the headers, which stay the reference, and
+      checked against the code where the two disagree: on Cortex-M the kernel does
+      not mask the source of an interrupt, as the headers say of the original port.

@@ -209,7 +209,7 @@ wrongly suspected when the defect was in the firmware. The full account is in
 |---|---|
 | [`docs/architecture.md`](docs/architecture.md) | kernel variants, targets, source tree |
 | [`docs/build.md`](docs/build.md) | toolchain, examples, memory footprint |
-| [`docs/api.md`](docs/api.md) | writing an application in five steps |
+| [`docs/api.md`](docs/api.md) | writing an application: tasks, events, queues and buffers, interrupts |
 | [`docs/emulation.md`](docs/emulation.md) | Renode, tests replayed in CI, fixes to the timer model |
 | [`docs/power-aware.md`](docs/power-aware.md) | DVFS, energy analysis, choosing a target |
 | [`docs/rp2040.md`](docs/rp2040.md) | Raspberry Pi Pico port and hardware measurements |
