@@ -100,8 +100,8 @@ in the README, and the roadmap keeps the other two for the Pico 2.
   released from their isolation, the UART, the timer events and the launch of core 1.
   The hard and the soft kernel build the five examples of the Pico under `pico2/` in the
   CI, and run under Renode on a platform of our own (`emulation.md`), the 2^30 wrap of
-  the kernel clock included, which shows that they schedule, not that the clocks are
-  programmed right. The power-aware kernel is
+  the kernel clock and the 4-slot buffer between the two cores included, which shows
+  that they schedule, not that the clocks are programmed right. The power-aware kernel is
   not ported, and no board has run the port yet.
 - **Raspberry Pi RP2040** — Cortex-M0+, port under
   `Escapement/CORTEX-Mx/RP2040/`. A 64-bit timer with four alarms, clocked

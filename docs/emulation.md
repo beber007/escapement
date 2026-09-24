@@ -140,17 +140,29 @@ written and read the bits the start-up code waits for as set.
 That last choice bounds what the suite shows. It proves that the kernel runs and
 schedules on a Cortex-M33, with the timer, the UART and the GPIO of the RP2350 at their
 addresses; it does not prove that the clocks are programmed right, since every switch
-and every reset is acknowledged whatever was written. Only the board will say that. Core
-1 is not modelled, so `FourSlotCoresPico2` is not run.
+and every reset is acknowledged whatever was written. Only the board will say that.
+
+Core 1 is a second Cortex-M33 with its own NVIC, halted at the start. The SIO model
+answers each core with its own number and its end of the two inter-core FIFOs, and plays
+the part of the bootrom in the launch, as the pico-sdk describes it: it announces core 1
+with a 0, echoes each word, and on 0, 0, 1, vector table, stack pointer, entry point,
+starts core 1 there. `FourSlotCoresPico2` then runs as on the board: bare code on core 1
+writing into the 4-slot buffer and a plain array, a task on core 0 reading both. Renode
+runs the two cores by turns rather than at once, finely enough for the plain array to
+tear — 629 reads out of 6,368 in 200 ms on 2026-09-24 — while no read of the buffer was
+torn or went backwards. That the interleavings are all covered is the model's to say
+(`test/model/fourslot.py`, two cores); what the emulation adds is the kernel's code, as
+compiled for the Cortex-M33, carrying it.
 
 `escapement_pico2.robot` runs the checks of the RP2040 suite the examples allow — the
 1 ms probe, the three periodic tasks, the UART echo, the timer events, and the crossing
 of the 2^30 boundary of the kernel clock by `TaskWrapPico2`, the timer model raised to
-1 GHz as on the RP2040 — on the hard and the soft kernel under both algorithms, in the
-CI and on a Mac: the platform needs no models to build, so Renode's portable package
-runs it as it is. On 2026-09-24 the five tests passed under the four builds, and failed
-where they should on ports made faulty on purpose: the UART enabled in the first word
-of the NVIC's registers, as the RP2040 driver does for its interrupts below 32, failed
-the echo alone; the interrupt registers of the timer at their RP2040 offsets failed the
-three tests that depend on them; an ALARM1 that no longer signalled the wrap failed the
-wrap test alone.
+1 GHz as on the RP2040 — and the 4-slot buffer between the cores, on the hard and the
+soft kernel under both algorithms, in the CI and on a Mac: the platform needs no models
+to build, so Renode's portable package runs it as it is. On 2026-09-24 the six tests
+passed under the four builds, and failed where they should on code made faulty on
+purpose: the UART enabled in the first word of the NVIC's registers, as the RP2040
+driver does for its interrupts below 32, failed the echo alone; the interrupt registers
+of the timer at their RP2040 offsets failed the three tests that depend on them; an
+ALARM1 that no longer signalled the wrap failed the wrap test alone; a 4-slot writer
+choosing the reader's pair failed the test between the cores alone.

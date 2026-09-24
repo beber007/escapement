@@ -20,7 +20,8 @@ ${EXAMPLE}                    ${CURDIR}/../../Escapement/CORTEX-Mx/RP2350/Exampl
 Load Escapement
     [Documentation]           Loads a firmware linked into SRAM as a debugger does on the
     ...                       board, and starts it at its first instruction, 0x20000000,
-    ...                       which sets up its own stack (Escapement_RamEntry.S).
+    ...                       which sets up its own stack (Escapement_RamEntry.S). Core 1
+    ...                       waits, halted, until the firmware launches it through the SIO.
     [Arguments]               ${binary}
     Execute Command           mach create "raspberry_pico2"
     Execute Command           include @${CURDIR}/Escapement_RP2350_Timer.cs
@@ -28,6 +29,14 @@ Load Escapement
     Execute Command           machine LoadPlatformDescription @${CURDIR}/escapement_pico2.repl
     Execute Command           sysbus LoadELF @${EXAMPLE}/build/${binary}.elf
     Execute Command           sysbus.cpu0 PC 0x20000000
+    Execute Command           sysbus.cpu1 IsHalted true
+
+Read Word
+    [Documentation]           One 32-bit word of the emulated memory, as an integer.
+    [Arguments]               ${address}
+    ${value}=                 Execute Command  sysbus ReadDoubleWord ${address}
+    ${value}=                 Convert To Integer  ${value.strip()}
+    RETURN                    ${value}
 
 *** Test Cases ***
 The probe task runs every millisecond
@@ -123,3 +132,29 @@ Scheduling survives the 2^30 wrap of the kernel clock
     Assert LED State          false  testerId=${flag2}  pauseEmulation=true
     Assert LED State          true   testerId=${flag3}  pauseEmulation=true
     Assert LED State          false  testerId=${flag3}  pauseEmulation=true
+
+The 4-slot buffer crosses between the two cores
+    [Documentation]           FourSlotCoresPico2 launches core 1 through the handshake of the
+    ...                       bootrom, which the SIO model plays: bare code on core 1 writes
+    ...                       records of eight equal words, rising, into a 4-slot buffer and a
+    ...                       plain array, and a task on core 0 reads both 32 times a
+    ...                       millisecond. Renode runs the two cores by turns, finely enough
+    ...                       for the plain array to tear: in 200 ms of emulated time no read
+    ...                       of the buffer may mix two records or go backwards, and the plain
+    ...                       array, the negative control, must tear at least once.
+    Load Escapement           FourSlotCoresPico2
+
+    Execute Command           emulation RunFor "0.2"
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${written}=               Read Word  ${results}
+    ${reads}=                 Read Word  ${results + 4}
+    ${torn}=                  Read Word  ${results + 8}
+    ${backwards}=             Read Word  ${results + 12}
+    ${plain_torn}=            Read Word  ${results + 24}
+    Should Be True            ${written} > 1000
+    Should Be True            ${reads} > 5000
+    Should Be Equal As Integers  ${torn}  0
+    Should Be Equal As Integers  ${backwards}  0
+    Should Be True            ${plain_torn} > 0

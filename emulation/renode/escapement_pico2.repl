@@ -13,11 +13,18 @@
 // stable, the PLL locked, every clock switch acknowledged, every block out of reset. So
 // this platform checks that the code runs and schedules, not that it programs the clocks
 // right: a wrong divider or a missing wait would pass here, and only the board tells.
-// Core 1 is not modelled.
+// Core 1, with its own NVIC, starts halted; the SIO model plays the bootrom's part of its
+// launch (Escapement_RP2350_SIO.cs).
 
 cpu0: CPU.CortexM @ sysbus
     cpuType: "cortex-m33"
     nvic: nvic0
+    id: 0
+
+cpu1: CPU.CortexM @ sysbus
+    cpuType: "cortex-m33"
+    nvic: nvic1
+    id: 1
 
 nvic0: IRQControllers.NVIC @ sysbus new Bus.BusPointRegistration {
         address: 0xE000E000;
@@ -26,6 +33,14 @@ nvic0: IRQControllers.NVIC @ sysbus new Bus.BusPointRegistration {
     priorityMask: 0xF0
     systickFrequency: 150000000
     IRQ -> cpu0@0
+
+nvic1: IRQControllers.NVIC @ sysbus new Bus.BusPointRegistration {
+        address: 0xE000E000;
+        cpu: cpu1
+    }
+    priorityMask: 0xF0
+    systickFrequency: 150000000
+    IRQ -> cpu1@0
 
 sram: Memory.MappedMemory @ sysbus 0x20000000
     size: 0x82000
@@ -40,6 +55,7 @@ uart0: UART.PL011 @ sysbus 0x40070000
     -> nvic0@33
 
 sio: GPIOPort.EscapementRP2350SIO @ sysbus 0xD0000000
+    core1: cpu1
     2 -> flag2@0
     3 -> flag3@0
     4 -> probe@0
