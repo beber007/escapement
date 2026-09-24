@@ -1,0 +1,40 @@
+name: ci-image
+
+# Builds the image the CI runs in (ci/Dockerfile) and publishes it to ghcr.io under the
+# tag build.yml names. Run by hand only: a build takes the packages of the day, and the
+# image must not change under a tag the CI already trusts. Change the Dockerfile, raise
+# the tag here and in build.yml, run this, then let build.yml run on the new image.
+
+on:
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/beber007/escapement-ci:1
+
+jobs:
+  image:
+    name: Build and publish the CI image
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build
+        run: docker build --tag "$IMAGE" ci
+
+      - name: Check it has what the jobs use
+        run: |
+          docker run --rm "$IMAGE" sh -c '
+            arm-none-eabi-gcc --version | head -1
+            dotnet --list-runtimes
+            ls /opt/renode-1.17.0/renode-test /opt/renode-1.16.1/renode-test
+            ls /opt/rp2040/cores/initialize_peripherals.resc
+            python3 -c "import robot; print(\"robotframework\", robot.__version__)"'
+
+      - name: Publish
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE"

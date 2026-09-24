@@ -6,10 +6,28 @@ on:
   pull_request:
   workflow_dispatch:
 
+# The jobs that build or emulate run in the image of ci/Dockerfile, which holds the ARM
+# toolchain, Renode and the RP2040 models: they install nothing, and the apt mirrors of
+# the runners, which once took 19 minutes over the toolchain, are out of the way.
+permissions:
+  contents: read
+  packages: read
+
+# bash everywhere: in a container the default shell is sh, and some steps are written for
+# bash, as they were on the bare runner.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   examples:
     name: ${{ matrix.example }} (${{ matrix.cpu }})
     runs-on: ubuntu-26.04
+    container:
+      image: ghcr.io/beber007/escapement-ci:1
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -25,12 +43,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install the bare-metal ARM toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-none-eabi
-          arm-none-eabi-gcc --version | head -1
 
       - name: Build
         working-directory: ${{ env.DIR }}
@@ -88,34 +100,25 @@ jobs:
   emulation:
     name: Execution under Renode (STM32F407VG)
     runs-on: ubuntu-26.04
+    container:
+      image: ghcr.io/beber007/escapement-ci:1
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 15
     needs: examples
     env:
       DIR: Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
-      RENODE_VERSION: 1.17.0
 
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install the bare-metal ARM toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-none-eabi
 
       - name: Build the examples and their raw images
         run: |
           make -C "${{ env.DIR }}" bin
 
-      - name: Install Renode
-        run: |
-          url="https://github.com/renode/renode/releases/download/v${RENODE_VERSION}/renode-${RENODE_VERSION}.linux-portable.tar.gz"
-          curl -fsSL "$url" -o renode.tar.gz
-          mkdir -p "$HOME/renode"
-          tar -xzf renode.tar.gz -C "$HOME/renode" --strip-components=1
-          echo "$HOME/renode" >> "$GITHUB_PATH"
-
-      - name: Install the renode-test dependencies
-        run: pip install --quiet robotframework==6.1 robotframework-retryfailed psutil pyyaml
+      - name: Use Renode 1.17.0
+        run: echo /opt/renode-1.17.0 >> "$GITHUB_PATH"
 
       - name: Run the kernel
         run: >-
@@ -140,6 +143,11 @@ jobs:
     # sources: make KERNEL=SOFT and make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING.
     name: Variant under Renode (${{ matrix.variant }})
     runs-on: ubuntu-26.04
+    container:
+      image: ghcr.io/beber007/escapement-ci:1
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 15
     needs: examples
     strategy:
@@ -158,16 +166,9 @@ jobs:
             make: KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
             build: stm32f4-discovery
             suites: escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
-    env:
-      RENODE_VERSION: 1.17.0
 
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install the bare-metal ARM toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-none-eabi
 
       - name: Build the examples and their raw images
         run: |
@@ -178,16 +179,8 @@ jobs:
             make -C "$dir" $target ${{ matrix.make }}
           done
 
-      - name: Install Renode
-        run: |
-          url="https://github.com/renode/renode/releases/download/v${RENODE_VERSION}/renode-${RENODE_VERSION}.linux-portable.tar.gz"
-          curl -fsSL "$url" -o renode.tar.gz
-          mkdir -p "$HOME/renode"
-          tar -xzf renode.tar.gz -C "$HOME/renode" --strip-components=1
-          echo "$HOME/renode" >> "$GITHUB_PATH"
-
-      - name: Install the renode-test dependencies
-        run: pip install --quiet robotframework==6.1 robotframework-retryfailed psutil pyyaml
+      - name: Use Renode 1.17.0
+        run: echo /opt/renode-1.17.0 >> "$GITHUB_PATH"
 
       - name: Run the kernel
         run: renode-test $(for suite in ${{ matrix.suites }}; do echo "emulation/renode/$suite"; done)
@@ -197,6 +190,11 @@ jobs:
     # checks the DVFS driver on the power-aware builds.
     name: Execution under Renode (RP2040, ${{ matrix.variant }})
     runs-on: ubuntu-26.04
+    container:
+      image: ghcr.io/beber007/escapement-ci:1
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 20
     needs: examples
     strategy:
@@ -229,45 +227,20 @@ jobs:
           - variant: power-aware, DM_SLACK
             make: KERNEL=PA POWER=DM_SLACK
             robot: --variable KERNEL:PA --variable POWER:DM_SLACK
-    env:
-      # The RP2040 models come from matgla/Renode_RP2040 and are built against the
-      # Renode assemblies, which only the linux-dotnet package exposes: see
-      # emulation/renode/RP2040.md. Both are pinned.
-      RENODE_VERSION: 1.16.1
-      RP2040_MODELS_COMMIT: 5aca847c9f57ed96603e55d28e8ceeefa09e55f6
 
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install the bare-metal ARM toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-none-eabi
-
       - name: Build the examples
         run: make -C Escapement/CORTEX-Mx/RP2040/Examples/pico ${{ matrix.make }}
 
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Install Renode (linux-dotnet)
+      # The RP2040 models of matgla/Renode_RP2040 are built against the assemblies of
+      # the linux-dotnet package of Renode (emulation/renode/RP2040.md); the image holds
+      # both, pinned, the models built.
+      - name: Use Renode 1.16.1 and the RP2040 models
         run: |
-          url="https://github.com/renode/renode/releases/download/v${RENODE_VERSION}/renode-${RENODE_VERSION}.linux-dotnet.tar.gz"
-          curl -fsSL "$url" -o renode.tar.gz
-          mkdir -p "$HOME/renode"
-          tar -xzf renode.tar.gz -C "$HOME/renode" --strip-components=1
-          echo "$HOME/renode" >> "$GITHUB_PATH"
-
-      - name: Fetch and build the RP2040 models
-        run: |
-          git clone --quiet https://github.com/matgla/Renode_RP2040.git emulation/renode/rp2040
-          git -C emulation/renode/rp2040 checkout --quiet "$RP2040_MODELS_COMMIT"
-          dotnet build emulation/renode/rp2040/emulation/Peripherals.csproj -c Release \
-              -p:RenodePath="$HOME/renode/bin"
-
-      - name: Install the renode-test dependencies
-        run: pip install --quiet robotframework==6.1 robotframework-retryfailed psutil pyyaml
+          echo /opt/renode-1.16.1 >> "$GITHUB_PATH"
+          ln -s /opt/rp2040 emulation/renode/rp2040
 
       - name: Run the kernel
         run: renode-test ${{ matrix.robot }} emulation/renode/escapement_pico.robot

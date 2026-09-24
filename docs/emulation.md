@@ -9,6 +9,12 @@ renode emulation/renode/escapement_f4.resc
 (monitor) emulation RunFor "1"
 ```
 
+The jobs that build and emulate run in an image of the project's own, `ci/Dockerfile`,
+which holds the ARM toolchain, both versions of Renode and the RP2040 models, pinned:
+they install nothing, and the apt mirrors of the runners, which once took 19 minutes
+over the toolchain alone, stay out of the way. `.github/workflows/ci-image.yml` builds
+it, by hand, under a tag both workflows name.
+
 Three Robot suites replay such runs on every push, in the `emulation` job of the CI
 (the RP2040 has its own job and suite, run on every kernel and algorithm, see
 `emulation/renode/RP2040.md`), and the
