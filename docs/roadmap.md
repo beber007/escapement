@@ -177,9 +177,9 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       compiled for the three kernels (`architecture.md`); then the port, whose hard
       and soft kernels build the five examples of the Pico in the CI; then a Renode
       platform of our own, on which all five pass the checks of the RP2040 suite, the
-      2^30 wrap and the 4-slot buffer between the cores included (`emulation.md`); the
-      DVFS driver, ACTLR.EXTEXCLALL and the other two mechanisms across the cores still
-      to come; then the board.
+      2^30 wrap and the 4-slot buffer between the cores included (`emulation.md`);
+      ACTLR.EXTEXCLALL set on both cores; the DVFS driver and the other two mechanisms
+      across the cores still to come; then the board.
 - [x] **Fix what `-O2` exposed**: pending an exception did not take effect
       before the next instruction, so an optimised `OSEndTask` returned instead
       of switching context and faulted with `INVPC`. Barriers added; the build

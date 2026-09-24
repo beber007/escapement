@@ -82,8 +82,9 @@ carried 320,000 reads from core 1 to a task on core 0 without a torn one, where 
 array tore one in twenty (`rp2040.md`, `FourSlotCoresPico`). The 3-slot buffer holds on
 two cores in its model since its writer retries, provided the exclusive monitors of
 each core see the stores of the other — ACTLR.EXTEXCLALL on the RP2350, without which
-the model catches it failing. The references are listed in the README, and the roadmap
-keeps the 3-slot buffer and the queue across the cores for the Pico 2.
+the model catches it failing, and which the port sets on both cores. The references are
+listed in the README, and the roadmap keeps the 3-slot buffer and the queue across the
+cores for the Pico 2.
 
 ## Supported targets
 

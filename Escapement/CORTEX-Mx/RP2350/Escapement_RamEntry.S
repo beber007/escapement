@@ -10,6 +10,13 @@
 ** leaves the stack pointer as it found it. The image must therefore begin with code, not
 ** with the vector table, and that code has to set up the stack itself.
 **
+** It also sets ACTLR.EXTEXCLALL of core 0, as the pico-sdk does on each core
+** (hardware_sync_spin_lock): the exclusive loads and stores then go through the global
+** monitor, which sees the stores of the other core, rather than through a monitor local
+** to this one. Without it the LL/SC pairs of the kernel hold on one core only, and the
+** 3-slot buffer fails between the two (test/model/threeslot.py, two cores).
+** Escapement_Core1.c does the same on core 1.
+**
 ** Platform version: RP2350 (Raspberry Pi Pico 2).
 */
 
@@ -22,6 +29,12 @@
     .global _OSRamEntry
     .thumb_func
 _OSRamEntry:
+    ldr  r0, =0xE000E008     /* ACTLR */
+    ldr  r1, [r0]
+    orr  r1, r1, #0x20000000 /* EXTEXCLALL */
+    str  r1, [r0]
+    dsb
+    isb
     ldr  r0, =CortexMxVectorTable
     ldr  r1, [r0]            /* first word: top of stack */
     mov  sp, r1

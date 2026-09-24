@@ -18,9 +18,8 @@
 ** same writer and the same reader, without the mechanism, must tear.
 **
 ** Only OS_READ_MULTIPLE is used. OS_READ_ONLY_ONCE marks the slot read with an LL/SC
-** pair: the Cortex-M33 has the exclusive instructions, but their monitors are local to
-** each core until ACTLR.EXTEXCLALL makes them see the stores of the other one (RP2350
-** datasheet), which the port does not set yet.
+** pair on the status of the buffer, which the port makes see both cores
+** (ACTLR.EXTEXCLALL, Escapement_RamEntry.S) but which no model checks between two.
 **
 ** The counts sit in Results, to be read over SWD while both cores run, as
 ** tools/fourslot_cores.sh does on the Pico; on the Pico 2 it needs an OpenOCD that knows

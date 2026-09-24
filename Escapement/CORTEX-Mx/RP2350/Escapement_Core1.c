@@ -10,6 +10,11 @@
 ** pico_multicore/multicore.c); only the address of the PSM and the bit of core 1 in its
 ** FRCE_OFF register differ (hardware/regs/psm.h, addressmap.h).
 **
+** Core 1 does not start on the entry it is given but on Core1Start, which first sets its
+** ACTLR.EXTEXCLALL, as Escapement_RamEntry.S does for core 0: each core has its own ACTLR,
+** and the exclusive loads and stores of both must go through the global monitor for the
+** LL/SC pairs of the kernel to hold between them.
+**
 ** Platform version: RP2350 (Raspberry Pi Pico 2).
 */
 
@@ -27,8 +32,15 @@
 #define SIO_FIFO_VLD      (1u << 0)   /* something to read */
 #define SIO_FIFO_RDY      (1u << 1)   /* room to write */
 
+#define ACTLR             *((volatile UINT32 *)0xE000E008)
+#define ACTLR_EXTEXCLALL  (1u << 29)
+
 static void Push(UINT32 word);
 static UINT32 Pop(void);
+static void Core1Start(void);
+
+/* The function core 1 runs, once Core1Start has set it up. */
+static void (*volatile Core1Entry)(void);
 
 
 /* OSLaunchCore1: The bootrom's handshake. */
@@ -36,8 +48,9 @@ void OSLaunchCore1(void (*entry)(void), UINT32 *stackTop)
 {
   extern void (* const CortexMxVectorTable[])(void);
   const UINT32 sequence[] = {0, 0, 1, (UINT32)CortexMxVectorTable, (UINT32)stackTop,
-                             (UINT32)entry};
+                             (UINT32)Core1Start};
   UINT32 i = 0;
+  Core1Entry = entry;
   PSM_FRCE_OFF_SET = PSM_PROC1;
   while ((PSM_FRCE_OFF & PSM_PROC1) == 0);
   PSM_FRCE_OFF_CLR = PSM_PROC1;
@@ -54,6 +67,16 @@ void OSLaunchCore1(void (*entry)(void), UINT32 *stackTop)
      i = Pop() == sequence[i] ? i + 1 : 0;
   }
 } /* end of OSLaunchCore1 */
+
+
+/* Core1Start: Where core 1 starts: its ACTLR, then the function it was given. */
+static void Core1Start(void)
+{
+  ACTLR |= ACTLR_EXTEXCLALL;
+  __asm volatile ("dsb" ::: "memory");
+  __asm volatile ("isb" ::: "memory");
+  Core1Entry();
+} /* end of Core1Start */
 
 
 /* Push: Writes a word to core 1, waking it if it waits for one. */
