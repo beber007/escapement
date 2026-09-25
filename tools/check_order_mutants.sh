@@ -61,16 +61,12 @@ STEPS = ("                 _OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READ
 DROP_EDF = ("           _OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];\n"
             "           CompilerBarrier();\n"
             "           _OSActiveTask->TaskState |= STATE_ZOMBIE;\n")
-UNLINK = "  /* Remove the task from the ready queue */\n  _OSQueueHead->Next[READYQ] ="
 mutations = {
     "zombie after the flag": (END, END + "  CompilerBarrier();\n" + ZOMBIE),
     "no promotion mark": ("                 _OSActiveTask->TaskState |= STATE_ACTIVATE;\n", ""),
     "promotion steps swapped": (STEPS, "\n".join(reversed(STEPS.rstrip("\n").split("\n"))) + "\n"),
     "unlink before zombie": (DROP_DM, "\n".join(reversed(DROP_DM.rstrip("\n").split("\n"))) + "\n"),
     "zombie before drop": (DROP_EDF, "\n".join(reversed(DROP_EDF.rstrip("\n").split("\n"))) + "\n"),
-    "remaining time not set": ("     SetActiveTaskRemainingTime = TRUE;\n", ""),
-    "remaining time cleared early": (UNLINK, UNLINK.replace("  /* Remove",
-        "  SetActiveTaskRemainingTime = FALSE;\n  CompilerBarrier();\n  /* Remove")),
 }
 old, new = mutations[name]
 if old not in text:
@@ -103,7 +99,6 @@ Soft:EDF:no promotion mark
 Soft:EDF:promotion steps swapped
 Soft:DM:unlink before zombie
 Soft:EDF:zombie before drop
-HardPA:EDF:remaining time not set
-HardPA:EDF:remaining time cleared early
+HardPA:EDF:zombie after the flag
 MUTANTS
 exit "$missed"

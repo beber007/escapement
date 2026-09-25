@@ -121,6 +121,17 @@ void *OSMalloc(UINT16 size)
 
 void (*HostBarrierHook)(void) = NULL;
 void (*HostSoftTimerHook)(void) = NULL;
+
+/* The kernels' CompilerBarrier, the build turns into a call of this (Makefile): it marks
+** where the kernel orders stores that the timer handler reads, which is where a test may
+** take that interrupt (HostCompilerBarrierHook). */
+void (*HostCompilerBarrierHook)(void) = NULL;
+void HostCompilerBarrier(void)
+{
+  __asm volatile ("" ::: "memory");
+  if (HostCompilerBarrierHook)
+     HostCompilerBarrierHook();
+}
 unsigned HostMasked = 0, HostSoftTimerHeld = 0;
 
 /* HostUnmask: Interrupts unmasked; an interrupt held meanwhile is taken now, then the

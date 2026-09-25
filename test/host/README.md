@@ -42,6 +42,7 @@ loops.
 | `firmwrap`, `firmlong` | optional instances across the wrap, and one of 2^23 ticks, whose schedulability test left 32 bits |
 | `firmevents` | (m,k)-firm tasks beside an event-driven task, whose workload the soft kernel computes under EDF; each task reads its place in its pattern (`OSGetTaskInstance`) |
 | `minspeed` | a light load with `OSSetMinimalProcessorSpeed`: the power-aware kernel never goes below it, which four of its five policies would otherwise do; two tasks released together with equal deadlines, which EDF* breaks by arrival and address |
+| `endinside`, `endinsidebusy` | `early` and `busy` with the soft timer interrupt taken at one compiler barrier of the kernels in two, at random (`HostCompilerBarrierHook`), where a task ending leaves its stores in the order the handler relies on; the interrupt completes first, as on the target, what `FinalizeContextSwitchPreparation` completes. The time does not move there, so who ran when and how fast must be as in the run without those interrupts, which a child process makes first |
 | `test_ipc` | each operation of the FIFO queue, and of the queue between the cores, interrupted at each of its LLs by another, which must complete it or move Tail or Head on for it; every creation of a queue or buffer refused, not crashing, when memory runs out at each of its allocations; the FIFO queue past the wrap of its indices and refusing a node when full, both slot buffers through their states and a reader coming in the middle of a write, at the writer's first barrier or at its last with the slot before left unread, over blocks filled with 0xA5 as SRAM is rather than zeros, the queue between the cores of the RP2350 (`Escapement_CoreQueue.c`) in order, full, empty and round its array, its SCs made to fail — the one that advances Tail or Head among them —, store-conditionals made to fail on purpose |
 
 Under the power-aware kernel every run also checks the speeds asked for: always one of
@@ -87,6 +88,20 @@ suspended itself had the context of the task preempting it discarded. The reader
 writer's last barrier and `signalinside`, with a task of higher priority, fail on them;
 the first under every kernel, the second with a segmentation fault under
 deadline-monotonic scheduling.
+
+`endinside` closed a race the audit had left open (2026-09-25). The power-aware kernel
+raised a flag of its own before a task ending became a zombie, for the handler to set
+the speed of the next task, and the handler cleared it: an interrupt that found the task
+still running cleared it, and a second one, once the task was a zombie, took the next
+task for one that had been running, charged it the time of the task ending and left it
+at that task's speed. The handler now reads `_OSNoSaveContext` instead, which only the
+context switch clears. With a barrier where the flag was set and the zombie not yet
+marked, the kernel before the fix fails in each of the five power-aware builds, at both
+loads but for DRA with tasks taking their WCET, where it has nothing to reclaim; the
+kernel after it passes so, and fails once the handler ignores `_OSNoSaveContext`. So that tasks here are ended
+the way the target ends them, the test now also clears `_OSNoSaveContext` where the
+context switch would, and takes each soft timer interrupt through what
+`FinalizeContextSwitchPreparation` does.
 
 Faults were also planted in the kernels by hand, to see the test fail. When it was
 written (5018fdb, 2026-09-21), 14 of 15 faults planted in the hard kernel failed a

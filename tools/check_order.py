@@ -36,8 +36,6 @@ state, and dropped the mark of a promotion it saw overwritten (method.md). On ev
 in compiled order, with no second occurrence of a later store before the one checked:
 
     OSEndTask            TaskState |= ZOMBIE, _OSNoSaveContext = TRUE, head->Next
-    power-aware kernel   SetActiveTaskRemainingTime = TRUE before head->Next, and FALSE
-                         after it and after the calls to OSSetProcessorSpeed
     ScheduleNextTask     soft kernel, deadline-monotonic: TaskState |= ZOMBIE, head->Next
                          soft kernel, EDF, a promotion: TaskState |= ACTIVATE, head->Next,
                          tail->Next, task->Next, TaskState = INIT; a drop: tail->Next,
@@ -221,20 +219,11 @@ NOSAVE_STORE = ("_OSNoSaveContext = TRUE", store_to("_OSNoSaveContext+0", 1))
 HEAD_STORE = ("head->Next", store_to("*_OSQueueHead+0"))
 TAIL_STORE = ("tail->Next", store_to("*_OSQueueTail+0"))
 NEXT_STORE = ("task->Next", store_to("*_OSActiveTask+0"))
-REMAINING_SET = ("SetActiveTaskRemainingTime = TRUE",
-                 store_to("SetActiveTaskRemainingTime+0", 1))
-REMAINING_CLEAR = ("SetActiveTaskRemainingTime = FALSE",
-                   store_to("SetActiveTaskRemainingTime+0", 0))
-SPEED_CALL = ("the call to OSSetProcessorSpeed", lambda e: e == "call OSSetProcessorSpeed")
 
 # (functions, sequence, first only): on each path, each store of the last kind comes
 # after the others in their order, with no second store of a later kind in between.
 TASK_RULES = {
     "task end": (("OSEndTask",), (ZOMBIE_STORE, NOSAVE_STORE, HEAD_STORE), True),
-    "remaining time set": (("OSEndTask", "OSSuspendSynchronousTask"),
-                           (REMAINING_SET, HEAD_STORE), True),
-    "remaining time cleared": (("OSEndTask", "OSSuspendSynchronousTask"),
-                               (HEAD_STORE, REMAINING_CLEAR), False),
     "drop, deadline-monotonic": (("ScheduleNextTask",), (ZOMBIE_STORE, HEAD_STORE), False),
     "promotion": (("ScheduleNextTask",),
                   (ACTIVATE_STORE, HEAD_STORE, TAIL_STORE, NEXT_STORE, INIT_STORE), False),
@@ -263,21 +252,11 @@ def check_sequence(events, sequence, first_only):
     return None if found else "absent"
 
 
-def check_speed_calls(events):
-    """SetActiveTaskRemainingTime = FALSE after the last call to OSSetProcessorSpeed."""
-    for k, e in enumerate(events):
-        if REMAINING_CLEAR[1](e) and any(SPEED_CALL[1](x) for x in events[k + 1:]):
-            return f"{REMAINING_CLEAR[0]} before {SPEED_CALL[0]}"
-    return None
-
-
 def task_rules(functions):
     """The rules that apply to this kernel, as the object shows it."""
     events = " ".join(" ".join(p) for name in TASK_FUNCTIONS if name in functions
                       for p in paths(functions[name], {}, 1))
     rules = ["task end"]
-    if "SetActiveTaskRemainingTime" in events:
-        rules += ["remaining time set", "remaining time cleared"]
     if "ScheduleNextTask" in functions and "|%d" % ZOMBIE in events:
         rules += ["promotion", "drop, EDF"] if "*_OSQueueTail+0" in events else \
             ["drop, deadline-monotonic"]
@@ -292,9 +271,6 @@ def check_task_order(path, functions):
             continue
         # Once through each loop: every iteration is a path of its own from the start.
         for events in paths(functions[name], {}, 1):
-            error = check_speed_calls(events)
-            if error:
-                errors.append(f"{path}: {name}: {error}")
             for rule_name in rules:
                 where, sequence, first_only = TASK_RULES[rule_name]
                 if name not in where:
@@ -320,8 +296,6 @@ def step(insn, regs):
     if op == "dmb":
         return ["DMB"]
     if op in ("bl", "blx"):
-        if target == "OSSetProcessorSpeed":
-            events.append("call OSSetProcessorSpeed")
         r0 = regs.get("r0")
         if target == "OSUINT8_LL" and r0 and r0.base == BUFFER and r0.off == READING3 \
                 and not r0.var:

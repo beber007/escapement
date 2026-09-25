@@ -28,8 +28,10 @@ OPT ?= -O1
 SANITIZE ?= address,integer-divide-by-zero,signed-integer-overflow,shift
 BUILD ?= build
 # -fno-strict-aliasing as the firmware is built (the Makefiles of the examples).
+# The kernels' compiler barriers call HostCompilerBarrier, where a test may take the
+# timer interrupt (host_port.c).
 CFLAGS = -I. -I../../Escapement -Wall $(OPT) -fno-strict-aliasing -g -fsanitize=$(SANITIZE) \
-         -fno-sanitize-recover=all
+         -fno-sanitize-recover=all '-DCompilerBarrier()=HostCompilerBarrier()'
 # What OSMalloc hands out is never freed, by design; Linux would report it as leaked.
 export ASAN_OPTIONS = detect_leaks=0
 HARD = ../../Escapement/EscapementHard.c
@@ -77,7 +79,8 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(BUILD)/test_ipc_hard $(BUILD)/test_
 	   ./$(BUILD)/test_scheduler_$$b early && ./$(BUILD)/test_scheduler_$$b slack && \
 	   ./$(BUILD)/test_scheduler_$$b expiry && ./$(BUILD)/test_scheduler_$$b reclaim && \
 	   ./$(BUILD)/test_scheduler_$$b reuse && ./$(BUILD)/test_scheduler_$$b overrun && \
-	   ./$(BUILD)/test_scheduler_$$b minspeed || exit 1; \
+	   ./$(BUILD)/test_scheduler_$$b minspeed && \
+	   ./$(BUILD)/test_scheduler_$$b endinside && ./$(BUILD)/test_scheduler_$$b endinsidebusy || exit 1; \
 	   case $$b in soft_*) ./$(BUILD)/test_scheduler_$$b firm && \
 	                      ./$(BUILD)/test_scheduler_$$b firmwrap && \
 	                      ./$(BUILD)/test_scheduler_$$b firmlong && \

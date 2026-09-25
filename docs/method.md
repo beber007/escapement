@@ -157,18 +157,24 @@ kernel hung under Renode, the host test segfaulted under deadline-monotonic
 scheduling. Interrupts are now masked from the enqueue of the suspending task to its
 leaving the ready queue, and the handler never sees such a task. Both have a host test
 that fails on the code before (`test/host/README.md`). **Left open** are races the host cannot reach and
-limits of the design: in the power-aware kernel, a task ending between two interrupts
-that leaves the next at its speed, and under DM_SLACK a time read before a wrap; an
+limits of the design: in the power-aware kernel under DM_SLACK, a time read before a wrap; an
 optional instance still ready at its next arrival, which only an overload brings; under
 EDF, events left out of the soft kernel's test when no utilisation is declared; and
 indices of the wait-free queue that come back to the same value after 65,000 operations
-during one preemption. Two points once on that list are closed (2026-09-25). The counter
+during one preemption. Three points once on that list are closed (2026-09-25). The counter
 wrapping while the timer handler runs, once it has found no overflow, is reached on the
 host by a hook in that window (`wrapinside`): the handler, reading a time from after the
 wrap with its arrivals not yet shifted, releases nothing, and serves them once it finds
 the flag of the overflow raised meanwhile, which it tests again before it returns; the
-test fails with that test taken out. And strict aliasing, which GCC does exploit here,
-is turned off (below).
+test fails with that test taken out. In the power-aware kernel, a task ending between
+two interrupts left the next at its speed: the flag that told the handler to set that
+speed, raised before the task became a zombie, was cleared by an interrupt that found
+the task still running, and the second, once the task was a zombie, took the next for
+one that had been running. The handler now reads `_OSNoSaveContext`, which only the
+context switch clears, and the host takes the timer interrupt at the kernels' compiler
+barriers (`endinside`); with a barrier in the old window, the kernel before fails it
+(`test/host/README.md`). And strict aliasing, which GCC does exploit here, is turned
+off (below).
 
 The execution tests exercise three or four tasks, the host test ten. Nothing here
 establishes how the scheduler behaves with thirty. The 2³⁰ wrap of its clock, about
@@ -198,7 +204,7 @@ saw the mark overwritten and dropped it, on the Cortex-M0+, the M33 and the M4 a
 a promotion interrupted there left the task at the head and in the list of optional
 instances at once. No test had shown it. Compiler barriers now order these stores, those of the
 two drops in the same function, and the clearing of `SetActiveTaskRemainingTime` in the
-power-aware kernel, and `tools/check_order.py` checks the compiled order of each on every
+power-aware kernel (a flag since removed, above), and `tools/check_order.py` checks the compiled order of each on every
 path, on every build of the Pico, the Pico 2 and the F4 (2026-09-25). Run on the kernels
 of the day before, it reports exactly the faults found by hand: `OSEndTask` on the M33
 and the M4, the promotion on all three; the mutants script shows each rule failing on a

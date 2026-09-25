@@ -53,6 +53,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include "Escapement.h"
 
@@ -248,6 +249,7 @@ static void StartKernel(void (*f)(void *), void *arg)
 {
   OSStartMultitasking(f, arg);
   IdleTCB = _OSActiveTask;
+  _OSNoSaveContext = FALSE;   /* cleared by the context switch to the idle task */
   IdleTCB->TaskCodePtr(NULL);
 }
 
@@ -342,9 +344,11 @@ static void RunElected(HostTCB *interrupted)
         HostLLHook = NULL;          /* hooks the task would have removed */
         HostSoftTimerHook = NULL;
         HostUnmaskHook = NULL;
+        _OSNoSaveContext = FALSE;   /* cleared by the context switch that follows */
         continue;
      }
      task->TaskCodePtr(task->Argument);
+     _OSNoSaveContext = FALSE;
      if (!ReadyQueueHolds()) {
         QueueBreaks += 1;
         break;
@@ -354,9 +358,32 @@ static void RunElected(HostTCB *interrupted)
   }
 }
 
+/* Finalize: What FinalizeContextSwitchPreparation (Escapement_CortexMx.c) does on entry
+** of the soft timer interrupt: completes a task found removing itself from the ready
+** queue, or, in the soft kernel under EDF, promoting itself, and discards its context. */
+static void Finalize(void)
+{
+  _OSActiveTask = _OSQueueHead->Next[0];
+  if (_OSActiveTask->TaskState & 0x02) {                  /* STATE_ZOMBIE */
+     _OSActiveTask = _OSQueueHead->Next[0] = _OSActiveTask->Next[0];
+     _OSNoSaveContext = TRUE;
+  }
+  #if defined(ESCAPEMENT_VERSION_SOFT) && BY_DEADLINE
+     else if (_OSActiveTask->TaskState & 0x10) {          /* STATE_ACTIVATE */
+        extern HostTCB *_OSQueueTail;
+        if (_OSActiveTask->Next[0] != _OSQueueTail) {
+           _OSQueueTail->Next[0] = _OSActiveTask->Next[0];
+           _OSActiveTask->Next[0] = _OSQueueTail;
+        }
+        _OSActiveTask->TaskState = 0x00;                  /* STATE_INIT */
+        _OSNoSaveContext = TRUE;
+     }
+  #endif
+}
+
 /* SoftTimerNow: Takes a soft timer interrupt at once, inside the task that raised it. A
-** handler that leaves _OSNoSaveContext set has discarded that task's context, and the
-** context switch never returns to it: the test does not either. Otherwise the tasks the
+** task that raised it while ending, its context no longer to be saved (_OSNoSaveContext),
+** is gone: the context switch never returns to it, and the test does not either. Otherwise the tasks the
 ** handler elected run first, on top of the interrupted one as on the single stack of the
 ** target, until it is at the head of the ready queue again. */
 static void SoftTimerNow(void)
@@ -365,7 +392,7 @@ static void SoftTimerNow(void)
   jmp_buf frame;
   HostSoftTimerHook = NULL;
   SoftTimerServed += 1;
-  _OSNoSaveContext = FALSE;
+  Finalize();
   _OSTimerInterruptHandler();
   if (_OSNoSaveContext)
      longjmp(TaskFrame, 1);
@@ -1157,14 +1184,60 @@ static void TimedTaskCode(void *argument)
   OSEndTask();
 }
 
+/* The timer interrupt taken at the kernel's compiler barriers (endinside): TimedTrace sums
+** up who ran when and how fast, to compare with a run that takes none. */
+static BOOL AtBarriers;
+static UINT32 BarrierSeed = 1, TimedTrace;
+static unsigned BarrierInterrupts, BarrierPreemptions, BarrierZombies;
+static jmp_buf TimedFrame;
+static void RunTimedUntil(INT32 duration, HostTCB *interrupted);
+
 /* RunTimed: Gives the processor to the elected task from one timer event to the next. */
 static void RunTimed(INT32 duration)
 {
   _OSTimerInterruptHandler();        /* the arrivals at time zero */
+  RunTimedUntil(duration, NULL);
+}
+
+/* BarrierInterrupt: Takes the soft timer interrupt at a compiler barrier of the kernel,
+** at no cost in time, one barrier in two picked at random. A task found ending is gone,
+** its context discarded; a task elected over the interrupted one runs first, until the
+** interrupted one is at the head of the ready queue again, as on the single stack. */
+static void BarrierInterrupt(void)
+{
+  HostTCB *interrupted = _OSActiveTask;
+  jmp_buf frame;
+  BarrierSeed = BarrierSeed * 1103515245u + 12345u;
+  if ((BarrierSeed >> 16) & 1)
+     return;
+  HostCompilerBarrierHook = NULL;
+  BarrierInterrupts += 1;
+  Finalize();
+  _OSTimerInterruptHandler();
+  if (_OSNoSaveContext) {
+     BarrierZombies += 1;
+     longjmp(TimedFrame, 1);
+  }
+  if (_OSActiveTask != interrupted) {
+     BarrierPreemptions += 1;
+     memcpy(frame, TimedFrame, sizeof frame);
+     RunTimedUntil(INT32_MAX, interrupted);
+     // cppcheck-suppress uninitvar ; set by the memcpy above
+     memcpy(TimedFrame, frame, sizeof frame);
+  }
+  HostCompilerBarrierHook = BarrierInterrupt;
+}
+
+/* RunTimedUntil: The loop of RunTimed, which a barrier interrupt enters again to run the
+** tasks it elected, until the one it interrupted is elected again. */
+static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
+{
   while (HostClockNow() < duration) {
      INT32 now, event, step;
      HostTCB *active;
      ServeSoftTimer();
+     if (interrupted != NULL && _OSActiveTask == interrupted)
+        return;
      now = HostClockNow();
      event = now + HostTicksToNextEvent();
      step = (event < duration ? event : duration) - now;
@@ -1177,6 +1250,7 @@ static void RunTimed(INT32 duration)
            task->EarlyStarts += 1;
         if (toEnd < step)
            step = toEnd;
+        TimedTrace = TimedTrace * 31u + (UINT32)now * 7u + (UINT32)(task - Timed) * 3u + speed;
         task->Work -= step * rate;
         BusyAt[speed] += step;
         #if defined(ESCAPEMENT_VERSION_HARD_PA)
@@ -1184,8 +1258,14 @@ static void RunTimed(INT32 duration)
               task->Slow += step;
         #endif
         HostAdvanceBy(step);
-        if (task->Work <= 0)
-           active->TaskCodePtr(active->Argument);
+        if (task->Work <= 0) {
+           if (setjmp(TimedFrame) == 0) {
+              HostCompilerBarrierHook = AtBarriers ? BarrierInterrupt : NULL;
+              active->TaskCodePtr(active->Argument);
+           }
+           HostCompilerBarrierHook = NULL;
+           _OSNoSaveContext = FALSE;   /* the context switch that follows clears it */
+        }
      }
      else {
         IdleTime += step;
@@ -1358,6 +1438,40 @@ static void TestTimed(TimedMode mode)
   #endif
 }
 
+
+/* TestEndInside: A timed run with the soft timer interrupt taken at the compiler barriers
+** of the kernel, where a task ending or electing the next leaves its stores in the order
+** the handler relies on: the handler must complete what it finds half done. The time does
+** not move there, so the run must be the one without those interrupts, down to who ran
+** when and how fast, which a child process runs first. */
+static void TestEndInside(TimedMode mode)
+{
+  int fds[2];
+  UINT32 baseline = 0;
+  pid_t child;
+  char label[96];
+  if (pipe(fds) != 0 || (child = fork()) < 0) {
+     Check("  fork", FALSE);
+     return;
+  }
+  if (child == 0) {
+     FILE *quiet = freopen("/dev/null", "w", stdout);
+     (void)quiet;
+     TestTimed(mode);
+     _exit(write(fds[1], &TimedTrace, sizeof TimedTrace) == sizeof TimedTrace ? 0 : 1);
+  }
+  close(fds[1]);
+  AtBarriers = TRUE;
+  TestTimed(mode);
+  if (read(fds[0], &baseline, sizeof baseline) != sizeof baseline)
+     Check("  the run without interrupts", FALSE);
+  waitpid(child, NULL, 0);
+  printf("  %u interrupts at the barriers: %u found a task ending, %u elected another\n",
+         BarrierInterrupts, BarrierZombies, BarrierPreemptions);
+  snprintf(label, sizeof label, "  the same run as without them: %08x against %08x",
+           TimedTrace, baseline);
+  Check(label, TimedTrace == baseline);
+}
 
 #if defined(ESCAPEMENT_VERSION_SOFT)
 /* (m,k)-FIRM TASKS -------------------------------------------------------------------- */
@@ -1612,6 +1726,10 @@ int main(int argc, char *argv[])
      TestTimed(TIMED_OVERRUN);
   else if (argc > 1 && strcmp(argv[1], "minspeed") == 0)
      TestTimed(TIMED_MINSPEED);
+  else if (argc > 1 && strcmp(argv[1], "endinside") == 0)
+     TestEndInside(TIMED_EARLY);
+  else if (argc > 1 && strcmp(argv[1], "endinsidebusy") == 0)
+     TestEndInside(TIMED_BUSY);
   #if defined(ESCAPEMENT_VERSION_SOFT)
      else if (argc > 1 && strcmp(argv[1], "firm") == 0)
         TestFirm();

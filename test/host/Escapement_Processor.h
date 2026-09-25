@@ -28,6 +28,8 @@ extern BOOL (*HostLLHook)(void);     /* runs between an LL and its SC, see host_
 /* Called at each memory barrier: where the kernel orders its stores for another core is
 ** also where an interrupt on this one may fall between them (test_ipc.c). */
 extern void (*HostBarrierHook)(void);
+extern void (*HostCompilerBarrierHook)(void);   /* at each CompilerBarrier, see host_port.c */
+void HostCompilerBarrier(void);
 extern int HostMallocBudget;         /* allocations before OSMalloc fails, -1 no limit */
 extern int HostMallocFill;           /* byte OSMalloc fills blocks with, -1 for zeros */
 

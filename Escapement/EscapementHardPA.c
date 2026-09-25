@@ -267,11 +267,13 @@ static ETCB *RescheduleSynchronousTaskList = NULL;
 ** set the time parameters of the new instance in its TCB. If however the terminating
 ** task fails to accomplish this because of a timer interrupt, and because the termina-
 ** ting task never returns once preempted, the timer must complete the work started by
-** this task. The following global variable delimits the code that must be completed by
-** the timer. */
-#if POWER_MANAGEMENT != NONE
-  static BOOL SetActiveTaskRemainingTime = FALSE;
-#endif
+** this task. The timer handler finds such a task from _OSNoSaveContext: raised by the
+** task once it is a zombie, or by FinalizeContextSwitchPreparation, which completes its
+** removal, and cleared only by the context switch that follows. A flag of its own, raised
+** before the task became a zombie and cleared by the handler, was cleared by an interrupt
+** that found the task still running: a second one, after it had become a zombie, took the
+** next task for one that had been running, charged it the time of the task ending and
+** left it at that task's speed (test/host, endinside, 2026-09-25). */
 
 
 /* TASK INSTANCE MANAGEMENT */
@@ -291,7 +293,9 @@ BOOL _OSNoSaveContext = TRUE;
 /* CompilerBarrier: Keeps the compiler from moving memory accesses across it, where an
 ** interrupt on this core may come in between and must find them in program order.
 ** _OSMemoryBarrier orders them for the other core too. */
-#define CompilerBarrier() __asm volatile ("" ::: "memory")
+#ifndef CompilerBarrier   /* the host test takes an interrupt there (test/host) */
+   #define CompilerBarrier() __asm volatile ("" ::: "memory")
+#endif
 
 
 /* TASK EXECUTION STACK
@@ -546,12 +550,6 @@ void OSEndTask(void)
   #if POWER_MANAGEMENT == DM_SLACK
      DMSlackCalculateSlack(_OSActiveTask,OSGetProcessorSpeed(),_OSGetActualTime());
   #endif
-  #if POWER_MANAGEMENT != NONE
-     /* In case we get interrupted without returning to this task, we need to complete
-     ** the work that gets done in the power management section of this function for the
-     ** active task that gets scheduled. */
-     SetActiveTaskRemainingTime = TRUE;
-  #endif
   /* Set the task to zombie to indicate that it is about to remove itself from the ready
   ** queue and that its context should not be saved. */
   _OSActiveTask->TaskState |= STATE_ZOMBIE;
@@ -589,10 +587,6 @@ void OSEndTask(void)
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #endif
      }
-     /* Only once the work is done, and the ready queue left: a timer interrupt before
-     ** this completes the work, one after finds it done. */
-     CompilerBarrier();
-     SetActiveTaskRemainingTime = FALSE;
   #elif defined(STATIC_POWER_MANAGEMENT)
      if (_OSActiveTask != OSQueueTail)
         OSSetProcessorSpeed(_OSActiveTask->FrequencyIndex);
@@ -793,7 +787,7 @@ void _OSTimerInterruptHandler(void)
         #elif POWER_MANAGEMENT != NONE
            /* Only a periodic task has work to update: testing TASKTYPE_BLOCKING leaves out
            ** both the event-driven tasks and the idle task, which carries the flag too. */
-           if (!SetActiveTaskRemainingTime && (_OSActiveTask->TaskState & TASKTYPE_BLOCKING) == 0)
+           if (!_OSNoSaveContext && (_OSActiveTask->TaskState & TASKTYPE_BLOCKING) == 0)
               UpdateRemainingWork(_OSActiveTask,SavedCurrentSpeed,currentTime);
         #endif
         /* Process pending event-driven tasks found in the RescheduleSynchronousTaskList. */
@@ -823,19 +817,19 @@ void _OSTimerInterruptHandler(void)
      _OSActiveTask = _OSQueueHead->Next[READYQ];
      if (_OSActiveTask != OSQueueTail) {
         #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
-           if (_OSActiveTask != arrival || SetActiveTaskRemainingTime) {
+           if (_OSActiveTask != arrival || _OSNoSaveContext) {
               if (doSimUpdateElapseTime)
                  DRASimUpdateElapseTime(currentTime);
               LastRemainingWorkUpdate = currentTime;
               SavedCurrentSpeed = GetProcessorSpeed(currentTime);
            }
         #elif POWER_MANAGEMENT == DM_SLACK
-           if (_OSActiveTask != arrival || SetActiveTaskRemainingTime) {
+           if (_OSActiveTask != arrival || _OSNoSaveContext) {
               LastRemainingWorkUpdate = currentTime;
               SavedCurrentSpeed = GetProcessorSpeed(currentTime);
            }
         #else /*  POWER_MANAGEMENT == OTE */
-           if (_OSActiveTask != arrival || SetActiveTaskRemainingTime) {
+           if (_OSActiveTask != arrival || _OSNoSaveContext) {
               LastRemainingWorkUpdate = currentTime;
               SavedCurrentSpeed = GetProcessorSpeed(currentTime);
            }
@@ -848,7 +842,6 @@ void _OSTimerInterruptHandler(void)
         #endif
      }
      ResetProcessorSpeed = FALSE;
-     SetActiveTaskRemainingTime = FALSE;
   #elif defined(STATIC_POWER_MANAGEMENT)
      _OSActiveTask = _OSQueueHead->Next[READYQ];
      if (_OSActiveTask != OSQueueTail)
@@ -1110,12 +1103,6 @@ void OSSuspendSynchronousTask(void)
   ** queue by the time the handler sees it. */
   _OSDisableInterrupts();
   signaled = EnqueueEventTask(eq,(UINTPTR)task);
-  #if POWER_MANAGEMENT != NONE
-     /* In case we get interrupted without returning to this task, we need to complete
-     ** the work that gets done in the power management section of this function for the
-     ** active task that gets scheduled. */
-     SetActiveTaskRemainingTime = TRUE;
-  #endif
   /* Set task to zombie to indicate that the task is about to remove itself from the
   ** ready queue and that its context should not be saved. */
   _OSActiveTask->TaskState |= STATE_ZOMBIE;
@@ -1150,8 +1137,6 @@ void OSSuspendSynchronousTask(void)
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #endif
      }
-     CompilerBarrier();          // as in OSEndTask
-     SetActiveTaskRemainingTime = FALSE;
   #elif defined(STATIC_POWER_MANAGEMENT)
      if (_OSActiveTask != OSQueueTail)
         OSSetProcessorSpeed(_OSActiveTask->FrequencyIndex);

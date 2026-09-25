@@ -212,7 +212,9 @@ BOOL _OSNoSaveContext = TRUE;
 /* CompilerBarrier: Keeps the compiler from moving memory accesses across it, where an
 ** interrupt on this core may come in between and must find them in program order.
 ** _OSMemoryBarrier orders them for the other core too. */
-#define CompilerBarrier() __asm volatile ("" ::: "memory")
+#ifndef CompilerBarrier   /* the host test takes an interrupt there (test/host) */
+   #define CompilerBarrier() __asm volatile ("" ::: "memory")
+#endif
 
 
 /* TASK EXECUTION STACK
