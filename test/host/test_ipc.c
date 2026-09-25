@@ -48,6 +48,11 @@ static void TestFIFO(void)
         if (nodes[i] == NULL || nodes[i] == nodes[j])
            ok = 0;
   Check("  the free pool holds exactly the nodes asked for", ok);
+  /* A node must take a word written whole: the Cortex-M0+ faults on an unaligned one. */
+  for (i = 0, ok = 1; i < NODES; i += 1)
+     if ((UINTPTR)nodes[i] % sizeof(UINTPTR) != 0)
+        ok = 0;
+  Check("  every node is aligned for a pointer-sized access", ok);
   for (i = 0; i < NODES; i += 1)
      OSReleaseNodeFIFO(queue, nodes[i]);
 

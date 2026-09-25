@@ -1980,8 +1980,12 @@ void IncrementFifoQueueIndex(UINT16 *index, UINT16 oldValue, UINT16 moduloBase)
 ** THAT CAN BE USED FOR INTER-TASK COMMUNICATIONS */
 typedef struct NODE {      // User nodes stored into the FIFO queue
   UINT16 size;             // Encapsulated useful size of the node
-  UINT16 info;             // Starting field of the node's content
+  UINTPTR info;            // Starting field of the node's content
 } NODE;
+/* The application's part of a node starts at info, which the compiler aligns for a
+** pointer: a word written there whole must not fault, as an unaligned one does on the
+** Cortex-M0+. */
+#define NODE_INFO_OFFSET __builtin_offsetof(NODE,info)
 
 /* Its first fields are those of FIFOQUEUE, in the same order: OSEnqueueFIFO and
 ** OSDequeueFIFO hand it to FIFOEnqueue and FIFODequeue as one. */
@@ -2014,13 +2018,14 @@ void *OSInitFIFOQueue(UINT8 maxNodes, UINT8 maxNodeSize)
   for (i = 0; i < maxNodes; i++)
      desc->Q[i] = NULL;
   /* Create blocks and initialize the free list */
-  desc->FreeList = (FIFOQUEUE *)OSCreateEventDescriptor();
+  if ((desc->FreeList = (FIFOQUEUE *)OSCreateEventDescriptor()) == NULL)
+     return NULL;
   desc->FreeList->QueueLength = maxNodes;
   desc->FreeList->MaxIndex = GetFIFOArrayMaxIndex(maxNodes);
   if ((desc->FreeList->Q = (UINTPTR *)OSMalloc(maxNodes * sizeof(NODE *))) == NULL)
      return NULL;
   for (i = 0; i < maxNodes; i++)
-     if ((desc->FreeList->Q[i] = (UINTPTR)OSMalloc(sizeof(NODE) - sizeof(UINT16) + maxNodeSize)) == NULL)
+     if ((desc->FreeList->Q[i] = (UINTPTR)OSMalloc(NODE_INFO_OFFSET + maxNodeSize)) == NULL)
         return NULL;
   return (void *)desc;
 } /* OSInitFIFOQueue */
@@ -2030,7 +2035,7 @@ void *OSInitFIFOQueue(UINT8 maxNodes, UINT8 maxNodeSize)
 ** stored into the node so that it can be transferred to the dequeuer task. */
 BOOL OSEnqueueFIFO(void *queue, void *node, UINT16 size)
 {
-  NODE *tmpNode = (NODE *)(((UINTPTR)node) - sizeof(UINT16));
+  NODE *tmpNode = (NODE *)(((UINTPTR)node) - NODE_INFO_OFFSET);
   tmpNode->size = size;
   return FIFOEnqueue((FIFOQUEUE *)queue,NULL,(UINTPTR)tmpNode);
 } /* end of OSEnqueueFIFO */
@@ -2064,7 +2069,7 @@ void *OSGetFreeNodeFIFO(void *descriptor)
 ** queue. */
 void OSReleaseNodeFIFO(void *descriptor, void *node)
 {
-  node = (void *)((UINTPTR)node - sizeof(UINT16));
+  node = (void *)((UINTPTR)node - NODE_INFO_OFFSET);
   FIFOEnqueue(((BUFFER_DESCRIPTOR_FIFO *)descriptor)->FreeList,NULL,(UINTPTR)node);
 } /* end OSReleaseNodeFIFO */
 
