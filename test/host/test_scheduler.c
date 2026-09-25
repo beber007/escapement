@@ -364,6 +364,7 @@ static void SoftTimerNow(void)
      longjmp(TaskFrame, 1);
   memcpy(frame, TaskFrame, sizeof frame);
   RunElected(interrupted);
+  // cppcheck-suppress uninitvar ; set by the first memcpy, which cppcheck does not follow
   memcpy(TaskFrame, frame, sizeof frame);
 }
 
@@ -799,6 +800,7 @@ static void TestEvents(void)
   ToShared.Event = sharedEvent;
   CREATE_TASK(SignalerTask, 300, &ToShared);
   CREATE_SYNCHRONOUS_TASK(SharedTask, 60, sharedEvent, (void *)0);
+  // cppcheck-suppress intToPointerCast ; the argument is a number, the task casts it back
   CREATE_SYNCHRONOUS_TASK(SharedTask, 60, sharedEvent, (void *)1);
 
   BufferPort = OSInitBuffer(SLOT_SIZE, OS_BUFFER_TYPE_3_SLOT, bufferEvent);

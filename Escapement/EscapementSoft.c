@@ -855,6 +855,8 @@ void InsertQueue(SEARCHFUNCTION TestKey, UINT8 offsetNext, TCB *newNode)
         break; // found the right node
      left = right;
   }
+  /* The loop always sets right, in its condition; cppcheck reads it as unset. */
+  // cppcheck-suppress uninitvar
   newNode->Next[offsetNext] = right;
   left->Next[offsetNext] = newNode;
 } /* end of InsertQueue */
@@ -1332,6 +1334,9 @@ UINTPTR FIFODequeue(FIFOQUEUE *queue, UINTPTR signal)
      return NULL;
   /* Initialize the fields of the descriptor to uninitialized markers. */
   des.HeadPropose = des.Head = 0xFFFF;
+  /* The descriptor points to itself: cppcheck takes the address of a structure whose
+  ** other fields are set on the lines around for a read of them. */
+  // cppcheck-suppress uninitvar
   des.SlotPropose = des.SlotReturn = (UINTPTR)&des;
   des.Done = FALSE;
   /* Complete the pending operation before the current dequeue. */
@@ -1431,6 +1436,9 @@ BOOL FIFOEnqueue(FIFOQUEUE *queue, UINTPTR signal, UINTPTR item)
   void *op;
   /* Initialize all fields with uninitialized markers and insert the item to enqueue. */
   des.TailPropose = des.Tail = 0xFFFF;
+  /* The descriptor points to itself: cppcheck takes the address of a structure whose
+  ** other fields are set on the lines around for a read of them. */
+  // cppcheck-suppress uninitvar
   des.SlotPropose = des.SlotReturn = (UINTPTR)&des;
   des.Item = item;
   des.Done = FALSE;

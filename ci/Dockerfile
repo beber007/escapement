@@ -25,7 +25,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/opt/venv/bin:/usr/share/dotnet:$PATH
 
 # The toolchain as the runners had it (Ubuntu's gcc-arm-none-eabi, 14.2.rel1), the tools of
-# the jobs — cppcheck for tools/cppcheck.sh since the image's second tag —, and what .NET
+# the jobs — cppcheck for tools/cppcheck.sh since the image's second tag, 2.19.0 when it
+# was built on 2026-09-25 —, and what .NET
 # needs.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \

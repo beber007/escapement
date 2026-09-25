@@ -45,6 +45,10 @@ tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement
 tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2   # must fail 11/11
 
 sh tools/check_encoding.sh           # every tracked file must be valid UTF-8
+
+# Static analysis (run by the CI): cppcheck over each port, GCC's -fanalyzer per Cortex-M
+sh tools/cppcheck.sh
+sh tools/analyze.sh
 ```
 
 Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. The board:
@@ -52,8 +56,8 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
 
 ## Before a commit
 
-- Host tests, the three models, the encoding check, and every Pico and Pico 2 variant
-  plus the F4 still build.
+- Host tests, the three models, the encoding check, the static analysis, and every Pico
+  and Pico 2 variant plus the F4 still build.
 - A change meant to leave a build alone (comments, an option off by default) must leave
   its images byte for byte identical: compare `arm-none-eabi-objcopy -O binary` outputs
   against those of `main`.

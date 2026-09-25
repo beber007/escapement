@@ -60,6 +60,8 @@ __attribute__ ((section(".isr_vector_general")))
 void (* const CortexMxVectorTable[])(void) =
 {
   // Initial stack pointer value, positioned at address 0
+  // The address is made an integer before the subtraction, which cppcheck misreads.
+  // cppcheck-suppress arithOperationsOnVoidPointer
   (void (* const)(void))((UINTPTR)&_OSEndRAM - OSMALLOC_INTERNAL_HEAP_SIZE),
   _OSResetHandler,       // Reset, invoked on power up and warm resets
   NMIException,
@@ -129,9 +131,13 @@ void _OSResetHandler(void)
   asm("CPSID I");       // Disable all interrupt
   /* Copy the data segment initializers from flash to SRAM */
   pulSrc = &_sidata;
+  /* The linker's symbols delimit one area: comparing their addresses is what they are
+  ** for, which cppcheck takes for two unrelated objects. */
+  // cppcheck-suppress comparePointers
   for (pulDest = &_data; pulDest < &_edata; )
      *(pulDest++) = *(pulSrc++);
   /* Zero fill the bss segment  */
+  // cppcheck-suppress comparePointers
   for (pulDest = &_bss; pulDest < &_ebss; )
      *(pulDest++) = 0;
   /* Initialize interrupts priority system */
@@ -379,7 +385,9 @@ void _OSIOHandler(void)
         while (TRUE); // referring to an inexistent ISR descriptor.
      }
   #endif
-  /* Call the specific handler */
+  /* Call the specific handler. A missing descriptor is a fault of the application, which
+  ** DEBUG_MODE traps above; cppcheck takes that test for one that should hold here. */
+  // cppcheck-suppress nullPointerRedundantCheck
   peripheralIODescriptor->PeripheralInterruptHandler(peripheralIODescriptor);
   // Make all pending SC() fail
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
@@ -427,6 +435,7 @@ void *OSMalloc(UINT16 size)
      size += 4 - size % 4;
   _OSStackBasePointer = (UINT8 *)_OSStackBasePointer - size;
   /* Check that requested memory block doesn't overlap main's activation record. */
+  // cppcheck-suppress arithOperationsOnVoidPointer ; the address is an integer here too
   if (_OSStackBasePointer <= (void *)((UINTPTR)&_OSEndRAM - OSMALLOC_INTERNAL_HEAP_SIZE)) {
      _OSStackBasePointer = (UINT8 *)_OSStackBasePointer + size;
      #ifdef DEBUG_MODE

@@ -24,7 +24,7 @@ jobs:
     name: ${{ matrix.example }} (${{ matrix.cpu }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:1
+      image: ghcr.io/beber007/escapement-ci:2
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -86,6 +86,25 @@ jobs:
       - uses: actions/checkout@v7
       - run: sh tools/check_encoding.sh
 
+  analysis:
+    # cppcheck reasons over each port's sources in every configuration of their #if; the
+    # analyser of GCC follows paths through them, compiled for each Cortex-M. Either
+    # fails on its first finding; a false one is suppressed where it stands, with why.
+    name: Static analysis
+    runs-on: ubuntu-26.04
+    container:
+      image: ghcr.io/beber007/escapement-ci:2
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: cppcheck
+        run: cppcheck --version && sh tools/cppcheck.sh
+      - name: The analyser of GCC
+        run: arm-none-eabi-gcc --version | head -1 && sh tools/analyze.sh
+
   host-scheduler:
     name: Kernel on the host
     runs-on: ubuntu-26.04
@@ -105,7 +124,7 @@ jobs:
     name: Execution under Renode (STM32F407VG)
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:1
+      image: ghcr.io/beber007/escapement-ci:2
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -148,7 +167,7 @@ jobs:
     name: Variant under Renode (${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:1
+      image: ghcr.io/beber007/escapement-ci:2
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -190,7 +209,7 @@ jobs:
     name: Execution under Renode (RP2350, ${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:1
+      image: ghcr.io/beber007/escapement-ci:2
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -244,7 +263,7 @@ jobs:
     name: Execution under Renode (RP2040, ${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:1
+      image: ghcr.io/beber007/escapement-ci:2
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
