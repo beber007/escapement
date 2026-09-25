@@ -6,9 +6,10 @@
 **
 ** A firmware in flash is started by a hardware reset, which loads the stack pointer and
 ** the reset vector from the first two words of the vector table. A firmware in SRAM is
-** started by the bootrom, which simply branches to the first instruction of the image and
-** leaves the stack pointer as it found it. The image must therefore begin with code, not
-** with the vector table, and that code has to set up the stack itself.
+** started by the debugger (load_image, then resume at 0x20000000, docs/rp2040.md), which
+** sets only the program counter and leaves the stack pointer where the bootrom left it.
+** The image must therefore begin with code, not with the vector table, and that code has
+** to set up the stack itself.
 **
 ** It also sets ACTLR.EXTEXCLALL of core 0, as the pico-sdk does on each core
 ** (hardware_sync_spin_lock): the exclusive loads and stores then go through the global

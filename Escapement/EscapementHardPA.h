@@ -49,7 +49,7 @@
 **          OSCreateTask(Task1,100,0,10000,10000,(void *)34);
 **          // Do other initializations, e.g. configure peripheral hardware modules to
 **          // the requirements of the application.
-**          // Step 3: Set the timer and core clock source and frequency settings. See
+**          // Step 4: Set the timer and core clock source and frequency settings. See
 **          // one of the sample programs provided with this distribution.
 **          return OSStartMultitasking(NULL,NULL);
 **       } // end of main
@@ -71,7 +71,7 @@
 ** There are 2 ways to have aperiodic processing:
 **  (1) Have the processing done in an interrupt handler;
 **  (2) Trigger an event that schedules a new task instance providing this processing.
-** The first possibility is self-explicit. The second possibility is slightly more invol-
+** The first possibility is self-explanatory. The second possibility is slightly more invol-
 ** ved but allows extra flexibility. Aperiodic tasks are created by a specific function
 ** that indicates which event is associated with the task. When created or when termina-
 ** ted, an aperiodic task becomes blocked until it is signaled. Signaling is done via
@@ -86,11 +86,11 @@
 **       int main(void)
 **       {
 **          // Create a periodic task that triggers an event.
-**          OSCreateTask(SignalerTask,0,10000,10000,NULL);
+**          OSCreateTask(SignalerTask,100,0,10000,10000,NULL);
 **          // Create an event that will be triggered by SignalerTask
 **          Event = OSCreateEventDescriptor();
 **          // Create an aperiodic task that processes event Event
-**          OSCreateSynchronousTask(AperiodicTask,100,2000,Event,NULL);
+**          OSCreateSynchronousTask(AperiodicTask,100,2000,0,Event,NULL);
 **          // Set the system clock characteristics
 **          // Start the OS so that it starts scheduling the user tasks
 **          return OSStartMultitasking(NULL,NULL);
@@ -118,7 +118,8 @@
 /* POWER MANAGEMENT SCHEMES ---------------------------------------------------------- */
 /* On this version of Escapement, there are 4 possible power scheme modes: DRA and DR_OTE
 ** only work with EDF*, DM_SLACK works with deadline monotonic scheduling and OTE is
-** suitable for any scheduling algorithm. */
+** suitable for any scheduling algorithm. DRA, OTE and EDF* are those of H. Aydin,
+** R. Melhem, D. Mossé and P. Mejía-Alvarez, IEEE Trans. Computers 53(5), 2004. */
 #define NONE      0  /* No power management, uses sleep mode only */
 #define DRA       1  /* Dynamic Reclaiming Algorithm (works only with EDF*) */
 #define OTE       2  /* One Task Extension */
@@ -141,12 +142,14 @@
 ** before later ones. When Escapement is used with power-awareness, it is important that the
 ** order of the tasks inserted in the ready queue be deterministic. This is because we
 ** compare the forecasted task termination time with its actual termination time. EDF* is
-** a deterministic EDF in that when tasks have the same deadline, the one that was first
-** released has higher priority; ties are settled by choosing the smaller TCB address.
+** a deterministic EDF: among tasks with the same deadline, the one released last goes
+** first, and at equal release times the one with the larger TCB address. Any total order
+** does, provided the ready queue and the DRA simulation queue share it (both sort with
+** ReadyQueueInsertTestKey); the paper's EDF* breaks ties the other way.
 ** Note that without power management, it is best not to use EDF*.
 ** The final scheduling algorithm is DMS where tasks have a static priority based on
 ** their deadline. A shorter deadline has the highest priority. */
-#include "Escapement_Modes.h"     /* and EARLIEST_DEADLINE_FIRST_STAR */
+#include "Escapement_Modes.h"     /* the three algorithms, EDF* included */
 
 /* The following define sets the scheduling algorithm to use. An application selects it in
 ** its Escapement_Config.h; this is only the default when it says nothing. */
@@ -196,6 +199,7 @@ void OSSetProcessorSpeed(UINT8 speed);
 **   (1) Pointer to a function having prototype void f(void *), and which is called imme-
 **       diately prior to starting the scheduler. This parameter may be null.
 **   (2) (void *) argument: argument passed on to f.
+** f runs with interrupts disabled; they are enabled when the scheduler starts.
 ** Returned value: Returns FALSE when an error occurs. */
 BOOL OSStartMultitasking(void (*f)(void *), void *argument);
 
@@ -209,27 +213,23 @@ BOOL OSStartMultitasking(void (*f)(void *), void *argument);
 ** Parameter: (UINT16) size: requested memory block size in bytes.
 ** Returned value: (void *) Pointer to the base of the newly allocated block, and NULL in
 ** case of an error, i.e. when the dynamic allocations exceed the maximum heap size.
-** The maximum heap size is defined by OSMALLOC_INTERNAL_HEAP_SIZE and
-** can be found in either Escapement_msp430XXX.h or Escapement_cc430XXX.h that is generated by
-** EscapementConf.exe. */
+** The maximum heap size is OSMALLOC_INTERNAL_HEAP_SIZE, set in the application's
+** Escapement_Config.h. */
 void *OSMalloc(UINT16 size);
 
 
 /* PERIODIC HARD REAL-TIME TASK FUNCTIONS -------------------------------------------- */
 /* OSCreateTask: Creates a periodic task with its timing characteristics. The period of a
-** task is expressed in terms of the system clock cycle which is defined as 2^30. The pe-
-** riod of a task is then specified by 2 parameters: The number of full system clock
-** cycles (periodCycles) and a cycle remainder (periodOffset). Hence, the actual period
-** of a task is equal to
-**            P = periodCycles * SystemClockCycle + periodOffset
-** The maximum period that can be assumed by a period task is
-**       68 years with a 32 kHz timer quartz
-**        2 years with a 1 MHz quartz.
+** task is counted in timer ticks (1 us on the RP2040 and RP2350) in two parts: whole
+** cycles of 2^30 ticks (periodCycles) and a remainder (periodOffset):
+**            P = periodCycles * 2^30 + periodOffset
+** The longest period, 2^46 ticks, is about 2.2 years at 1 MHz.
 ** Parameters:
 **   (1) Pointer to the task's code;
-**   (2) (INT32) wcet (worst-case execution time): Number of cycles needed to execute the
-**       task; this parameter is only used for dynamic power management, and can be set
-**       to 0 when no dynamic power management is in effect.
+**   (2) (INT32) wcet (worst-case execution time), in timer ticks at OS_MAX_SPEED; used by
+**       every power management policy, the default OTE included (a task declared with 0
+**       runs at the minimal speed when alone), and can be 0 only with POWER_MANAGEMENT ==
+**       NONE.
 **   (3) (UINT16) periodCycles: Number of full 2^30 cycles.
 **   (4) (INT32) periodOffset: Remaining period cycles, must be < 2^30.
 **   (5) (INT32) deadline: Task's deadline (worstCaseExecutionTime <= deadline <= P);
@@ -242,7 +242,7 @@ BOOL OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 peri
 /* _OSCreateTask: Same as OSCreateTask() but adds a static frequency index to the list of
 ** parameters. This frequency index is then used whenever the task is scheduled.
 ** Parameters:
-**   (1) void task(void) Pointer to the task's code;
+**   (1) void task(void *) Pointer to the task's code;
 **   (2) (INT32) wcet: Worst-case execution time of a task instance; for all dynamic
 **       power management schemes this value is in timer cycles after correction for the
 **       nominal speed used by the task. This value is only used for advanced dynamic
@@ -252,8 +252,7 @@ BOOL OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 peri
 **   (5) (INT32) deadline for the task's execution;
 **   (6) (void *) argument: An instance specific pointer width value.
 **   (7) (UINT8) static frequency index of the task; this index corresponds to the nomi-
-**       nal speed of task and is one of
-**               {OS_8MHZ_SPEED, OS_12MHZ_SPEED, OS_20MHZ_SPEED, OS_25MHZ_SPEED}
+**       nal speed of the task: one of the port's OS_xxMHZ_SPEED operating points.
 ** Returned value: TRUE if the task creation was successful and FALSE otherwise. The
 **   function fails when there's a memory allocation failure. */
 #ifdef STATIC_POWER_MANAGEMENT
@@ -269,7 +268,7 @@ void OSEndTask(void);
 
 /* EVENT-DRIVEN (SPORADIC OR SYNCHRONOUS) TASK FUNCTIONS ----------------------------- */
 /* OSCreateEventDescriptor: Creates and returns a descriptor with all the needed informa-
-** tion to block and wake-up an sporadic or event-driven task instance.
+** tion to block and wake-up a sporadic or event-driven task instance.
 ** Returned value: NULL when a memory failure occurs, or a valid descriptor. */
 void *OSCreateEventDescriptor(void);
 
@@ -277,19 +276,16 @@ void *OSCreateEventDescriptor(void);
 ** tasks.
 ** Parameters:
 **   (1) Pointer to the task's code;
-**   (2) (INT32) wcet (worst-case execution time): Number of cycles needed to execute the
-**       task; this parameter is only used for dynamic power management, and can be set
-**       to 0 when no dynamic power management is in effect.
+**   (2) (INT32) wcet (worst-case execution time), in timer ticks at OS_MAX_SPEED; only
+**       DRA, DR_OTE and DM_SLACK read it.
 **   (3) (INT32) workload: equal to the task's worst-case execution time divided by the
-**       available processor load; this is the same as the period and deadline of the
-**       task; under EDF this task is scheduled when all previous synchronous tasks have
-**       completed, but under deadline monotonic scheduling, this task behaves like any
-**       other periodic task;
-**   (4) (UINT8) Total processor utilization of all aperiodic tasks * 256; this parameter
-**       is only used for EDF with dynamic power management, and can be set to 0 when no
-**       dynamic power management is in effect or if Deadline Monotonic Schedule is in
-**       effect.
-**   (5) (void *) event: Descriptor returned by OSCreateSynchronousTask();
+**       available processor load; under EDF its deadline is the later of now and the
+**       previous event-driven deadline, plus the workload (see the server in Escapement-
+**       HardPA.c); under deadline monotonic scheduling it behaves like any other periodic
+**       task. Must be > 0: unlike the soft kernel, this one does not derive it;
+**   (4) (UINT8) Total processor utilization of all aperiodic tasks * 256; only DRA and
+**       DR_OTE read it; 0 otherwise.
+**   (5) (void *) event: Descriptor returned by OSCreateEventDescriptor();
 **   (6) (void *) arg: An instance specific pointer width value.
 ** Returned value: TRUE if the task creation was successful and FALSE otherwise. The
 **   function fails when there's a memory allocation failure. */
@@ -307,8 +303,7 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
 **   (5) (void *) event: see OSCreateSynchronousTask();
 **   (6) (void *) arg: An instance specific pointer width value.
 **   (7) (UINT8) static frequency index of the task; this index corresponds to the nomi-
-**       nal speed of task and is one of
-**               {OS_8MHZ_SPEED, OS_12MHZ_SPEED, OS_20MHZ_SPEED, OS_25MHZ_SPEED}
+**       nal speed of the task: one of the port's OS_xxMHZ_SPEED operating points.
 ** Returned value: TRUE if the task creation was successful and FALSE otherwise. The
 **   function fails when there's a memory allocation failure. */
 #ifdef STATIC_POWER_MANAGEMENT
@@ -345,8 +340,8 @@ void OSSuspendSynchronousTask(void);
 **       int main(void)
 **       {
 **          void *event = OSCreateEventDescriptor();
-**          // Create an sporadic task that processes event
-**          OSCreateSynchronousTask(EventDrivenTask,2000,event,event);
+**          // Create a sporadic task that processes event
+**          OSCreateSynchronousTask(EventDrivenTask,200,2000,0,event,event);
 **          // Other initializations
 **          return OSStartMultitasking(StartApplication,event);
 **       } // end of main
@@ -366,17 +361,14 @@ void OSScheduleSuspendedTask(void *event);
 ** When an interrupt occurs, the processor registers are saved onto the stack and control
 ** is then given to the ISR specified within the descriptor. This is equivalent to the
 ** following code snippet:
-**     interruptVector[sourceEntry]->myInterruptHandler(&interruptVector[sourceEntry])
+**     interruptVector[sourceEntry]->myInterruptHandler(interruptVector[sourceEntry])
 ** Because the ISR receives a pointer to the descriptor, it can store in that descriptor
 ** all the information that is needed to process the interrupt without resorting to glob-
 ** al or static variables.
 **
-** IMPORTANT: When an interrupt is raised, its source is masked. For single-sourced devi-
-** ces, this is equivalent to disabling the whole device. However, for multiple-sourced
-** devices, only the particular source within the device is masked. In both cases, it is
-** important to re-enable the particular source before exiting the interrupt handler.
-** Failure to do so prevents all future interrupts from the source that raised the inter-
-** rupt.
+** IMPORTANT: The kernel does not mask the source of an interrupt. The handler must clear
+** the peripheral's interrupt flag before it returns: a level-sensitive request still
+** raised enters the handler again at once.
 **
 ** All ISR descriptors are stored in an internal table in the kernel, indexed by the
 ** OS_IO_xxx definitions of the port.
@@ -408,8 +400,8 @@ void *OSGetISRDescriptor(UINT16 entry);
 ** are called writers and the second readers. Note that the writer task can be a handler
 ** for an input device, and the reader can be a handler for an output device. Now if the
 ** posted datum can be posted into and copied from a global memory location, there is no
-** need for the kernel to provided any assistance to the user application: readers and
-** writers agree on the memory location, and each task access the memory location in a
+** need for the kernel to provide any assistance to the user application: readers and
+** writers agree on the memory location, and each task accesses the memory location in a
 ** single uninterrupted machine cycle. On the other hand, if the data shared between the
 ** writer and the reader cannot be accessed in a single machine cycle, there is a need
 ** for a synchronizing mechanism. The simplest of these is the handshake protocol:
@@ -423,13 +415,13 @@ void *OSGetISRDescriptor(UINT16 entry);
 **   }                                       }
 **
 ** There are a number of problems with the above reader-writer scheme:
-** (1) When one the tasks has a higher priority (e.g. a smaller deadline) than the other,
+** (1) When one of the tasks has a higher priority (e.g. a smaller deadline) than the other,
 **     and the lowest priority task is preempted, the highest priority task has to wait
 **     until it can write into or read from the shared location. This is an instance of
 **     the so-called priority inversion problem.
 ** (2) If one of the tasks is an interrupt handler, while the task is blocked, waiting
 **     for the shared location to become free, other interrupts cannot be serviced.
-** One way to alleviate the above problem is to implement a fifo queue between the read-
+** One way to alleviate the above problems is to implement a fifo queue between the read-
 ** er and the writer; the writer appends new data items to the queue and the reader de-
 ** queues the data items from the head of the queue. This is the classic producer-consu-
 ** mer paradigm found in all concurrent textbooks and is extremely useful when there is a
@@ -444,25 +436,26 @@ void *OSGetISRDescriptor(UINT16 entry);
 ** operation before starting Escapement since the queue should exist prior to performing any
 ** action on it and namely from a peripheral handler. Usually, memory blocks are dynami-
 ** cally created by an enqueuer task and later freed by a dequeuer task once the memory
-** block is no longer needed. Memory allocation and reclamation are non-determinist oper-
-** ations and are not recommended for real-time operating systems like Escapement. Instead,
-** real-time systems favor pre-allocations of memory pools that are created once and for
-** all. Hence, an enqueuer task first acquires a buffer from the kernel, fills it with
-** data and then enqueues the buffer into the fifo queue. A dequeuer task does the oppo-
-** site operations; it first dequeues a buffer from the queue, processes the data con-
-** tained in the buffer and then releases the buffer so that it can later be reused by
-** the enqueuer task.
+** block is no longer needed. Memory allocation and reclamation are non-deterministic
+** operations and are not recommended for real-time operating systems like Escapement.
+** Instead, real-time systems favor pre-allocations of memory pools that are created
+** once and for all. Hence, an enqueuer task first acquires a buffer from the kernel,
+** fills it with data and then enqueues the buffer into the fifo queue. A dequeuer task
+** does the opposite operations; it first dequeues a buffer from the queue, processes the
+** data contained in the buffer and then releases the buffer so that it can later be
+** reused by the enqueuer task.
 ** Restrictions:
 ** (1) When using multiple fifo queues, an available buffer taken from one queue, must be
 **     released to the same queue (see OSInitFIFOQueue).
 ** (2) The data content size of a buffer is bounded when the fifo queue is created.
 ** (3) The queue serves the tasks and interrupt handlers of a single processor. It builds
-**     on the array-based LL/SC queue of Evequoz (ICPP 2008) and adds one announced
+**     on the array-based LL/SC queue of Evéquoz (ICPP 2008) and adds one announced
 **     operation, which a caller that preempts it completes before its own: every
 **     operation then ends in a bounded number of steps, provided preemptions nest, as
 **     they do on one core. Two processors could announce at once; sharing a queue
 **     between the cores of a dual-core chip calls for the multiprocessor form of the
-**     algorithm instead. The LL/SC pair emulated on the Cortex-M0 holds on one core too. */
+**     algorithm instead. The LL/SC pair emulated on the Cortex-M0+ is likewise sound on
+**     one core only. */
 
 /* OSInitFIFOQueue: Creates and initializes a concurrent FIFO queue that can be used for
 ** inter-task communications following a multiple producer and consumer paradigm. To
@@ -520,8 +513,8 @@ void *OSDequeueFIFO(void *fifoQueue, UINT16 *size);
 void *OSGetFreeNodeFIFO(void *fifoQueue);
 
 /* OSReleaseNodeFIFO: Releases a node and returns it to the pool of available nodes used
-** function OSGetFreeNodeFIFO. Once released, the node contents must neither be accessed
-** or modified.
+** by OSGetFreeNodeFIFO. Once released, the node contents must neither be accessed nor
+** modified.
 ** Parameters:
 **   (1) (void *) fifo queue descriptor that was created by function OSInitFIFOQueue;
 **   (2) (void *) node to release.
@@ -549,7 +542,11 @@ void OSReleaseNodeFIFO(void *fifoQueue, void *releasedNode);
 ** ween a writer task and a reader task. This mechanism does not use any atomic instruc-
 ** tion and is well targeted for small processors.
 ** The 3-slot mechanism is more memory efficient but somewhat slower because it uses
-** atomic instructions. */
+** atomic instructions. The mechanisms are those of Simpson (1990) and of Chen and Burns
+** (1997). Both also serve a writer and a reader on the two cores of the RP2040 or
+** RP2350, ordering their accesses with _OSMemoryBarrier(); there the 3-slot mechanism
+** needs an LL/SC pair that holds between the cores, which the Cortex-M0+ emulation is
+** not. */
 #define OS_BUFFER_TYPE_4_SLOT 0
 #define OS_BUFFER_TYPE_3_SLOT 1
 
@@ -560,7 +557,7 @@ void OSReleaseNodeFIFO(void *fifoQueue, void *releasedNode);
 ** variable that is then shared by the communicating application tasks.
 ** Parameters:
 **   (1) (UINT8) required slot size; once the writer has completed a full slot (see
-**          function OSWriteBuffer(), the slot become eligible for reading. It is thus
+**          OSWriteBuffer()), the slot becomes eligible for reading. It is thus
 **          recommended that the specified size be equal to those that are read as a
 **          chunk by one of the provided reading functions to prevent data overlap.
 **   (2) (UINT8) buffer slot type: this can either be OS_BUFFER_TYPE_3_SLOT or
@@ -572,7 +569,7 @@ void OSReleaseNodeFIFO(void *fifoQueue, void *releasedNode);
 ** On memory allocation failure, the function returns NULL. */
 void *OSInitBuffer(UINT8 slotSize, UINT8 bufferSlotType, void *eventQueue);
 
-/* OSWriteBuffer: Copies the data contained in a slot into the current writer buffer.
+/* OSWriteBuffer: Copies the caller's data into the current writer slot.
 ** Once the current data slot becomes full, i.e. when it reaches the size specified at
 ** creation time with OSInitBuffer(), the writer-slot becomes available to the reader,
 ** and a new buffer slot is chosen for the next time this function is called. Should the
@@ -611,7 +608,7 @@ UINT8 OSWriteBuffer(void *descriptor, UINT8 *data, UINT8 size);
 /* The second set of modes specifies whether the data is to be copied into a buffer pro-
 ** vided by the calling task or whether a pointer to that data should be returned. This
 ** mode is specified by a specific function. The first mode is useful when handling small
-** sized data, and the second mode is faster when huge chunks of data.
+** sized data, and the second mode is faster when handling large chunks of data.
 */
 /* OSGetCopyBuffer: Returns a copy of the data held in the most recently filled buffer
 ** slot held in the buffer descriptor.
@@ -638,10 +635,10 @@ UINT8 OSGetReferenceBuffer(void *descriptor, UINT8 readMode, UINT8 **data);
 
 
 /* ATOMIC INSTRUCTIONS --------------------------------------------------------------- */
-/* OSUINT8_LL, OSUINT16_LL, OSINT16_LL, OSUINT32_LL, OSUINT32_LL and OSUINTPTR_LL: The LL
+/* OSUINT8_LL, OSUINT16_LL, OSINT16_LL, OSUINT32_LL, OSINT32_LL and OSUINTPTR_LL: The LL
 ** functions are used in conjunction with their corresponding SC functions call to provide
 ** synchronization support for Escapement. The LL/SC pair of functions works very much like
-** simple a get and a set function. The LL functions, in addition of returning the
+** a simple get and set. The LL functions, in addition to returning the
 ** contents of a memory location, have the effect of setting a user transparent
 ** reservation bit. If this bit is still set when an SC function is executed, the store of
 ** SC occurs; otherwise the store fails and the specified memory location is left
@@ -660,14 +657,14 @@ UINT8 OSGetReferenceBuffer(void *descriptor, UINT8 readMode, UINT8 **data);
 **    rameter.
 ** These functions are implemented in Escapement_Atomic.c. However OSUINTPTR_LL is simply a
 ** define to one of the other functions and depends on the width of an address that is
-** defined in Escapement_Type.h. */
+** defined in Escapement_Types.h. */
 UINT8 OSUINT8_LL(UINT8 *memAddr);
 UINT16 OSUINT16_LL(UINT16 *memAddr);
 INT16 OSINT16_LL(INT16 *memAddr);
 UINT32 OSUINT32_LL(UINT32 *memAddr);
 INT32 OSINT32_LL(INT32 *memAddr);
 
-/* OSUINT8_SC, OSUINT16_SC, OSINT16_SC, OSUINT32_SC, OSUINT32_SC and OSUINTPTR_SC: Store
+/* OSUINT8_SC, OSUINT16_SC, OSINT16_SC, OSUINT32_SC, OSINT32_SC and OSUINTPTR_SC: Store
 ** Memory Location if Reserved. If the reservation bit is set by a previous call to an LL
 ** function, the second parameter is written into the memory location specified by the
 ** first parameter.
@@ -684,13 +681,17 @@ INT32 OSINT32_LL(INT32 *memAddr);
 ** where TYPE can be one of UINT8, UINT16, INT16, UINT32, INT32 or UINTPTR.
 ** Parameters:
 **   (1) (TYPE *) Address to a memory location that holds the value to modify, where TYPE
-**                can be one of UINT8, UINT16, INT16, INT32 or UINTPTR.
+**                can be one of UINT8, UINT16, INT16, UINT32, INT32 or UINTPTR.
 **   (2) (TYPE) Value to insert into the memory location specified by the above parameter
 **              if and only if the reservation bit is still set.
 ** Returned value: (BOOL) TRUE if the store took place and FALSE otherwise.
+** The reservation is also lost when any interrupt or context switch comes between the
+** LL and the SC (CLREX, or the emulated bit cleared on the Cortex-M0+): an SC can fail
+** although the value did not change. Retry it; never take a single SC for a compare-
+** and-swap.
 ** These functions are implemented in Escapement_Atomic.c. However OSUINTPTR_SC is simply a
 ** define to one of the other functions and depends on the width of an address that is
-** defined in Escapement_Type.h. */
+** defined in Escapement_Types.h. */
 BOOL OSUINT8_SC(UINT8 *memAddr, UINT8 newValue);
 BOOL OSUINT16_SC(UINT16 *memAddr, UINT16 newValue);
 BOOL OSINT16_SC(INT16 *memAddr, INT16 newValue);

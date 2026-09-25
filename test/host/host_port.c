@@ -10,7 +10,8 @@
 ** no harder to run than one of three.
 **
 ** The atomics are plain accesses. This build is single threaded and nothing preempts it,
-** so a load-linked never loses its reservation.
+** so a load-linked keeps its reservation unless a test asks for store-conditionals to
+** fail (HostFailingSC).
 */
 
 #include <stdlib.h>

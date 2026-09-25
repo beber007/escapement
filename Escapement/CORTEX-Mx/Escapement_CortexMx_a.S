@@ -54,7 +54,7 @@
 **          (N-28)  R1  (General-purpose register)
 **   New SP (N-32)  R0  (General-purpose register)
 **   Under Escapement, there are two particular scenarios to take care of:
-**   (1) When a task instance terminates, the part of the run-time stask occupied by the
+**   (1) When a task instance terminates, the part of the run-time stack occupied by the
 **       task must be removed.
 **   (2) When a new task instance must be started, the above registers are explicitly
 **       placed on the run-time stack so that a return from interruption can be emulated.
@@ -255,7 +255,7 @@ _OSContextSwapHandler:
   BNE _OSContextSwapHandler_End            // Jump if _OSActiveTask is STATE_RUNNING
   /* Save the context of the task: context switching from an active task to a new task */
   LDR R3,[R2]                              // R3 <- _OSStackBasePointer
-  PUSH {R3,R4-R7}                          // push R4-R11 and _OSStackBasePointer
+  PUSH {R3,R4-R7}                          // push R4-R7 and _OSStackBasePointer
   MRS R3,MSP                               // retrieve SP: R3 <- SP
   STR R3,[R2]                              // _OSStackBasePointer <- SP
   B _OSContextSwapHandler_CreateNewContext
@@ -274,10 +274,10 @@ _OSContextSwapHandler_ClearStack:
   BNE _OSContextSwapHandler_RestoreContext // Jump if _OSActiveTask is STATE_RUNNING
 .thumb_func
 _OSContextSwapHandler_CreateNewContext:
-  /* Set the state of the new task to STATE_RUNNING. R0 still holds the whole state: an
-  ** ANDS above used to reduce it to the running bit, and every task started on a
-  ** Cortex-M0 lost the others — TASKTYPE_BLOCKING included, so that the power-aware
-  ** kernel took the idle task for a periodic one and wrote past its control block. */
+  /* Set the state of the new task to STATE_RUNNING, keeping the other bits R0 still
+  ** holds: reduced to the running bit, it would drop TASKTYPE_BLOCKING, and the
+  ** power-aware kernel would take the idle task for a periodic one and write past its
+  ** control block (docs/method.md). */
   MOVS R3,#1                               // R3 <- STATE_RUNNING
   ORRS R0,R0,R3                            // R0 (= _OSActiveTask->TaskState) |= STATE_RUNNING
   STRB R0,[R1,#8]                          // _OSActiveTask->TaskState <- R0
@@ -297,7 +297,7 @@ _OSContextSwapHandler_CreateNewContext:
   BICS R2,R3                               // R2 <- entry point & ~1
   /* Set link register to return to thread mode and on return use the main stack (0xFFFFFFF9) */
   MOVS R1,#0
-  SUBS R1,R1,#7                            // R0 <- 0 - 7 = 0xFFFFFFF9
+  SUBS R1,R1,#7                            // R1 <- 0 - 7 = 0xFFFFFFF9
   /* Set status register to thumb state (0x01000000) */
   MOVS R3,#1
   LSLS R3, R3,#24                          // R3 <- 1 << 24 = 0x01000000  

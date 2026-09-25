@@ -23,8 +23,10 @@
 **   test_scheduler firm    (m,k)-firm tasks under overload, soft kernel only
 **
 ** Under the power-aware kernel every run also checks the speeds it asks for: always one
-** of its operating points, and below the fastest as well as at it, since tasks that take
-** no time leave room to slow down. The speed changes nothing to the time here.
+** of its operating points; below the fastest as well as at it where slowing down is
+** possible; the fastest only with event-driven tasks in the set, or under DRA when tasks
+** leave it nothing to reclaim. Only the runs of tasks that take time let the speed
+** stretch the time a task takes.
 **
 ** Tasks do not run on a stack of their own — there is no context switch here. The test
 ** calls the elected task itself, which is enough to observe what the scheduler decided.
@@ -794,8 +796,9 @@ static void TestTimed(TimedMode mode)
             100.0 * busy / duration, 100.0 * BusyAt[0] / duration,
             100.0 * BusyAt[1] / duration, 100.0 * BusyAt[2] / duration);
      /* Taking their WCET, the tasks leave DRA nothing to reclaim; the others can still
-     ** stretch the last task of a busy period to the next arrival. What the slack run
-     ** checks is the deadlines. */
+     ** stretch the last task of a busy period to the next arrival. What the slack, expiry
+     ** and reclaim runs check is the deadlines, and under DM_SLACK that reclaim slows the
+     ** second task down. */
      if (mode == TIMED_SLACK || mode == TIMED_EXPIRY || mode == TIMED_RECLAIM) {
         extern unsigned HostInvalidSpeeds;
         Check("  every speed asked for is an operating point", HostInvalidSpeeds == 0);
@@ -895,7 +898,8 @@ static void TestFirm(void)
   CreateFirmTask(&Firm[0], 60, 100, 1, 4);
   CreateFirmTask(&Firm[1], 90, 150, 1, 3);
   /* Declaring its whole period as execution time, this task can never start an optional
-  ** instance in time, so only its mandatory ones run: 3 of every 5 if their pattern is. */
+  ** instance in time, so only its mandatory ones run: exactly 3 in each aligned window of
+  ** 5, which ExactlyMandatory checks. */
   CreateFirmTask(&Firm[3], 1000, 1000, 3, 5);
   /* A task small enough for its optional instances to fit whatever the others do. */
   CreateFirmTask(&Firm[2], 1, 1000, 1, 2);
@@ -922,7 +926,7 @@ static void TestFirm(void)
 
 
 /* A kernel that mishandles time can loop forever inside its interrupt handler, where the
-** test has no say; both runs take well under a second. */
+** test has no say; each run takes well under a second. */
 static void Timeout(int signal)
 {
   static const char message[] = "\nFAILED: the scheduler did not return within 10 s\n";

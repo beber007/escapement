@@ -21,7 +21,8 @@
 ** Modifications Copyright (c) 2026 Bertrand Hurst, distributed under the same terms;
 ** see LICENSE and NOTICE at the root of this repository.
 */
-/* File TaskLEDPico.c: Three periodic tasks that each toggle an output while they run.
+/* File TaskLEDPico.c: Three periodic tasks that each toggle an output while they run,
+** and a 1 ms probe.
 ** Transposition of TaskLEDF4.c to the Raspberry Pi Pico. The first task drives GPIO 25,
 ** the on-board LED, so the board shows it is alive without any instrument.
 ** Platform version: RP2040.
@@ -32,10 +33,7 @@
 #define FLAG1_PIN 25   /* on-board LED */
 #define FLAG2_PIN  2
 #define FLAG3_PIN  3
-/* Measurement probe, driven by a task of 1 ms period. The overload guard this task used
-** to trip came from the core frequency, which had stayed on the crystal: now that
-** OSInitializeSystemClocks engages the PLL, a scheduling round costs 7 us on average and
-** the probe runs. See docs/rp2040.md. */
+/* Measurement probe, 1 ms period (docs/rp2040.md). */
 #define PROBE_PIN  4
 
 /* Parameters handed to each task instance */
@@ -94,7 +92,7 @@ int main(void)
   ** core frequency — 125 MHz once OSInitializeSystemClocks has engaged the PLL — and on
   ** the optimisation level the example is built with, so no load figure is quoted here;
   ** it is low enough that the kernel's overload guard never fires. The periods themselves
-  ** were checked against an external frequency counter, see the README. */
+  ** were checked against an external frequency counter, see docs/rp2040.md. */
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->Pin = FLAG1_PIN;
   TaskParameters->Delay = 500;

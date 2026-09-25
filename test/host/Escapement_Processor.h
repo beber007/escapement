@@ -36,7 +36,7 @@ extern unsigned HostFailingSC;       /* store-conditionals to fail, see host_por
 #define OSCheckTCBLayout() struct OSCheckTCBLayoutNotApplicable
 
 /* Load-linked / store-conditional pairs. The kernel builds its queues with them; on the
-** host, nothing preempts, so a reservation is never lost. */
+** host, nothing preempts, so a reservation is lost only when a test sets HostFailingSC. */
 UINT8  OSUINT8_LL(UINT8 *addr);
 BOOL   OSUINT8_SC(UINT8 *addr, UINT8 value);
 UINT16 OSUINT16_LL(UINT16 *addr);

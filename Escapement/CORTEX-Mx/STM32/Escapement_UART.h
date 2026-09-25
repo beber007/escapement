@@ -78,8 +78,8 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
 **   to the transmitter part of the UART device for which the buffer will later be trans-
 **   ferred to. This index should correspond to the third parameter of function OSEn-
 **   queueUART.
-** Returned value: If all the pre-allocated buffers created when calling OSInitTransmit-
-**   UART are in use, OSGetFreeNodeUART returns NULL. Otherwise the function returns the
+** Returned value: If all the pre-allocated buffers created when calling OSInitUART are
+**   in use, OSGetFreeNodeUART returns NULL. Otherwise the function returns the
 **   starting address of the buffer that can be filled. This same address can then be
 **   transferred to OSEnqueueUART, or it can be released to the free pool of buffers by
 **   calling function OSReleaseNodeUART. */

@@ -21,7 +21,7 @@
 ** Modifications Copyright (c) 2026 Bertrand Hurst, distributed under the same terms;
 ** see LICENSE and NOTICE at the root of this repository.
 */
-/* File Escapement_Atomic.h: Defines the LL/SC atomic instructions used used with the types
+/* File Escapement_Atomic.c: Defines the LL/SC atomic instructions used with the types
 **                        defined for Escapement kernels.
 ** Platform version: All Cortex-Mx based microcontrollers.
 ** Version identifier: June 2012
@@ -31,7 +31,7 @@
 
 /* ATOMIC INSTRUCTIONS
 ** LL & SC Atomic Instruction
-** The LL/SC pair of instructions are becoming increasing popular among high-end micro-
+** The LL/SC pair of instructions are becoming increasingly popular among high-end micro-
 ** controllers. Basically the LL atomically reads the content of a memAddr location and
 ** reserves it. The SC instruction used in combination with the LL takes a memAddr location
 ** and a value as parameters. It checks whether the memAddr location is still reserved and
@@ -41,8 +41,11 @@
 
 #if defined(CORTEX_M0)
    /* Because the Cortex-M0 core processors do not have a reservation bit, we can emulate
-   ** the validity of the last LL instruction by clearing this indicator whenever there is
-   ** a context switch. This action is done in Escapement_CortexMx.c and Escapement_CortexMx.S. */
+   ** the validity of the last LL instruction by clearing this indicator on the way out of
+   ** a context switch or an interrupt. This action is done in _OSIOHandler
+   ** (Escapement_CortexMx.c) and _OSContextSwapHandler (Escapement_CortexMx_a.S).
+   ** The bit is one for the whole chip and PRIMASK masks one core only: the emulation
+   ** holds on one core, not between the two cores of the RP2040. */
    volatile BOOL _OSLLReserveBit;   /* cleared from interrupt context, so never cached */
 
    /* Return PRIMASK bit. */
@@ -78,7 +81,9 @@ inline UINT8 OSUINT8_LL(UINT8 *memAddr)
 
 /* OSUINT8_SC: Store memAddr Location if Reserved. If the reservation bit is set by a
 ** previous call to an LL function, the second parameter is written into the memAddr
-** location specified by the first parameter.*/
+** location specified by the first parameter. On the Cortex-M3/M4/M33, STREX writes 0 on
+** success: minus one turns that into a non-zero TRUE, and a failure into FALSE; the same
+** holds for every SC below.*/
 inline BOOL OSUINT8_SC(UINT8 *memAddr, register UINT8 newVal)
 {
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)

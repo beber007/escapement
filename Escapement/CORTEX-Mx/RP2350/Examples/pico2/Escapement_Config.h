@@ -29,8 +29,8 @@
 #define ESCAPEMENT_CONFIG_H_
 
 
-/* Scheduling algorithm. EscapementHard.h defines the names before reading this choice and
-** falls back to deadline-monotonic when an application says nothing. */
+/* Scheduling algorithm, named in Escapement_Modes.h. Each kernel header falls back to
+** deadline-monotonic when an application says nothing. */
 #ifndef SCHEDULER_REAL_TIME_MODE   /* make SCHEDULER=... builds the other one */
    #define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
 #endif
@@ -39,8 +39,9 @@
 #define CORTEX_M33
 
 
-/* Measures the cost of a scheduling round, read back over SWD by
-** tools/measure_cost.sh. Off by default: it adds work to the critical path of
+/* Measures the cost of a scheduling round, to be read back over SWD as
+** tools/measure_cost.sh does on the Pico; on the Pico 2 it needs an OpenOCD that
+** knows the RP2350. Off by default: it adds work to the critical path of
 ** the kernel, and it clears TIMER_DBGPAUSE so that the clock keeps running
 ** through debugger halts — which is what a measurement needs and the opposite
 ** of what debugging needs. */

@@ -15,12 +15,15 @@
 ** cores). The reader's fail when core 0 switches context between its LL and its SC, the
 ** kernel clearing the monitor there (CLREX, Escapement_CortexMx_a.S). The writer's never
 ** fail without a reason: core 1 takes no interrupt. So a writer that tries its SC only
-** once, as the kernels did until 6a73672, does not tear here: the model needs that SC to
-** fail for no visible reason. A writer that takes the slot being read does, and so does
-** a reader that tries its SC once. Under Renode (1.17), whose SC compares the value its
-** LL read instead of watching the other core's stores, the model says the same; but
-** there the run slows down a thousandfold or stalls (docs/emulation.md), so the demo is
-** not in escapement_pico2.robot.
+** once, as the kernels once did (docs/method.md), does not tear here: the model needs
+** that SC to fail for no visible reason. A writer that takes the slot being read does,
+** and so does a reader that tries its SC once. The barriers that the model of two weakly
+** ordered cores asks for stand in the kernel (_OSMemoryBarrier, a DMB on this port).
+**
+** Under Renode (1.17), whose SC compares the value its LL read instead of watching the
+** other core's stores, the model says the same. But there the run slows down a
+** thousandfold or stalls (docs/emulation.md), so the demo is not in
+** escapement_pico2.robot.
 **
 ** The counts sit in Results, laid out as in FourSlotCoresPico2.c, to be read over SWD
 ** on the board, with an OpenOCD that knows the RP2350.

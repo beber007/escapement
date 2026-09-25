@@ -15,9 +15,8 @@
 ** nothing between them are timed too, at each speed, to be subtracted.
 **
 ** BenchSum holds the sums, in the order listed above its definition, over BENCH_REPS
-** repetitions each; BenchDone becomes 1 at the end. Read them over SWD without stopping a
-** core, as tools/read_trace.py does for the trace, e.g.
-**   openocd ... -c init -c "mdw <address of BenchSum> 15" -c exit
+** repetitions each; BenchDone becomes 1 at the end. tools/dvfs_bench.py loads the image,
+** waits for it and prints the means, without stopping a core.
 ** Platform version: RP2040.
 */
 

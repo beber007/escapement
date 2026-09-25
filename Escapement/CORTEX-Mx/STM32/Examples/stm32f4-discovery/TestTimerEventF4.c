@@ -22,7 +22,7 @@
 ** see LICENSE and NOTICE at the root of this repository.
 */
 /* File TestTimerEventF4.c: Shows how to use API Escapement_TimerEvent. This simple program
-** periodically turns LEDS on and then schedules an event to turn them off.
+** periodically turns the flags on and then schedules an event to turn them off.
 ** Version date: March 2012
 */
 
@@ -115,7 +115,7 @@ void SetLed2Task(void *argument)
 } /* end of SetLed2Task */
 
 
-/* ClearLed1Task: Clears the LED toggled by SetLed2Task(). */
+/* ClearLed2Task: Clears the LED toggled by SetLed2Task(). */
 void ClearLed2Task(void *argument)
 {
   FLAG_PORT->BSRR = (UINT32)FLAG2_PIN << 16;

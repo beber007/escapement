@@ -21,7 +21,7 @@
 ** Modifications Copyright (c) 2026 Bertrand Hurst, distributed under the same terms;
 ** see LICENSE and NOTICE at the root of this repository.
 */
-/* File Escapement_Processor.h: Defined architecture specifics for Escapement kernels. Note that
+/* File Escapement_Processor.h: Defines architecture specifics for Escapement kernels. Note that
 **                           these definitions are not intended for the user.
 ** Platform version: All STM32 microcontrollers.
 ** Version identifier: March 2012

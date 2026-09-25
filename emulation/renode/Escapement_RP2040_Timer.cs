@@ -1,7 +1,8 @@
 //
 // Escapement_RP2040_Timer: a fixed copy of Timers.RP2040Timer from matgla/Renode_RP2040, at
-// the commit the CI pins (5aca847c9f57ed96603e55d28e8ceeefa09e55f6). escapement_pico.repl
-// puts it in place of the original, whose alarms interfere with one another as soon as
+// the commit the CI pins (5aca847c9f57ed96603e55d28e8ceeefa09e55f6).
+// escapement_pico_timer.repl puts it in place of the original, once escapement_pico.robot
+// has unregistered it, whose alarms interfere with one another as soon as
 // more than one is in use — which the kernel does with two, and the timer events with a
 // third:
 //   1. writing INTR lowered the interrupt of all four alarms, not of those written with a
@@ -159,7 +160,8 @@ namespace Antmicro.Renode.Peripherals.Timers
         }
 
         /* Arms an alarm: it fires when the lower 32 bits of the counter next equal the
-        ** value, after as many ticks as separate them modulo 2^32. */
+        ** value, after as many ticks as separate them modulo 2^32 (a value equal to the
+        ** counter fires on the next tick). */
         private void Arm(int id, uint value)
         {
             uint ticks = value - (uint)counter.Value;

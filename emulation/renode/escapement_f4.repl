@@ -4,7 +4,8 @@
 // STM32F4-Discovery for Escapement.
 //
 // Three differences from the platform shipped with Renode:
-//  - TIM2 uses the fixed model (see Escapement_STM32_Timer.cs);
+//  - TIM2, the kernel clock, and TIM14, the timer events, use the fixed model (see
+//    stm32f4_escapement_cpu.repl and Escapement_STM32_Timer.cs);
 //  - the linker script places the flash at 0x00000000 (the STM32 aliasing when
 //    BOOT0 = 0), which Renode does not model;
 //  - the three tasks of TaskLEDF4 toggle PB13, PB14 and PB15, which have to be

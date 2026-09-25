@@ -7,7 +7,7 @@
 **
 ** The bootrom leaves the chip running on its ring oscillator, whose frequency is neither
 ** precise nor known — around 6 MHz. Both the 1 us tick of the timer and the UART baud
-** rate need a reference worthy of the name, so the crystal is started and the whole tree
+** rate need a precise reference, so the crystal is started and the whole tree
 ** is switched onto it.
 **
 ** The system clock is then taken to the nominal 125 MHz of the RP2040 through the PLL,
@@ -15,7 +15,7 @@
 ** 12 MHz a task of 1 ms already trips its overload guard.
 **
 ** The reference and peripheral clocks stay on the crystal on purpose. The former keeps the
-** microsecond tick exact whatever the core does — which is precisely what makes this chip
+** microsecond tick exact whatever the core does — which is what makes this chip
 ** a good target for the power-aware variant — and the latter keeps the UART dividing a
 ** frequency the driver knows.
 **
@@ -70,8 +70,8 @@
 
 
 /* OSInitializeSystemClocks: Switches the reference, system and peripheral clocks onto the
-** 12 MHz crystal. Must be called before anything that depends on time, which includes
-** _OSInitializeTimer and the UART. */
+** 12 MHz crystal, then the system clock onto the PLL at 125 MHz. Must be called before
+** anything that depends on time, which includes _OSInitializeTimer and the UART. */
 void OSInitializeSystemClocks(void)
 {
   /* Start the crystal and wait for it to settle. The startup delay is counted in batches

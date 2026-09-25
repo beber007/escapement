@@ -34,7 +34,7 @@
 
 /* Because events are sorted by the time at which they occur, and that this time is mon-
 ** otonically increasing, the relative time reference wraparounds. We therefore need to
-** periodically shift the occurrence times. This is done very SHIFT_TIME_LIMIT tics. */
+** periodically shift the occurrence times. This is done every SHIFT_TIME_LIMIT tics. */
 #define SHIFT_TIME_LIMIT    0x40000000 // = 2^30
 #define SHIFT_TIME_LIMIT_16 0x00004000 // = 2^30 >> 16
 
@@ -138,7 +138,7 @@ typedef struct TIMER_EVENT_NODE { // Blocks that are in the event queue
 
 typedef struct TIMER_ISR_DATA {
   void (*TimerIntHandler)(struct TIMER_ISR_DATA *);
-  UINT32 *ClkEnable;            // RCC peripheral reset register
+  UINT32 *ClkEnable;            // RCC clock enable register
   UINT32 ClkEnableBit;          //     mask to above register for the event timer
   UINT32 Base;                  // First memory mapped register of the event timer
   void *PendingQueueOperation;  // Interrupted operations that are not complete
@@ -421,8 +421,8 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT16 int
   /*** Initialize Cortex-Mx Nested Vectored Interrupt Controller ***/
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
      /* Compute the priority (Only 4 bits are used for priority on STM32) */
-     tmppriority = priority << (PRIGROUP - 3); // (PRIGROUP - 3) is the number of sub priorty bits
-     tmppriority |= subpriority & (0x0F >> (7 - PRIGROUP)); // (7 - PRIGROUP) is the number priorty bits
+     tmppriority = priority << (PRIGROUP - 3); // (PRIGROUP - 3) is the number of sub priority bits
+     tmppriority |= subpriority & (0x0F >> (7 - PRIGROUP)); // (7 - PRIGROUP) is the number of priority bits
   #endif
   /* Set the IRQ priority */
   intPriorityLevel = (UINT8 *)(IRQ_PRIORITY_REGISTER + IRQIndex);
@@ -736,7 +736,7 @@ void DeleteQueueHelper(DELETEQUEUE_OP *des)
      if (des->Done)          // Has a higher priority task finished the work?
         break;
      else if (right == NULL) {  // Is the seeked node already removed from the queue?
-        des->Done = TRUE;       // Mark that node has been inserted
+        des->Done = TRUE;       // Mark that node has been removed
         break;
      }
      else if (des->Event == right->Event) {

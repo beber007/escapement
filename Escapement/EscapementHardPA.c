@@ -37,10 +37,11 @@
 ** number in the table. */
 #if POWER_MANAGEMENT != NONE
    extern const UINT8 _OSSlowdownRatios[];
-   /* The work done in a time at a speed below the fastest, the time times its ratio over
-   ** 256, rounded down. Multiplied whole, a time of more than 2^31 / 256 ticks, 21 s at
-   ** 1 µs, overflowed: a ready queue whose tasks declare long WCETs gives the reclaiming
-   ** policies such times, and the host test ran into it. Split, it cannot. */
+   /* The work done in a time at a speed below the fastest: the time times its ratio over
+   ** 256, rounded down. Multiplied whole, the product overflowed past 2^31 / ratio ticks,
+   ** 21 s at 1 us for the 50 MHz ratio of the RP2040 (102): a ready queue whose tasks
+   ** declare long WCETs gives the reclaiming policies such times, and the host test ran
+   ** into it. Split, it cannot. */
    #define Slowdown(time,speed) \
       (((time) >> 8) * _OSSlowdownRatios[speed] + \
        ((((time) & 0xFF) * _OSSlowdownRatios[speed]) >> 8))
@@ -52,10 +53,10 @@
 **                 |                 ^
 **                 V                 |
 **            STATE_RUNNING  -> STATE_ZOMBIE
-** In state INIT, a task is in the ready queue but hasn't yet started it's execution.
+** In state INIT, a task is in the ready queue but hasn't yet started its execution.
 ** In the RUNNING state, the task is also in the ready queue and has begun its execution.
 ** The difference between these two states lies with the context switch. In the former
-** state there are no registers to restore. This is not the case in the READY state.
+** state there are no registers to restore. This is not the case in the RUNNING state.
 ** When a task terminates its execution, it becomes a ZOMBIE and it needs to stay in the
 ** ready queue until it finishes its preparation because otherwise and when a timer in-
 ** terruption occurs, the task will never have the opportunity to finish. In ZOMBIE state,
@@ -63,10 +64,12 @@
 ** circumvent this problem, a timer interrupt asserts that an active zombie task is no
 ** longer in the ready queue. A task with state ZOMBIE and no longer in the ready queue
 ** is considered to be in state TERMINATED, which is a fictitious state. */
-#define STATE_INIT          0x00 /* Must be equal to zero */
-#define STATE_RUNNING       0x01 /* These values may also be used in other implementa- */
-#define STATE_ZOMBIE        0x02 /* tion files specific to a microcontroller, e.g. */
-#define STATE_TERMINATED    0x04 /* of a given port. */
+/* STATE_INIT must be 0 and STATE_RUNNING bit 0: Escapement_CortexMx_a.S tests and sets
+** them by value. */
+#define STATE_INIT          0x00
+#define STATE_RUNNING       0x01
+#define STATE_ZOMBIE        0x02
+#define STATE_TERMINATED    0x04
 /* Because the task structure is different for event-driven tasks, we need to distinguish
 ** them. By default all tasks are periodic unless specified. */
 #define TASKTYPE_BLOCKING   0x08
@@ -80,16 +83,17 @@ typedef struct TCB {
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      UINT8 Priority;             // Current instance running priority
   #endif
-  INT32 NextArrivalTimeLow;      // Remaining time before reappearing
+  INT32 NextArrivalTimeLow;      // Next arrival time, modulo 2^30
   void (*TaskCodePtr)(void *);   // Pointer to the first instruction of the code task
                                  // (Needed to reinitialize a new instance execution)
   void *Argument;                // An instance specific pointer width value
   #if SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST_STAR
-     INT32 CurrentArrivalTimeLow; // Claude
+     INT32 CurrentArrivalTimeLow; // Release time of the current instance, EDF* tie-break
   #endif
   #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
-     /* The link of the simulation queue comes after the fields the context switch reads,
-     ** Next[] ending where they begin: a third entry there moved them all four bytes. */
+     /* The simulation-queue link is not a third entry of Next[]: the context switch reads
+     ** the fields that follow Next[] at fixed offsets, and a third entry moved them all
+     ** four bytes. */
      struct TCB *NextSim;        // Next TCB in the simulation queue
   #endif
   #ifdef STATIC_POWER_MANAGEMENT
@@ -131,12 +135,12 @@ typedef struct ETCB {
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      UINT8 Priority;             // Static task priority
   #endif
-  INT32 NextArrivalTimeLow;      // Remaining time before it can reappear
+  INT32 NextArrivalTimeLow;      // Earliest time the next instance may start
   void (*TaskCodePtr)(void *);   // Pointer to the first instruction of the code task
                                  // (Needed to reinitialize a new instance execution)
   void *Argument;                // An instance specific pointer width value
   #if SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST_STAR
-     INT32 CurrentArrivalTimeLow; // Claude
+     INT32 CurrentArrivalTimeLow; // Release time of the current instance, EDF* tie-break
   #endif
   #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
      struct ETCB *NextSim;       // At the same place as in the TCB
@@ -156,7 +160,7 @@ typedef struct ETCB {
      INT32 PeriodLow;            // Interarrival period >= WCET (user input)
   #else
      INT32 WorkLoad;             // Equal to WCET / (available processor load)
-     INT32 NextDeadline;         // Key criteria for EDF scheduling (offset==TCB)
+     INT32 NextDeadline;         // Key criterion for EDF scheduling (offset==TCB)
   #endif
   struct FIFOQUEUE *EventQueue;  // Pointer to the event queue of this task
   struct ETCB *NextETCB;         // Link to the next created ETCB
@@ -173,12 +177,13 @@ typedef struct ETCB {
 ** nates, it places its TCB in the arrival queue which stays in the queue until its pe-
 ** riod expires at which time a new instance is created. */
 #define ARRIVALQ  1
-/* Simulation queue: Simulated list of running tasks giving the task events when these
-** task use their WCETs. This list is needed to extract the excess times with DRA. */
+/* Simulation queue (linked through NextSim, DRA and DR_OTE only): Simulated list of run-
+** ning tasks giving the task events when these tasks use their WCETs. This list is
+** needed to extract the excess times with DRA. */
 /* Queue of event-driven tasks that are blocked for an event: Event-driven tasks can be
 ** blocked, running or waiting. In the blocked state, the task is placed in the queue as-
 ** sociated with the event using the same link as ARRIVALQ. The task can also be in the
-** arrival queue if it has expired its processor load with it's last execution. */
+** arrival queue if it has expired its processor load with its last execution. */
 #define BLOCKQ    ARRIVALQ
 
 /* The sentinels of the queues, the tail being also the idle task. Both are whole TCBs,
@@ -195,41 +200,40 @@ static TCB *OSQueueTail = NULL;
   ** is the equivalent of the task's deadline and period. Because of the priority assign-
   ** ment, the workload fixes the task's scheduling priority. However, a new instance may
   ** not begin before the end of the previous period to guarantee the task set is sched-
-  ** ulable. Hence, when a task completes it's current instance, it joins a blocking
-  ** queue to wait for the next event; when the event occurs, it must first finish it's
+  ** ulable. Hence, when a task completes its current instance, it joins a blocking
+  ** queue to wait for the next event; when the event occurs, it must first finish its
   ** period. This is done in the arrival queue of periodic tasks. Because the timer peri-
   ** odically resets the system time, the earliest starting time of each event-driven
   ** task must also be adjusted. To do this, we need to access them. */
   static ETCB *SynchronousTaskList = NULL;
 #else
   /* APERIODIC SERVER SCHEDULING DEFINITIONS UNDER EDF
-  ** Event-driven tasks are scheduled according to a sporadic server model, i.e., (1)
-  ** these tasks only run during the slack time left by the periodic tasks, (2) if
-  ** U(hard) denotes the processor utilization of all the hard periodic tasks, i.e. the
-  ** sum of WCET_i/period_i of all tasks i, then the remaining utilization 1-U(hard) can
-  ** be given to the synchronous tasks. The computed deadline for the task is
-  **           d(j) = max(d(j-1),currentTime) + WCET/U(task)
-  ** where U(task) < 1 - U(hard). */
+  ** Event-driven tasks are served by a total bandwidth server (M. Spuri and
+  ** G. Buttazzo, Real-Time Systems 10(2), 1996): if U(hard) denotes the processor utili-
+  ** zation of the periodic tasks, the sum of WCET_i/period_i, the remaining utilization
+  ** 1-U(hard) can be given to the event-driven tasks. Each instance gets the deadline
+  **           d(j) = max(d(j-1),currentTime) + WCET/U(tasks)
+  ** where U(tasks) <= 1 - U(hard), and is scheduled by EDF with the periodic tasks. */
   static INT32 SynchronousTaskDeadlines = 0;  // denotes d(j) in the above
   /* SynchronousTaskList serves the same purpose as for DM scheduling. */
   static ETCB *SynchronousTaskList = NULL;
   #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
     static UINT8 AperiodicUtilization = 0; // aperiodic processor utilization
-    static INT32 AperiodicExcess = 0;      // transferrable excess not used by aperiodics
+    static INT32 AperiodicExcess = 0;      // transferable excess not used by aperiodics
     static INT32 AperiodicExcessTime = 0;  // time of the last update
   #endif
 #endif
 /* RescheduleSynchronousTaskList is a temporary LIFO queue that is used to transfer event
 ** driven tasks that can be scheduled into the ready queue. Tasks in this queue are in-
 ** serted by a signaling task or by an event-driven task when this last task needs to re-
-** start itself. The rational behind this queue is to allow the timer interrupt insert
-** the tasks into ready queue because these tasks may take precedence over the caller.
+** start itself. The rationale behind this queue is to let the timer interrupt insert
+** the tasks into the ready queue because these tasks may take precedence over the caller.
 ** Hence, the caller needs to save its context before releasing the processor. This is
 ** done by invoking a timer interrupt. */
 static ETCB *RescheduleSynchronousTaskList = NULL;
 
 
-/* With DRA or DR_OTE power management modes, we mimic the task in the ready queue with
+/* With DRA or DR_OTE power management modes, we mimic the tasks of the ready queue running
 ** their WCETs. Because time-periods to update the simulation are defined when a task
 ** terminates or when a task arrives, the simulation clock, DRASimTime, may be ahead of
 ** the system wall clock. The difference between the current time and DRASimTime is the
@@ -239,7 +243,8 @@ static ETCB *RescheduleSynchronousTaskList = NULL;
 #endif
 /* To determine the worst-case running time that is left for a periodic task, the elapsed
 ** time since the task got hold of the processor needs to be determined. The following
-** global variable marks the time take the active task is scheduled. */
+** global variable marks the time the active task was scheduled (the simulated time under
+** DRA). */
 #if POWER_MANAGEMENT != NONE
   static INT32 LastRemainingWorkUpdate = 0;
 #endif
@@ -250,8 +255,9 @@ static ETCB *RescheduleSynchronousTaskList = NULL;
   static INT32 DMSlackAmount = 0;
   static UINT8 DMSlackPriority = 0;
 #endif
-/* The current processor speed is directly determined from the index of the core voltage
-** setting of the processor. This also corresponds to the frequency index entries. */
+/* Speeds are indices of the port's operating points, OS_xxMHZ_SPEED, slowest first (a
+** frequency with its core voltage). The minimal one bounds the speeds GetProcessorSpeed
+** may choose. */
 #if POWER_MANAGEMENT != NONE
   static UINT8 MinimalProcessorSpeed = 0;  // Slowest processor speed by default
 #endif
@@ -286,19 +292,21 @@ BOOL _OSNoSaveContext = TRUE;
 /* TASK EXECUTION STACK
 ** _OSStackBasePointer: Pointer to the stack base of currently running task: Local varia-
 ** bles used in the task are located between the SP register and the stack base, and when
-** resuming the previous task, we need to start popping registers from the base. */
+** resuming the previous task, we need to start popping registers from the base.
+** Before OSStartMultitasking, OSMalloc uses it as its allocation pointer. */
 void *_OSStackBasePointer;
 
 
 /* TIME KEEPING */
-/* To avoid overflow of temporal variables, periodically these variables are shifted once
-** _OSTime is greater or equal to a given value. This value must be equal to 2^(16+i)
-** where i > 0 (2^16 = 65536). The recommended value is i = 14. */
-static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30 (i = 14)
-/* The while loop that empties the arrival uses a condition that simply depends upon the
-** current time. To avoid crossing the tail sentinel, the arrival time of the sentinel
-** must be unreachable (unattainable arrival time). The host build, which includes
-** <stdint.h>, already has it. */
+/* The timer counts modulo 2^30: each time it passes that boundary, every temporal vari-
+** able is shifted back by ShiftTimeLimit. The value is tied to the 2^30 cycles of
+** PeriodHigh and NextArrivalTimeHigh and to the 0x3FFFFFFF masks of the timer handler;
+** it cannot be changed alone. */
+static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30
+/* The while loop that empties the arrival queue uses a condition that simply depends
+** upon the current time. To avoid crossing the tail sentinel, the arrival time of the
+** sentinel must be unreachable (unattainable arrival time). The host build, which
+** includes <stdint.h>, already has it. */
 #ifndef INT32_MAX
    #define INT32_MAX 0x7FFFFFFF   /* 2^31 - 1 */
 #endif
@@ -386,9 +394,9 @@ BOOL Initialize(void)
 } /* end of Initialize */
 
 
-/* IdleTask: This task executes whenever there is no other task in the ready queue. Its
-** sole purpose is to keep the processor busy until the next task arrival time.
-** The argument parameter to the idle task is undefined. */
+/* IdleTask: Runs whenever no other task is ready. On its first run it starts the timer,
+** which OSStartMultitasking only prepared, and it then sleeps until the next interrupt;
+** once running, it is resumed, never restarted. The argument is undefined. */
 void IdleTask(void *argument)
 {
   if (_OSQueueHead->Next[ARRIVALQ] != OSQueueTail || SynchronousTaskList != NULL) {
@@ -412,7 +420,8 @@ BOOL OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 peri
 } /* end of OSCreateTask */
 
 
-/* OSCreateTask: Creates a new periodic task by allocating a new TCB to the task.
+/* CreateTask: Allocates and initializes the TCB of a new periodic task, and returns it
+** (NULL on failure) so that OSCreateTask and _OSCreateTask can complete it.
 ** The period and arrival time of periodic tasks are given respectively by the relation
 **     period = PeriodHigh * 2^30 + PeriodLow
 **     arrival time = NextArrivalTimeHigh * 2^30 + NextArrivalTimeLow */
@@ -451,7 +460,7 @@ TCB *CreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 period
   #endif
   ArrivalQueueInsert(ptcb);
   return ptcb;
-} /* end of OSCreateTask */
+} /* end of CreateTask */
 
 
 #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
@@ -487,7 +496,7 @@ UINT8 GetTaskPriority(INT32 deadline)
 
 #ifdef STATIC_POWER_MANAGEMENT
 /* _OSCreateTask: Same as OSCreateTask() but adds a frequency index to the list of para-
-** eters. This frequency index is then used whenever the task is scheduled. */
+** meters. This frequency index is then used whenever the task is scheduled. */
 BOOL _OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 periodOffset,
                    INT32 deadline, void *argument, UINT8 frequencyIndex)
 {
@@ -530,7 +539,7 @@ void OSEndTask(void)
      DMSlackUpdateSlack();
   #endif
   #if POWER_MANAGEMENT != NONE
-     /* Ajust the processor speed for power management. There is no point in changing the
+     /* Adjust the processor speed for power management. There is no point in changing the
      ** current speed when switching to the idle task. */
      if (_OSActiveTask != OSQueueTail) {
         #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
@@ -553,8 +562,7 @@ void OSEndTask(void)
 } /* end of OSEndTask */
 
 
-/* Macro definition of result=min(result-sub,0) done on 32-bit integer arithmetic where
-** sub > 0. */
+/* SubOrZeroIfNeg: result = max(result - sub, 0), in 32-bit arithmetic, where sub > 0. */
 #define SubOrZeroIfNeg(result,sub) \
 { \
   result -= sub;  \
@@ -572,7 +580,7 @@ void OSEndTask(void)
 /* _OSTimerInterruptHandler: Software interrupt handler for the timer that manages task
 ** instance arrivals. Because the timer is a bit counter with a predefined number of bits,
 ** when a timer event occurs, it can be that there are no arrivals. In this case, we only
-** need check if we need to shift temporal variables. */
+** need to check whether temporal variables must be shifted. */
 void _OSTimerInterruptHandler(void)
 {
   INT32 currentTime;
@@ -589,7 +597,7 @@ void _OSTimerInterruptHandler(void)
         static UINT8 nesting = 0;
         if (++nesting > 1) {
            _OSDisableInterrupts();
-           while (TRUE); // If you get here, call us!
+           while (TRUE); // Timer handler re-entered: it must not nest
         }
      #endif
   #endif
@@ -611,7 +619,7 @@ void _OSTimerInterruptHandler(void)
   #endif
   do {
      if (_OSTimerIsOverflow(ShiftTimeLimit)) {   // Has timer overflowed?
-        /* To avoid overflow of the wall clock _OSTime, a time shift is done on all temporal
+        /* To avoid overflow of the timer's time, a time shift is done on all temporal
         ** variables. Because all these variables are signed, their relative values are pre-
         ** served. */
         #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
@@ -670,8 +678,8 @@ void _OSTimerInterruptHandler(void)
         while (arrival->NextArrivalTimeLow <= currentTime &&
              ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {
            _OSQueueHead->Next[ARRIVALQ] = arrival->Next[ARRIVALQ];
-           /* At this point an arriving periodic task should be state STATE_ZOMBIE, but event-
-           ** driven tasks should be in state STATE_ZOMBIE | TASKTYPE_BLOCKING. */
+           /* At this point an arriving periodic task should be in state STATE_ZOMBIE, but
+           ** event-driven tasks in state STATE_ZOMBIE | TASKTYPE_BLOCKING. */
            #ifdef DEBUG_MODE
               if (!(arrival->TaskState & STATE_ZOMBIE)) { // Is task still in the ready queue?
                  /* An arriving task should not be in state STATE_RUNNING */
@@ -740,8 +748,8 @@ void _OSTimerInterruptHandler(void)
               LastRemainingWorkUpdate = currentTime;
            }
         #elif POWER_MANAGEMENT != NONE
-           /* Because the Idle task is considered as a TASKTYPE_BLOCKING type, it suffices to
-           ** check only event-driven tasks to update only periodic tasks. */
+           /* Only a periodic task has work to update: testing TASKTYPE_BLOCKING leaves out
+           ** both the event-driven tasks and the idle task, which carries the flag too. */
            if (!SetActiveTaskRemainingTime && (_OSActiveTask->TaskState & TASKTYPE_BLOCKING) == 0)
               UpdateRemainingWork(_OSActiveTask,SavedCurrentSpeed,currentTime);
         #endif
@@ -870,7 +878,7 @@ BOOL ReadyQueueInsertTestKey(const TCB *insert, const TCB *next)
   #elif SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST_STAR 
      return insertDeadline < nextDeadline ||
          (insertDeadline == nextDeadline &&
-         // Claude
+         // Same deadline: see EDF* in EscapementHardPA.h
          (next->CurrentArrivalTimeLow < insert->CurrentArrivalTimeLow ||
          (next->CurrentArrivalTimeLow == insert->CurrentArrivalTimeLow && next < insert)));
   #endif
@@ -952,7 +960,7 @@ static void IncrementFifoQueueIndex(UINT16 *index, UINT16 oldValue, UINT16 modul
 #define DequeueEventTask(eventQueue) (ETCB *)FIFODequeue(eventQueue,SIGNAL)
 
 
-/* OSCreateEventDescriptor: Creates and returns a descriptor with all the need informa-
+/* OSCreateEventDescriptor: Creates and returns a descriptor with all the needed informa-
 ** tion to block (suspend) and wake-up an event-driven task instance. The implementation
 ** requires a circular list that can be created and completed once the number of tasks
 ** that can be blocked is known. */
@@ -1051,7 +1059,7 @@ void OSSuspendSynchronousTask(void)
      ** active task that gets scheduled. */
      SetActiveTaskRemainingTime = TRUE;
   #endif
-  /* Set task to zombie to indicate that the task it is about to remove itself from the
+  /* Set task to zombie to indicate that the task is about to remove itself from the
   ** ready queue and that its context should not be saved. */
   _OSActiveTask->TaskState |= STATE_ZOMBIE;
   _OSNoSaveContext = TRUE;    // Don't save the context of this task
@@ -1067,7 +1075,7 @@ void OSSuspendSynchronousTask(void)
      DMSlackUpdateSlack();
   #endif
   #if POWER_MANAGEMENT != NONE
-     /* Ajust the processor speed for power management. There is no point in changing the
+     /* Adjust the processor speed for power management. There is no point in changing the
      ** current speed when switching to the idle task. */
      if (_OSActiveTask != OSQueueTail) {
         #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
@@ -1100,8 +1108,8 @@ void OSScheduleSuspendedTask(void *eq)
 } /* end of OSScheduleSuspendedTask */
 
 
+/* NonMaskableSoftwareTimer, when a port needs it, comes from its Escapement_Timer.h. */
 #ifndef NonMaskableSoftwareTimer
-   /* Defined in file Escapement_Timer.h */
    /* EnqueueRescheduleQueue: Inserts an aperiodic ETCB into a list of work that needs to be
    ** processed by the timer handler (see EmptyRescheduleSynchronousTaskList). This indirect
    ** scheduling of aperiodic tasks is necessary because it is possible that the timer hand-
@@ -1121,10 +1129,10 @@ void OSScheduleSuspendedTask(void *eq)
 #else
    /* EnqueueRescheduleQueueBeforeBoot: Same as EnqueueRescheduleQueue but without gene-
    ** rating an interrupt to schedule the signaled task. This is needed so that the task
-   ** is not executed when Escapement' timer has not yet started. This function is only
+   ** is not executed when Escapement's timer has not yet started. This function is only
    ** called prior to starting the timer and inserts the task to be scheduled in the
    ** temporary list RescheduleSynchronousTaskList. As soon as the timer is started and
-   ** enters it's first processing, this list is emptied with the first timer interrupt
+   ** enters its first processing, this list is emptied with the first timer interrupt
    ** generated by the Idle task. */
    void EnqueueRescheduleQueueBeforeBoot(ETCB *etcb)
    {
@@ -1136,9 +1144,9 @@ void OSScheduleSuspendedTask(void *eq)
    } /* end of EnqueueRescheduleQueueBeforeBoot */
 
    /* EnqueueRescheduleQueueAfterBoot: Identical to EnqueueRescheduleQueue. This is the
-   ** function that is called after having started Escapement' timer. This function is need-
-   ** ed so that a function pointer can be defined to change between the initialization
-   ** phases while using the same global name. */
+   ** function that is called after having started Escapement's timer. This function is
+   ** needed so that a function pointer can be defined to change between the initializa-
+   ** tion phases while using the same global name. */
    void EnqueueRescheduleQueueAfterBoot(ETCB *etcb)
    {
      while (TRUE) {
@@ -1167,8 +1175,8 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
      while ((etcb = (ETCB *)OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList)) != NULL) {
         if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb->Next[BLOCKQ])) {
            #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
-              /* Under EDF, the task that is to process the event cannot execute until it
-              ** has finished its previous deadline. */
+              /* Under EDF, the task that is to process the event cannot execute until its
+              ** previous deadline has passed. */
               wait = currentTime < etcb->NextDeadline;
            #else
               /* Under deadline monotonic scheduling, the task that is to process the
@@ -1218,6 +1226,8 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
            }
         }
      }
+  /* The list was seen empty: the SC confirms that no task was pushed since that LL, else
+  ** the loop runs again. */
   } while (!OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,NULL));
   #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
      return doSimUpdateElapseTime;
@@ -1248,7 +1258,7 @@ void UpdateRemainingWork(TCB *task, UINT8 currentSpeed, INT32 newTime)
    ** step, it or the timer ISR transforms these temporaries into the true variables. */
    static UINT8 DMSlackInterrupt = FALSE;     // True if temporaries should be transformed
    static INT32 DMTmpRemaindingWork;          // New slack value
-   static UINT8 DMTmpPriority;                // Task priorities that can use the slack
+   static UINT8 DMTmpPriority;                // Priority of the task that left the slack
    static INT32 DMTmpLastRemainingWorkUpdate; // New starting interval for updates
 #endif
 
@@ -1259,6 +1269,9 @@ void UpdateRemainingWork(TCB *task, UINT8 currentSpeed, INT32 newTime)
 void DMSlackCalculateSlack(TCB *task, UINT8 currentSpeed, INT32 newTime)
 {
   INT32 dmRemaindingWork;
+  /* The LL/SC pair on DMSlackInterrupt makes the three stores one unit with the flag: a
+  ** timer interrupt in between, which may consume them, makes the SC fail and the values
+  ** are computed again. */
   do {
      OSUINT8_LL(&DMSlackInterrupt);
      dmRemaindingWork = newTime - LastRemainingWorkUpdate;
@@ -1275,7 +1288,9 @@ void DMSlackCalculateSlack(TCB *task, UINT8 currentSpeed, INT32 newTime)
 
 #if POWER_MANAGEMENT == DM_SLACK
 /* DMSlackUpdateSlack: Finalizes the values calculated in DMSlackCalculateSlack into the
-** global variables for which they refer to. */
+** global variables they refer to.
+** Returned value: (BOOL) FALSE when it installed a pending slack, TRUE when there was
+** none. */
 BOOL DMSlackUpdateSlack(void)
 {
   if (DMSlackInterrupt) {
@@ -1307,7 +1322,7 @@ INT32 GetSuspendedSchedulingDeadline(ETCB *etcb, INT32 currentTime)
 
 #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
 /* DRASimUpdateElapseTime: Updates the simulated tasks and the aperiodic excess time.
-** This function should be done prior to setting the processor speed using dynamic recla-
+** This function should be called prior to setting the processor speed using dynamic recla-
 ** mation algorithm for power management.
 ** Parameter: (INT32) newTime: new update time, i.e. brings the values in the simulation
 **            queue up to this time.
@@ -1387,13 +1402,12 @@ void DRASimUpdateElapseTime(INT32 newTime)
 
 
 #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
-/* InterruptibleINT32CAS2: This function is the equivalent of a CAS2 function that simul-
-** taneously does the equivalent of an indivisible CAS. The idea behind this function is
-** that a task that is suspended in the function can either resume execution or terminate
-** itself. This latter situation can occur if the caller is a timer interrupt or a task
-** executing its OSEndTask or OSSuspendSynchronousTask. In this case, functions that use
-** any variables implicated in a CAS2 should first assert that they are not in a previous
-** unfinished CAS2. */
+/* InterruptibleINT32CAS2: Two compare-and-stores, one after the other, whose operands and
+** step reached are kept in static variables, so that code preempting the caller can
+** complete a pending pair (check = TRUE) instead of undoing it: the caller, a timer
+** interrupt or a task in OSEndTask or OSSuspendSynchronousTask, may never resume. The
+** pair is not indivisible. Code that uses the variables of a pair must first complete
+** any pending one. */
 void InterruptibleINT32CAS2(INT32 *m1, INT32 e1, INT32 v1, INT32 *m2, INT32 e2, INT32 v2, BOOL check)
 {
   static INT32 *memory[2];
@@ -1445,9 +1459,8 @@ void InterruptibleMixCAS2(INT32 *m1, INT32 e1, INT32 v1, TCB **m2, TCB *e2, TCB 
 
 #if POWER_MANAGEMENT != NONE || defined(STATIC_POWER_MANAGEMENT)
 /* OSSetMinimalProcessorSpeed: Sets minimal processor speed.
-** Parameter: (UINT8) index in the _OSFrequencySetting table with the speed settings. This
-**            value also corresponds to the voltage setting that should be applied for
-**            the frequency entry in the table. */
+** Parameter: (UINT8) one of the port's OS_xxMHZ_SPEED operating points, slowest first;
+**            GetProcessorSpeed never chooses a slower one. */
 void OSSetMinimalProcessorSpeed(UINT8 speed)
 {
   #if POWER_MANAGEMENT != NONE
@@ -1458,9 +1471,9 @@ void OSSetMinimalProcessorSpeed(UINT8 speed)
 
 
 #if POWER_MANAGEMENT != NONE
-/* GetProcessorSpeed: Returns an entry of _OSFrequencySetting holding the voltage/frequency
-** relationship. This function should be called whenever the processor speed must be ad-
-** justed dynmanically to meet the task specifications with minimal speed. */
+/* GetProcessorSpeed: Returns the operating point (OS_xxMHZ_SPEED) to run the active task
+** at, the slowest that still completes its remaining work in the time the policy grants
+** it. Called whenever the speed must be adjusted dynamically. */
 UINT8 GetProcessorSpeed(INT32 time)
 {
   INT32 completionTime;
@@ -1473,6 +1486,9 @@ UINT8 GetProcessorSpeed(INT32 time)
   INT8 speed;
   if ((_OSActiveTask->TaskState & TASKTYPE_BLOCKING) == 0) {
      #if POWER_MANAGEMENT == OTE
+        /* OTE: when the active task is the only one ready, it may stretch its remaining
+        ** work up to the earliest of the next periodic arrival, the next event-driven
+        ** release and its own deadline. */
         if (_OSActiveTask->Next[READYQ] == OSQueueTail) {
            if (_OSQueueHead->Next[ARRIVALQ] != OSQueueTail)
               completionTime = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
@@ -1580,9 +1596,9 @@ UINT8 GetProcessorSpeed(INT32 time)
            #endif
      #endif
      /* Find the speed to apply to the task: the slowest that does the work left in the
-     ** time given. The work, an integer, exceeds the rounded down product exactly when it
-     ** exceeds the product itself, so the comparison is the one of RemainingWork << 8
-     ** with the ratio times completionTime, which overflowed. */
+     ** time given. The work is an integer, so it exceeds the rounded-down product exactly
+     ** when it exceeds the product itself: this is the comparison of RemainingWork << 8
+     ** with the ratio times completionTime, without the overflow of that product. */
      #ifdef STATIC_POWER_MANAGEMENT
         speed = _OSActiveTask->FrequencyIndex;  // first frequency setting
      #else
@@ -1627,7 +1643,7 @@ INT32 GetEarliestAperiodicArrival(void)
 /* GetDRASlackTime: When power management uses the dynamic reclaiming algorithm, the
 ** ready queue is simulated so that the slack time produced by an excess of the task in-
 ** stance WCET can be given to other instances in the ready queue. Each instance TCB has
-** a completionTime field that hold the remaining execution of the instance. When the
+** a CompletionTime field that holds the remaining execution of the instance. When the
 ** simulated value is greater than zero and that instance has completed, this time excess
 ** can be given to other instances. Because the simulated ready queue is an exact mimic
 ** of the ready queue, when scheduling a task instance that is at the head of the ready
@@ -1714,16 +1730,16 @@ BOOL OSStartMultitasking(void (*f)(void *), void *arg)
   /* There are periodic tasks in the system when the arrival queue is not empty. Note
   ** that periodic tasks are initially inserted in this queue before starting Escapement. */
   if (_OSQueueHead->Next[ARRIVALQ] != OSQueueTail || SynchronousTaskList != NULL)
-     /* Initialize the timer which starts counting as soon as the idle task begins. At
-     ** this point, the timer's input divider is selected but it is halted. */
+     /* Prepare the timer; it begins scheduling arrivals when the idle task first runs
+     ** (_OSStartTimer). */
      _OSInitializeTimer();
   /* Start the first task in the ready queue, i.e. the Idle task. */
   _OSActiveTask = _OSQueueHead->Next[READYQ];
   /* Finalize the application initializations if any */
   if (f != NULL) f(arg);
   _OSScheduleTask();     // Start the Idle task
-  _OSEnableInterrupts(); // Necessary for microcontrollers that return from _OSSchedule-
-  return FALSE;          // Task, e.g. CORTEX-M3
+  _OSEnableInterrupts(); // _OSScheduleTask only pended PendSV: the switch to the idle
+  return FALSE;          // task is taken here, and never returns
 } /* end of OSStartMultitasking */
 
 
@@ -1732,9 +1748,8 @@ BOOL OSStartMultitasking(void (*f)(void *), void *arg)
 ** atomic operation can be done. The following define macros to test, insert and remove a
 ** marker. Note that these macros could have been defined as in-line functions but macros
 ** are as simple.
-** The marker value is processor dependent. When using the MSB of an address, all these
-** addresses must be in the lower half memory locations. For markers using the LSB, all
-** addresses must be aligned on modulo 2 word boundaries. */
+** On Cortex-M the marker is the most significant bit (MARKEDBIT, Escapement_CortexMx.h):
+** every marked address must lie below 0x80000000, as RAM does. */
 
 /* IsMarkedReference: Determines whether an address is marked.
 ** Parameter: Address to test.
@@ -1754,8 +1769,10 @@ BOOL OSStartMultitasking(void (*f)(void *), void *arg)
 #define GetUnmarkedReference(node) (UINTPTR)((UINTPTR)node & UNMARKEDBIT)
 
 
-/* GetFIFOArrayMaxIndex: Given the size, say S, of a FIFO array, this function returns
-** the largest natural number A such that A mod S = 0 and A != 2^n - 1 for any n > 0. */
+/* GetFIFOArrayMaxIndex: Returns the value at which Head and Tail wrap around: the smallest
+** multiple of the array size S not below 0xFFFF - S. Being a multiple of S keeps index % S
+** continuous across the wrap, and 0xFFFF itself is never reached: it marks an index not
+** yet read in the operation descriptors (FIFODequeue, FIFOEnqueue). */
 UINT16 GetFIFOArrayMaxIndex(UINT16 queueSize)
 {
   UINT16 tmp, maxIndex = 0xFFFF - queueSize;
@@ -1779,12 +1796,12 @@ UINTPTR FIFODequeue(FIFOQUEUE *queue, UINTPTR signal)
   void *op;
   if (queue == NULL || queue->Q == NULL) // Test if fifo is initialized
      return NULL;
-  /* Initialize of fields of the descriptor to uninitialized markers. */
+  /* Initialize the fields of the descriptor to uninitialized markers. */
   des.HeadPropose = des.Head = 0xFFFF;
   des.SlotPropose = des.SlotReturn = (UINTPTR)&des;
   des.Done = FALSE;
-  /* Do all pending operation before the current dequeue. */
-  if ((op = queue->PendingOp) != NULL) { // Is there any pending operations?
+  /* Complete the pending operation before the current dequeue. */
+  if ((op = queue->PendingOp) != NULL) { // Is an operation pending?
      if (IsMarkedReference(op))          // Is pending operation a dequeue?
         FIFODequeueHelper(queue,signal,(DEQUEUE_DESCRIPTOR *)GetUnmarkedReference(op));
      else
@@ -1866,10 +1883,10 @@ void FIFODequeueHelper(FIFOQUEUE *queue, UINTPTR signal, DEQUEUE_DESCRIPTOR *des
 **   (1) (FIFOQUEUE *) array-based queue descriptor;
 **   (2) (UINTPTR) signal marker: can be NULL or SIGNAL;
 **   (3) (UINTPTR) item to enqueue.
-** Returned value: (BOOL) TRUE if the item is successfully enqueued or if the queue holds
-**    the SIGNAL marker at the time of the call. The function returns FALSE if the queue
-**    is full or if the queue does not contain the SIGNAL marker and the item (task) is
-**    successfully inserted. */
+** Returned value: (BOOL) TRUE when the tail slot held the marker passed as parameter:
+**    with SIGNAL, the queue held a signal and the item was not inserted; with NULL, the
+**    slot was free and the item was inserted. FALSE otherwise: with SIGNAL, the item was
+**    inserted; with NULL, the queue was full. */
 BOOL FIFOEnqueue(FIFOQUEUE *queue, UINTPTR signal, UINTPTR item)
 {
   ENQUEUE_DESCRIPTOR des;
@@ -1967,6 +1984,8 @@ typedef struct NODE {      // User nodes stored into the FIFO queue
   UINT16 info;             // Starting field of the node's content
 } NODE;
 
+/* Its first fields are those of FIFOQUEUE, in the same order: OSEnqueueFIFO and
+** OSDequeueFIFO hand it to FIFOEnqueue and FIFODequeue as one. */
 typedef struct BUFFER_DESCRIPTOR_FIFO {
   NODE **Q;                // Array of queued items
   void *PendingOp;         // Posted operation for the queue (dequeue or enqueue op.)
@@ -2009,7 +2028,7 @@ void *OSInitFIFOQueue(UINT8 maxNodes, UINT8 maxNodeSize)
 
 
 /* OSEnqueueFIFO: Inserts a node into a FIFO queue. The size parameter (user input) is
-** stored into the node so that it can be transfered to the dequeuer task. */
+** stored into the node so that it can be transferred to the dequeuer task. */
 BOOL OSEnqueueFIFO(void *queue, void *node, UINT16 size)
 {
   NODE *tmpNode = (NODE *)(((UINTPTR)node) - sizeof(UINT16));
@@ -2018,8 +2037,8 @@ BOOL OSEnqueueFIFO(void *queue, void *node, UINT16 size)
 } /* end of OSEnqueueFIFO */
 
 
-/* OSDequeueFIFO: Retrieves a node from the FIFO queue. The size parameter (output para-
-** meter corresponds to the value that was stored by the enqueue function. */
+/* OSDequeueFIFO: Retrieves a node from the FIFO queue. The size parameter (an output
+** parameter) receives the value that was stored by the enqueue function. */
 void *OSDequeueFIFO(void *queue, UINT16 *size)
 {
   NODE *node;
@@ -2073,13 +2092,13 @@ typedef struct {              // 3-slotted buffer descriptor
 } BUFFER_3_SLOT;
 
 /* General structure suitable for both 3- or 4-slot reader-writer protocols. This struc-
-** ture can also be used by an interrupt hander defining the I/O buffers */
+** ture can also be used by an interrupt handler defining the I/O buffers */
 typedef struct {
   void *Buffer;               // 3- or 4-slot mechanism descriptor
   UINT8 BufferSize;           // number of bytes composing a full data item
   UINT8 Status;               // one of {BUFFER_INIT,BUFFER_UNREAD,BUFFER_READ}
   UINT8 BufferSlotType;       // one of {OS_BUFFER_TYPE_3_SLOT,OS_BUFFER_TYPE_4_SLOT}
-  void *EventQueue;           // optional event associated the defined buffer
+  void *EventQueue;           // optional event associated with the buffer
 } BUFFER_DESCRIPTOR;
 
 /* Internal slot-buffer function prototypes */
@@ -2092,8 +2111,8 @@ static BUFFER_DATA *GetReadyBuffer4Slot(BUFFER_DESCRIPTOR *descriptor);
 ** buffer and its sole purpose is to distinguish an unfilled buffer from a valid read or
 ** unread buffer. This is a transient state that can no longer be re-entered once exited.
 ** BUFFER_UNREAD indicates that there is an available and unread data buffer. The state
-** of the buffer is set to BUFFER_READ only when an application task calling one of the
-** OSGetBuffer() functions and specifies OS_READ_ONLY_ONCE.
+** of the buffer is set to BUFFER_READ only when the reader calls OSGetCopyBuffer() or
+** OSGetReferenceBuffer() with OS_READ_ONLY_ONCE.
 ** BUFFER_READ indicates that the latest and most recent available data buffer has al-
 ** ready been read. */
 #define BUFFER_INIT   0x1
@@ -2156,8 +2175,8 @@ void *OSInitBuffer(UINT8 bufferSize, UINT8 bufferSlotType, void *eventQueue)
 } /* end of OSInitBuffer */
 
 
-/* OSWriteBuffer: Copies the data to the current writer buffer and truncates those that
-** exceeds the buffer size.
+/* OSWriteBuffer: Copies the data to the current writer slot and truncates what exceeds
+** the buffer size.
 ** Parameters:
 **   (1) (void *) a buffer descriptor created by OSInitBuffer();
 **   (2) (UINT8 *) data to copy into the writer buffer;
@@ -2165,11 +2184,15 @@ void *OSInitBuffer(UINT8 bufferSize, UINT8 bufferSlotType, void *eventQueue)
 ** Returned value: (UINT8 ) number of bytes accepted into the buffer. */
 UINT8 OSWriteBuffer(void *descriptor, UINT8 *data, UINT8 size)
 {
+  /* next[Reading][Latest]: a slot that is neither the one being read nor the latest; in
+  ** row 3, a reader still asking for a slot, only the latest is avoided (Chen and Burns,
+  ** 1997). */
   static const UINT8 next [4][3] = {{1,2,1},{2,2,0},{1,0,0},{1,2,0}};
   BUFFER_DESCRIPTOR *descript = (BUFFER_DESCRIPTOR *)descriptor;
   BUFFER_DATA *element;
   UINT8 i = 0;
-  if (descript != NULL) { // Check that the port was initialized
+  if (descript != NULL) { // Check that the buffer was created
+     // CurrentWriter comes first in both slot structures
      element = ((BUFFER_4_SLOT *)descript->Buffer)->CurrentWriter;
      for ( ; i < size && i < descript->BufferSize &&
                                       element->BufferItems != descript->BufferSize; i++)
@@ -2204,12 +2227,12 @@ UINT8 OSWriteBuffer(void *descriptor, UINT8 *data, UINT8 size)
            _OSMemoryBarrier();
            buffer->Latest = windex = buffer->CurrentWriterIndex;
            _OSMemoryBarrier();
-           /* Hand the slot over if the reader asks for one, again until the SC succeeds or
-           ** the reader has taken one: an SC also fails when an interrupt merely came
-           ** between it and its LL. On one core that interrupt clears the reader's
-           ** reservation too, so a single try did no harm; between two cores the reader's
-           ** survives, its SC hands it a Latest read before this one, and the slot chosen
-           ** below is the one it reads (test/model/threeslot.py, two cores). */
+           /* Hand the slot to a reader that asks for one (Reading == 3), retrying until
+           ** the SC succeeds or the reader has taken a slot itself: an SC also fails when
+           ** an interrupt merely came between it and its LL. On one core that interrupt
+           ** also clears the reader's reservation, so one try would do; across two cores
+           ** the reader's survives, its SC gives it a Latest older than this one, and the
+           ** slot chosen below would be the one it reads (test/model/threeslot.py). */
            while (OSUINT8_LL(&buffer->Reading) == 3)
               if (OSUINT8_SC(&buffer->Reading,windex))
                  break;
@@ -2240,9 +2263,9 @@ UINT8 OSGetReferenceBuffer(void *descriptor, UINT8 readMode, UINT8 **data)
 {
   BUFFER_DESCRIPTOR *descript = (BUFFER_DESCRIPTOR *)descriptor;
   BUFFER_DATA *buffer;
-  /* Check that the port was allocated and that there is something to read. */
+  /* Check that the buffer was created and that there is something to read. */
   if (descript != NULL && descript->Status != BUFFER_INIT) {
-     if (!readMode)   // take the unread slot, again if an interrupt made the SC fail
+     if (!readMode)   // take the unread slot, retrying if an interrupt made the SC fail
         do
            if (OSUINT8_LL(&descript->Status) != BUFFER_UNREAD)
               goto fail;
@@ -2276,9 +2299,9 @@ UINT8 OSGetCopyBuffer(void *descriptor, UINT8 readMode, UINT8 *data)
   UINT8 i;
   BUFFER_DESCRIPTOR *descript = (BUFFER_DESCRIPTOR *)descriptor;
   BUFFER_DATA *buffer;
-  /* Check that the port was allocated and that there is something to read. */
+  /* Check that the buffer was created and that there is something to read. */
   if (descript != NULL && descript->Status != BUFFER_INIT) {
-     if (!readMode)   // take the unread slot, again if an interrupt made the SC fail
+     if (!readMode)   // take the unread slot, retrying if an interrupt made the SC fail
         do
            if (OSUINT8_LL(&descript->Status) != BUFFER_UNREAD)
               goto fail;
@@ -2306,9 +2329,9 @@ BUFFER_DATA *GetReadyBuffer4Slot(BUFFER_DESCRIPTOR *descriptor)
   BOOL rpair, rindex;
   BUFFER_4_SLOT *buffer = (BUFFER_4_SLOT *)descriptor->Buffer;
   rpair = buffer->Latest;         // Reader chooses pair
-  /* With the writer on the other core: the previous slot read before the pair is chosen
-  ** again, and the pair announced before its slot is read (test/model/fourslot.py,
-  ** explore_weak). */
+  /* With the writer on the other core: the previous slot read before the new pair is
+  ** announced, and the pair announced before its slot is chosen and read
+  ** (test/model/fourslot.py, explore_weak). */
   _OSMemoryBarrier();
   buffer->Reading = rpair;        // Reader indicates pair
   _OSMemoryBarrier();
@@ -2329,9 +2352,9 @@ BUFFER_DATA *GetReadyBuffer3Slot(BUFFER_DESCRIPTOR *descriptor)
   _OSMemoryBarrier();
   buffer->Reading = 3;
   _OSMemoryBarrier();
-  /* Unlike the compare-and-swap of Chen and Burns, an SC also fails when an interrupt
-  ** merely came between it and its LL, with Reading still 3: try again until the SC
-  ** succeeds or the writer has chosen for the reader (test/model/threeslot.py). */
+  /* Unlike the compare-and-swap of Chen and Burns (1997), an SC also fails when an
+  ** interrupt merely came between it and its LL, with Reading still 3: try again until
+  ** the SC succeeds or the writer has chosen for the reader (test/model/threeslot.py). */
   while (OSUINT8_LL(&buffer->Reading) == 3)
      if (OSUINT8_SC(&buffer->Reading,buffer->Latest))
         break;

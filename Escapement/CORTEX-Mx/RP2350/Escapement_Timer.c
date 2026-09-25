@@ -23,7 +23,7 @@
 */
 /* File Escapement_Timer.c: Hardware abstract timer layer for the RP2350, transposed from
 ** the RP2040 port, whose logic it keeps. What differs: TIMER0 at another address, its
-** interrupt registers four words further since LOCKED and SOURCE come before them, the
+** interrupt registers two words further, since LOCKED and SOURCE come before them, the
 ** 1 us tick from a TICKS block of its own rather than from the watchdog, and 4 bits of
 ** interrupt priority instead of 2 (RP2350 datasheet; pico-sdk, hardware/regs/timer.h,
 ** ticks.h, resets.h). A fix to the logic here goes to the RP2040 port too, and back.
@@ -81,14 +81,14 @@
 #define ALARM1_BIT          0x2
 #define TIME_MASK           0x3FFFFFFFu   /* Escapement counts modulo 2^30 */
 
-/* Interrupt cause marked by the ISR and processed by the lower priority handler
-** _OSTimerInterruptHandler. */
 /* Value of the counter when the kernel started. The counter is free running since
 ** power-up and is never reset, whereas Escapement expects its clock to start near zero: on
 ** a board that has been running for a while the kernel would otherwise believe every
 ** deadline already missed. All kernel times are therefore counted from this origin. */
 static UINT32 TimeOrigin = 0;
 
+/* Interrupt cause marked by the ISR and processed by the lower priority handler
+** _OSTimerInterruptHandler. */
 volatile BOOL _OSOverflowInterruptFlag = FALSE;
 volatile BOOL _OSComparatorInterruptFlag = FALSE;
 
@@ -179,7 +179,7 @@ void _OSInitializeTimer(void)
   /* Produce the 1 us tick from the 12 MHz reference clock. */
   TICKS_TIMER0_CYCLES = 12;
   TICKS_TIMER0_CTRL = TICKS_ENABLE;
-  /* The RP2350, as the RP2040, freezes its timer as soon as a core is halted by the
+  /* The RP2350, like the RP2040, freezes its timer as soon as a core is halted by the
   ** debugger. Keeping that behaviour is deliberate: without it, every inspection lets
   ** the kernel's clock run on while the tasks are stopped, and on resume the kernel
   ** finds every deadline missed — which trips its overload guard as soon as a task has

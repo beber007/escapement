@@ -57,11 +57,11 @@ jobs:
           shopt -s nullglob
           elfs=(build/*.elf)
           if [ ${#elfs[@]} -eq 0 ]; then
-            echo "::error::aucun binaire produit"
+            echo "::error::no binary produced"
             exit 1
           fi
           for elf in "${elfs[@]}"; do
-            test -s "$elf" || { echo "::error::$elf est vide"; exit 1; }
+            test -s "$elf" || { echo "::error::$elf is empty"; exit 1; }
           done
           arm-none-eabi-size "${elfs[@]}"
 
@@ -92,7 +92,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-      - name: Run both kernels under both scheduling algorithms
+      - name: Run the three kernels under every algorithm and policy
         run: make -C test/host run
       - name: Check the slot buffers and the FIFO queue over every interleaving
         run: |
@@ -141,9 +141,9 @@ jobs:
           retention-days: 14
 
   variants:
-    # The examples ship with the hard kernel under EDF, which the jobs above run. The soft
-    # kernel and deadline-monotonic scheduling are built and run here, from the same
-    # sources: make KERNEL=SOFT and make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING.
+    # The STM32F4 examples ship with the hard kernel under EDF, which the emulation job
+    # runs. The soft kernel and deadline-monotonic scheduling run here, from the same
+    # sources; the RP2040 and RP2350 jobs below carry their own variants.
     name: Variant under Renode (${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
@@ -287,7 +287,7 @@ jobs:
 
       # The RP2040 models of matgla/Renode_RP2040 are built against the assemblies of
       # the linux-dotnet package of Renode (emulation/renode/RP2040.md); the image holds
-      # both, pinned, the models built.
+      # both, pinned, with the models already built.
       - name: Use Renode 1.16.1 and the RP2040 models
         run: |
           echo /opt/renode-1.16.1 >> "$GITHUB_PATH"

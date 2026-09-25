@@ -75,7 +75,7 @@ void InitializeUART2Hardware(void)
   GPIOA->OTYPER &= ~(PIN(2) | PIN(3));
   GPIOA->OSPEEDR = (GPIOA->OSPEEDR & ~(0xFu << 4)) | (0xAu << 4);
   GPIOA->PUPDR = (GPIOA->PUPDR & ~(0xFu << 4)) | (0x5u << 4);
-  /* USART2 configured as follow:
+  /* USART2 configured as follows:
      - BaudRate = 115200 baud, from the APB1 clock with oversampling by 16
      - Word Length = 8 Bits
      - One Stop Bit
@@ -94,7 +94,7 @@ void InitializeUART2Hardware(void)
   /* Enable the USART2 Interrupt, one priority group below the kernel timer */
   NVIC_SetPriority(USART2_IRQn, (TIMER_PRIORITY + 1) << (PRIGROUP - 3));
   NVIC_EnableIRQ(USART2_IRQn);
-} /* end of InitializeUARTHardware */
+} /* end of InitializeUART2Hardware */
 
 
 /* UARTUserReceiveInterruptHandler: This function is called every time a new byte is

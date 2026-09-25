@@ -29,8 +29,8 @@
 #define ESCAPEMENT_CONFIG_H_
 
 
-/* Scheduling algorithm. EscapementHard.h defines the names before reading this choice and
-** falls back to deadline-monotonic when an application says nothing. */
+/* Scheduling algorithm, named in Escapement_Modes.h. Each kernel header falls back to
+** deadline-monotonic when an application says nothing. */
 #ifndef SCHEDULER_REAL_TIME_MODE   /* make SCHEDULER=... builds the other one */
    #define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
 #endif

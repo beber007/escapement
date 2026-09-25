@@ -22,7 +22,8 @@
 ** see LICENSE and NOTICE at the root of this repository.
 */
 /* File Escapement_Interrupts.h: Indices of the RP2040 interrupt vector table, usable with
-** OSSetISRDescriptor and OSGetISRDescriptor.
+** OSSetISRDescriptor and OSGetISRDescriptor. They are the IRQ numbers of the chip (RP2040
+** datasheet; pico-sdk, src/rp2040/hardware_regs/include/hardware/regs/intctrl.h).
 ** Platform version: RP2040 (Raspberry Pi Pico).
 */
 

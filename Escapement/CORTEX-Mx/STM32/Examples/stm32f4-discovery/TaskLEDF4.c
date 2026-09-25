@@ -24,7 +24,7 @@
 /* File TaskLEDF4.c: Illustrates 3 simple periodic tasks that toggle an output GPIO port.
 ** Two of these tasks do a constant number of iterations in a loop, while the third does
 ** a variable number of iterations, which increases at each invocation until this number
-** reaches a maximum value, at which time it restarts with a iteration of 1.
+** reaches a maximum value, at which time it restarts with one iteration.
 ** Version date: March 2012
 */
 
@@ -108,8 +108,8 @@ void InitializeFlags(UINT16 GPIO_Pin)
 
 
 /* FixedDelayTask: Changes the state of the task's attributed output I/O port before and
-** after executing a fixed number of loop iterations The number of iterations is a param-
-** eter transfered by main. */
+** after executing a fixed number of loop iterations. The number of iterations is a param-
+** eter passed by main. */
 void FixedDelayTask(void *argument)
 {
   volatile UINT32 i;

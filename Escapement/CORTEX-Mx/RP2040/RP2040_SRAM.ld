@@ -8,8 +8,8 @@
 ** no_flash build type of the SDK does — and incidentally takes the flash out of the power
 ** measurement, which serves the power-aware variant.
 **
-** The vector table therefore sits at 0x20000000, and the application must point VTOR at it
-** before enabling interrupts.
+** The vector table follows the entry code, in SRAM, and the application must point VTOR
+** at it before enabling interrupts.
 */
 
 ENTRY(_OSRamEntry)
@@ -23,8 +23,8 @@ SECTIONS
 {
     .text :
     {
-        /* The bootrom branches to the first word of the image: it needs code there, not
-        ** the vector table. That table follows, 256 byte aligned as VTOR requires. */
+        /* The debugger starts the image at its first word: it needs code there, not the
+        ** vector table. That table follows, 256 byte aligned as VTOR requires. */
         KEEP(*(.ram_entry))
         . = ALIGN(256);
         KEEP(*(.isr_vector_general))  /* Cortex-Mx system exceptions */

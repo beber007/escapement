@@ -12,7 +12,7 @@
 ** software timer, deadlines armed, changes of speed — in a ring buffer of the last
 ** OS_TRACE_SIZE of them, which the debugger reads once the run is over or stuck.
 **
-** Only the RP2040 port implements it, and only with ESCAPEMENT_TRACE defined (make
+** The RP2040 and RP2350 ports implement it, only with ESCAPEMENT_TRACE defined (make
 ** TRACE=1): otherwise every trace point compiles to nothing.
 ** Platform version: All Cortex-Mx based microcontrollers.
 */
@@ -28,7 +28,7 @@
 #define OS_TRACE_SET_TIMER   5   /* deadline armed: arg 1 ahead, 0 passed; extra: ticks ahead */
 #define OS_TRACE_SPEED       6   /* speed changed: arg new, extra old */
 #define OS_TRACE_MARK        7   /* left by the application: arg and extra its own */
-#define OS_TRACE_EVENT       8   /* timer event delivered: arg the alarm; extra us late */
+#define OS_TRACE_EVENT       8   /* timer event delivered: arg its alarm bit; extra us late */
 
 #if defined(ESCAPEMENT_TRACE) && !defined(_ASM_)
    #define OS_TRACE_SIZE 256     /* a power of two */

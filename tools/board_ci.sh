@@ -107,8 +107,8 @@ fourslot() {
 # cost <name>: the 1 ms round of TaskLEDPico, 10 s of it, and at most 5 us on average
 # (3.2 measured for the hard kernel on 2026-09-23, docs/rp2040.md). The rounds count from
 # the load to the reading, which takes the probe longer on some machines than on others:
-# 10,067 on a Linux machine, 10,135 on a Mac mini. The upper bound only catches a kernel
-# that runs its round too often.
+# 10,067 on a Linux machine, 10,135 and 10,255 on a Mac mini. The upper bound only catches
+# a kernel that runs its round too often.
 cost() {
     out=$(in_probe "sh tools/measure_cost.sh 10 $SEEN/fw/$1/TaskLEDPico.elf")
     echo "$out"
@@ -139,8 +139,9 @@ events() {
 
 # dvfs <name>: BenchDVFSPico, each change of speed 10,000 times. Means of 2026-09-24 with
 # two reads of the counter included (docs/rp2040.md): 8.7 us from 12 to 125 MHz at most,
-# 6.0 by the wake-up path; allowed a quarter more. The wake-up path, which exists to be
-# the shorter one, must stay shorter than the general one from the same speed.
+# 6.0 by the wake-up path; allowed about a quarter more, rounded up to the microsecond.
+# The wake-up path, which exists to be the shorter one, must stay shorter than the general
+# one from the same speed.
 dvfs() {
     out=$(in_probe "python3 tools/dvfs_bench.py $SEEN/fw/$1/BenchDVFSPico.elf")
     echo "$out"

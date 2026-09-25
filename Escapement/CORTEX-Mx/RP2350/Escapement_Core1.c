@@ -5,8 +5,8 @@
 /* File Escapement_Core1.c: Starts the second core of the RP2350, as the RP2040 port does:
 ** the bootrom of core 1 waits on the inter-core FIFO of the SIO for the sequence 0, 0, 1,
 ** vector table, stack pointer, entry point, and echoes each word back; core 1 is first
-** forced off and on again through the power-on state machine. The pico-sdk runs the very
-** same code on both chips (multicore_reset_core1 and multicore_launch_core1_raw, in
+** forced off and on again through the power-on state machine. The pico-sdk runs the same
+** code on both chips (multicore_reset_core1 and multicore_launch_core1_raw, in
 ** pico_multicore/multicore.c); only the address of the PSM and the bit of core 1 in its
 ** FRCE_OFF register differ (hardware/regs/psm.h, addressmap.h).
 **

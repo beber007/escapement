@@ -28,8 +28,8 @@
 ** served by the interrupt, so that a task never waits on the port.
 **
 ** Two things differ from the RP2040 beyond the addresses. The pads of the RP2350 come out
-** of reset isolated and with their input disabled: both pins are released and their
-** inputs enabled here. And the interrupts of the UARTs, 33 and 34, lie beyond the first
+** of reset isolated and with their input disabled: both pins are released and the input
+** of RX enabled here. And the interrupts of the UARTs, 33 and 34, lie beyond the first
 ** 32, in the second word of the NVIC's enable registers.
 **
 ** Platform version: RP2350 (Raspberry Pi Pico 2).
@@ -142,7 +142,7 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
   PADS_BANK0_GPIO(txPin) &= ~PADS_ISO_BIT;
   PADS_BANK0_GPIO(rxPin) &= ~PADS_ISO_BIT;
   /* Baud rate: the PL011 divides the peripheral clock by 16 times a divisor held as an
-  ** integer part and a sixth-fourth fraction. */
+  ** integer part and a fraction in 64ths. */
   divisor = (8 * CLK_PERI_HZ / BAUD_RATE + 1) / 2;   /* divisor in 64ths, rounded */
   REG(descriptor,UART_IBRD) = divisor >> 6;
   REG(descriptor,UART_FBRD) = divisor & 0x3F;
@@ -183,7 +183,7 @@ void OSEnqueueUART(void *buffer, UINT8 dataSize, UINT8 interruptIndex)
   UART_INTERRUPT_DESCRIPTOR *descriptor =
                           (UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(interruptIndex);
   OSEnqueueFIFO(descriptor->FifoArray,buffer,dataSize);
-  /* Contrary to the USART of the STM32, where the transmit interrupt reflects a state and
+  /* Unlike the USART of the STM32, where the transmit interrupt reflects a state and
   ** fires as soon as it is enabled, the one of the PL011 fires on a FIFO threshold being
   ** crossed. Enabling it on an already empty FIFO produces nothing: transmission has to be
   ** primed by writing the first bytes.
@@ -239,7 +239,7 @@ static void TakeNextBuffer(UART_INTERRUPT_DESCRIPTOR *des)
 /* InterruptHandler: Single ISR of a UART. On reception it hands each byte to the
 ** application. On transmission it pushes bytes from the current buffer, takes the next one
 ** from the queue when it runs out, and disables the transmit interrupt once everything has
-** been sent — OSEnqueueUART will raise it again. */
+** been sent — OSEnqueueUART enables it again. */
 static void InterruptHandler(UART_INTERRUPT_DESCRIPTOR *des)
 {
   UINT32 status = REG(des,UART_MIS);

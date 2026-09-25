@@ -36,8 +36,9 @@ INT32 _OSGetActualTime(void);
 BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit);
 BOOL _OSSetTimer(INT32 nextArrivalTime);
 
-/* Driven by the test: advances the clock to the armed deadline and returns the time it
-** reached, or -1 when no deadline is armed. */
+/* Driven by the test (host_port.c): HostTicksToNextEvent returns how far the clock must
+** move to reach the armed deadline, or else the 2^30 wraparound, without moving it;
+** HostClockNow reads it. HostAdvanceBy, which moves it, is declared by test_scheduler.c. */
 INT32 HostTicksToNextEvent(void);
 INT32 HostClockNow(void);
 

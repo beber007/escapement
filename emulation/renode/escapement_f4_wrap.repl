@@ -5,9 +5,9 @@
 //
 // Same platform as escapement_f4.repl, with one difference: TIM2 is clocked 82,000 times
 // faster. The kernel programs a prescaler of 81, so its counter ticks at 10 GHz and
-// reaches the 2^30 boundary after 107 ms instead of eighteen minutes. TaskWrapF4 scales
-// its periods by the same factor, so the kernel sees the load it would have on hardware —
-// what shrinks is the processor time to emulate, which a CI runner has to pay in full.
+// reaches the 2^30 boundary after 107 ms instead of eighteen minutes. TaskWrapF4 gives its
+// tasks periods of 1, 2 and 6 ms in those ticks, close to those of TaskLEDF4 on
+// escapement_f4.repl — what shrinks is the emulated time, which a CI runner pays in full.
 using "stm32f4_escapement_cpu.repl"
 
 timer2:

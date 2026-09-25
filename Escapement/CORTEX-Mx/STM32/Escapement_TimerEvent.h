@@ -35,7 +35,7 @@
 ** their occurrence time.
 ** Parameters:
 **  (1) (UINT8) nbNode: maximum number of pending events;
-**  (2) (UINT8) prescaler: divides the counter clock frequency, i.e. the timer frequency
+**  (2) (UINT16) prescaler: divides the counter clock frequency, i.e. the timer frequency
 **      will be set to f(input)/(prescaler+1).
 **  (3) (UINT8) priority: priority level of the timer;
 **  (4) (UINT8) subpriority: subpriority level of the timer;

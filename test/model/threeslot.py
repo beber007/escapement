@@ -14,9 +14,9 @@ The writer is an interrupt handler: each of its steps runs whole between two ste
 the reader, a task. A writer step either writes one byte into its slot, or, once the
 slot is full, publishes it — Latest, then Reading if the reader asks for a slot, an
 SC that a nested interrupt may make fail — and takes the slot neither Reading nor
-Latest names. The reader asks for a slot (Reading =
-3), then LL, then reads Latest, then SC — again from the LL while the SC fails and
-Reading is still 3 — then takes the slot Reading names and reads it byte by byte.
+Latest names. The reader asks for a slot (Reading = 3), then LL, then reads Latest,
+then SC — again from the LL while the SC fails and Reading is still 3 — then takes the
+slot Reading names and reads it byte by byte.
 
 On two cores, as on the RP2350, the writer runs beside the reader, one step per
 statement, each core with its own reservation, which a store of the other core to
@@ -25,13 +25,18 @@ Reading clears once ACTLR.EXTEXCLALL makes the monitors see it (explore_two_core
 Two cores also let each core's accesses be seen out of program order, Armv8-M memory
 being weakly ordered: explore_weak() finds which DMB barriers the buffer needs there.
 
-Every interleaving is explored, and two properties checked: the writer never writes
+Every interleaving is explored, and three properties checked: the writer never writes
 the slot being read, the reader never takes a slot past the three, and the values read
 never go backwards. Faulty variants must be caught: a reader that does not retry a
 failed SC — the kernels did not, until the model showed it — one whose SC ignores the
 reservation, a writer that may take the slot Reading names; on two cores, monitors
 local to each core, and a writer that does not retry its SC — the kernels did not,
 until the two-core model showed it.
+
+Two runs expect a variant to hold instead. One takes the exclusive monitor of Renode
+1.17 (value_compare): there a writer that does not retry its SC passes, which is why
+ThreeSlotCoresPico2 is left to the board (docs/emulation.md). In explore_weak, a reader
+that loads Latest before its LL (latest_first) holds too.
 
     python3 test/model/threeslot.py
 """

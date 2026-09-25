@@ -22,7 +22,7 @@
 ** see LICENSE and NOTICE at the root of this repository.
 */
 /* File UARTEchoPico2.c: Sends back every byte received on UART0, from a handler called in
-** interrupt context. Transposition of UARTSimpleEchoF4.c to the Raspberry Pi Pico.
+** interrupt context. Transposition of UARTSimpleEchoF4.c to the Raspberry Pi Pico 2.
 **
 ** UART0 comes out on GP0 (TX, pin 1) and GP1 (RX, pin 2), the pins the Raspberry Pi Debug
 ** Probe expects. 115200 baud, 8N1.
@@ -34,8 +34,8 @@
 #include "Escapement.h"
 #include "Escapement_UART.h"
 
-/* Transmit queue: the echo sends one byte at a time, but a few buffers absorb a burst of
-** input without losing anything. */
+/* Transmit queue: the echo sends one byte at a time, but a few buffers absorb a short
+** burst of input. */
 #define UART_TRANSMIT_FIFO_NB_NODE   8
 #define UART_TRANSMIT_FIFO_NODE_SIZE 1
 

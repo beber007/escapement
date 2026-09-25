@@ -5,9 +5,12 @@
 # Capture the GPIO transitions of the stm32f4 example under Renode, with virtual
 # time, and write them as CSV on standard output.
 #
-# The kernel drives its outputs through the BSRR register of the STM32: writing a
-# bit at offset 0x18 raises the pin, writing it at 0x1A lowers it. Two watchpoints
-# report those writes along with the elapsed virtual time.
+# Written when the example drove its outputs through the BSRR register of the STM32
+# in halves: a bit written at offset 0x18 raised the pin, at 0x1A lowered it, and two
+# watchpoints reported those writes with the elapsed virtual time. Since 67a8843
+# (2026-09-21) the example writes the 32-bit BSRR at 0x18 for both edges, so the second
+# watchpoint sees nothing and falling edges are not captured; docs/data/f4-gpio-trace.csv
+# predates that change.
 #
 #   tools/trace_gpio.sh > docs/data/f4-gpio-trace.csv
 #

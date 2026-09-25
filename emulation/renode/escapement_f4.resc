@@ -21,7 +21,8 @@ include @Escapement_STM32_Timer.cs
 mach create "escapement-f4"
 machine LoadPlatformDescription @escapement_f4.repl
 
-# The kernel moves VTOR from 0x00000000 to 0x08000000: on silicon this is the
-# same flash seen at two addresses, so the image is loaded at both.
+# SystemInit() moves VTOR from 0x00000000 to 0x08000000 (the Makefile defines
+# USER_VECT_TAB_ADDRESS): on silicon this is the same flash seen at two addresses, so
+# the image is loaded at both.
 sysbus LoadELF $elf
 sysbus LoadBinary $bin 0x08000000

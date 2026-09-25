@@ -17,8 +17,9 @@ Scheduling survives the 2^30 wrap of the kernel clock
     ...                       variable back when its counter wraps. At the usual tick rate
     ...                       that happens once every eighteen minutes, so no test had ever
     ...                       reached it. Here TIM2 is clocked 82,000 times faster and
-    ...                       TaskWrapF4 scales its periods to match, which puts the
-    ...                       boundary at 107 ms of emulated time for an unchanged load.
+    ...                       TaskWrapF4 gives its tasks periods of 1, 2 and 6 ms in the
+    ...                       faster ticks, which puts the boundary at 107 ms of emulated
+    ...                       time.
     ...                       Each task must still raise and lower its output afterwards.
     Execute Command           path add @${CURDIR}
     Execute Command           include @Escapement_STM32_Timer.cs

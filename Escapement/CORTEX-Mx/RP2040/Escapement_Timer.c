@@ -74,14 +74,14 @@
 #define ALARM1_BIT          0x2
 #define TIME_MASK           0x3FFFFFFFu   /* Escapement counts modulo 2^30 */
 
-/* Interrupt cause marked by the ISR and processed by the lower priority handler
-** _OSTimerInterruptHandler. */
 /* Value of the counter when the kernel started. The RP2040 counter is free running since
 ** power-up and is never reset, whereas Escapement expects its clock to start near zero: on
 ** a board that has been running for a while the kernel would otherwise believe every
 ** deadline already missed. All kernel times are therefore counted from this origin. */
 static UINT32 TimeOrigin = 0;
 
+/* Interrupt cause marked by the ISR and processed by the lower priority handler
+** _OSTimerInterruptHandler. */
 volatile BOOL _OSOverflowInterruptFlag = FALSE;
 volatile BOOL _OSComparatorInterruptFlag = FALSE;
 

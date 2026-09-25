@@ -6,7 +6,9 @@
 **
 ** Escapement schedules its tasks on core 0 alone. Core 1 runs bare code beside it, with
 ** no task, no interrupt and no call into the scheduler: what it shares with the tasks is
-** memory, through a mechanism that needs no lock, such as the 4-slot buffer.
+** memory, through a slot buffer: the 4-slot buffer, or the 3-slot one, whose LL/SC pairs
+** see both cores once each sets ACTLR.EXTEXCLALL. The FIFO queue does not hold between
+** them.
 **
 ** Platform version: RP2350 (Raspberry Pi Pico 2).
 */
@@ -14,9 +16,9 @@
 #ifndef ESCAPEMENT_CORE1_H
 #define ESCAPEMENT_CORE1_H
 
-/* OSLaunchCore1: Resets core 1 and has the bootrom start it on entry, with the stack
-** whose top is given. Called from main on core 0, before OSStartMultitasking(); entry
-** must never return.
+/* OSLaunchCore1: Resets core 1 and has the bootrom start it on entry, after setting its
+** ACTLR.EXTEXCLALL, with the stack whose top is given. Called from main on core 0, before
+** OSStartMultitasking(); entry must never return.
 ** Parameters:
 **   (1) (void (*)(void)) the function core 1 runs;
 **   (2) (UINT32 *) the top of its stack, 8-byte aligned. */

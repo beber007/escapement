@@ -22,7 +22,7 @@
 ** see LICENSE and NOTICE at the root of this repository.
 */
 /* File Escapement_Processor.h: Core frequency levels used by the power-aware variant.
-** Contrary to the STM32, the RP2040 timer is fed by a tick independent of the core clock:
+** Unlike the STM32, the RP2040 timer is fed by a tick independent of the core clock:
 ** changing the frequency does not move the kernel's time base.
 ** Platform version: RP2040 (Raspberry Pi Pico).
 */
@@ -50,8 +50,9 @@
 
 #define OS_MAX_SPEED    OS_125MHZ_SPEED
 
-/* Switches the clock tree onto the 12 MHz crystal. To be called first, before the timer
-** and before any peripheral whose rate depends on the clock. */
+/* Switches the clock tree onto the 12 MHz crystal and the system clock to 125 MHz. To be
+** called first, before the timer and before any peripheral whose rate depends on the
+** clock. */
 void OSInitializeSystemClocks(void);
 
 #ifdef ESCAPEMENT_VERSION_HARD_PA

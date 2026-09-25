@@ -104,7 +104,8 @@ static void InitializeFlag(UINT8 pin)
   PADS_BANK0_GPIO(pin) = (PADS_BANK0_GPIO(pin) & ~PADS_OD_BIT) | PADS_IE_BIT;
   IO_BANK0_CTRL(pin) = FUNCSEL_SIO;
   /* The pads of the RP2350 come out of reset isolated from their signal; the isolation
-  ** goes once the SIO drives the pin, in the order of gpio_set_function in the pico-sdk. */
+  ** is lifted once the pin is routed to the SIO, in the order of gpio_set_function in
+  ** the pico-sdk. */
   PADS_BANK0_GPIO(pin) &= ~PADS_ISO_BIT;
   SIO_GPIO_OE_SET = 1u << pin;
   SIO_GPIO_OUT_CLR = 1u << pin;

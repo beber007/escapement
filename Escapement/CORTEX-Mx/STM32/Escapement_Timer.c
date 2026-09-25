@@ -332,8 +332,7 @@ volatile BOOL _OSOverflowInterruptFlag = FALSE;
 volatile BOOL _OSComparatorInterruptFlag = FALSE;
 
 /* _OSInitializeTimer: Initializes the timer which starts counting as soon as Escapement is
-** ready to process the first arrival. When the kernel, i.e. when OSStartMultitasking()
-** is called, the last operation that is done is to set the timer handler and then start
+** ready to process the first arrival. When OSStartMultitasking() is called, the last operation that is done is to set the timer handler and then start
 ** the idle task which is the only ready task in the system at that time. The first time
 ** the idle task executes, it calls _OSStartTimer().
 ** After _OSInitializeTimer() is called the timer's input divider is selected but it is
@@ -358,8 +357,8 @@ void _OSInitializeTimer(void)
   ** file Escapement_Config.h. */
   TIM_PRESCALER = ESCAPEMENT_TIMER_PRESCALER;
   TIM_EVENT_GENERATION = UPDATE_INT_BIT;   // Generate an update event to reload the prescaler
-  TIM_STATUS = ~(UPDATE_INT_BIT | COMPARATOR_INT_BIT);   // Clear update flag
-  TIM_INT_ENABLE |= UPDATE_INT_BIT | COMPARATOR_INT_BIT; // Enable update interrupt
+  TIM_STATUS = ~(UPDATE_INT_BIT | COMPARATOR_INT_BIT);   // Clear the update and comparator flags
+  TIM_INT_ENABLE |= UPDATE_INT_BIT | COMPARATOR_INT_BIT; // Enable both interrupts
   /* Initialize Cortex-Mx Nested Vectored Interrupt Controller */
   #if defined(CORTEX_M3) || defined(CORTEX_M4)
      /* Compute the priority (Only 4 bits are used for priority on STM32). PRIGROUP de-
@@ -466,7 +465,7 @@ void _OSStartTimer(void)
 /* _TimerHandler: Catches STM-32 Timer interrupts and generates a software timer interrupt
 ** which is then carried out at a lower priority.
 ** Note: This function could have been written in assembler to reduce interrupt latencies.
-** Note: Timers 1 and 8 are have their overflow and comparator match interrupts bound to
+** Note: Timers 1 and 8 have their overflow and comparator match interrupts bound to
 ** 2 different IRQs, and are therefore considered separately. */
 #if ESCAPEMENT_TIMER == OS_IO_TIM1 || ESCAPEMENT_TIMER == OS_IO_TIM8
    void TimerHandler_Up(struct TIMER_ISR_DATA *descriptor)
@@ -560,10 +559,10 @@ BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
 } /* end of _OSTimerIsOverflow */
 
 
-/* _OSGetActualTime: Retrieves the current time. When Escapement' interval timer is confi-
+/* _OSGetActualTime: Retrieves the current time. When Escapement's interval timer is confi-
 ** gured for 16-bit timer, this function combines the 16 bits of the timer counter with
 ** the global variable Time to yield the current time. This function should never be
-** called from an ISR having higher priority than ESCAPEMENT_TIMER_16. */
+** called from an ISR having higher priority than the timer interrupt. */
 INT32 _OSGetActualTime(void)
 {
   #ifdef ESCAPEMENT_TIMER_32

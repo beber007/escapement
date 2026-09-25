@@ -46,9 +46,10 @@ The three periodic tasks are scheduled
     Assert LED State          false  testerId=${flag3}  pauseEmulation=true
 
 The UART echo answers
-    [Documentation]           UARTSimpleEchoF4 sends every received character back on USART2,
-    ...                       through an interrupt-driven task. Proves that the kernel also
-    ...                       schedules event-driven processing.
+    [Documentation]           UARTSimpleEchoF4 sends every character received on USART2 back
+    ...                       from its receive interrupt, through the transmit queue of
+    ...                       Escapement_UART.c. No task runs: this proves the dispatch of
+    ...                       peripheral interrupts (_OSIOHandler) and the UART driver.
     Load Escapement           UARTSimpleEchoF4
 
     ${uart}=                  Create Terminal Tester  sysbus.usart2  defaultPauseEmulation=true

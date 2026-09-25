@@ -53,7 +53,9 @@ static void FinalizeContextSwitchPreparation(void);
 ** e.g. Sections 5.2 and 5.9.1, pages 5-3 and 5-19 for Cortex-M3) located at address 0.
 ** After the processor exits reset, it reads address 0 to find the initial SP value that
 ** it loads before proceeding to the content of address 4 to branch into the reset ISR
-** _OSResetHandler. */
+** _OSResetHandler. On the RP2040 and RP2350 the image runs from SRAM: the table follows
+** the entry code there (RP2040_SRAM.ld, RP2350_SRAM.ld), and each application points
+** VTOR at it in main. */
 __attribute__ ((section(".isr_vector_general")))
 void (* const CortexMxVectorTable[])(void) =
 {
@@ -105,7 +107,7 @@ void (* const CortexMxVectorTable[])(void) =
 **           (PendSV)
 **   LOWEST PRIORITY LEVEL */
 
-/* _OSReset_Handler: This is the code that gets called when the processor first starts
+/* _OSResetHandler: This is the code that gets called when the processor first starts
 ** execution following a reset event. Only the absolutely necessary set is performed,
 ** after which the application supplied main() routine is called. */
 void _OSResetHandler(void)
@@ -213,7 +215,7 @@ void HardFaultException(void)
 } /* end of HardFaultException */
 
 
-/* MemManageException: A memory management fault is an exception the is caused by a Memory
+/* MemManageException: A memory management fault is an exception that is caused by a Memory
 ** Protection Unit (MPU) violation or by certain illegal accesses (e.g., trying to execute
 ** code from nonexecutable memory regions or writing to read-only regions). This exception
 ** can be triggered even if no MPU is present. */
@@ -225,7 +227,7 @@ void MemManageException(void)
 
 /* BusFaultException: A bus fault is an exception that occurs because of a memory related
 ** fault. This can be (1) an attempt to access an invalid memory region, (2) an attempt to
-** a transfer data to an unready device, e.g., accessing SDRAM without initializing its
+** transfer data to an unready device, e.g., accessing SDRAM without initializing its
 ** controller, (3) a data memory transaction with a transfer size not supported by the
 ** target device or with a device not accepting the transfer, e.g. because of a privileged
 ** access level. */
@@ -235,7 +237,7 @@ void BusFaultException(void)
 } /* end of BusFaultException */
 
 
-/* UsageFaultException: A usage fault is an exception resulting from of an ill instruction
+/* UsageFaultException: A usage fault is an exception resulting from an illegal instruction
 ** execution. This includes an undefined instruction or illegal unaligned access errors. */
 void UsageFaultException(void)
 {
@@ -244,7 +246,7 @@ void UsageFaultException(void)
 
 
 /* SVCHandler: A supervisor call (SVC) is an exception that is triggered by the SVC in-
-** struction, usually to access OS functionalities. Under Escapement, a task as full access
+** struction, usually to access OS functionalities. Under Escapement, a task has full access
 ** to the kernel functions and device drivers, and hence SVCs are not defined. */
 void SVCHandler(void)
 {
@@ -262,8 +264,8 @@ void DebugMonitor(void)
 
 
 /* SoftTimerInterrupt: Low priority ISR bound to a SysTick exception. Cortex-Mx processors
-** come along a simple 24-bit count down timer that can only be used to generate ticks at
-** regular periods but cannot be used as interval timer without loosing the time reference.
+** come with a simple 24-bit count down timer that can only be used to generate ticks at
+** regular periods but cannot be used as interval timer without losing the time reference.
 ** This is because when a new interval is written into the SysTick reload value register,
 ** its value takes effect only when its previously loaded value reached 0. Escapement there-
 ** fore uses one of the peripheral timers provided by the microcontroller as its internal
@@ -276,7 +278,7 @@ void SoftTimerInterrupt(void)
   extern void _OSTimerInterruptHandler(void);  /* Defined in the generic kernel */
   FinalizeContextSwitchPreparation();   // Correct possible inconsistent queue state
   OSTrace(OS_TRACE_SOFT_ENTER,0,0);
-  _OSTimerInterruptHandler(); // Jump to to the generic service routine of the timer
+  _OSTimerInterruptHandler(); // Jump to the generic service routine of the timer
   OSTrace(OS_TRACE_SOFT_LEAVE,0,0);
   // The CLREX instruction is done in _OSContextSwapHandler (PendSV handler) prior to
   // returning to a user task.

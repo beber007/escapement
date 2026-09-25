@@ -9,7 +9,7 @@
 **
 ** The bootrom leaves the chip on its ring oscillator. The crystal is started and the
 ** whole tree switched onto it: the 1 us tick of the timer and the UART both need a
-** reference worthy of the name. The system clock then goes to 150 MHz, the nominal
+** precise reference. The system clock then goes to 150 MHz, the nominal
 ** frequency of the RP2350, which its core voltage after reset, 1.10 V, supports. The
 ** reference and peripheral clocks stay on the crystal.
 **

@@ -28,9 +28,9 @@ CC = $(CROSS_COMPILE)gcc
 OBJCOPY = $(CROSS_COMPILE)objcopy
 
 CPU = cortex-m0plus
+# The firmware runs from SRAM: no second stage bootloader to write.
 LINKERFILE = ../../RP2040_SRAM.ld
 
-# The firmware runs from SRAM: no second stage bootloader to write.
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
 CFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -fdata-sections -ffunction-sections \
@@ -43,7 +43,7 @@ AFLAGS = -mcpu=$(CPU) -mthumb -Wall -c -g -MMD -MP
 #   make KERNEL=PA                                  the power-aware kernel
 #   make KERNEL=PA UNDERVOLT=1                      the same, below the specified voltage
 #   make KERNEL=PA POWER=DRA                        another power-management policy
-#   make TRACE=1                                    with a trace of the scheduling in RAM
+# Also: make TRACE=1, a trace of the scheduling in RAM (not built by the CI).
 ifdef SCHEDULER
    CFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
    AFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)

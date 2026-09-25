@@ -6,7 +6,9 @@
 **
 ** Escapement schedules its tasks on core 0 alone. Core 1 runs bare code beside it, with
 ** no task, no interrupt and no call into the scheduler: what it shares with the tasks is
-** memory, through a mechanism that needs no lock, such as the 4-slot buffer.
+** memory, through a mechanism that needs no lock: the 4-slot buffer. The LL/SC pairs are
+** emulated on one core (Escapement_Atomic.c), so the 3-slot buffer and the FIFO queue do
+** not hold between the two.
 **
 ** Platform version: RP2040 (Raspberry Pi Pico).
 */

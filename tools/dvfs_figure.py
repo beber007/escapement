@@ -18,7 +18,7 @@ import sys
 MARK, SPEED = 7, 6
 MHZ = {0: 12, 1: 50, 2: 125}
 
-# pin, label, period, colour — the order and colours of tools/chronogram.py, and the
+# pin, name, caption, colour — the order and colours of tools/chronogram.py, and the
 # probe, which toggles its output on each instance, drawn from its mark to the next event
 TASKS = [
     (4,  "GP4",  "probe · 1 ms",  "#1a7f37"),

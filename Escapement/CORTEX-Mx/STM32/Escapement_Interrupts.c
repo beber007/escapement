@@ -35,7 +35,7 @@
 ** fic to a particular family of STM32 and is appended to the 15 system exceptions of the
 ** Cortex-Mx. The entries in this table are stored in Flash and can be _OSIOHandler (de-
 ** fined in Escapement_CortexMx.c) or UndefinedInterrupt (defined in this file). Basically
-** _OSIOHandler extracts the IRQ number (0 through 239), extracts a Escapement ISR descriptor
+** _OSIOHandler extracts the IRQ number (0 through 239), extracts an Escapement ISR descriptor
 ** located in a 2nd table called _OSTabDevice, and then calls the function located in the
 ** first field of this descriptor. An IRQ can also map onto 2 different devices. In this
 ** the function called by _OSIOHandler should check which device raised the interrupt. */
@@ -57,7 +57,7 @@ static void UndefinedInterrupt(void)
 
 
 /* STM32 specific interrupt vector table, which is appended by the linker to the end of
-** table CortexM3VectorTable defined in Escapement_CortexM3.c. */
+** table CortexMxVectorTable defined in Escapement_CortexMx.c. */
 __attribute__ ((section(".isr_vector_specific")))
 void (* const STM32VectorTable[])(void) = {
   _OSIOHandler,    /* 0  OS_IO_WWDG */
@@ -1711,7 +1711,7 @@ static void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect);
 #endif
 
 
-/* _OSTimerSelector: Called by _OSIOHandler when a multiple source interrupt involving a
+/* _OSTimerSelectorHandler: Called by _OSIOHandler when a multiple source interrupt involving a
 ** timer raises an interrupt and transfers the call to it. */
 void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect)
 {
@@ -1763,7 +1763,7 @@ void OSSetISRDescriptor(UINT16 entry, void *descriptor)
 **    bound to 2 timers, i.e. for interrupts that combine 2 different timer devices, the
 **    lower byte identifies the table entry and the upper byte indicates the wanted timer.
 ** Returned value: (void *) The requested ISR descriptor is returned. If no previous
-**    OSSetIODescriptor was previously made for the specified entry, the returned value
+**    OSSetISRDescriptor was previously made for the specified entry, the returned value
 **    is NULL. */
 void *OSGetISRDescriptor(UINT16 entry)
 {

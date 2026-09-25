@@ -8,9 +8,10 @@
 # from one event to the next: three wraparounds of the kernel clock, an hour of real time
 # on the board, take a fraction of a second.
 #
-# Everything is built nine times: the hard, the soft and the power-aware kernel, each
+# test_scheduler is built nine times: the hard, the soft and the power-aware kernel, each
 # under earliest deadline first (edf) and deadline-monotonic scheduling (dm), and the
-# power-aware kernel with its three other power-management policies.
+# power-aware kernel with its three other power-management policies; test_ipc three
+# times, once per kernel.
 #
 #   make -C test/host run
 

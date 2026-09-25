@@ -52,4 +52,4 @@ typedef int32_t  INT32;
 
 typedef uintptr_t UINTPTR;
 
-#endif /* _ESCAPEMENT_TYPE_H_ */
+#endif /* _ESCAPEMENT_TYPES_H_ */

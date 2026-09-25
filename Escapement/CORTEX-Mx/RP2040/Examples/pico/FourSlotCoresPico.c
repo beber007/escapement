@@ -64,9 +64,8 @@ int main(void)
   extern void (* const CortexMxVectorTable[])(void);
   VTOR = (UINT32)CortexMxVectorTable;
   /* A firmware in flash may have armed the watchdog, which a reset of the processors
-  ** leaves running. It pauses while the debugger holds either core, and the probe used
-  ** to hold core 1 for good; now that core 1 runs, the watchdog fired within a second
-  ** and the chip rebooted into the flash. */
+  ** leaves running. It pauses while the debugger holds either core; once core 1 runs,
+  ** nothing holds it, and it fires within a second, rebooting the chip into the flash. */
   WATCHDOG_CTRL_CLR = WATCHDOG_ENABLE;
   OSInitializeSystemClocks();
   #if defined(ESCAPEMENT_VERSION_HARD_PA)

@@ -21,7 +21,7 @@
 ** Modifications Copyright (c) 2026 Bertrand Hurst, distributed under the same terms;
 ** see LICENSE and NOTICE at the root of this repository.
 */
-/* ESCAPEMENT_CortexM3_STM32F407VG_Flash.ld: 
+/* STM32F407VG_Flash.ld: Memory layout of the STM32F4-Discovery examples, run from flash.
 ** Version date: March 2012
 */
 ENTRY(_OSResetHandler)
@@ -32,15 +32,14 @@ MEMORY
     SRAM (rwx) : ORIGIN = 0x20000000, LENGTH = 112K
 }
 
-_OSEndRAM = ORIGIN(SRAM) + LENGTH(SRAM); /* Need to initialize stack pointer and Escapementos
-                                            dynamic allocation system (OSMalloc) in
-                                            Escapement_CortexM3.c file. */
+_OSEndRAM = ORIGIN(SRAM) + LENGTH(SRAM); /* End of the RAM: top of the stack and of the heap
+                                            of OSMalloc (Escapement_CortexMx.c). */
 
 SECTIONS
 {
     .text :
     {
-        KEEP(*(.isr_vector_general))  /* Cortex-M3 vector table */
+        KEEP(*(.isr_vector_general))  /* Cortex-M vector table */
         KEEP(*(.isr_vector_specific)) /* STM32 specific vector table */
         *(.text*)
         *(.rodata*)
@@ -56,11 +55,10 @@ SECTIONS
     } > SRAM
 
 
-    /* Load address of .data: where the initial values sit in the image. On a
-    ** target running from flash this is just past .text; on one linked into SRAM
-    ** it is the run address itself, and the copy below becomes a no-op. Taking it
-    ** from LOADADDR rather than from _etext keeps it exact whatever padding the
-    ** linker inserts at the end of .text. */
+    /* Load address of .data: where its initial values sit in flash, just past .text,
+    ** from which _OSResetHandler copies them into SRAM. Taking it from LOADADDR rather
+    ** than from _etext keeps it exact whatever padding the linker inserts at the end of
+    ** .text. */
     _sidata = LOADADDR(.data);
     .eh_frame :
     {

@@ -25,8 +25,8 @@
    #define ESCAPEMENT_VERSION_HARD
 #endif
 
-/* Scheduling algorithm. The names come from the kernel header, which defines them before
-** reading this choice; HOST_SCHEDULER lets the test build both ways. */
+/* Scheduling algorithm, by its number in Escapement_Modes.h: HOST_SCHEDULER=1 for EDF,
+** 2 for deadline-monotonic scheduling, so that the test builds both ways. */
 #ifndef HOST_SCHEDULER
    #define HOST_SCHEDULER 1
 #endif

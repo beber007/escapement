@@ -33,8 +33,8 @@
 #include "Escapement.h"
 #include "Escapement_UART.h"
 
-/* Transmit queue: the echo sends one byte at a time, but a few buffers absorb a burst of
-** input without losing anything. */
+/* Transmit queue: the echo sends one byte at a time, but a few buffers absorb a short
+** burst of input. */
 #define UART_TRANSMIT_FIFO_NB_NODE   8
 #define UART_TRANSMIT_FIFO_NODE_SIZE 1
 

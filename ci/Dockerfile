@@ -4,9 +4,9 @@
 # The environment the CI builds and emulates in (.github/workflows/build.yml): everything
 # a job used to install, so that a job installs nothing. On 2026-09-24 the apt mirrors of
 # the runners slowed down so far that installing the ARM toolchain took 13 and 19 minutes
-# in two jobs, and more than ten in one job again after a first fix, which tried twice;
-# sixteen jobs each installing it drew that lot sixteen times a run. The image is built by .github/workflows/ci-image.yml and
-# pulled from ghcr.io, which the mirrors do not serve.
+# in two jobs, and more than ten again in one after a first fix, which retried; sixteen
+# jobs then each installed it on every run. The image is built by
+# .github/workflows/ci-image.yml and pulled from ghcr.io, which the mirrors do not serve.
 #
 # Every version is pinned here; changing one is a commit, a new tag of the image in both
 # workflows, and a run of ci-image.yml by hand. The toolchain is Ubuntu's package, as the
@@ -38,8 +38,8 @@ RUN curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
  && bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet \
  && rm /tmp/dotnet-install.sh
 
-# Renode twice: the portable package for the STM32 suites, the linux-dotnet one for the
-# RP2040 models, which are built against its assemblies (emulation/renode/RP2040.md).
+# Renode twice: the portable package for the STM32F4 and RP2350 suites, the linux-dotnet
+# one for the RP2040 models, which are built against its assemblies (emulation/renode/RP2040.md).
 RUN for v in "$RENODE_F4 linux-portable" "$RENODE_RP2040 linux-dotnet"; do \
         set -- $v; \
         mkdir -p /opt/renode-$1; \

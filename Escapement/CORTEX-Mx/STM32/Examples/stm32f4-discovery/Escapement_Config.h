@@ -30,8 +30,9 @@
 #define ESCAPEMENT_CONFIG_H_
 
 
-/* Scheduling algorithm. EscapementHard.h defines the names before reading this choice and
-** falls back to deadline-monotonic when an application says nothing. */
+/* Scheduling algorithm. The names come from Escapement_Modes.h, which every kernel header
+** includes before reading this choice; given none, a kernel falls back to
+** deadline-monotonic scheduling. */
 #ifndef SCHEDULER_REAL_TIME_MODE   /* make SCHEDULER=... builds the other one */
    #define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
 #endif
@@ -52,7 +53,7 @@
 
 
 /* The following symbol defines the maximum size of permanent allocations performed by
-** OSMalloc while main is in execution. This value can be increased if more than 512
+** OSMalloc while main is in execution. This value can be increased if more than 2048
 ** bytes are needed, and decreased if the run-time stack overflows before or when
 ** OSStartMultitasking is called. Note that there is no point optimizing this value as
 ** the run-time stack pointer is readjusted within OSStartMultitasking so that the stack
@@ -87,7 +88,8 @@
 ** ponding symbol does not exist.*/
 #define ESCAPEMENT_TIMER  OS_IO_TIM2
 
-/* Define the interval-timer prescaler */
+/* Interval-timer prescaler: on the board, the 84 MHz clock of the APB1 timers (APB1 at
+** 42 MHz, doubled) divided by 82, a tick of 0.977 us. */
 #define ESCAPEMENT_TIMER_PRESCALER  81
 
 /* Defines the priority group and level of the interval-timer. The timer's priority must

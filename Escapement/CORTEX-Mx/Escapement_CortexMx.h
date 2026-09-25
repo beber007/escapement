@@ -21,7 +21,7 @@
 ** Modifications Copyright (c) 2026 Bertrand Hurst, distributed under the same terms;
 ** see LICENSE and NOTICE at the root of this repository.
 */
-/* File Escapement_CortexMx.c: Contains macros and defines that are common to any specific
+/* File Escapement_CortexMx.h: Contains macros and defines that are common to any specific
 ** Cortex-Mx microcontroller.
 ** Platform version: All Cortex-Mx based microcontrollers.
 ** Version date: March 2012
@@ -35,9 +35,9 @@
 /* Offsets the context switch reads out of a task control block. _OSContextSwapHandler is
 ** written in assembler and cannot see the C structure, so it addresses these fields by
 ** hand. The kernel variants check them with _Static_assert against their own TCB, which
-** turns a silent mismatch into a build failure: the power-aware variant, for one, gives
-** its TCB a third list link under the DRA and DR_OTE algorithms, which moves every field
-** four bytes further along. */
+** turns a silent mismatch into a build failure: a field added ahead of them, such as the
+** third list link the power-aware variant once put after Next[], moves every one of them
+** four bytes along. */
 #if defined(ESCAPEMENT_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
    #define OS_TCB_STATE_OFFSET     8
    #define OS_TCB_ENTRY_OFFSET    20
@@ -73,7 +73,7 @@
 void _OSIOHandler(void);
 
 /* _OSEnableInterrupts and _OSDisableInterrupts: Macros changing the state of the special
-** register PRIMASK.These are provided to allow portable code between different microcon-
+** register PRIMASK. These are provided to allow portable code between different microcon-
 ** trollers.
 ** The memory clobber is what makes them critical sections as far as the compiler is
 ** concerned. Without it, masking interrupts only constrains the processor, not the code
@@ -128,7 +128,8 @@ void _OSIOHandler(void);
 
 /* _OSGenerateSoftTimerInterrupt: Called by the timer peripheral to generate a SysTick
 ** exception, which will interrupt and continue with a smaller priority to handler
-** _OSTimerInterruptHandler defined in EscapementHard.c or EscapementSoft.c. Sets bit PENDSTSET
+** _OSTimerInterruptHandler defined in EscapementHard.c, EscapementSoft.c or
+** EscapementHardPA.c. Sets bit PENDSTSET
 ** of ICSR (0xE000ED04). (See note in _OSScheduleTask) */
 #define _OSGenerateSoftTimerInterrupt() \
    do { \
@@ -137,7 +138,7 @@ void _OSIOHandler(void);
      __asm volatile ("isb" ::: "memory"); \
    } while (0)
 
-/* _OSClearSoftTimerInterrupt: Called by _OSTimerInterruptHandler binded to the SysTick
+/* _OSClearSoftTimerInterrupt: Called by _OSTimerInterruptHandler bound to the SysTick
 ** exception to remove its interrupt pending status. In other words, a new SysTick excep-
 ** tion can be raised. Sets bit PENDSTCLR of ICSR (0xE000ED04). (See note in _OSSchedule-
 ** Task) */

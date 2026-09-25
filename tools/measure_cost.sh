@@ -14,9 +14,10 @@
 # Two points make this trickier than it looks:
 #
 #  - the timer of the RP2040 stops while ANY core is halted by the debugger, and
-#    OpenOCD halts both of them. Core 1 is never resumed here — resuming it from
-#    wherever the bootrom left it restarts the chip — so the timer would stay
-#    frozen and the kernel would sleep forever in its idle task. The probe
+#    OpenOCD halts both of them. Core 1 is never resumed here: a firmware in flash
+#    may have armed the watchdog, which only pauses while a core is held and would
+#    reboot the chip within a second (docs/rp2040.md). The timer would then stay
+#    frozen and the kernel sleep forever in its idle task. The probe
 #    example therefore builds with TIMER_DBGPAUSE cleared, which the kernel does
 #    on its own under ESCAPEMENT_MEASURE_SCHEDULING_COST;
 #  - each OpenOCD command needs its own -c, since the output of mdw is lost when

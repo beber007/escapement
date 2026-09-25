@@ -27,7 +27,7 @@
 ** The kernel counts time modulo 2^30 and shifts every temporal variable back when its
 ** counter wraps. The RP2040 counter never wraps in practice, so the port rebuilds that
 ** boundary with ALARM1, 2^30 ticks after the kernel starts: 17 min 54 s at the 1 us tick
-** of the chip, which is why no test had reached it. escapement_pico_wrap.repl clocks the
+** of the chip, which is why no test had reached it. escapement_pico.robot clocks the
 ** emulated timer 1000 times faster, so a tick is a nanosecond and the boundary comes
 ** after 1.07 s; the periods below are scaled by the same factor, leaving the kernel with
 ** the load it would have on the board. On a board this image runs a thousand times

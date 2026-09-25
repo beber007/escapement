@@ -179,7 +179,8 @@ namespace Antmicro.Renode.Peripherals.Timers
         }
 
         /* Arms an alarm: it fires when the lower 32 bits of the counter next equal the
-        ** value, after as many ticks as separate them modulo 2^32. */
+        ** value, after as many ticks as separate them modulo 2^32 (a value equal to the
+        ** counter fires on the next tick). */
         private void Arm(int id, uint value)
         {
             uint ticks = value - (uint)counter.Value;

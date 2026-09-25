@@ -45,7 +45,7 @@ LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
 # Build variants, which the CI also runs:
 #   make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING    the other scheduling algorithm
 #   make KERNEL=SOFT                                the soft real-time kernel
-#   make TRACE=1                                    with a trace of the scheduling in RAM
+# Also: make TRACE=1, a trace of the scheduling in RAM (not built by the CI).
 # The power-aware kernel is not ported yet.
 ifeq ($(KERNEL),PA)
    $(error the power-aware kernel is not ported to the RP2350 yet)
@@ -58,6 +58,8 @@ ifeq ($(KERNEL),SOFT)
    CFLAGS += -DESCAPEMENT_VERSION_SOFT
    AFLAGS += -DESCAPEMENT_VERSION_SOFT
 endif
+# make TRACE=1 records a trace of the scheduling in RAM, read over SWD
+# (Escapement_Trace.h, tools/read_trace.py).
 ifdef TRACE
    CFLAGS += -DESCAPEMENT_TRACE
 endif

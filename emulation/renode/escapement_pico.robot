@@ -172,7 +172,8 @@ The power-aware kernel scales the frequency and the voltage
     ...                       faster than the core voltage allows (rp2040_dvfs_check.py):
     ...                       the driver raises the voltage before the frequency and lowers it
     ...                       after, which a driver doing either always first fails when
-    ...                       undervolted. Over 100 ms the voltage changes 196 times. The
+    ...                       undervolted. Over 100 ms the voltage changed 196 times under
+    ...                       OTE (2026-09-22); the test asks for 100. The
     ...                       emulated core does not slow down with clk_sys, so this
     ...                       proves the registers are driven in the right order, not that
     ...                       any energy is saved.

@@ -26,13 +26,14 @@
 **
 ** The kernel counts time modulo 2^30 and shifts every temporal variable back when its
 ** counter wraps. On a real board that happens once every eighteen minutes at the usual
-** tick rate, which is why no test had ever reached it. Here the emulated platform clocks
-** the timer so that its counter ticks at 10 GHz, and the boundary arrives after 107 ms;
-** the task periods are scaled by the same factor, leaving the kernel with exactly the
-** load it would have on hardware while there is ten times less processor time to
-** emulate.
+** tick rate, which is why no test had ever reached it. Here the emulated platform
+** (escapement_f4_wrap.repl) clocks the timer so that its counter ticks at 10 GHz, and the
+** boundary arrives after 107 ms. The periods are given in those ticks, 1, 2 and 6 ms,
+** close to those of TaskLEDF4 under escapement_f4.repl (0.82, 1.64 and 4.92 ms), so the
+** kernel is called about as often while the emulated time stays short.
 **
-** Built from the same sources as TaskLEDF4, with ESCAPEMENT_WRAP_TEST defined.
+** A source of its own, built with the other examples; only escapement_f4_wrap.robot runs
+** it.
 ** Platform version: STM32F4-Discovery under Renode.
 */
 
@@ -68,8 +69,8 @@ int main(void)
   SystemInit();
   BoardInitClock();
   InitializeFlags(FLAG1_PIN | FLAG2_PIN | FLAG3_PIN);
-  /* A tick is a tenth of a nanosecond here, so these periods are 1, 2 and 6 ms — the same
-  ** ratios as TaskLEDF4 and the same real load, with a counter that wraps inside a test. */
+  /* A tick is a tenth of a nanosecond here, so these periods are 1, 2 and 6 ms, the ratios
+  ** of TaskLEDF4, with a counter that wraps inside a test. */
   TaskParameters = (TaskParametersDef *)OSMalloc(sizeof(TaskParametersDef));
   TaskParameters->GPIOx = FLAG_PORT;
   TaskParameters->GPIO_Pin = FLAG1_PIN;
