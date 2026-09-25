@@ -32,6 +32,11 @@
 # 1 must run (tools/fourslot_cores.sh).
 set -eu
 
+# The Debug Probe by its USB ids: OpenOCD otherwise asks every Raspberry Pi device for its
+# strings, the Pico's own USB too, which a firmware in flash may leave unanswering: 3.3 s
+# per connection, which failed the cost check's count of rounds (2026-09-25).
+PROBE='cmsis_dap_vid_pid 0x2e8a 0x000c'
+
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 seconds() {   # seconds 2h -> 7200
     n=${1%[smhd]}
@@ -69,7 +74,7 @@ status() {   # state description
         --data @- "https://api.github.com/repos/$REPO/statuses/$SHA" || true
 }
 ocd() {
-    openocd -f interface/cmsis-dap.cfg -c 'adapter speed 5000' -c 'set USE_CORE 0' \
+    openocd -f interface/cmsis-dap.cfg -c "$PROBE" -c 'adapter speed 5000' -c 'set USE_CORE 0' \
         -f target/rp2040.cfg -c init "$@" -c exit 2>&1
 }
 load() { ocd -c 'reset halt' -c "load_image $ELF" -c 'resume 0x20000000' >/dev/null; }

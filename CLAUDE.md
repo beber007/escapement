@@ -102,5 +102,9 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
 - OpenOCD halts both cores and resumes core 0 only. That held core 1 also paused the
   watchdog a flash firmware may have armed: an image that runs core 1 must be loaded
   with `set USE_CORE 0` and disarm the watchdog, or the chip reboots within a second.
+- OpenOCD's cmsis-dap driver asks every Raspberry Pi USB device for its strings, and the
+  Pico's own USB, once a flash firmware has enumerated it, may not answer: 3.3 s lost
+  per connection, which failed the cost check. The tools select the Debug Probe by its
+  ids, `cmsis_dap_vid_pid 0x2e8a 0x000c`; do the same in a command typed by hand.
 - Emulation proves scheduling and register sequences, not energy; the board and an
   instrument decide.

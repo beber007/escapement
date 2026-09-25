@@ -44,7 +44,9 @@ def symbols(elf):
 
 
 def openocd(commands):
-    args = ["openocd", "-f", "interface/cmsis-dap.cfg", "-c", "adapter speed 5000",
+    # The Debug Probe by its USB ids, as tools/measure_cost.sh says why.
+    args = ["openocd", "-f", "interface/cmsis-dap.cfg", "-c", "cmsis_dap_vid_pid 0x2e8a 0x000c",
+            "-c", "adapter speed 5000",
             "-f", "target/rp2040.cfg", "-c", "init"]
     for c in commands:
         args += ["-c", c]
