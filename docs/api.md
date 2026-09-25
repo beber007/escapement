@@ -151,8 +151,11 @@ its minimum interarrival time: 2000 above for a task that must be done within
 2 ms of its signal. The soft and power-aware kernels add a `wcet` before it and
 an `aperiodicUtilization` after it, the share of the processor left to all
 event-driven tasks in 256ths, used under EDF only; given a workload of 0 under
-EDF, the soft kernel computes it from the two. A workload is at least one tick and below
-2^30, and at most 255 tasks wait on one event:
+EDF, the soft kernel computes it from the two. Under EDF the soft kernel reserves for
+the event-driven tasks at least the largest `wcet / workload` among them, rounded up to
+a 256th, whatever share was declared, and refuses a `wcet` above the workload or one
+that would take the whole processor; a `wcet` of 0 leaves the task out of that share. A
+workload is at least one tick and below 2^30, and at most 255 tasks wait on one event:
 
 | Kernel | Creation |
 |---|---|

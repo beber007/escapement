@@ -1124,6 +1124,7 @@ typedef struct TimedTask {
   unsigned Misses, EarlyStarts;
   INT32 Slow;                 /* ticks run below the fastest speed */
   UINT8 Ran[32];              /* firmwait: the instances that ran, from the first */
+  void *Event;                /* the event of an event-driven task, NULL if periodic */
 } TimedTask;
 
 #define TIMED_TASKS 4
@@ -1194,6 +1195,12 @@ static unsigned NbEnds;
 static void TimedTaskCode(void *argument)
 {
   TimedTask *task = (TimedTask *)argument;
+  if (task->Event != NULL) {
+     task->Instance += 1;
+     task->Work = NextWork(task);
+     OSSuspendSynchronousTask();
+     return;
+  }
   if (NbEnds < MAX_ENDS)
      Ends[NbEnds++] = TimedNow();
   if (TimedRun == TIMED_FIRMWAIT) {
@@ -1237,6 +1244,11 @@ static void RunTimed(INT32 duration)
 }
 
 static void SetKernelHooks(void);
+
+/* Signals of an event, sent at those times as an interrupt handler would (firmeventwait). */
+static INT32 SignalAt[4];
+static unsigned NbSignals, NextSignal;
+static void *SignalEvent;
 
 #if defined(ESCAPEMENT_VERSION_SOFT)
 /* CountStillReady: Instances found still in the ready queue, not yet started, when their
@@ -1335,8 +1347,15 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
      if (interrupted != NULL && _OSActiveTask == interrupted)
         return;
      now = TimedNow();
+     if (NextSignal < NbSignals && SignalAt[NextSignal] == now) {
+        NextSignal += 1;
+        OSScheduleSuspendedTask(SignalEvent);
+        continue;                      /* the soft timer interrupt it raises is served */
+     }
      toEvent = HostTicksToNextEvent();
      step = toEvent < duration - now ? toEvent : duration - now;
+     if (NextSignal < NbSignals && SignalAt[NextSignal] - now < step)
+        step = SignalAt[NextSignal] - now;
      active = _OSActiveTask;
      if (active != IdleTCB) {
         TimedTask *task = (TimedTask *)active->Argument;
@@ -1810,6 +1829,8 @@ static void TestFirmEvents(void)
   OSCreateTask(FirmInstanceTask, 40, 0, 150, 150, 2, 3, 0, &Firm[1]);
   CREATE_TASK(SignalerTask, 300, &ToSignaled);
   #if BY_DEADLINE
+     Check("  a WCET above its workload: refused",
+           !OSCreateSynchronousTask(SignaledTask, 130, 120, 64, ToSignaled.Event, NULL));
      Check("  an event-driven task given a WCET and a bandwidth, no workload",
            OSCreateSynchronousTask(SignaledTask, 30, 0, 64, ToSignaled.Event, NULL));
   #else
@@ -1898,6 +1919,43 @@ static void TestFirmWait(void)
   Check("  the ready queue stays whole", QueueBreaks == 0);
   snprintf(label, sizeof label, "  no deadline missed: %u", misses);
   Check(label, misses == 0);
+}
+
+/* TestFirmEventWait: An optional instance started, then delayed by an event-driven task
+** whose load the schedulability test must count. Under EDF it declares its WCET and
+** workload but no bandwidth: 700 ticks due within 750 of its signal, 94 % of the
+** processor while it runs. */
+static void TestFirmEventWait(void)
+{
+  INT32 duration = 8000;
+  TimedTask *optional = &Timed[0], *events = &Timed[1];
+  char label[96];
+
+  TimedRun = TIMED_FIRMWAIT;
+  optional->WCET = 400;
+  optional->Period = optional->Deadline = 1000;
+  optional->Work = optional->WCET * 256;
+  events->WCET = 700;
+  events->Work = events->WCET * 256;
+  events->Event = SignalEvent = OSCreateEventDescriptor();
+  NbTimed = 2;
+  OSCreateTask(TimedTaskCode, optional->WCET, 0, optional->Period, optional->Deadline, 1, 2,
+               0, optional);
+  Check("  an event-driven task given a WCET and a workload, no bandwidth",
+        OSCreateSynchronousTask(TimedTaskCode, events->WCET, 750, 0, SignalEvent, events));
+  /* After the start of an optional instance, the odd ones, at 1000 and 3000. */
+  SignalAt[0] = 1100;
+  SignalAt[1] = 3100;
+  NbSignals = 2;
+  StartKernel(NULL, NULL);
+  RunTimed(duration);
+
+  printf("\n%d ticks of simulated time, an optional instance and an event\n\n", duration);
+  snprintf(label, sizeof label, "  the event-driven task ran for each signal: %u of %u",
+           events->Instance, NbSignals);
+  Check(label, events->Instance == NbSignals);
+  snprintf(label, sizeof label, "  no deadline missed: %u", optional->Misses);
+  Check(label, optional->Misses == 0);
 }
 
 static void TestFirmWrap(void)
@@ -1993,6 +2051,8 @@ int main(int argc, char *argv[])
         TestFirmEvents();
      else if (argc > 1 && strcmp(argv[1], "firmwait") == 0)
         TestFirmWait();
+     else if (argc > 1 && strcmp(argv[1], "firmeventwait") == 0)
+        TestFirmEventWait();
   #endif
   else
      TestTaskSet();

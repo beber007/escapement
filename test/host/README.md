@@ -42,6 +42,7 @@ loops.
 | `firmwrap`, `firmlong` | optional instances across the wrap, and one of 2^23 ticks, whose schedulability test left 32 bits |
 | `firmevents` | (m,k)-firm tasks beside an event-driven task, whose workload the soft kernel computes under EDF; each task reads its place in its pattern (`OSGetTaskInstance`) |
 | `firmwait` | tasks taking time, the mandatory instances keeping the processor busy across a whole period of an optional one, which is still in the ready queue, never started, when its task arrives again: the kernel takes it out before inserting the next, every mandatory instance runs, none twice, and the ready queue stays whole |
+| `firmeventwait` | an optional instance started under EDF, then delayed by an event-driven task declaring its WCET and workload but no share of the processor, signalled as an interrupt handler would at chosen times: the schedulability test must count it, and no deadline is missed |
 | `minspeed` | a light load with `OSSetMinimalProcessorSpeed`: the power-aware kernel never goes below it, which four of its five policies would otherwise do; two tasks released together with equal deadlines, which EDF* breaks by arrival and address |
 | `endinside`, `endinsidebusy` | `early` and `busy` with the soft timer interrupt taken at one compiler barrier of the kernels in two, at random (`HostCompilerBarrierHook`), where a task ending leaves its stores in the order the handler relies on; the interrupt completes first, as on the target, what `FinalizeContextSwitchPreparation` completes. The time does not move there, so who ran when and how fast must be as in the run without those interrupts, which a child process makes first |
 | `timewrap`, `timewrapbusy`, `timewrapidle` | `early`, `busy`, and two tasks arriving together after an idle time, started at the phase of the counter where one of the first sixteen instances ends at the last tick before the wrap; the interrupt of the wrap is taken at each of the first four time reads and barriers of that end in turn (`HostTimeReadHook`, `HostCompilerBarrierHook`), where the kernel may hold a time from before the shift. Every check of the timed run must hold. Each run is a child process |
@@ -109,6 +110,13 @@ context switch would, and takes each soft timer interrupt through what
 optional instance still ready at its next arrival, which instances running in no time
 never leave. The kernel takes it out correctly, under EDF and deadline-monotonic
 scheduling; with that removal taken out, the run hangs.
+
+`firmeventwait` closed another (2026-09-25). Under EDF the soft kernel's test of an
+optional instance counts the event-driven tasks by the share of the processor declared
+for them, and with none declared left them out, though each gave its WCET and workload:
+the instance started, the event delayed it past its next arrival, and the kernel stopped
+on its overload guard, the run hanging. At least each task's WCET over its workload is
+now reserved.
 
 `timewrap` closed another (2026-09-25). Under DM_SLACK a task ending read the time
 before taking the reservation that makes its slack one unit: the wrap shifted the time

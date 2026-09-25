@@ -1030,11 +1030,27 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
      ** (wcet << 8) / utilization, without the overflow of the shift. */
      UINT8 utilization = AperiodicUtilization < aperiodicUtilization ?
                                               aperiodicUtilization : AperiodicUtilization;
+     UINT16 needed;
      if (workLoad <= 0) {
         if (utilization == 0 || wcet <= 0 || wcet / utilization >= (ShiftTimeLimit >> 8))
            return FALSE;
         workLoad = wcet / utilization * 256 + wcet % utilization * 256 / utilization;
      }
+     /* The deadlines of its instances follow one another a workload apart, so the task
+     ** takes wcet / workload of the processor, which the schedulability test of optional
+     ** instances must leave it: at least that share, rounded up, is reserved whatever was
+     ** declared. Declared 0, the events were left out of the test, and an optional instance
+     ** they delayed was still running at its next arrival (test/host, firmeventwait,
+     ** 2026-09-25). The smallest share n / 256 with n * workLoad >= wcet * 256, without the
+     ** overflow of either product. */
+     if (wcet > workLoad)
+        return FALSE;
+     for (needed = 0; wcet > needed * (workLoad >> 8) + ((needed * (workLoad & 0xFF)) >> 8);
+          needed += 1);
+     if (needed > 255)
+        return FALSE;
+     if (utilization < needed)
+        utilization = (UINT8)needed;
   #endif
   /* The workload is the deadline of each instance, and an event's queue counts its tasks
   ** in a byte. */
