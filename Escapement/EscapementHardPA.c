@@ -356,7 +356,7 @@ void _OSTimerInterruptHandler(void);
   static void UpdateRemainingWork(TCB *task, UINT8 currentSpeed, INT32 newTime);
 #elif POWER_MANAGEMENT == DM_SLACK
   static void UpdateRemainingWork(TCB *task, UINT8 currentSpeed, INT32 newTime);
-  static void DMSlackCalculateSlack(TCB *task, UINT8 currentSpeed, INT32 newTime);
+  static void DMSlackCalculateSlack(TCB *task);
   static BOOL DMSlackUpdateSlack(void);
 #elif POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
   static void DRASimQueueInsert(TCB *newNode);
@@ -548,7 +548,7 @@ BOOL _OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 per
 void OSEndTask(void)
 {
   #if POWER_MANAGEMENT == DM_SLACK
-     DMSlackCalculateSlack(_OSActiveTask,OSGetProcessorSpeed(),_OSGetActualTime());
+     DMSlackCalculateSlack(_OSActiveTask);
   #endif
   /* Set the task to zombie to indicate that it is about to remove itself from the ready
   ** queue and that its context should not be saved. */
@@ -1088,7 +1088,7 @@ void OSSuspendSynchronousTask(void)
   FIFOQUEUE *eq = task->EventQueue;
   BOOL signaled;
   #if POWER_MANAGEMENT == DM_SLACK
-     DMSlackCalculateSlack(_OSActiveTask,OSGetProcessorSpeed(),_OSGetActualTime());
+     DMSlackCalculateSlack(_OSActiveTask);
   #endif
   /* Insert the task into the event queue so that a task signaling the event will de-
   ** tect this task. When EnqueueEventTask() returns TRUE, there is a pending event and
@@ -1311,14 +1311,20 @@ void UpdateRemainingWork(TCB *task, UINT8 currentSpeed, INT32 newTime)
 #if POWER_MANAGEMENT == DM_SLACK
 /* DMSlackCalculateSlack: Calculates the amount of slack that is left by a terminating
 ** task. */
-void DMSlackCalculateSlack(TCB *task, UINT8 currentSpeed, INT32 newTime)
+void DMSlackCalculateSlack(TCB *task)
 {
-  INT32 dmRemaindingWork;
+  INT32 dmRemaindingWork, newTime;
+  UINT8 currentSpeed;
   /* The LL/SC pair on DMSlackInterrupt makes the three stores one unit with the flag: a
   ** timer interrupt in between, which may consume them, makes the SC fail and the values
-  ** are computed again. */
+  ** are computed again. The time and the speed are read inside it for the same reason:
+  ** read before, by the caller, a time from before a wrap of the counter met the time
+  ** of the last update already shifted, and the slack was later credited with the 2^30
+  ** of the shift (test/host, timewrapidle, 2026-09-25). */
   do {
      OSUINT8_LL(&DMSlackInterrupt);
+     currentSpeed = OSGetProcessorSpeed();
+     newTime = _OSGetActualTime();
      dmRemaindingWork = newTime - LastRemainingWorkUpdate;
      if (currentSpeed != OS_MAX_SPEED)
         dmRemaindingWork = Slowdown(dmRemaindingWork,currentSpeed);

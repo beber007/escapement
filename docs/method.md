@@ -157,11 +157,11 @@ kernel hung under Renode, the host test segfaulted under deadline-monotonic
 scheduling. Interrupts are now masked from the enqueue of the suspending task to its
 leaving the ready queue, and the handler never sees such a task. Both have a host test
 that fails on the code before (`test/host/README.md`). **Left open** are races the host cannot reach and
-limits of the design: in the power-aware kernel under DM_SLACK, a time read before a wrap; an
+limits of the design: an
 optional instance still ready at its next arrival, which only an overload brings; under
 EDF, events left out of the soft kernel's test when no utilisation is declared; and
 indices of the wait-free queue that come back to the same value after 65,000 operations
-during one preemption. Three points once on that list are closed (2026-09-25). The counter
+during one preemption. Four points once on that list are closed (2026-09-25). The counter
 wrapping while the timer handler runs, once it has found no overflow, is reached on the
 host by a hook in that window (`wrapinside`): the handler, reading a time from after the
 wrap with its arrivals not yet shifted, releases nothing, and serves them once it finds
@@ -173,8 +173,14 @@ the task still running, and the second, once the task was a zombie, took the nex
 one that had been running. The handler now reads `_OSNoSaveContext`, which only the
 context switch clears, and the host takes the timer interrupt at the kernels' compiler
 barriers (`endinside`); with a barrier in the old window, the kernel before fails it
-(`test/host/README.md`). And strict aliasing, which GCC does exploit here, is turned
-off (below).
+(`test/host/README.md`). Under DM_SLACK, a task ending read the time before its
+reservation: an interrupt that shifted the clock at a wrap in between left it a time of
+before the wrap against a last update after it, and the slack, left for the task ending
+after an idle time, grew by the 2^30 of the shift at the next arrival. The time is now
+read inside the reservation; the host runs a task set with a task ending at the last
+tick before the wrap, the interrupt taken at each of its time reads and barriers
+(`timewrap`), and the kernel before misses a deadline there. And strict aliasing, which
+GCC does exploit here, is turned off (below).
 
 The execution tests exercise three or four tasks, the host test ten. Nothing here
 establishes how the scheduler behaves with thirty. The 2³⁰ wrap of its clock, about

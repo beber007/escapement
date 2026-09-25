@@ -43,6 +43,7 @@ loops.
 | `firmevents` | (m,k)-firm tasks beside an event-driven task, whose workload the soft kernel computes under EDF; each task reads its place in its pattern (`OSGetTaskInstance`) |
 | `minspeed` | a light load with `OSSetMinimalProcessorSpeed`: the power-aware kernel never goes below it, which four of its five policies would otherwise do; two tasks released together with equal deadlines, which EDF* breaks by arrival and address |
 | `endinside`, `endinsidebusy` | `early` and `busy` with the soft timer interrupt taken at one compiler barrier of the kernels in two, at random (`HostCompilerBarrierHook`), where a task ending leaves its stores in the order the handler relies on; the interrupt completes first, as on the target, what `FinalizeContextSwitchPreparation` completes. The time does not move there, so who ran when and how fast must be as in the run without those interrupts, which a child process makes first |
+| `timewrap`, `timewrapbusy`, `timewrapidle` | `early`, `busy`, and two tasks arriving together after an idle time, started at the phase of the counter where one of the first sixteen instances ends at the last tick before the wrap; the interrupt of the wrap is taken at each of the first four time reads and barriers of that end in turn (`HostTimeReadHook`, `HostCompilerBarrierHook`), where the kernel may hold a time from before the shift. Every check of the timed run must hold. Each run is a child process |
 | `test_ipc` | each operation of the FIFO queue, and of the queue between the cores, interrupted at each of its LLs by another, which must complete it or move Tail or Head on for it; every creation of a queue or buffer refused, not crashing, when memory runs out at each of its allocations; the FIFO queue past the wrap of its indices and refusing a node when full, both slot buffers through their states and a reader coming in the middle of a write, at the writer's first barrier or at its last with the slot before left unread, over blocks filled with 0xA5 as SRAM is rather than zeros, the queue between the cores of the RP2350 (`Escapement_CoreQueue.c`) in order, full, empty and round its array, its SCs made to fail — the one that advances Tail or Head among them —, store-conditionals made to fail on purpose |
 
 Under the power-aware kernel every run also checks the speeds asked for: always one of
@@ -102,6 +103,14 @@ kernel after it passes so, and fails once the handler ignores `_OSNoSaveContext`
 the way the target ends them, the test now also clears `_OSNoSaveContext` where the
 context switch would, and takes each soft timer interrupt through what
 `FinalizeContextSwitchPreparation` does.
+
+`timewrap` closed another (2026-09-25). Under DM_SLACK a task ending read the time
+before taking the reservation that makes its slack one unit: the wrap shifted the time
+of the last update in between, the task stored a time from before it, and at the next
+arrival after an idle time the slack grew by 2^30. The time is now read inside the
+reservation. The kernel before misses a deadline under `timewrapidle`, where a task of
+lower priority than the one ending is slowed down on that slack; the others pass on it,
+the slack going there to no task that may use it.
 
 Faults were also planted in the kernels by hand, to see the test fail. When it was
 written (5018fdb, 2026-09-21), 14 of 15 faults planted in the hard kernel failed a

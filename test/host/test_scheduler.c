@@ -190,6 +190,9 @@ extern BOOL _OSNoSaveContext;
 extern void _OSTimerInterruptHandler(void);
 extern void HostAdvanceBy(INT32 delta);
 extern void (*HostOverflowCheckHook)(void);
+extern void (*HostTimeReadHook)(void);
+extern void HostSetClock(INT32 time);
+extern void HostLoseReservation(void);
 extern INT32 HostTicksToNextEvent(void);
 extern unsigned HostClockWraps;
 extern unsigned HostSoftTimerRequests;
@@ -1110,7 +1113,7 @@ static void TestSignalInside(void)
 **          aware kernel kept above its slowest speed */
 
 typedef enum { TIMED_BUSY, TIMED_EARLY, TIMED_SLACK, TIMED_EXPIRY, TIMED_RECLAIM,
-               TIMED_REUSE, TIMED_OVERRUN, TIMED_MINSPEED } TimedMode;
+               TIMED_REUSE, TIMED_OVERRUN, TIMED_MINSPEED, TIMED_IDLE } TimedMode;
 
 typedef struct TimedTask {
   INT32 WCET, Period, Deadline;
@@ -1173,20 +1176,38 @@ static INT32 NextWork(const TimedTask *task)
   return (quarter + (INT32)((TimedSeed >> 16) % (UINT32)(task->WCET - quarter + 1))) * 256;
 }
 
+/* The timed runs start at TimedPhase of the counter, zero but for timewrap, and count
+** time from there: TimedNow. */
+static INT32 TimedPhase, TimedStart;
+static unsigned TimedStartWraps;
+static INT32 TimedNow(void)
+{
+  return (INT32)((long long)(HostClockWraps - TimedStartWraps) * 0x40000000 +
+                 HostClockNow() - TimedStart);
+}
+#define MAX_ENDS 64
+static INT32 Ends[MAX_ENDS];   /* when the first instances ended, for timewrap */
+static unsigned NbEnds;
+
 /* TimedTaskCode: Called once the work of the instance is done. */
 static void TimedTaskCode(void *argument)
 {
   TimedTask *task = (TimedTask *)argument;
-  if (HostClockNow() > (INT32)task->Instance * task->Period + task->Deadline)
+  if (NbEnds < MAX_ENDS)
+     Ends[NbEnds++] = TimedNow();
+  if (TimedNow() > (INT32)task->Instance * task->Period + task->Deadline)
      task->Misses += 1;
   task->Instance += 1;
   task->Work = NextWork(task);
   OSEndTask();
 }
 
-/* The timer interrupt taken at the kernel's compiler barriers (endinside): TimedTrace sums
-** up who ran when and how fast, to compare with a run that takes none. */
-static BOOL AtBarriers;
+/* The timer interrupt taken inside the kernel: at its compiler barriers (endinside), where
+** TimedTrace sums up who ran when and how fast, to compare with a run that takes none; or
+** at the wrap of the counter (timewrap), at the WrapPoint-th time read or barrier of a task
+** ending one tick before it. */
+static BOOL AtBarriers, AtWrap;
+static unsigned WrapPoint, WrapPoints, WrapsTaken;
 static UINT32 BarrierSeed = 1, TimedTrace;
 static unsigned BarrierInterrupts, BarrierPreemptions, BarrierZombies;
 static jmp_buf TimedFrame;
@@ -1195,22 +1216,31 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted);
 /* RunTimed: Gives the processor to the elected task from one timer event to the next. */
 static void RunTimed(INT32 duration)
 {
-  _OSTimerInterruptHandler();        /* the arrivals at time zero */
+  if (TimedPhase != 0) {             /* the arrivals moved from time zero to the phase */
+     HostTCB *task;
+     for (task = _OSQueueHead->Next[1]; task != IdleTCB; task = task->Next[1])
+        task->NextArrivalTimeLow = TimedPhase;
+     HostSetClock(TimedPhase);
+  }
+  TimedStart = TimedPhase;
+  TimedStartWraps = HostClockWraps;
+  _OSTimerInterruptHandler();        /* the first arrivals */
   RunTimedUntil(duration, NULL);
 }
 
-/* BarrierInterrupt: Takes the soft timer interrupt at a compiler barrier of the kernel,
-** at no cost in time, one barrier in two picked at random. A task found ending is gone,
-** its context discarded; a task elected over the interrupted one runs first, until the
-** interrupted one is at the head of the ready queue again, as on the single stack. */
-static void BarrierInterrupt(void)
+static void SetKernelHooks(void);
+
+/* TakeInterrupt: Takes the soft timer interrupt inside the kernel's code. A task found
+** ending is gone, its context discarded; a task elected over the interrupted one runs
+** first, until the interrupted one is at the head of the ready queue again, as on the
+** single stack. The reservation of an LL is lost, as on the target. */
+static void TakeInterrupt(void)
 {
   HostTCB *interrupted = _OSActiveTask;
   jmp_buf frame;
-  BarrierSeed = BarrierSeed * 1103515245u + 12345u;
-  if ((BarrierSeed >> 16) & 1)
-     return;
   HostCompilerBarrierHook = NULL;
+  HostTimeReadHook = NULL;
+  HostLoseReservation();
   BarrierInterrupts += 1;
   Finalize();
   _OSTimerInterruptHandler();
@@ -1225,22 +1255,47 @@ static void BarrierInterrupt(void)
      // cppcheck-suppress uninitvar ; set by the memcpy above
      memcpy(TimedFrame, frame, sizeof frame);
   }
-  HostCompilerBarrierHook = BarrierInterrupt;
+  SetKernelHooks();
 }
 
-/* RunTimedUntil: The loop of RunTimed, which a barrier interrupt enters again to run the
-** tasks it elected, until the one it interrupted is elected again. */
+/* BarrierInterrupt: At no cost in time, one barrier in two picked at random. */
+static void BarrierInterrupt(void)
+{
+  BarrierSeed = BarrierSeed * 1103515245u + 12345u;
+  if (((BarrierSeed >> 16) & 1) == 0)
+     TakeInterrupt();
+}
+
+/* WrapInterrupt: One tick before the wrap, the WrapPoint-th time read or barrier moves
+** the clock past it and takes the interrupt. */
+static void WrapInterrupt(void)
+{
+  if (HostClockNow() != 0x3FFFFFFF || WrapPoints++ != WrapPoint)
+     return;
+  WrapsTaken += 1;
+  HostAdvanceBy(1);
+  TakeInterrupt();
+}
+
+static void SetKernelHooks(void)
+{
+  HostCompilerBarrierHook = AtBarriers ? BarrierInterrupt : AtWrap ? WrapInterrupt : NULL;
+  HostTimeReadHook = AtWrap ? WrapInterrupt : NULL;
+}
+
+/* RunTimedUntil: The loop of RunTimed, which an interrupt inside the kernel enters again
+** to run the tasks it elected, until the one it interrupted is elected again. */
 static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
 {
-  while (HostClockNow() < duration) {
-     INT32 now, event, step;
+  while (TimedNow() < duration) {
+     INT32 now, toEvent, step;
      HostTCB *active;
      ServeSoftTimer();
      if (interrupted != NULL && _OSActiveTask == interrupted)
         return;
-     now = HostClockNow();
-     event = now + HostTicksToNextEvent();
-     step = (event < duration ? event : duration) - now;
+     now = TimedNow();
+     toEvent = HostTicksToNextEvent();
+     step = toEvent < duration - now ? toEvent : duration - now;
      active = _OSActiveTask;
      if (active != IdleTCB) {
         TimedTask *task = (TimedTask *)active->Argument;
@@ -1260,18 +1315,22 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
         HostAdvanceBy(step);
         if (task->Work <= 0) {
            if (setjmp(TimedFrame) == 0) {
-              HostCompilerBarrierHook = AtBarriers ? BarrierInterrupt : NULL;
+              WrapPoints = 0;
+              SetKernelHooks();
               active->TaskCodePtr(active->Argument);
            }
            HostCompilerBarrierHook = NULL;
+           HostTimeReadHook = NULL;
            _OSNoSaveContext = FALSE;   /* the context switch that follows clears it */
+           if (TimedNow() != now + step)
+              continue;                /* the clock moved inside: its event is served */
         }
      }
      else {
         IdleTime += step;
         HostAdvanceBy(step);
      }
-     if (HostClockNow() == event)
+     if (step == toEvent)
         _OSTimerInterruptHandler();
   }
 }
@@ -1296,7 +1355,8 @@ static void TestTimed(TimedMode mode)
                                      "their WCET but the first, which ends early",
                                      "their WCET but one, whose time left is shared",
                                      "their WCET but one, which takes six times it",
-                                     "a quarter of their WCET to all of it, a light load"};
+                                     "a quarter of their WCET to all of it, a light load",
+                                     "their WCET, the processor idle before two arrive together"};
   INT32 duration;
   long long busy = 0;
   unsigned i, misses = 0, earlyStarts = 0;
@@ -1350,6 +1410,16 @@ static void TestTimed(TimedMode mode)
      CreateTimedTask(200, 1200, 630, 0, -1);
      CreateTimedTask(50, 750, 700, 0, -1);
      CreateTimedTask(350, 2000, 720, 0, -1);
+  }
+  else if (mode == TIMED_IDLE) {
+     /* The first task ends at 1200, and the processor idles until the two others arrive
+     ** together at 1500, the second of them with 300 ticks of work within 700: a slack
+     ** the first task left would slow it down, and the first, back at 2000, would find
+     ** it far from done. Worst response times 200, 500 and 600 ticks. */
+     duration = 24000;
+     CreateTimedTask(200, 1000, 500, 0, -1);
+     CreateTimedTask(300, 1500, 700, 0, -1);
+     CreateTimedTask(100, 1500, 1500, 0, -1);
   }
   else if (mode == TIMED_OVERRUN) {
      /* The second task, alone after the first, stretches its 100 ticks to the next
@@ -1416,7 +1486,7 @@ static void TestTimed(TimedMode mode)
         Check("  never below the minimal speed", (HostSpeedsUsed & 1u << OS_12MHZ_SPEED) == 0);
      }
      else if (mode == TIMED_SLACK || mode == TIMED_EXPIRY || mode == TIMED_RECLAIM ||
-         mode == TIMED_REUSE || mode == TIMED_OVERRUN) {
+         mode == TIMED_REUSE || mode == TIMED_OVERRUN || mode == TIMED_IDLE) {
         extern unsigned HostInvalidSpeeds;
         Check("  every speed asked for is an operating point", HostInvalidSpeeds == 0);
         #if POWER_MANAGEMENT == DM_SLACK
@@ -1471,6 +1541,72 @@ static void TestEndInside(TimedMode mode)
   snprintf(label, sizeof label, "  the same run as without them: %08x against %08x",
            TimedTrace, baseline);
   Check(label, TimedTrace == baseline);
+}
+
+/* TestTimeWrap: A task ending one tick before the counter wraps, the interrupt of the
+** wrap taken at each time read and barrier of its end in turn, where the kernel may hold
+** a time read before the shift. A first run, away from the wrap, finds when the instances
+** end; the same run is then made to start so that one of them ends at the last tick
+** before the wrap, the schedule being the same at any phase of the counter. Each run is a
+** child process, the kernel keeping its state in its own variables. */
+#define WRAP_ENDS   16
+#define WRAP_POINTS 4
+static void TestTimeWrap(TimedMode mode)
+{
+  INT32 ends[WRAP_ENDS];
+  unsigned e, p, taken = 0, failed = 0;
+  char label[96];
+  int fds[2];
+  pid_t child;
+  if (pipe(fds) != 0 || (child = fork()) < 0) {
+     Check("  fork", FALSE);
+     return;
+  }
+  if (child == 0) {
+     FILE *quiet = freopen("/dev/null", "w", stdout);
+     (void)quiet;
+     TimedPhase = 0x20000000;
+     TestTimed(mode);
+     _exit(write(fds[1], Ends, sizeof ends) == sizeof ends ? 0 : 1);
+  }
+  close(fds[1]);
+  if (read(fds[0], ends, sizeof ends) != sizeof ends) {
+     Check("  the run away from the wrap", FALSE);
+     return;
+  }
+  waitpid(child, NULL, 0);
+  for (e = 0; e < WRAP_ENDS; e += 1)
+     for (p = 0; p < WRAP_POINTS; p += 1) {
+        int status = 0;
+        if (pipe(fds) != 0 || (child = fork()) < 0) {
+           Check("  fork", FALSE);
+           return;
+        }
+        if (child == 0) {
+           FILE *quiet = freopen("/dev/null", "w", stdout);
+           (void)quiet;
+           TimedPhase = 0x3FFFFFFF - ends[e];
+           WrapsTaken = 0;
+           AtWrap = TRUE;
+           WrapPoint = p;
+           TestTimed(mode);
+           _exit(write(fds[1], &WrapsTaken, sizeof WrapsTaken) == sizeof WrapsTaken &&
+                 Failures == 0 ? 0 : 1);
+        }
+        close(fds[1]);
+        if (read(fds[0], &WrapsTaken, sizeof WrapsTaken) != sizeof WrapsTaken)
+           WrapsTaken = 0;
+        close(fds[0]);
+        waitpid(child, &status, 0);
+        taken += WrapsTaken;
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+           failed += 1;
+           printf("  the end at %d, point %u: FAILED\n", ends[e], p);
+        }
+     }
+  snprintf(label, sizeof label, "  %u runs, the wrap taken inside %u times: every check held",
+           (unsigned)(WRAP_ENDS * WRAP_POINTS), taken);
+  Check(label, failed == 0 && taken >= WRAP_ENDS);
 }
 
 #if defined(ESCAPEMENT_VERSION_SOFT)
@@ -1730,6 +1866,12 @@ int main(int argc, char *argv[])
      TestEndInside(TIMED_EARLY);
   else if (argc > 1 && strcmp(argv[1], "endinsidebusy") == 0)
      TestEndInside(TIMED_BUSY);
+  else if (argc > 1 && strcmp(argv[1], "timewrap") == 0)
+     TestTimeWrap(TIMED_EARLY);
+  else if (argc > 1 && strcmp(argv[1], "timewrapbusy") == 0)
+     TestTimeWrap(TIMED_BUSY);
+  else if (argc > 1 && strcmp(argv[1], "timewrapidle") == 0)
+     TestTimeWrap(TIMED_IDLE);
   #if defined(ESCAPEMENT_VERSION_SOFT)
      else if (argc > 1 && strcmp(argv[1], "firm") == 0)
         TestFirm();

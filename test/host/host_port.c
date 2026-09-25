@@ -43,7 +43,20 @@ void _OSStartTimer(void)
   OverflowPending = FALSE;
 }
 
-INT32 _OSGetActualTime(void) { return Clock; }
+/* A test may set HostTimeReadHook to take an interrupt once the time is read, before the
+** kernel uses it. */
+void (*HostTimeReadHook)(void) = NULL;
+INT32 _OSGetActualTime(void)
+{
+  INT32 time = Clock;
+  if (HostTimeReadHook)
+     HostTimeReadHook();
+  return time;
+}
+
+/* HostSetClock: Sets the clock, for a test to start its tasks at any phase of the
+** counter. */
+void HostSetClock(INT32 time) { Clock = time; }
 
 /* A test may set HostOverflowCheckHook to run once the kernel has found no overflow, in
 ** the window between that test and its reading of the time: the counter may wrap there. */
@@ -169,6 +182,9 @@ static BOOL Reserved = FALSE;
                       if (HostPassingSC > 0) HostPassingSC -= 1; \
                       else if (HostFailingSC > 0) { HostFailingSC -= 1; return FALSE; } \
                       *(a) = (v); return TRUE; } while (0)
+/* HostLoseReservation: What any interrupt does to a reservation on the target. */
+void HostLoseReservation(void) { Reserved = FALSE; }
+
 UINT8  OSUINT8_LL(UINT8 *a)   { UINT8 value; LL(a); }
 BOOL   OSUINT8_SC(UINT8 *a, UINT8 v)   { SC(a, v); }
 UINT16 OSUINT16_LL(UINT16 *a) { UINT16 value; LL(a); }
