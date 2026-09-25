@@ -99,11 +99,23 @@ void _OSIOHandler(void);
    #ifndef _ASM_
       extern volatile BOOL _OSIdleAsleep;
    #endif
+   /* Sleeping slower, the speed, the flag and the WFI come with interrupts masked: an
+   ** interrupt between the flag and the WFI raised the speed and cleared the flag, and
+   ** the idle task then slept at full speed until the next one. Masked, WFI still wakes
+   ** on the interrupt that becomes pending, which is taken once they are unmasked, the
+   ** speed raised as it enters. */
    #define _OSSleep() while (TRUE) { \
-                         OSSetProcessorSpeed(OS_SLEEP_SPEED); \
-                         if (OS_SLEEP_SPEED != OS_MAX_SPEED) \
+                         if (OS_SLEEP_SPEED != OS_MAX_SPEED) { \
+                            _OSDisableInterrupts(); \
+                            OSSetProcessorSpeed(OS_SLEEP_SPEED); \
                             _OSIdleAsleep = TRUE; \
-                         __asm volatile ("WFI" ::: "memory"); \
+                            __asm volatile ("WFI" ::: "memory"); \
+                            _OSEnableInterrupts(); \
+                         } \
+                         else { \
+                            OSSetProcessorSpeed(OS_SLEEP_SPEED); \
+                            __asm volatile ("WFI" ::: "memory"); \
+                         } \
                       };
 #else
    #define _OSSleep() while (TRUE) { __asm volatile ("WFI" ::: "memory"); };
