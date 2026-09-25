@@ -42,7 +42,7 @@ python3 test/model/fifo_mp.py        # the queue between the cores, ~1 s
 
 # The compiled order of the slot buffers against the models (RP builds, run by the CI)
 tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement*.o
-tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2   # must fail 8/8
+tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2   # must fail 11/11
 
 sh tools/check_encoding.sh           # every tracked file must be valid UTF-8
 ```

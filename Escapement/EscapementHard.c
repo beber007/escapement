@@ -1107,8 +1107,9 @@ void *OSInitFIFOQueue(UINT8 maxNodes, UINT8 maxNodeSize)
 {
   UINT8 i;
   BUFFER_DESCRIPTOR_FIFO *desc;
-  /* Initialize FIFO */
-  if ((desc = (BUFFER_DESCRIPTOR_FIFO *)OSMalloc(sizeof(BUFFER_DESCRIPTOR_FIFO))) == NULL)
+  /* Initialize FIFO; a queue of no node would take every index modulo 0 */
+  if (maxNodes == 0 ||
+      (desc = (BUFFER_DESCRIPTOR_FIFO *)OSMalloc(sizeof(BUFFER_DESCRIPTOR_FIFO))) == NULL)
      return NULL;
   desc->Head = desc->Tail = 0;
   desc->QueueLength = maxNodes;
@@ -1242,7 +1243,8 @@ void *OSInitBuffer(UINT8 bufferSize, UINT8 bufferSlotType, void *eventQueue)
   BUFFER_DESCRIPTOR *descriptor;
   BUFFER_4_SLOT *buffer4;
   BUFFER_3_SLOT *buffer3;
-  if ((descriptor = (BUFFER_DESCRIPTOR *)OSMalloc(sizeof(BUFFER_DESCRIPTOR))) == NULL)
+  if ((bufferSlotType != OS_BUFFER_TYPE_4_SLOT && bufferSlotType != OS_BUFFER_TYPE_3_SLOT) ||
+      (descriptor = (BUFFER_DESCRIPTOR *)OSMalloc(sizeof(BUFFER_DESCRIPTOR))) == NULL)
      return NULL;
   descriptor->Status = BUFFER_INIT;
   descriptor->BufferSize = bufferSize;
@@ -1254,14 +1256,18 @@ void *OSInitBuffer(UINT8 bufferSize, UINT8 bufferSlotType, void *eventQueue)
            return NULL;
         buffer4 = (BUFFER_4_SLOT *)descriptor->Buffer;
         buffer4->Reading = 0;  buffer4->Latest = 0;
+        /* OSMalloc does not clear what it hands out: an index read before the writer
+        ** set it would name a slot outside the buffer. */
+        buffer4->Index[0] = buffer4->Index[1] = 0;
         buffer4->CurrentWriterPair = 1;
         buffer4->CurrentWriterIndex = !(buffer4->Index[1]);
         buffer4->CurrentWriter = &buffer4->Slot[1][buffer4->CurrentWriterIndex];
-        buffer4->CurrentWriter->BufferItems = 0;
         for (i = 0; i < 2; i++)  // Allocate the buffer of each slot
-           for (bufferSize = 0; bufferSize < 2; bufferSize++)
+           for (bufferSize = 0; bufferSize < 2; bufferSize++) {
+              buffer4->Slot[i][bufferSize].BufferItems = 0;
               if ((buffer4->Slot[i][bufferSize].Data = (UINT8 *)OSMalloc(descriptor->BufferSize)) == NULL)
                  return NULL;
+           }
         break;
      case OS_BUFFER_TYPE_3_SLOT:
         if ((descriptor->Buffer = OSMalloc(sizeof(BUFFER_3_SLOT))) == NULL)
@@ -1270,11 +1276,12 @@ void *OSInitBuffer(UINT8 bufferSize, UINT8 bufferSlotType, void *eventQueue)
         buffer3->Reading = 3;  buffer3->Latest = 0;
         buffer3->CurrentWriterIndex = 2;
         buffer3->CurrentWriter = &buffer3->Slot[2];
-        buffer3->CurrentWriter->BufferItems = 0;
-        for (i = 0; i < 3; i++)  // Allocate the buffer of each slot
+        for (i = 0; i < 3; i++) {  // Allocate the buffer of each slot
+           buffer3->Slot[i].BufferItems = 0;
            if ((buffer3->Slot[i].Data = (UINT8 *)OSMalloc(descriptor->BufferSize)) == NULL)
               return NULL;
-     default: break;
+        }
+        break;
   }
   return descriptor;
 } /* end of OSInitBuffer */
@@ -1303,9 +1310,8 @@ UINT8 OSWriteBuffer(void *descriptor, UINT8 *data, UINT8 size)
                                       element->BufferItems != descript->BufferSize; i++)
         element->Data[element->BufferItems++] = data[i]; // copy the byte
      if (element->BufferItems == descript->BufferSize) {
-        /* Indicate to the reader that a full buffer is now ready for reading */
-        descript->Status = BUFFER_UNREAD;
-        /* Get a new slot for the next time the writer is invoked. */
+        /* Hand over the full slot, then get a new one for the next time the writer is
+        ** invoked. */
         if (descript->BufferSlotType == OS_BUFFER_TYPE_4_SLOT) {
            BOOL wpair;
            BUFFER_4_SLOT *buf = (BUFFER_4_SLOT*)((BUFFER_DESCRIPTOR*)descriptor)->Buffer;
@@ -1346,6 +1352,12 @@ UINT8 OSWriteBuffer(void *descriptor, UINT8 *data, UINT8 size)
            buffer->CurrentWriter = &buffer->Slot[windex];
            buffer->CurrentWriter->BufferItems = 0;
         }
+        /* Only now indicate to the reader that a full buffer is ready for reading: said
+        ** before the slot is handed over, a reader preempting the writer in between would
+        ** take the slot it had read as unread, and the new one would then count as read.
+        ** On two cores, the slot must be seen handed over before the status. */
+        _OSMemoryBarrier();
+        descript->Status = BUFFER_UNREAD;
         /* Unblock a task if there is an event associated with a full buffer */
         if (descript->EventQueue != NULL)
            OSScheduleSuspendedTask(descript->EventQueue);
@@ -1370,11 +1382,15 @@ UINT8 OSGetReferenceBuffer(void *descriptor, UINT8 readMode, UINT8 **data)
   BUFFER_DATA *buffer;
   /* Check that the buffer was created and that there is something to read. */
   if (descript != NULL && descript->Status != BUFFER_INIT) {
-     if (!readMode)   // take the unread slot, retrying if an interrupt made the SC fail
+     if (!readMode) { // take the unread slot, retrying if an interrupt made the SC fail
         do
            if (OSUINT8_LL(&descript->Status) != BUFFER_UNREAD)
               goto fail;
         while (!OSUINT8_SC(&descript->Status,BUFFER_READ));
+        /* With the writer on the other core: the slot chosen after the status that says
+        ** it is new, which the writer sets after handing the slot over. */
+        _OSMemoryBarrier();
+     }
      /* Get the slot holding the most recent written data. */
      if (descript->BufferSlotType == OS_BUFFER_TYPE_4_SLOT)
         buffer = GetReadyBuffer4Slot(descript);
@@ -1406,11 +1422,15 @@ UINT8 OSGetCopyBuffer(void *descriptor, UINT8 readMode, UINT8 *data)
   BUFFER_DATA *buffer;
   /* Check that the buffer was created and that there is something to read. */
   if (descript != NULL && descript->Status != BUFFER_INIT) {
-     if (!readMode)   // take the unread slot, retrying if an interrupt made the SC fail
+     if (!readMode) { // take the unread slot, retrying if an interrupt made the SC fail
         do
            if (OSUINT8_LL(&descript->Status) != BUFFER_UNREAD)
               goto fail;
         while (!OSUINT8_SC(&descript->Status,BUFFER_READ));
+        /* With the writer on the other core: the slot chosen after the status that says
+        ** it is new, which the writer sets after handing the slot over. */
+        _OSMemoryBarrier();
+     }
      if (descript->BufferSlotType == OS_BUFFER_TYPE_4_SLOT)
         buffer = GetReadyBuffer4Slot(descript);
      else

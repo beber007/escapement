@@ -119,6 +119,8 @@ static void TestFIFO(void)
      OSReleaseNodeFIFO(queue, nodes[i]);
 
   Check("  an empty queue dequeues nothing", OSDequeueFIFO(queue, &size) == NULL);
+  /* A length of 0 would make every index modulo 0. */
+  Check("  a queue of no node is refused", OSInitFIFOQueue(0, NODE_SIZE) == NULL);
 
   /* A full queue refuses a node, here one borrowed from another queue. */
   for (i = 0; i < NODES; i += 1)
@@ -242,6 +244,51 @@ static void TestBuffer(UINT8 type, const char *name)
 }
 
 
+/* TestPublication: The reader comes in the middle of a write, as a higher-priority task
+** or an interrupt preempting the writer does: at the writer's first memory barrier,
+** after the slot is full and before it is handed over. The reader must then get nothing
+** new, and the slot must still reach it once the writer is done. Blocks are filled with
+** 0xA5 rather than zeros, as SRAM is on the target: a reader that took a slot never
+** written would find a length there. */
+static void *Race;
+static UINT8 RaceCopy[256], RaceGot;
+static void ReaderInWindow(void)
+{
+  HostBarrierHook = NULL;
+  RaceGot = OSGetCopyBuffer(Race, OS_READ_ONLY_ONCE, RaceCopy);
+}
+
+static void TestPublication(UINT8 type, const char *name)
+{
+  UINT8 a[SLOT] = {1, 2, 3}, b[SLOT] = {4, 5, 6}, copy[256];
+  unsigned ok;
+
+  printf("\n%s buffer, a reader preempting the writer\n\n", name);
+  HostMallocFill = 0xA5;
+  Race = OSInitBuffer(SLOT, type, NULL);
+  HostMallocFill = -1;
+  HostBarrierHook = ReaderInWindow;
+  OSWriteBuffer(Race, a, SLOT);
+  ok = RaceGot == 0 || (RaceGot == SLOT && memcmp(RaceCopy, a, SLOT) == 0);
+  Check("  in the first write, it gets nothing or that slot", ok);
+  ok = RaceGot == SLOT ||
+       (OSGetCopyBuffer(Race, OS_READ_ONLY_ONCE, copy) == SLOT && memcmp(copy, a, SLOT) == 0);
+  Check("  and the slot is delivered", ok);
+
+  OSGetCopyBuffer(Race, OS_READ_ONLY_ONCE, copy);
+  HostBarrierHook = ReaderInWindow;
+  OSWriteBuffer(Race, b, SLOT);
+  ok = RaceGot == 0 || (RaceGot == SLOT && memcmp(RaceCopy, b, SLOT) == 0);
+  Check("  later, it never gets the slot it has read again", ok);
+  ok = RaceGot == SLOT ||
+       (OSGetCopyBuffer(Race, OS_READ_ONLY_ONCE, copy) == SLOT && memcmp(copy, b, SLOT) == 0);
+  Check("  and the new slot is delivered once", ok &&
+        OSGetCopyBuffer(Race, OS_READ_ONLY_ONCE, copy) == 0);
+  HostBarrierHook = NULL;
+  Check("  a slot type that does not exist is refused", OSInitBuffer(SLOT, 2, NULL) == NULL);
+}
+
+
 /* The wait-free queue retries in loops that a broken index never leaves. */
 static void Timeout(int signal)
 {
@@ -260,6 +307,8 @@ int main(void)
   TestCoreQueue();
   TestBuffer(OS_BUFFER_TYPE_3_SLOT, "3-slot");
   TestBuffer(OS_BUFFER_TYPE_4_SLOT, "4-slot");
+  TestPublication(OS_BUFFER_TYPE_3_SLOT, "3-slot");
+  TestPublication(OS_BUFFER_TYPE_4_SLOT, "4-slot");
   printf("\n%s\n", Failures ? "FAILURES" : "all checks passed");
   return Failures ? 1 : 0;
 }

@@ -18,6 +18,13 @@ their order with a DMB between each and the next:
 The reader's first barrier stands for "after the previous copy": the one of the 4-slot
 reader after Latest, the one of the 3-slot reader before Reading = 3.
 
+The status of the buffer, which a reader taking each slot once reads first, is not in the
+models; it follows the same rule. Where a path makes both accesses:
+
+    writer          Latest (4-slot) or LL(Reading) (3-slot), DMB, Status
+    reader          SC(Status), DMB, the choice of a slot: a call to GetReadyBuffer3Slot
+                    or GetReadyBuffer4Slot, or their first access inlined
+
 The accesses are recognised by their offsets in the buffer structures, followed through
 the registers from the descriptor each function receives in r0: descriptor->Buffer, the
 buffer's CurrentWriter, and its Data. That covers the code GCC emits for the Cortex-M0+
@@ -39,6 +46,7 @@ FUNCTIONS = ("OSWriteBuffer", "OSGetCopyBuffer", "OSGetReferenceBuffer",
 # Offsets in BUFFER_4_SLOT and BUFFER_3_SLOT (EscapementHard.c), on a 32-bit target.
 READING4, LATEST4, INDEX4 = 36, 37, 40
 READING3, LATEST3 = 28, 29
+STATUS = 5                          # in BUFFER_DESCRIPTOR
 BUFFER = ("d", 0)                   # descriptor->Buffer
 DATA = ("d", 0, 0, 0)               # Buffer->CurrentWriter->Data
 MAX_PATHS = 20000
@@ -135,6 +143,8 @@ def event_of(kind, addr):
         return {"load": "Index4 load", "store": "Index4 store"}[kind]
     if addr.base == DATA and kind == "store":
         return "data store"
+    if addr.base == ("d",) and not addr.var and addr.off == STATUS and kind == "store":
+        return "Status store"
     return None
 
 
@@ -151,6 +161,11 @@ def step(insn, regs):
         if target == "OSUINT8_LL" and r0 and r0.base == BUFFER and r0.off == READING3 \
                 and not r0.var:
             events.append("LL Reading3")
+        if target == "OSUINT8_SC" and r0 and r0.base == ("d",) and r0.off == STATUS \
+                and not r0.var:
+            events.append("SC Status")
+        if target in ("GetReadyBuffer3Slot", "GetReadyBuffer4Slot"):
+            events.append("slot choice")
         for r in ("r0", "r1", "r2", "r3", "r12", "lr"):
             regs.pop(r, None)
         return events
@@ -161,6 +176,9 @@ def step(insn, regs):
         if m.group(2) == "exb" and kind == "load" and addr and addr.base == BUFFER \
                 and addr.off == READING3:
             events.append("LL Reading3")
+        elif m.group(2) == "exb" and kind == "store" and addr and addr.base == ("d",) \
+                and addr.off == STATUS:
+            events.append("SC Status")
         else:
             e = event_of(kind, addr)
             if e:
@@ -259,6 +277,29 @@ RULES = {
     "3-slot writer": ("data store", "Latest3 store", "LL Reading3"),
     "3-slot reader": (None, "Reading3 store", "LL Reading3"),
 }
+# Pairs, checked only on the paths that make both: (earlier accesses, later accesses).
+PAIRS = {
+    "4-slot writer, status": (("Latest4 store",), ("Status store",)),
+    "3-slot writer, status": (("LL Reading3",), ("Status store",)),
+    "reader, status": (("SC Status",), ("slot choice", "Latest4 load", "Reading3 store")),
+}
+
+
+def check_pair(events, pair):
+    """On one path: a DMB between the last earlier access and each later one after it.
+    Returns an error, None if fine, or "absent" if the path does not make both."""
+    earlier, later = pair
+    found = False
+    for k, e in enumerate(events):
+        if e not in later:
+            continue
+        j = max((i for i in range(k) if events[i] in earlier), default=None)
+        if j is None:
+            continue
+        found = True
+        if "DMB" not in events[j + 1:k]:
+            return f"no DMB between {events[j]} and {e}"
+    return None if found else "absent"
 
 
 def check_path(events, rule):
@@ -301,16 +342,17 @@ def check(path):
     errors, covered = [], set()
     for name in present:
         for events in paths(functions[name]):
-            for rule_name, rule in RULES.items():
+            for rule_name, rule in list(RULES.items()) + list(PAIRS.items()):
                 if ("writer" in rule_name) != (name == "OSWriteBuffer"):
                     continue
-                result = check_path(events, rule)
+                result = check_pair(events, rule) if rule_name in PAIRS else \
+                    check_path(events, rule)
                 if result == "absent":
                     continue
                 covered.add(rule_name)
                 if result:
                     errors.append(f"{path}: {name}, {rule_name}: {result}")
-    for rule_name in RULES:
+    for rule_name in list(RULES) + list(PAIRS):
         if rule_name not in covered:
             errors.append(f"{path}: the {rule_name} was not found")
     return sorted(set(errors))

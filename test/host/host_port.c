@@ -92,8 +92,21 @@ void OSSetISRDescriptor(UINT16 entry, void *descriptor) { _OSTabDevice[entry] = 
 void *OSGetISRDescriptor(UINT16 entry) { return _OSTabDevice[entry]; }
 void _OSIOHandler(void) { }
 
-/* Allocation: the kernel never frees, so neither does this. */
-void *OSMalloc(UINT16 size) { return calloc(1, size); }
+/* Allocation: the kernel never frees, so neither does this. The target's OSMalloc hands
+** out SRAM as the boot or the previous image left it; a test sets HostMallocFill to fill
+** each block with that byte instead of zeros, so that a field the kernel forgets to set
+** does not read as 0. */
+int HostMallocFill = -1;
+void *OSMalloc(UINT16 size)
+{
+  void *block = calloc(1, size);
+  if (block != NULL && HostMallocFill >= 0)
+     memset(block, HostMallocFill, size);
+  return block;
+}
+
+void (*HostBarrierHook)(void) = NULL;
+void (*HostSoftTimerHook)(void) = NULL;
 
 /* Atomics. Single threaded and never preempted here, so a reservation holds — unless a
 ** test sets HostFailingSC to make that many store-conditionals fail, as an interrupt
