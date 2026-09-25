@@ -448,6 +448,12 @@ void OSEndTask(void)
   /* Set the task to zombie to indicate that it is about to remove itself from the ready
   ** queue and that its context should not be saved. */
   _OSActiveTask->TaskState |= STATE_ZOMBIE;
+  /* A zombie before its context is said not to be saved. GCC stored the flag first, and
+  ** an interrupt in between found a task that was no zombie: it left the task in the
+  ** ready queue, then wiped its stack in the task switch it made, and the task, still
+  ** running as far as the kernel knew, was resumed later with the context of the one
+  ** it had preempted (SoakPico2 under Renode, 2026-09-25). */
+  CompilerBarrier();
   _OSNoSaveContext = TRUE; // Don't save the context of this task
   CompilerBarrier();       // a zombie before it leaves the ready queue
   /* Remove the task from the ready queue */
