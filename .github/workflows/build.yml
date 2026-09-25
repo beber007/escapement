@@ -307,6 +307,9 @@ jobs:
           - variant: power-aware, DM_SLACK
             make: KERNEL=PA POWER=DM_SLACK
             robot: --variable KERNEL:PA --variable POWER:DM_SLACK
+          - variant: power-aware, idle asleep at 12 MHz
+            make: KERNEL=PA SLEEP_SPEED=0
+            robot: --variable KERNEL:PA
 
     steps:
       - uses: actions/checkout@v7
