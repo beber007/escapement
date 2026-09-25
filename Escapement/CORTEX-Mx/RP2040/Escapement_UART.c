@@ -181,6 +181,10 @@ void OSEnqueueUART(void *buffer, UINT8 dataSize, UINT8 interruptIndex)
   asm volatile ("dsb" ::: "memory");   // the mask must hold before the next instruction
   asm volatile ("isb" ::: "memory");
   Transmit(descriptor);
+  /* The fields Transmit wrote, before the interrupt that reads them is unmasked: a store
+  ** to a volatile register does not keep the compiler from moving an ordinary one after
+  ** it, were Transmit ever inlined here. */
+  asm volatile ("" ::: "memory");
   NVIC_ISER = 1u << interruptIndex;
 } /* end of OSEnqueueUART */
 

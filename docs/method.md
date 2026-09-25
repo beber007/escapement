@@ -183,3 +183,19 @@ allow — the models' premise — nor code the compiler might emit for another v
 level of optimisation until it runs there. Without the barriers' memory clobber, GCC
 16.2 happened to keep the same order at -O2 (2026-09-25): the clobber is a guarantee,
 not a fix to an observed fault.
+
+On one core, the same holds of the stores a task makes that the timer interrupt may
+find half done: the processor keeps their order, the compiler need not, and did. Besides
+`OSEndTask` (above), the soft kernel's `ScheduleNextTask` promotes an optional instance
+by marking it `STATE_ACTIVATE`, moving it to the head of the ready queue in three steps,
+and setting it `STATE_INIT`; the interrupt completes a promotion it finds marked. GCC
+saw the mark overwritten and dropped it, on the Cortex-M0+, the M33 and the M4 alike:
+a promotion interrupted there left the task at the head and in the list of optional
+instances at once. No test had shown it. Compiler barriers now order these stores, those of the
+two drops in the same function, and the clearing of `SetActiveTaskRemainingTime` in the
+power-aware kernel, and `tools/check_order.py` checks the compiled order of each on every
+path, on every build of the Pico, the Pico 2 and the F4 (2026-09-25). Run on the kernels
+of the day before, it reports exactly the faults found by hand: `OSEndTask` on the M33
+and the M4, the promotion on all three; the mutants script shows each rule failing on a
+source whose order is turned around. A port audit found no other such sequence, one
+latent in the UART, now ordered as well.

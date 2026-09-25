@@ -44,9 +44,11 @@ python3 test/model/threeslot.py      # ~1 min, up to 1.2 GB
 python3 test/model/fifo.py           # ~35 s
 python3 test/model/fifo_mp.py        # the queue between the cores, ~1 s
 
-# The compiled order of the slot buffers against the models (RP builds, run by the CI)
+# The compiled order of the slot buffers against the models, and of the task-level
+# stores the timer interrupt relies on (run by the CI; --tasks alone for the F4)
 tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement*.o
-tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2   # must fail 9/9
+tools/check_order.py --tasks Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery/build/Escapement*.o
+tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2   # every one caught
 
 sh tools/check_encoding.sh           # every tracked file must be valid UTF-8
 
@@ -90,6 +92,10 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
 - A store-conditional can fail although the value did not change — any interrupt between
   it and its load-linked, on the emulated pair of the Cortex-M0+ as with LDREX/STREX.
   Retry it; never take a single SC for a compare-and-swap.
+- Stores a task makes that an interrupt may find half done need a `CompilerBarrier()`
+  between each and the next: at -O2 GCC reordered two of them in `OSEndTask` and dropped
+  a store it saw overwritten in `ScheduleNextTask`. Add a new sequence to
+  `tools/check_order.py` with a mutant in `tools/check_order_mutants.sh`.
 - In a model of lock-free code, make the SC a step of its own: merged with the reads
   before it, the model hides the very window the reservation protects. Give each model
   faulty variants it must catch.

@@ -490,8 +490,12 @@ void ScheduleNextTask(void)
            _OSActiveTask->Priority = _OSActiveTask->StaticPriority;
            break;
         }
-        /* Remove task from ready queue. */
+        /* Remove task from ready queue, a zombie first as in OSEndTask: the timer
+        ** handler, interrupting in between, finishes the removal of a zombie at the
+        ** head, and takes an arriving task that is no zombie to be in the ready queue,
+        ** which it searches to the end. The barrier keeps the compiler to that order. */
         _OSActiveTask->TaskState |= STATE_ZOMBIE;
+        CompilerBarrier();
         _OSQueueHead->Next[READYQ] = _OSActiveTask->Next[READYQ];
         _OSActiveTask = _OSQueueHead->Next[READYQ];
      }
@@ -503,18 +507,31 @@ void ScheduleNextTask(void)
            if ((_OSActiveTask->TaskState & STATE_DROP) == 0) {
               if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > _OSGetActualTime() &&
                   IsTaskSchedulable()) {
-                 /* Move the optional instance to the head of the ready queue */
+                 /* Move the optional instance to the head of the ready queue. The timer
+                 ** handler, interrupting in between, completes a promotion it finds
+                 ** marked STATE_ACTIVATE at the head, from the step the links show
+                 ** (FinalizeContextSwitchPreparation): the mark, the head and each step
+                 ** must be stored in this order. Without the barriers GCC dropped the
+                 ** mark, a store it saw overwritten by STATE_INIT (2026-09-25). */
                  _OSActiveTask->TaskState |= STATE_ACTIVATE;
+                 CompilerBarrier();
                  _OSQueueHead->Next[READYQ] = _OSActiveTask;
+                 CompilerBarrier();
                  _OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];
+                 CompilerBarrier();
                  _OSActiveTask->Next[READYQ] = _OSQueueTail;
+                 CompilerBarrier();
                  _OSActiveTask->TaskState = STATE_INIT;
                  break;
               }
               /* Drop it, and mark it so that it is not tested again. */
               _OSActiveTask->TaskState |= STATE_DROP;
            }
+           /* Out of the optional instances, then a zombie: marked first, the task
+           ** would be taken at its arrival for out of the ready queue while still in
+           ** it, and inserted a second time. */
            _OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];
+           CompilerBarrier();
            _OSActiveTask->TaskState |= STATE_ZOMBIE;
         }
         if (_OSActiveTask == NULL)

@@ -59,7 +59,8 @@ application gets the same guarantees from two mechanisms:
   orders its accesses with four calls to `_OSMemoryBarrier()`: a `DMB` on the RP2040
   and the RP2350, a compiler barrier alone in the single-core STM32 port and the host
   build. `tools/check_order.py` checks in the compiled code of every RP build that the
-  accesses and the barriers keep the models' order.
+  accesses and the barriers keep the models' order, and in every build the order of the
+  stores a task makes that the timer interrupt may find half done (`method.md`).
 
 Each mechanism has an exhaustive model in `test/model`, run by the CI: every run of a
 few queue operations preempting one another at any access, checked for linearizability;

@@ -589,6 +589,9 @@ void OSEndTask(void)
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #endif
      }
+     /* Only once the work is done, and the ready queue left: a timer interrupt before
+     ** this completes the work, one after finds it done. */
+     CompilerBarrier();
      SetActiveTaskRemainingTime = FALSE;
   #elif defined(STATIC_POWER_MANAGEMENT)
      if (_OSActiveTask != OSQueueTail)
@@ -1147,6 +1150,7 @@ void OSSuspendSynchronousTask(void)
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #endif
      }
+     CompilerBarrier();          // as in OSEndTask
      SetActiveTaskRemainingTime = FALSE;
   #elif defined(STATIC_POWER_MANAGEMENT)
      if (_OSActiveTask != OSQueueTail)
