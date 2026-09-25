@@ -21,7 +21,8 @@ CC ?= cc
 # catches a read past a block: the idle task, allocated smaller than a task, was read so,
 # and the result depended on whatever the heap held next to it.
 CFLAGS = -I. -I../../Escapement -Wall -O1 -g \
-         -fsanitize=address,integer-divide-by-zero,signed-integer-overflow -fno-sanitize-recover=all
+         -fsanitize=address,integer-divide-by-zero,signed-integer-overflow,shift \
+         -fno-sanitize-recover=all
 # What OSMalloc hands out is never freed, by design; Linux would report it as leaked.
 export ASAN_OPTIONS = detect_leaks=0
 HARD = ../../Escapement/EscapementHard.c
@@ -58,12 +59,18 @@ $(shell mkdir -p build)
 run: $(BUILDS:%=build/test_scheduler_%) build/test_ipc_hard build/test_ipc_soft build/test_ipc_pa
 	@for b in $(BUILDS); do \
 	   echo; echo "=== $$b"; \
-	   ./build/test_scheduler_$$b && ./build/test_scheduler_$$b wrap && \
+	   ./build/test_scheduler_$$b && ./build/test_scheduler_$$b create && \
+	   ./build/test_scheduler_$$b priority && \
+	   ./build/test_scheduler_$$b wrap && ./build/test_scheduler_$$b wrapsim && \
+	   ./build/test_scheduler_$$b wrapevents && \
 	   ./build/test_scheduler_$$b events && ./build/test_scheduler_$$b lull && \
-	   ./build/test_scheduler_$$b busy && \
+	   ./build/test_scheduler_$$b suspend && ./build/test_scheduler_$$b busy && \
 	   ./build/test_scheduler_$$b early && ./build/test_scheduler_$$b slack && \
-	   ./build/test_scheduler_$$b expiry && ./build/test_scheduler_$$b reclaim || exit 1; \
-	   case $$b in soft_*) ./build/test_scheduler_$$b firm || exit 1;; esac; \
+	   ./build/test_scheduler_$$b expiry && ./build/test_scheduler_$$b reclaim && \
+	   ./build/test_scheduler_$$b reuse && ./build/test_scheduler_$$b overrun || exit 1; \
+	   case $$b in soft_*) ./build/test_scheduler_$$b firm && \
+	                      ./build/test_scheduler_$$b firmwrap && \
+	                      ./build/test_scheduler_$$b firmlong || exit 1;; esac; \
 	done
 	@echo; echo "=== hard"; ./build/test_ipc_hard
 	@echo; echo "=== soft"; ./build/test_ipc_soft

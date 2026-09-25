@@ -241,6 +241,7 @@ static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30
 /* INTERNAL FUNCTION PROTOTYPES AND MACROS */
 static BOOL Initialize(void);
 static void IdleTask(void *);
+static BOOL ValidTiming(UINT16 periodCycles, INT32 periodOffset, INT32 deadline);
 static void Multiply46_16(UINT16 a0, INT32 a1, UINT16 b, UINT32 *c0, INT32 *c1);
 #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
   static UINT8 GetTaskPriority(INT32 deadline);
@@ -300,16 +301,33 @@ BOOL Initialize(void)
 void IdleTask(void *argument)
 {
   if (_OSQueueHead->Next[ARRIVALQ] != _OSQueueTail || SynchronousTaskList != NULL) {
+     /* No interrupt in between: a task signaled once the switch below is made runs the
+     ** timer handler, which must find the timer started and its origin set. */
+     _OSDisableInterrupts();
      #ifdef NonMaskableSoftwareTimer
         /* Switch to normal processing of task signaling, see EnqueueRescheduleQueue-
         ** BeforeBoot defined below. */
         EnqueueRescheduleQueue = EnqueueRescheduleQueueAfterBoot;
      #endif
      _OSStartTimer();   // Start the interval timer
+     _OSEnableInterrupts();
   }
   /* Enter in the lowest possible sleep mode */
   _OSSleep();
 } /* end of IdleTask */
+
+
+/* ValidTiming: Whether the kernel can count with a period and a deadline: a period that
+** is not 0, made of fewer than 65535 turns of 2^30 ticks, since the arrival time takes one
+** more when its remainder carries, and a remainder below 2^30; a deadline from one tick to
+** the period, and below 2^30, since the absolute deadline, an arrival plus the deadline,
+** must fit in an INT32. */
+BOOL ValidTiming(UINT16 periodCycles, INT32 periodOffset, INT32 deadline)
+{
+  return periodCycles < 0xFFFF && periodOffset >= 0 && periodOffset < ShiftTimeLimit &&
+         deadline > 0 && deadline < ShiftTimeLimit &&
+         (periodCycles > 0 || deadline <= periodOffset);
+} /* end of ValidTiming */
 
 
 /* OSCreateTask: Creates a new periodic task by allocating a new TCB to the task.
@@ -320,8 +338,23 @@ BOOL OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 peri
                   INT32 deadline, UINT8 m, UINT8 k, UINT8 startInstance, void *argument)
 {
   TCB *ptcb;
+  UINT32 startHigh;
+  INT32 startLow;
+  /* At least one instance in k is mandatory, which the pattern divides by m and k. The
+  ** first arrival, startInstance periods, must fit the arrival time's count of turns. */
+  if (!ValidTiming(periodCycles,periodOffset,deadline) || m == 0 || k < m)
+     return FALSE;
+  Multiply46_16(periodCycles,periodOffset,startInstance,&startHigh,&startLow);
+  if (startHigh >= 0xFFFF)
+     return FALSE;
   if (_OSQueueHead == NULL && !Initialize())
      return FALSE;
+  #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+     /* The priorities are counted in a byte, and an optional instance adds the number of
+     ** tasks to its own. */
+     if (_OSQueueTail->StaticPriority >= 0x7F)
+        return FALSE;
+  #endif
   /* Get a new TCB and initialize it. */
   if ((ptcb = (TCB*)OSMalloc(sizeof(TCB))) == NULL)
      return FALSE;
@@ -337,8 +370,8 @@ BOOL OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 peri
   ptcb->Instance = k - 1;
   ptcb->NextInstanceMandatory = TRUE; // First instance is always mandatory
   ptcb->NextMandatoryInstance = 0;
-  Multiply46_16(periodCycles,periodOffset,startInstance,
-                 &ptcb->NextMandatoryArrivalTimeHigh,&ptcb->NextMandatoryArrivalTimeLow);
+  ptcb->NextMandatoryArrivalTimeHigh = startHigh;
+  ptcb->NextMandatoryArrivalTimeLow = startLow;
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      ptcb->StaticPriority = GetTaskPriority(deadline);
      /* Temporarily save the task into the ready queue sorted by its deadline so that the
@@ -490,6 +523,13 @@ void ScheduleNextTask(void)
 } /* end of ScheduleNextTask */
 
 
+/* MulDiv, MulDivUp: a * b / c for a >= 0 and b, c from 1 to 255, rounded down and up,
+** without the overflow of a * b: a count of instances times m, where there can be 2^30
+** instances, leaves 32 bits past 2^23. */
+#define MulDiv(a,b,c)   ((a) / (c) * (b) + (a) % (c) * (b) / (c))
+#define MulDivUp(a,b,c) ((a) / (c) * (b) + ((a) % (c) * (b) + (c) - 1) / (c))
+
+
 /* IsTaskSchedulable: Determines whether the optional instance at the head of the ready
 ** queue (_OSActiveTask) can start now and still meet its deadline. No mandatory instance
 ** is ready when an optional one reaches the head, so only work released later can delay
@@ -504,7 +544,7 @@ BOOL IsTaskSchedulable(void)
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      ETCB *etcb;
   #endif
-  INT32 tmp, totalWork, fullInstances, partial;
+  INT32 tmp, totalWork, fullInstances, partial, mandatory;
   UINT32 deadlineHigh = _OSActiveTask->NextDeadline > 0x3FFFFFFF;
   INT32 deadlineLow = _OSActiveTask->NextDeadline & 0x3FFFFFFF;
   /* Because _OSActiveTask->NextDeadline - _OSGetActualTime() is <= 0x3FFFFFFF, the
@@ -525,10 +565,13 @@ BOOL IsTaskSchedulable(void)
            /* If tcb->PeriodHigh > 0, there can at most be one task instance that inter-
            ** feres since the interval <= 0x3FFFFFFF. */
            if ((tcb->PeriodHigh == 0) && (fullInstances = tmp / tcb->PeriodLow) > 0) {
-              totalWork += (fullInstances * tcb->M + tcb->K - 1) / tcb->K * tcb->WCET;
+              mandatory = MulDivUp(fullInstances,tcb->M,tcb->K);
+              if (tcb->WCET > 0 && mandatory > (0x3FFFFFFF - totalWork) / tcb->WCET)
+                 return FALSE;
+              totalWork += mandatory * tcb->WCET;
               // Add the partial execution of the task if it is mandatory
               partial = fullInstances + tcb->NextMandatoryInstance;
-              if (partial == (partial * tcb->M + tcb->K - 1) / tcb->K * tcb->K / tcb->M) {
+              if (partial == MulDiv(MulDivUp(partial,tcb->M,tcb->K),tcb->K,tcb->M)) {
                  if ((tmp -= fullInstances * tcb->PeriodLow) > tcb->WCET)
                     totalWork += tcb->WCET;
                  else
@@ -566,13 +609,25 @@ BOOL IsTaskSchedulable(void)
      /* Taking into account EDF event-driven tasks is simpler: During the time that the
      ** optional task is active, it must let a fraction of AperiodicUtilization / 256 to
      ** these tasks. */
+     /* That is ((totalWork << 8) - (SynchronousTaskDeadlines - now) * Aperiodic-
+     ** Utilization) / (256 - AperiodicUtilization), the part before now left out, written
+     ** as totalWork + AperiodicUtilization * (totalWork - that part) / (256 - Aperiodic-
+     ** Utilization): shifted or multiplied whole, a WCET of 2^23 ticks or events due as
+     ** far ahead left 32 bits. */
      if (AperiodicUtilization > 0) {
         partial = _OSGetActualTime();
-        if (SynchronousTaskDeadlines > partial)
-           totalWork = ((totalWork << 8) - (SynchronousTaskDeadlines - partial) *
-                                    AperiodicUtilization) / (256 - AperiodicUtilization);
-        else
-           totalWork = (totalWork << 8) / (256 - AperiodicUtilization);
+        tmp = totalWork - (SynchronousTaskDeadlines > partial ?
+                                                   SynchronousTaskDeadlines - partial : 0);
+        partial = 256 - AperiodicUtilization;
+        fullInstances = tmp / partial;
+        if (fullInstances > 0x3FFFFFFF / AperiodicUtilization)
+           return FALSE;  // more than 2^30 ticks of work
+        if (fullInstances < -(totalWork / AperiodicUtilization) - 1)
+           return TRUE;   // less than none: the events already take the time needed
+        totalWork += fullInstances * AperiodicUtilization +
+                     tmp % partial * AperiodicUtilization / partial;
+        if (totalWork > 0x3FFFFFFF)
+           return FALSE;
      }
   #endif
   return totalWork + _OSGetActualTime() < _OSActiveTask->NextDeadline;
@@ -612,8 +667,9 @@ void _OSTimerInterruptHandler(void)
         /* To avoid overflow of the timer's time, a time shift is done on all temporal
         ** variables. Because all these variables are signed, their relative values are pre-
         ** served. */
-        /* Time shift all deadlines of periodic tasks in the ready queue. */
-        for (arrival = _OSQueueHead; (arrival = arrival->Next[READYQ]) != _OSQueueTail; )
+        /* Time shift all deadlines of periodic tasks in the ready queue, including the
+        ** optional instances that EDF keeps after _OSQueueTail, which is blocking. */
+        for (arrival = _OSQueueHead; (arrival = arrival->Next[READYQ]) != NULL; )
            if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0)
               arrival->NextDeadline -= ShiftTimeLimit;
         /* Time shift all tasks in the arrival queue. */
@@ -827,13 +883,22 @@ BOOL ReadyQueueInsertTestKey(const TCB *insert, const TCB *next)
 ** Returned value: (BOOL) TRUE if the node is before the next TCB and FALSE otherwise. */
 BOOL ArrivalQueueInsertTestKey(const TCB *insert, const TCB *next)
 {
+  /* A periodic task counts the wraparounds before its arrival apart, and keeps the rest
+  ** below 2^30; an event-driven task keeps one time, the end of its period or its dead-
+  ** line, which can lie beyond the next wraparound. Compared as it is, with no wraparound
+  ** counted, such a time put the task before periodic tasks due earlier, which were then
+  ** released late, or released again while still ready. */
   UINT16 insertHigh, nextHigh;
-  insertHigh =
-        ((insert->TaskState & TASKTYPE_BLOCKING) == 0) ? insert->NextArrivalTimeHigh : 0;
-  nextHigh =
-            ((next->TaskState & TASKTYPE_BLOCKING) == 0) ? next->NextArrivalTimeHigh : 0;
-  return insertHigh < nextHigh || (insertHigh == nextHigh &&
-                                 insert->NextArrivalTimeLow <= next->NextArrivalTimeLow);
+  INT32 insertLow = insert->NextArrivalTimeLow, nextLow = next->NextArrivalTimeLow;
+  if ((insert->TaskState & TASKTYPE_BLOCKING) == 0)
+     insertHigh = insert->NextArrivalTimeHigh;
+  else if ((insertHigh = insertLow >= ShiftTimeLimit))
+     insertLow -= ShiftTimeLimit;
+  if ((next->TaskState & TASKTYPE_BLOCKING) == 0)
+     nextHigh = next->NextArrivalTimeHigh;
+  else if ((nextHigh = nextLow >= ShiftTimeLimit))
+     nextLow -= ShiftTimeLimit;
+  return insertHigh < nextHigh || (insertHigh == nextHigh && insertLow <= nextLow);
 } /* end of ArrivalQueueInsertTestKey */
 
 
@@ -934,12 +999,29 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
 {
   ETCB *etcb;
   #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
-     /* The workload is given, or computed from the WCET and the aperiodic utilization. */
-     if (workLoad <= 0 && aperiodicUtilization == 0 && AperiodicUtilization == 0)
-        return FALSE;
+     /* The workload is given, or computed from the WCET and the aperiodic utilization:
+     ** (wcet << 8) / utilization, without the overflow of the shift. */
+     UINT8 utilization = AperiodicUtilization < aperiodicUtilization ?
+                                              aperiodicUtilization : AperiodicUtilization;
+     if (workLoad <= 0) {
+        if (utilization == 0 || wcet <= 0 || wcet / utilization >= (ShiftTimeLimit >> 8))
+           return FALSE;
+        workLoad = wcet / utilization * 256 + wcet % utilization * 256 / utilization;
+     }
   #endif
+  /* The workload is the deadline of each instance, and an event's queue counts its tasks
+  ** in a byte. */
+  if (event == NULL || ((FIFOQUEUE *)event)->QueueLength == 0xFF ||
+      workLoad <= 0 || workLoad >= ShiftTimeLimit)
+     return FALSE;
   if (_OSQueueHead == NULL && !Initialize())
      return FALSE;
+  #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+     /* The priorities are counted in a byte, and an optional instance adds the number of
+     ** tasks to its own. */
+     if (_OSQueueTail->StaticPriority >= 0x7F)
+        return FALSE;
+  #endif
   /* Get a new TCB and initialize it. */
   if ((etcb = (ETCB *)OSMalloc(sizeof(ETCB))) == NULL)
      return FALSE;
@@ -952,9 +1034,8 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
      etcb->PeriodLow = workLoad;
      etcb->WCET = wcet;
   #else
-     if (AperiodicUtilization < aperiodicUtilization) // Every call should pass the same
-        AperiodicUtilization = aperiodicUtilization;  // total; the largest is kept
-     etcb->WorkLoad = workLoad > 0 ? workLoad : (wcet << 8) / AperiodicUtilization;
+     AperiodicUtilization = utilization;  // Every call should pass the same total; the
+     etcb->WorkLoad = workLoad;           // largest is kept
      etcb->NextDeadline = 0;
   #endif
   etcb->EventQueue = (FIFOQUEUE *)event;
@@ -1064,9 +1145,22 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
 {
   BOOL wait;
   ETCB *etcb;
+  TCB *tcb;
   do {
      while ((etcb = (ETCB *)OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList)) != NULL) {
         if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb->Next[BLOCKQ])) {
+           /* A task not yet a zombie is the one this handler interrupted in OSSuspend-
+           ** SynchronousTask, after its request to be rescheduled: its work is done, and
+           ** leaving the ready queue is all it has left to do, which is done here as
+           ** FinalizeContextSwitchPreparation does it further on. It then never resumes.
+           ** Left in the ready queue, a task that ended at its deadline, or at the end of
+           ** its period, was due at once and would have been inserted a second time. */
+           if ((etcb->TaskState & STATE_ZOMBIE) == 0) {
+              for (tcb = _OSQueueHead; tcb->Next[READYQ] != (TCB *)etcb; tcb = tcb->Next[READYQ]);
+              tcb->Next[READYQ] = (TCB *)etcb->Next[READYQ];
+              etcb->TaskState |= STATE_ZOMBIE;
+              _OSNoSaveContext = TRUE;    // Don't save the context of this task
+           }
            #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
               /* Under EDF, the task that is to process the event cannot execute until its
               ** previous deadline has passed. */
@@ -1074,16 +1168,7 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
            #else
               /* Under deadline monotonic scheduling, the task that is to process the
               ** event cannot execute until it has finished its previous period. */
-              if (etcb->TaskState & STATE_ZOMBIE)
-                 wait = currentTime < etcb->NextArrivalTimeLow;
-              else {
-                 #ifdef DEBUG_MODE
-                    if (currentTime >= etcb->NextArrivalTimeLow)
-                       while (TRUE); // Event-driven task WCET overrun: increase task's period
-                 #endif
-                 for (wait = TRUE; currentTime >= etcb->NextArrivalTimeLow; )
-                    etcb->NextArrivalTimeLow += etcb->PeriodLow;
-              }
+              wait = currentTime < etcb->NextArrivalTimeLow;
            #endif
            if (wait) {
               #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
@@ -1092,15 +1177,15 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
               ArrivalQueueInsert((TCB *)etcb);
            }
            else {
-              #ifdef DEBUG_MODE
-                 if ((etcb->TaskState & STATE_ZOMBIE) == 0)
-                    while (TRUE); // Event-driven task WCET overrun: increase task's period
-              #endif
               etcb->TaskState = TASKTYPE_BLOCKING;
               #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
                  etcb->NextDeadline = GetSuspendedSchedulingDeadline(etcb,currentTime);
               #else
                  etcb->NextArrivalTimeLow = currentTime + etcb->PeriodLow;
+                 /* As the timer handler sets it for the tasks it releases: the priority
+                 ** given at creation is no longer the task's rank once tasks of shorter
+                 ** deadline are created after it, which raise its StaticPriority only. */
+                 etcb->Priority = etcb->StaticPriority;
               #endif
               ReadyQueueInsert((TCB *)etcb);
            }
@@ -1144,6 +1229,9 @@ BOOL OSStartMultitasking(void (*f)(void *), void *arg)
   _OSDisableInterrupts();
   if (_OSQueueHead == NULL)
      Initialize();
+  /* The first context switch starts the stack at its base, which the first call to
+  ** OSMalloc sets: an application that allocated nothing would otherwise start it at 0. */
+  (void)OSMalloc(0);
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      /* Now that all tasks have been initialized, the idle task running priority can be
      ** set. For N application tasks, priorities 0..N-1 are for mandatory instances and

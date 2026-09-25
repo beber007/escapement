@@ -67,7 +67,9 @@ whose timer runs at 1 MHz; on the STM32, whatever `ESCAPEMENT_TIMER_PRESCALER`
 makes of the timer clock. A period is given in two parts, `periodCycles` full
 turns of 2^30 ticks and a remainder `periodOffset` below 2^30, so that it can
 reach years; `periodCycles` is 0 for any period shorter than 2^30 ticks, some
-eighteen minutes at 1 MHz. A deadline is at most the period.
+eighteen minutes at 1 MHz, and below 65535. A deadline is at least one tick, at most
+the period, and below 2^30 ticks however long the period: the kernel adds it to an
+arrival time in 32 bits.
 
 ## Periodic tasks
 
@@ -83,8 +85,11 @@ needs something from another reads what is there and returns.
 | Soft | `OSCreateTask(task, wcet, periodCycles, periodOffset, deadline, m, k, startInstance, argument)` |
 | Power-aware | `OSCreateTask(task, wcet, periodCycles, periodOffset, deadline, argument)` |
 
-Every creation returns `FALSE` when memory runs out. The first instance of every
-task arrives when the kernel starts; there is no offset.
+Every creation returns `FALSE` when memory runs out, and for a period or a deadline
+outside those limits, or past the tasks the kernel counts: 255 in all under
+deadline-monotonic scheduling, 127 with the soft kernel, whose optional instances add
+the number of tasks to their priority. The first instance of every task arrives when
+the kernel starts; there is no offset.
 
 **Soft kernel.** Out of any `k` consecutive instances, `m` must meet their
 deadline; the others are optional, and run only if the kernel can still meet
@@ -92,6 +97,7 @@ every mandatory deadline — a test that reads the declared `wcet`, not the time
 task actually takes. `m = k` makes a task hard. `startInstance` staggers the
 pattern of mandatory instances between tasks, and `OSGetTaskInstance()` tells a
 task where in its pattern it stands. `wcet` may be 0 when every task has `m = k`.
+`m` is at least 1 and at most `k`.
 
 **Power-aware kernel.** `wcet` is the worst-case execution time in ticks at the
 fastest speed; the kernel slows the processor so that the work left fits before
@@ -145,7 +151,8 @@ its minimum interarrival time: 2000 above for a task that must be done within
 2 ms of its signal. The soft and power-aware kernels add a `wcet` before it and
 an `aperiodicUtilization` after it, the share of the processor left to all
 event-driven tasks in 256ths, used under EDF only; given a workload of 0, the
-soft kernel computes it from the two:
+soft kernel computes it from the two. A workload is at least one tick and below
+2^30, and at most 255 tasks wait on one event:
 
 | Kernel | Creation |
 |---|---|

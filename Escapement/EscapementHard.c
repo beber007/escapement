@@ -211,6 +211,7 @@ static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30
 /* INTERNAL FUNCTION PROTOTYPES AND MACROS */
 static BOOL Initialize(void);
 static void IdleTask(void *);
+static BOOL ValidTiming(UINT16 periodCycles, INT32 periodOffset, INT32 deadline);
 #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
   static UINT8 GetTaskPriority(INT32 deadline);
 #endif
@@ -264,16 +265,33 @@ BOOL Initialize(void)
 void IdleTask(void *argument)
 {
   if (_OSQueueHead->Next[ARRIVALQ] != OSQueueTail || SynchronousTaskList != NULL) {
+     /* No interrupt in between: a task signaled once the switch below is made runs the
+     ** timer handler, which must find the timer started and its origin set. */
+     _OSDisableInterrupts();
      #ifdef NonMaskableSoftwareTimer
         /* Switch to normal processing of task signaling, see EnqueueRescheduleQueue-
         ** BeforeBoot defined below. */
         EnqueueRescheduleQueue = EnqueueRescheduleQueueAfterBoot;
      #endif
      _OSStartTimer();   // Start the interval timer
+     _OSEnableInterrupts();
   }
   /* Enter in the lowest possible sleep mode */
   _OSSleep();
 } /* end of IdleTask */
+
+
+/* ValidTiming: Whether the kernel can count with a period and a deadline: a period that
+** is not 0, made of fewer than 65535 turns of 2^30 ticks, since the arrival time takes one
+** more when its remainder carries, and a remainder below 2^30; a deadline from one tick to
+** the period, and below 2^30, since the absolute deadline, an arrival plus the deadline,
+** must fit in an INT32. */
+BOOL ValidTiming(UINT16 periodCycles, INT32 periodOffset, INT32 deadline)
+{
+  return periodCycles < 0xFFFF && periodOffset >= 0 && periodOffset < ShiftTimeLimit &&
+         deadline > 0 && deadline < ShiftTimeLimit &&
+         (periodCycles > 0 || deadline <= periodOffset);
+} /* end of ValidTiming */
 
 
 /* OSCreateTask: Creates a new periodic task by allocating a new TCB to the task.
@@ -284,8 +302,14 @@ BOOL OSCreateTask(void task(void *), UINT16 periodCycles, INT32 periodOffset,
                   INT32 deadline, void *argument)
 {
   TCB *ptcb;
+  if (!ValidTiming(periodCycles,periodOffset,deadline))
+     return FALSE;
   if (_OSQueueHead == NULL && !Initialize())
      return FALSE;
+  #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+     if (OSQueueTail->Priority == 0xFF)  // the priorities are counted in a byte
+        return FALSE;
+  #endif
   /* Get a new TCB and initialize it. */
   if ((ptcb = (TCB*)OSMalloc(sizeof(TCB))) == NULL)
      return FALSE;
@@ -525,13 +549,22 @@ BOOL ReadyQueueInsertTestKey(const TCB *insert, const TCB *next)
 ** Returned value: (BOOL) TRUE if the node is before the next TCB and FALSE otherwise. */
 BOOL ArrivalQueueInsertTestKey(const TCB *insert, const TCB *next)
 {
+  /* A periodic task counts the wraparounds before its arrival apart, and keeps the rest
+  ** below 2^30; an event-driven task keeps one time, the end of its period or its dead-
+  ** line, which can lie beyond the next wraparound. Compared as it is, with no wraparound
+  ** counted, such a time put the task before periodic tasks due earlier, which were then
+  ** released late, or released again while still ready. */
   UINT16 insertHigh, nextHigh;
-  insertHigh =
-        ((insert->TaskState & TASKTYPE_BLOCKING) == 0) ? insert->NextArrivalTimeHigh : 0;
-  nextHigh =
-            ((next->TaskState & TASKTYPE_BLOCKING) == 0) ? next->NextArrivalTimeHigh : 0;
-  return insertHigh < nextHigh || (insertHigh == nextHigh &&
-                                 insert->NextArrivalTimeLow <= next->NextArrivalTimeLow);
+  INT32 insertLow = insert->NextArrivalTimeLow, nextLow = next->NextArrivalTimeLow;
+  if ((insert->TaskState & TASKTYPE_BLOCKING) == 0)
+     insertHigh = insert->NextArrivalTimeHigh;
+  else if ((insertHigh = insertLow >= ShiftTimeLimit))
+     insertLow -= ShiftTimeLimit;
+  if ((next->TaskState & TASKTYPE_BLOCKING) == 0)
+     nextHigh = next->NextArrivalTimeHigh;
+  else if ((nextHigh = nextLow >= ShiftTimeLimit))
+     nextLow -= ShiftTimeLimit;
+  return insertHigh < nextHigh || (insertHigh == nextHigh && insertLow <= nextLow);
 } /* end of ArrivalQueueInsertTestKey */
 
 
@@ -613,8 +646,17 @@ void *OSCreateEventDescriptor(void)
 BOOL OSCreateSynchronousTask(void task(void *), INT32 workLoad, void *event, void *arg)
 {
   ETCB *etcb;
+  /* The workload is the deadline of each instance, and an event's queue counts its tasks
+  ** in a byte. */
+  if (event == NULL || ((FIFOQUEUE *)event)->QueueLength == 0xFF ||
+      workLoad <= 0 || workLoad >= ShiftTimeLimit)
+     return FALSE;
   if (_OSQueueHead == NULL && !Initialize())
      return FALSE;
+  #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+     if (OSQueueTail->Priority == 0xFF)  // the priorities are counted in a byte
+        return FALSE;
+  #endif
   /* Get a new TCB and initialize it. */
   if ((etcb = (ETCB *)OSMalloc(sizeof(ETCB))) == NULL)
      return FALSE;
@@ -737,9 +779,22 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
 {
   BOOL wait;
   ETCB *etcb;
+  TCB *tcb;
   do {
      while ((etcb = (ETCB *)OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList)) != NULL) {
         if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb->Next[BLOCKQ])) {
+           /* A task not yet a zombie is the one this handler interrupted in OSSuspend-
+           ** SynchronousTask, after its request to be rescheduled: its work is done, and
+           ** leaving the ready queue is all it has left to do, which is done here as
+           ** FinalizeContextSwitchPreparation does it further on. It then never resumes.
+           ** Left in the ready queue, a task that ended at its deadline, or at the end of
+           ** its period, was due at once and would have been inserted a second time. */
+           if ((etcb->TaskState & STATE_ZOMBIE) == 0) {
+              for (tcb = _OSQueueHead; tcb->Next[READYQ] != (TCB *)etcb; tcb = tcb->Next[READYQ]);
+              tcb->Next[READYQ] = (TCB *)etcb->Next[READYQ];
+              etcb->TaskState |= STATE_ZOMBIE;
+              _OSNoSaveContext = TRUE;    // Don't save the context of this task
+           }
            #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
               /* Under EDF, the task that is to process the event cannot execute until it
               ** has finished its previous deadline. */
@@ -747,16 +802,7 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
            #else
               /* Under deadline monotonic scheduling, the task that is to process the
               ** event cannot execute until it has finished its previous period. */
-              if (etcb->TaskState & STATE_ZOMBIE)
-                 wait = currentTime < etcb->NextArrivalTimeLow;
-              else {
-                 #ifdef DEBUG_MODE
-                    if (currentTime >= etcb->NextArrivalTimeLow)
-                       while (TRUE); // Event-driven task WCET overrun: increase task's period
-                 #endif
-                 for (wait = TRUE; currentTime >= etcb->NextArrivalTimeLow; )
-                    etcb->NextArrivalTimeLow += etcb->PeriodLow;
-              }
+              wait = currentTime < etcb->NextArrivalTimeLow;
            #endif
            if (wait) {
               #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
@@ -765,10 +811,6 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
               ArrivalQueueInsert((TCB *)etcb);
            }
            else {
-              #ifdef DEBUG_MODE
-                 if ((etcb->TaskState & STATE_ZOMBIE) == 0)
-                    while (TRUE); // Event-driven task WCET overrun: increase task's period
-              #endif
               etcb->TaskState = TASKTYPE_BLOCKING;
               #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
                  etcb->NextDeadline = GetSuspendedSchedulingDeadline(etcb,currentTime);
@@ -817,6 +859,9 @@ BOOL OSStartMultitasking(void (*f)(void *), void *arg)
   _OSDisableInterrupts();
   if (_OSQueueHead == NULL)
      Initialize();
+  /* The first context switch starts the stack at its base, which the first call to
+  ** OSMalloc sets: an application that allocated nothing would otherwise start it at 0. */
+  (void)OSMalloc(0);
   /* Create the FIFO array of tasks for all created event descriptors. */
   for (etcb = SynchronousTaskList; etcb != NULL; etcb = etcb->NextETCB) {
      if (etcb->EventQueue->Q == NULL) {

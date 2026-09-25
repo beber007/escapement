@@ -127,8 +127,26 @@ that could not even be written while the field it reads was not there.
 The new code — the RP2040 port and the Cortex-M layer — has been audited line by
 line, which turned up four defects: a race between `OSEnqueueUART` and its
 interrupt, a zero-sized transmission that emptied 64 KB onto the port, missing
-header dependencies, and stale comments. The **kernel inherited from 2016 has
-not been through that audit yet.**
+header dependencies, and stale comments. The kernel inherited from 2016 went through
+the same audit on 2026-09-25, each finding reproduced by a host test that failed before
+its fix (`test/host/README.md`): a slot buffer that lost a slot to a reader preempting
+its writer, and read fields `OSMalloc` had not cleared; an event-driven task ending at
+its deadline inserted twice in the ready queue; an event-driven task waiting past a
+wrap sorted before periodic tasks due earlier; deadlines left unshifted at the wrap in
+the soft kernel's optional instances, and in the power-aware kernel under
+deadline-monotonic scheduling and in DRA's simulation queue; a DM_SLACK slack given
+twice; a task past its WCET slowed to the slowest speed; overflows in the soft kernel's
+test of optional instances; and creations the kernel cannot count with, now refused.
+In the compiled code of the Cortex-M0+, three of the five emulated load-linked read the
+value before setting the reservation, so that an interrupt in between went unseen: a
+compiler barrier now keeps the order. **Left open** are races the host cannot reach and
+limits of the design: the counter wrapping while the timer handler runs; in the
+power-aware kernel, a task ending between two interrupts that leaves the next at its
+speed, and under DM_SLACK a time read before a wrap; an optional instance still ready
+at its next arrival, which only an overload brings; under EDF, events left out of the
+soft kernel's test when no utilisation is declared; indices of the wait-free queue that
+come back to the same value after 65,000 operations during one preemption; and strict
+aliasing between task blocks, which GCC was not seen to exploit.
 
 The execution tests exercise three or four tasks, the host test ten. Nothing here
 establishes how the scheduler behaves with thirty. The 2³⁰ wrap of its clock, about
@@ -140,7 +158,9 @@ line; its clocks are acknowledged blindly by the emulated platform (`emulation.m
 Between the cores, the models cover the order of accesses the architecture allows;
 that the compiled code keeps it, `tools/check_order.py` checks in the CI on every build
 of the Pico and the Pico 2, on every path through the buffers' functions, and
-`tools/check_order_mutants.sh` shows it failing without any one of the barriers. What
+`tools/check_order_mutants.sh` shows it failing without any one of the barriers — eleven
+since the status of a buffer, which the models leave out, is set after its slot is
+handed over and read before a slot is chosen (2026-09-25). What
 the check cannot see is a reordering by the processor that the architecture does not
 allow — the models' premise — nor code the compiler might emit for another version or
 level of optimisation until it runs there. Without the barriers' memory clobber, GCC

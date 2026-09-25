@@ -8,9 +8,9 @@ The three kernels are compiled as they ship; only the target layer is simulated
 (`host_port.c`), and time is a variable. That buys what no board gives: task sets larger
 than an example carries, the 2^30 wrap of the kernel clock without waiting eighteen
 minutes, and the parts of the kernel no example runs. AddressSanitizer reports a read
-past a block, whatever the heap holds next to it. Signed overflow and division by zero
-are made errors too, so that they fail on every host: left alone, a division by zero
-traps on x86 and yields 0 on arm64.
+past a block, whatever the heap holds next to it. Signed overflow, a shift that leaves
+the type and division by zero are made errors too, so that they fail on every host: left
+alone, a division by zero traps on x86 and yields 0 on arm64.
 
 Nine builds: the hard and the soft kernel under EDF and DM, the power-aware kernel under
 EDF and DM with OTE, and under DRA, DR_OTE and DM_SLACK. Each runs `test_scheduler` in
@@ -20,14 +20,22 @@ loops.
 | Run | What it checks |
 |---|---|
 | `test_scheduler` | ten periodic tasks over 200,000 ticks: every task activated as often as its period calls for, no deadline missed, tasks released together run in priority order |
+| `create` | what the kernel refuses to create: a period of 0 or of 65535 turns of 2^30, a remainder outside [0, 2^30), a deadline of 0, past the period or of 2^30, an event-driven task without its event or with a workload outside [1, 2^30), more tasks than a byte counts, and for the soft kernel m of 0 or above k |
+| `priority` | an event-driven task created before periodic tasks of shorter deadline runs after them |
 | `wrap` | the clock jumped from event to event over three wraps, an arrival served late just short of each, tasks left in the ready queue across it; deleting any one of the three time shifts of the arrival and ready queues makes it fail — one of them is reached only through that late arrival, and one makes the kernel loop forever, which the alarm reports |
+| `wrapsim` | the same, an instance ending just before a wrap: under DRA and DR_OTE its entry in the simulation queue crosses it, and its deadline must shift too |
+| `wrapevents` | the same, an event-driven task signalling itself and waiting in the arrival queue beyond each wrap, where periodic tasks count turns of 2^30 apart |
 | `events` | event-driven tasks woken by periodic tasks, by themselves and by a buffer slot filling up |
+| `suspend` | an event-driven task ends exactly at its deadline with a signal pending, the soft timer interrupt taken at once inside `OSSuspendSynchronousTask`, the tasks it elects running on top of it |
 | `lull` | a task of 400 s wakes an event-driven task, with nothing in between: the reclaiming policies account for the aperiodic bandwidth over the whole interval at once, which overflowed 32 bits until 2026-09-25 |
 | `busy`, `early`, `slack` | tasks that take time, instances ending at or before their WCET or leaving time to others: the speed the power-aware kernel picks decides whether deadlines hold |
 | `expiry` | the time a task left unused runs out while the processor idles; the task set was found by searching random ones for a deadline that a kernel whose slack never runs out misses |
 | `reclaim` | that time slows down a task that is not the last of its busy period |
+| `reuse` | a task slowed down on that time is preempted by one that may use it too, under DM_SLACK: what the first used is gone |
+| `overrun` | a task takes six times its WCET: past it, the power-aware kernel runs it at the fastest speed |
 | `firm` | (m,k)-firm tasks under a declared overload of 220 %, soft kernel only |
-| `test_ipc` | the FIFO queue past the wrap of its indices and refusing a node when full, both slot buffers through their states, the queue between the cores of the RP2350 (`Escapement_CoreQueue.c`) in order, full, empty and round its array, its SCs made to fail — the one that advances Tail or Head among them —, store-conditionals made to fail on purpose |
+| `firmwrap`, `firmlong` | optional instances across the wrap, and one of 2^23 ticks, whose schedulability test left 32 bits |
+| `test_ipc` | the FIFO queue past the wrap of its indices and refusing a node when full, both slot buffers through their states and a reader coming in the middle of a write, at the writer's first barrier, over blocks filled with 0xA5 as SRAM is rather than zeros, the queue between the cores of the RP2350 (`Escapement_CoreQueue.c`) in order, full, empty and round its array, its SCs made to fail — the one that advances Tail or Head among them —, store-conditionals made to fail on purpose |
 
 Under the power-aware kernel every run also checks the speeds asked for: always one of
 the operating points of the RP2040; where slowing down is possible, some below the
@@ -48,6 +56,15 @@ and a crash on x86; under DM it shifted at every wrap a deadline it never set, u
 the value overflowed. A workload given is now taken as is, a creation with neither is
 refused, the deadline is set for every instance, and the sanitizer flags fail on the
 old code.
+
+The audit of the inherited kernel (2026-09-25) added the runs `create` to `firmlong`
+and the reader in the middle of a write; each failed on the kernel before its fix — a
+hang, a corrupted queue, a missed deadline or a sanitizer report. A slot buffer said a
+slot was new before handing it over, so a reader preempting the writer took the slot it
+had read, and the new one was lost; an event-driven task ending at its deadline was
+inserted in the ready queue while still in it; an event-driven task waiting beyond a
+wrap sorted before periodic tasks due earlier; a DM_SLACK slack was given twice; a task
+past its WCET resumed at the slowest speed. The sanitizer now also checks shifts.
 
 Faults were also planted in the kernels by hand, to see the test fail. When it was
 written (5018fdb, 2026-09-21), 14 of 15 faults planted in the hard kernel failed a

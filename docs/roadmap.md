@@ -45,8 +45,10 @@ DVFS to gain much (`power-aware.md`).
 4. **DVFS on the RP2350**, if the verdict of item 1 is for it: its regulator and its
    power manager differ from the RP2040's, and the driver is to be written from the
    pico-sdk headers.
-5. **Audit the inherited kernel** line by line, as the RP2040 port and the Cortex-M
-   layer were (`method.md`).
+5. **What the audit of the inherited kernel left open** (`method.md`): races the host
+   cannot reach — the counter wrapping inside the timer handler, two in the
+   power-aware kernel — which want a model or a hook in the emulator, and the
+   soft kernel's test of optional instances when no utilisation is declared.
 
 ## Done
 
