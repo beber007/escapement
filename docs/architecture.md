@@ -53,45 +53,30 @@ application gets the same guarantees from two mechanisms:
   handlers, with buffers allocated once. They build on the array-based LL/SC queue of
   Evéquoz (ICPP 2008), with one operation announced at a time and completed by any
   caller that preempts it, so that every operation ends in a bounded number of steps.
-  `test/model/fifo.py` explores every run of a few operations, each of which may preempt
-  the one running at any access, from full queues and indices about to wrap, and checks
-  that every run is linearizable — that some order of its operations gives them their
-  results from a plain queue. It found that a dequeue signalling an event left its
-  descriptor unmarked once the signal was in place: under two nested preemptions, a
-  late helper put a second signal back after an enqueue had taken the first, and one
-  event woke two tasks. The dequeue now marks itself done there.
 - **Slot buffers** (`OSInitBuffer`), from one writer to one reader, neither waiting for
   the other: four slots after Simpson (1990), without atomic instructions, or three
-  after Chen and Burns (1997), with an LL/SC pair. `test/model/fourslot.py` and
-  `threeslot.py` explore every interleaving of the writer, an interrupt handler, with
-  its reader, and both also with the writer on a core of its own, the LL/SC pair
-  emulated as on the Cortex-M0+; they check that no read mixes two records and none
-  goes backwards — the properties Rushby model-checked for Simpson's algorithm. The
-  CI runs both, and the FIFO model. The second found that a store-conditional,
-  unlike the compare-and-swap of Chen and Burns, fails when an interrupt merely came
-  between it and its load-linked, which left the reader on a slot that does not exist;
-  the reader now tries again. Taken to two cores, each with its own reservation, the
-  same model found the writer at fault the same way: it tried its SC once, and the
-  reader, whose reservation an interrupt of the writer's core no longer cleared, took
-  the slot being written. The writer now tries again too. Last, each core was allowed
-  to perform its loads and stores out of program order, as Armv6-M and Armv8-M allow:
-  both buffers then need four barriers each, which the kernels lacked. They now
-  call `_OSMemoryBarrier()` at those points, a `DMB` on the RP2040 and the RP2350
-  and a compiler barrier alone in the single-core STM32 port and the host build.
+  after Chen and Burns (1997), with an LL/SC pair. Between two cores, each buffer
+  orders its accesses with four calls to `_OSMemoryBarrier()`: a `DMB` on the RP2040
+  and the RP2350, a compiler barrier alone in the single-core STM32 port and the host
+  build.
 
-All of this assumes **one processor**. The emulated LL/SC and the announced operation of
-the queue both rely on preemptions nesting, which two cores do not give; the kernel runs
-on core 0 alone. Of the three mechanisms, only Simpson's works between the two cores of
-the RP2040: `fourslot.py` checks it on two cores as well, and on the Pico it carried
-320,000 reads from core 1 to a task on core 0 without a torn one, where a plain array
-tore one in twenty (`rp2040.md`, `FourSlotCoresPico`) — before the barriers above. The
-3-slot buffer holds on two cores in its model since its writer retries, provided the
-exclusive monitors of each core see the stores of the other — ACTLR.EXTEXCLALL on the
-RP2350, without which the model catches it failing, and which the port sets on both
-cores; `ThreeSlotCoresPico2` waits for a board to show it. Code on core 1 may not signal
-an event: `OSScheduleSuspendedTask` would pend the timer interrupt of core 1, where no
-kernel runs. The references are listed in the README, and the roadmap keeps the queue
-across the cores for the Pico 2.
+Each mechanism has an exhaustive model in `test/model`, run by the CI: every run of a
+few queue operations preempting one another at any access, checked for linearizability;
+every interleaving of a slot buffer's writer with its reader, the writer being an
+interrupt handler or code on the other core, checked against the properties Rushby
+model-checked for Simpson's algorithm — no read mixes two records, none goes backwards —
+and, between two cores, with each core free to reorder its accesses. The models found
+four defects, now fixed (`method.md`).
+
+**Across the two cores.** The kernel runs on core 0 alone. The emulated LL/SC and the
+announced operation of the queue both rely on preemptions nesting, which two cores do
+not give, so between the cores only the slot buffers work. The 4-slot buffer works on
+both chips, and was measured on the Pico (`rp2040.md`). On the RP2350 the 3-slot buffer
+should work too: its model holds provided the exclusive monitors see both cores —
+`ACTLR.EXTEXCLALL`, which the port sets on each — and `ThreeSlotCoresPico2` waits for a
+board to show it. Code on
+core 1 may not signal an event: `OSScheduleSuspendedTask` would pend the timer interrupt
+of core 1, where no kernel runs. The queue across the cores is in the roadmap.
 
 ## Supported targets
 

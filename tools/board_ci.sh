@@ -4,7 +4,7 @@
 #
 # Run the board checks on the newest commit of main and post the outcome to GitHub as a
 # commit status ("board/pico"). Meant for the machine the Pico is wired to, run by a
-# timer; see docs/rp2040.md, "Checks on the board".
+# timer; installing it: tools/board_ci.md, the checks: docs/rp2040.md.
 #
 #   tools/board_ci.sh [--force]      # --force: test main again even if already tested
 #
@@ -12,9 +12,8 @@
 # its owner pushes to it: a pull request, from a fork or not, runs nothing here — which
 # a self-hosted runner on a public repository could not promise.
 #
-# On Linux it builds in one container and drives the probe from another, as the bench
-# on pc-bertrand did; on macOS, with the toolchain and OpenOCD from Homebrew, it runs
-# both on the machine itself:
+# On Linux it builds in one container and drives the probe from another; on macOS,
+# with the toolchain and OpenOCD from Homebrew, it runs both on the machine itself:
 #   BOARD_CI_WORK    working directory (~/escapement-rp2040), which the containers mount
 #   BOARD_CI_MOUNT   where they mount it (/work)
 #   BOARD_CI_BUILD   container with the ARM toolchain (esc on Linux, none on macOS)
@@ -108,7 +107,7 @@ fourslot() {
 # cost <name>: the 1 ms round of TaskLEDPico, 10 s of it, and at most 5 us on average
 # (3.2 measured for the hard kernel on 2026-09-23, docs/rp2040.md). The rounds count from
 # the load to the reading, which takes the probe longer on some machines than on others:
-# 10,067 on pc-bertrand, 10,135 on the Mac mini. The upper bound only catches a kernel
+# 10,067 on a Linux machine, 10,135 on a Mac mini. The upper bound only catches a kernel
 # that runs its round too often.
 cost() {
     out=$(in_probe "sh tools/measure_cost.sh 10 $SEEN/fw/$1/TaskLEDPico.elf")

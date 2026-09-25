@@ -9,7 +9,7 @@ renode emulation/renode/escapement_f4.resc
 (monitor) emulation RunFor "1"
 ```
 
-The jobs that build and emulate run in an image of the project's own, `ci/Dockerfile`,
+The jobs that build and emulate run in an image of our own, `ci/Dockerfile`,
 which holds the ARM toolchain, both versions of Renode and the RP2040 models, pinned:
 they install nothing, and the apt mirrors of the runners, which once took 19 minutes
 over the toolchain alone, stay out of the way. `.github/workflows/ci-image.yml` builds
@@ -46,11 +46,11 @@ Reaching it in a test takes a platform, not a trick. `escapement_f4_wrap.repl` c
 same factor, so the kernel carries the load it would have on hardware, with a counter that
 happens to run fast.
 
-Traced with `tools/trace_gpio.sh` on 2026-09-20, when the platform ran the counter at 1 GHz
-and the boundary came at 1.07 s, over 1.3 s: 2,167 pulses, which is exactly the 1,300 +
-650 + 217 activations the three periods of 1, 2 and 6 ms called for, and 377 of them fall
-after the boundary. Nothing is lost in the crossing. The clock was made ten times faster the
-same day: at 1 GHz the test was starving a CI runner.
+Traced with `tools/trace_gpio.sh` on 2026-09-20, when the platform ran the counter at 1
+GHz and the boundary came at 1.07 s, over 1.3 s: 2,167 pulses, which is exactly the
+1,300 + 650 + 217 activations the three periods of 1, 2 and 6 ms called for, and 377 of
+them fall after the boundary. Nothing is lost in the crossing. The clock was made ten
+times faster the same day: at 1 GHz the test was starving a CI runner.
 
 Neutralising the time shift in `_OSTimerIsOverflow` makes the test fail, and restoring
 it makes it pass again.
@@ -122,7 +122,10 @@ plugin on the fly, so there is nothing to rebuild. The CPU platform is derived
 in `stm32f4_escapement_cpu.repl` — since Renode does not allow a node to be
 redeclared, the file has to be copied to change the type of TIM2.
 
-Both fixes stay in this copy, which the CI loads: no test waits on a release of Renode
+TIM14, which the timer events of the F4 use, runs on the fixed copy too: its driver
+also forces a compare event through `CC1G`, a path this example happens not to take.
+Both fixes stay in this copy, which the CI
+loads: no test waits on a release of Renode
 that carries them, and proposing them upstream, once planned, was dropped (2026-09-24).
 
 QEMU was tried first (`-machine netduinoplus2`): the kernel starts but its
@@ -130,16 +133,21 @@ timer is never woken, and it takes two exceptions in 60 seconds.
 
 ## A platform of our own for the RP2350
 
-Renode models no RP2350, and the RP2350 branch of the RP2040 models stopped at its first
-commits (`roadmap.md`). `emulation/renode/escapement_pico2.repl` is therefore a platform
-of our own, with only what the examples of the RP2350 port touch: the Cortex-M33 and its
-NVIC, which Renode emulates, with 4 bits of priority as on the chip; the 520 KB of SRAM;
-the PL011 UART0, which Renode models; and two models written here,
-`Escapement_RP2350_Timer.cs`, TIMER0 with the logic of the fixed RP2040 timer and the
-atomic aliases decoded by the model itself, and `Escapement_RP2350_SIO.cs`, the GPIO
-outputs of the SIO driving the LEDs the tests watch. The clocks, the crystal, the PLL,
-the resets, the pins and the TICKS block are Python peripherals that keep what is
-written and read the bits the start-up code waits for as set.
+Renode models no RP2350 (checked 2026-09-22), and the `rp2350Blinking` branch of
+matgla/Renode_RP2040, begun in November 2024, stopped at a GPIO and a SIO before its
+author froze the project. Nothing else covered it either: QEMU had an RFC for the RP2040
+only (v3, September 2026, not merged; it models the timer, the clocks, VREG, the SIO and
+the UART, and could replace the frozen models for the Pico once merged) and a feature
+request for the RP2350, and Wokwi runs in the cloud, closed, with an RP2350 still
+incomplete. `emulation/renode/escapement_pico2.repl` is therefore a platform of our own,
+with only what the examples of the RP2350 port touch: the Cortex-M33 and its NVIC, which
+Renode emulates, with 4 bits of priority as on the chip; the 520 KB of SRAM; the PL011
+UART0, which Renode models; and two models written here, `Escapement_RP2350_Timer.cs`,
+TIMER0 with the logic of the fixed RP2040 timer and the atomic aliases decoded by the
+model itself, and `Escapement_RP2350_SIO.cs`, the GPIO outputs of the SIO driving the
+LEDs the tests watch. The clocks, the crystal, the PLL, the resets, the pins and the
+TICKS block are Python peripherals that keep what is written and read the bits the
+start-up code waits for as set.
 
 That last choice bounds what the suite shows. It proves that the kernel runs and
 schedules on a Cortex-M33, with the timer, the UART and the GPIO of the RP2350 at their

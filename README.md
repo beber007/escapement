@@ -67,14 +67,9 @@ That last level reads 500.02 Hz, 50.0014 Hz and 16.66713 Hz for declared periods
 of 1, 20 and 60 ms, and 100.0031 Hz for the 10 ms output of the timer events under
 each of the three kernels. Details in [`docs/rp2040.md`](docs/rp2040.md).
 
-The host test, when it came, found that the levels before it had all been green on a
-kernel that was not running the algorithm this page advertises. The models, added
-after, found three defects every other level had passed: a 3-slot reader that could
-read past its array when an interrupt came at the wrong instruction, an event queue
-whose signal could wake two tasks, and, once a model covered two cores, a 3-slot
-writer that could hand the reader the very slot it was writing. Once each core was
-allowed to reorder its accesses, the models showed that neither slot buffer was safe
-between two cores without memory barriers, which the kernels lacked. Those stories are in
+Each level has caught what the ones before it passed: the host test found the kernel
+scheduling deadline-monotonic while this page said EDF, and the models four defects of
+the lock-free mechanisms that every test had let through. Those stories are in
 [`docs/method.md`](docs/method.md).
 
 ![Chronogram of three periodic tasks scheduled by Escapement](docs/images/f4-schedule.svg)
@@ -167,21 +162,16 @@ tore one in twenty ([`docs/rp2040.md`](docs/rp2040.md)). Those runs predate the
 memory barriers the weak-memory models call for, added on 2026-09-25.
 
 **Checked over every interleaving.** Each of the three has a model in
-[`test/model`](test/model), explored exhaustively in CI: the reader and the writer
-of the slot buffers, the operations of the queue preempting one another at every
-access, the load-linked / store-conditional pair as the Cortex-M0+ emulates it.
-They found four defects, now fixed: the 3-slot reader had not allowed for a
-store-conditional failing, as it does, unlike a compare-and-swap, whenever an
-interrupt merely came between it and its load-linked; a queue of event-driven
-tasks could let one signal wake two of them; the 3-slot writer tried its
-store-conditional once too — harmless on one core, where the interrupt that makes
-it fail clears the reader's reservation as well, not between two cores, where the
-reader's survives; and between two cores both slot buffers lacked the memory
-barriers that keep each core's accesses in order. None lies in the published
-algorithms: the first and the third came from carrying a compare-and-swap over to a
-store-conditional tried once, a pitfall the literature knows, the second from the
-signal and the announced operation that ZottaOS added to Evéquoz's queue, the
-fourth from code written for one core.
+[`test/model`](test/model), explored exhaustively in CI: the reader and the writer of
+the slot buffers, the operations of the queue preempting one another at every access,
+the load-linked / store-conditional pair as the Cortex-M0+ emulates it. They found four
+defects, now fixed: a 3-slot reader that could read past its array, a signal that could
+wake two tasks, and, between two cores, a 3-slot writer that could hand the reader the
+slot it was writing and both slot buffers without the memory barriers that keep each
+core's accesses in order. None lies in the published algorithms: they came from carrying
+a compare-and-swap over to a store-conditional tried once, from what ZottaOS added to
+Evéquoz's queue, and from code written for one core
+([`docs/method.md`](docs/method.md)).
 
 **References**
 
