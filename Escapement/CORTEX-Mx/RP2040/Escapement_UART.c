@@ -118,9 +118,11 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
      resetBit = RESETS_UART1_BIT;
      txPin = 4; rxPin = 5;
   }
-  /* Release the UART and the pin block from reset. */
+  /* Release the UART and the pin block from reset, and wait for both: the pins are
+  ** routed through IO_BANK0 just below. */
   RESETS_RESET &= ~(resetBit | RESETS_IO_BANK0_BIT);
-  while ((RESETS_RESET_DONE & resetBit) == 0);
+  while ((RESETS_RESET_DONE & (resetBit | RESETS_IO_BANK0_BIT)) !=
+         (resetBit | RESETS_IO_BANK0_BIT));
   /* Route the two pins to the UART. */
   IO_BANK0_CTRL(txPin) = FUNCSEL_UART;
   IO_BANK0_CTRL(rxPin) = FUNCSEL_UART;
