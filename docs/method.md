@@ -136,7 +136,12 @@ a board.
 
 The RP2350 port has not run on a board, and nothing of it has been audited line by
 line; its clocks are acknowledged blindly by the emulated platform (`emulation.md`).
-Between the cores, the models cover the order of accesses the architecture allows,
-not the instructions the compiler emits: that the compiled code keeps the modelled
-order has been read once in the disassembly of the Pico 2, not of the Pico, and not
-checked by a tool.
+Between the cores, the models cover the order of accesses the architecture allows;
+that the compiled code keeps it, `tools/check_order.py` checks in the CI on every build
+of the Pico and the Pico 2, on every path through the buffers' functions, and
+`tools/check_order_mutants.sh` shows it failing without any one of the barriers. What
+the check cannot see is a reordering by the processor that the architecture does not
+allow — the models' premise — nor code the compiler might emit for another version or
+level of optimisation until it runs there. Without the barriers' memory clobber, GCC
+16.2 happened to keep the same order at -O2 (2026-09-25): the clobber is a guarantee,
+not a fix to an observed fault.

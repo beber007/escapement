@@ -214,6 +214,13 @@ jobs:
       - name: Build the examples
         run: make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2 ${{ matrix.make }}
 
+      - name: Check the compiled order of the slot buffers against the models
+        run: python3 tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement{Hard,Soft,HardPA}.o
+
+      - name: Show that the check fails without each barrier
+        if: strategy.job-index == 0
+        run: sh tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2
+
       - name: Use Renode 1.17.0
         run: echo /opt/renode-1.17.0 >> "$GITHUB_PATH"
 
@@ -278,6 +285,13 @@ jobs:
 
       - name: Build the examples
         run: make -C Escapement/CORTEX-Mx/RP2040/Examples/pico ${{ matrix.make }}
+
+      - name: Check the compiled order of the slot buffers against the models
+        run: python3 tools/check_order.py Escapement/CORTEX-Mx/RP2040/Examples/pico/build/Escapement{Hard,Soft,HardPA}.o
+
+      - name: Show that the check fails without each barrier
+        if: strategy.job-index == 0
+        run: sh tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2040/Examples/pico
 
       # The RP2040 models of matgla/Renode_RP2040 are built against the assemblies of
       # the linux-dotnet package of Renode (emulation/renode/RP2040.md); the image holds

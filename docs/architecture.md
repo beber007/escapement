@@ -58,7 +58,8 @@ application gets the same guarantees from two mechanisms:
   after Chen and Burns (1997), with an LL/SC pair. Between two cores, each buffer
   orders its accesses with four calls to `_OSMemoryBarrier()`: a `DMB` on the RP2040
   and the RP2350, a compiler barrier alone in the single-core STM32 port and the host
-  build.
+  build. `tools/check_order.py` checks in the compiled code of every RP build that the
+  accesses and the barriers keep the models' order.
 
 Each mechanism has an exhaustive model in `test/model`, run by the CI: every run of a
 few queue operations preempting one another at any access, checked for linearizability;

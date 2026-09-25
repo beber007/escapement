@@ -38,8 +38,6 @@ DVFS to gain much (`power-aware.md`).
    examples, `ThreeSlotCoresPico2` first, and litmus tests of the order in which each
    core sees the other's accesses.
 3. **What is left to verify between the cores.**
-   - A tool that checks the compiled order of the slot buffers against the models; it
-     has been read once by hand (`method.md`).
    - A Renode monitor faithful to the RP2350, clearing a reservation on any store of the
      other core, so that `ThreeSlotCoresPico2` can join the suite (`emulation.md`).
    - The FIFO queue across the cores, in the multiprocessor form of Evéquoz's paper: the
@@ -79,7 +77,8 @@ DVFS to gain much (`power-aware.md`).
   rather than pushed to a self-hosted runner (`tools/board_ci.md`).
 - **The RP2350 port**: the generic layer taken to ARMv8-M, both cores running under
   Renode, `ACTLR.EXTEXCLALL` set, and memory barriers between the cores
-  (`architecture.md`).
+  (`architecture.md`), whose compiled order the CI checks against the models
+  (`tools/check_order.py`).
 - **`-O2`**, once the barrier that makes a pended exception take effect went in
   (`method.md`): 3.2 µs a round instead of 7.0.
 - **The queue sentinels made whole task control blocks.** Two defects came from reading
