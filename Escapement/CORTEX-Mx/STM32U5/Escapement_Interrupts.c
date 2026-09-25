@@ -23,10 +23,10 @@
 */
 /* File Escapement_Interrupts.c: Defines the two tables that bind a peripheral interrupt
 ** to its handler. The first is the vector table proper, appended by the linker right
-** after the Cortex-Mx system exceptions; the entries of the peripherals the port drives
-** route to _OSIOHandler, which reads the exception number and dispatches through the
-** second table, _OSTabDevice. Transposed from the RP2350 port: 126 interrupts, numbered
-** as in Escapement_Interrupts.h.
+** after the Cortex-Mx system exceptions; the entries of the chip route to _OSIOHandler,
+** which reads the exception number and dispatches through the second table,
+** _OSTabDevice. Transposed from the RP2350 port: 126 interrupts, numbered as in
+** Escapement_Interrupts.h.
 ** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
 */
 
@@ -47,136 +47,138 @@ extern void _OSIOHandler(void);
 
 
 /* STM32U575 vector table, appended to CortexMxVectorTable defined in
-** Escapement_CortexMx.c. The timers and USART1 are those of Escapement_Timer.c,
-** Escapement_TimerEvent.c and Escapement_UART.c. */
+** Escapement_CortexMx.c. Every interrupt of the chip goes to the dispatcher, so that an
+** application can take any of them with OSSetISRDescriptor, the port's drivers TIM2,
+** TIM5 and USART1; the dispatcher traps one without a descriptor under DEBUG_MODE. The
+** reserved entries alone go to UndefinedInterrupt. */
 __attribute__ ((section(".isr_vector_specific")))
 void (* const STM32U5VectorTable[])(void) = {
-  UndefinedInterrupt, /*   0  WWDG                  */
-  UndefinedInterrupt, /*   1  PVD_PVM               */
-  UndefinedInterrupt, /*   2  RTC                   */
-  UndefinedInterrupt, /*   3  RTC_S                 */
-  UndefinedInterrupt, /*   4  TAMP                  */
-  UndefinedInterrupt, /*   5  RAMCFG                */
-  UndefinedInterrupt, /*   6  FLASH                 */
-  UndefinedInterrupt, /*   7  FLASH_S               */
-  UndefinedInterrupt, /*   8  GTZC                  */
-  UndefinedInterrupt, /*   9  RCC                   */
-  UndefinedInterrupt, /*  10  RCC_S                 */
-  UndefinedInterrupt, /*  11  EXTI0                 */
-  UndefinedInterrupt, /*  12  EXTI1                 */
-  UndefinedInterrupt, /*  13  EXTI2                 */
-  UndefinedInterrupt, /*  14  EXTI3                 */
-  UndefinedInterrupt, /*  15  EXTI4                 */
-  UndefinedInterrupt, /*  16  EXTI5                 */
-  UndefinedInterrupt, /*  17  EXTI6                 */
-  UndefinedInterrupt, /*  18  EXTI7                 */
-  UndefinedInterrupt, /*  19  EXTI8                 */
-  UndefinedInterrupt, /*  20  EXTI9                 */
-  UndefinedInterrupt, /*  21  EXTI10                */
-  UndefinedInterrupt, /*  22  EXTI11                */
-  UndefinedInterrupt, /*  23  EXTI12                */
-  UndefinedInterrupt, /*  24  EXTI13                */
-  UndefinedInterrupt, /*  25  EXTI14                */
-  UndefinedInterrupt, /*  26  EXTI15                */
-  UndefinedInterrupt, /*  27  IWDG                  */
+  _OSIOHandler,       /*   0  WWDG                  */
+  _OSIOHandler,       /*   1  PVD_PVM               */
+  _OSIOHandler,       /*   2  RTC                   */
+  _OSIOHandler,       /*   3  RTC_S                 */
+  _OSIOHandler,       /*   4  TAMP                  */
+  _OSIOHandler,       /*   5  RAMCFG                */
+  _OSIOHandler,       /*   6  FLASH                 */
+  _OSIOHandler,       /*   7  FLASH_S               */
+  _OSIOHandler,       /*   8  GTZC                  */
+  _OSIOHandler,       /*   9  RCC                   */
+  _OSIOHandler,       /*  10  RCC_S                 */
+  _OSIOHandler,       /*  11  EXTI0                 */
+  _OSIOHandler,       /*  12  EXTI1                 */
+  _OSIOHandler,       /*  13  EXTI2                 */
+  _OSIOHandler,       /*  14  EXTI3                 */
+  _OSIOHandler,       /*  15  EXTI4                 */
+  _OSIOHandler,       /*  16  EXTI5                 */
+  _OSIOHandler,       /*  17  EXTI6                 */
+  _OSIOHandler,       /*  18  EXTI7                 */
+  _OSIOHandler,       /*  19  EXTI8                 */
+  _OSIOHandler,       /*  20  EXTI9                 */
+  _OSIOHandler,       /*  21  EXTI10                */
+  _OSIOHandler,       /*  22  EXTI11                */
+  _OSIOHandler,       /*  23  EXTI12                */
+  _OSIOHandler,       /*  24  EXTI13                */
+  _OSIOHandler,       /*  25  EXTI14                */
+  _OSIOHandler,       /*  26  EXTI15                */
+  _OSIOHandler,       /*  27  IWDG                  */
   UndefinedInterrupt, /*  28  reserved              */
-  UndefinedInterrupt, /*  29  GPDMA1_Channel0       */
-  UndefinedInterrupt, /*  30  GPDMA1_Channel1       */
-  UndefinedInterrupt, /*  31  GPDMA1_Channel2       */
-  UndefinedInterrupt, /*  32  GPDMA1_Channel3       */
-  UndefinedInterrupt, /*  33  GPDMA1_Channel4       */
-  UndefinedInterrupt, /*  34  GPDMA1_Channel5       */
-  UndefinedInterrupt, /*  35  GPDMA1_Channel6       */
-  UndefinedInterrupt, /*  36  GPDMA1_Channel7       */
-  UndefinedInterrupt, /*  37  ADC1                  */
-  UndefinedInterrupt, /*  38  DAC1                  */
-  UndefinedInterrupt, /*  39  FDCAN1_IT0            */
-  UndefinedInterrupt, /*  40  FDCAN1_IT1            */
-  UndefinedInterrupt, /*  41  TIM1_BRK              */
-  UndefinedInterrupt, /*  42  TIM1_UP               */
-  UndefinedInterrupt, /*  43  TIM1_TRG_COM          */
-  UndefinedInterrupt, /*  44  TIM1_CC               */
+  _OSIOHandler,       /*  29  GPDMA1_Channel0       */
+  _OSIOHandler,       /*  30  GPDMA1_Channel1       */
+  _OSIOHandler,       /*  31  GPDMA1_Channel2       */
+  _OSIOHandler,       /*  32  GPDMA1_Channel3       */
+  _OSIOHandler,       /*  33  GPDMA1_Channel4       */
+  _OSIOHandler,       /*  34  GPDMA1_Channel5       */
+  _OSIOHandler,       /*  35  GPDMA1_Channel6       */
+  _OSIOHandler,       /*  36  GPDMA1_Channel7       */
+  _OSIOHandler,       /*  37  ADC1                  */
+  _OSIOHandler,       /*  38  DAC1                  */
+  _OSIOHandler,       /*  39  FDCAN1_IT0            */
+  _OSIOHandler,       /*  40  FDCAN1_IT1            */
+  _OSIOHandler,       /*  41  TIM1_BRK              */
+  _OSIOHandler,       /*  42  TIM1_UP               */
+  _OSIOHandler,       /*  43  TIM1_TRG_COM          */
+  _OSIOHandler,       /*  44  TIM1_CC               */
   _OSIOHandler,       /*  45  TIM2                  */
-  UndefinedInterrupt, /*  46  TIM3                  */
-  UndefinedInterrupt, /*  47  TIM4                  */
+  _OSIOHandler,       /*  46  TIM3                  */
+  _OSIOHandler,       /*  47  TIM4                  */
   _OSIOHandler,       /*  48  TIM5                  */
-  UndefinedInterrupt, /*  49  TIM6                  */
-  UndefinedInterrupt, /*  50  TIM7                  */
-  UndefinedInterrupt, /*  51  TIM8_BRK              */
-  UndefinedInterrupt, /*  52  TIM8_UP               */
-  UndefinedInterrupt, /*  53  TIM8_TRG_COM          */
-  UndefinedInterrupt, /*  54  TIM8_CC               */
-  UndefinedInterrupt, /*  55  I2C1_EV               */
-  UndefinedInterrupt, /*  56  I2C1_ER               */
-  UndefinedInterrupt, /*  57  I2C2_EV               */
-  UndefinedInterrupt, /*  58  I2C2_ER               */
-  UndefinedInterrupt, /*  59  SPI1                  */
-  UndefinedInterrupt, /*  60  SPI2                  */
+  _OSIOHandler,       /*  49  TIM6                  */
+  _OSIOHandler,       /*  50  TIM7                  */
+  _OSIOHandler,       /*  51  TIM8_BRK              */
+  _OSIOHandler,       /*  52  TIM8_UP               */
+  _OSIOHandler,       /*  53  TIM8_TRG_COM          */
+  _OSIOHandler,       /*  54  TIM8_CC               */
+  _OSIOHandler,       /*  55  I2C1_EV               */
+  _OSIOHandler,       /*  56  I2C1_ER               */
+  _OSIOHandler,       /*  57  I2C2_EV               */
+  _OSIOHandler,       /*  58  I2C2_ER               */
+  _OSIOHandler,       /*  59  SPI1                  */
+  _OSIOHandler,       /*  60  SPI2                  */
   _OSIOHandler,       /*  61  USART1                */
-  UndefinedInterrupt, /*  62  USART2                */
-  UndefinedInterrupt, /*  63  USART3                */
-  UndefinedInterrupt, /*  64  UART4                 */
-  UndefinedInterrupt, /*  65  UART5                 */
-  UndefinedInterrupt, /*  66  LPUART1               */
-  UndefinedInterrupt, /*  67  LPTIM1                */
-  UndefinedInterrupt, /*  68  LPTIM2                */
-  UndefinedInterrupt, /*  69  TIM15                 */
-  UndefinedInterrupt, /*  70  TIM16                 */
-  UndefinedInterrupt, /*  71  TIM17                 */
-  UndefinedInterrupt, /*  72  COMP                  */
-  UndefinedInterrupt, /*  73  OTG_FS                */
-  UndefinedInterrupt, /*  74  CRS                   */
-  UndefinedInterrupt, /*  75  FMC                   */
-  UndefinedInterrupt, /*  76  OCTOSPI1              */
-  UndefinedInterrupt, /*  77  PWR_S3WU              */
-  UndefinedInterrupt, /*  78  SDMMC1                */
-  UndefinedInterrupt, /*  79  SDMMC2                */
-  UndefinedInterrupt, /*  80  GPDMA1_Channel8       */
-  UndefinedInterrupt, /*  81  GPDMA1_Channel9       */
-  UndefinedInterrupt, /*  82  GPDMA1_Channel10      */
-  UndefinedInterrupt, /*  83  GPDMA1_Channel11      */
-  UndefinedInterrupt, /*  84  GPDMA1_Channel12      */
-  UndefinedInterrupt, /*  85  GPDMA1_Channel13      */
-  UndefinedInterrupt, /*  86  GPDMA1_Channel14      */
-  UndefinedInterrupt, /*  87  GPDMA1_Channel15      */
-  UndefinedInterrupt, /*  88  I2C3_EV               */
-  UndefinedInterrupt, /*  89  I2C3_ER               */
-  UndefinedInterrupt, /*  90  SAI1                  */
-  UndefinedInterrupt, /*  91  SAI2                  */
-  UndefinedInterrupt, /*  92  TSC                   */
+  _OSIOHandler,       /*  62  USART2                */
+  _OSIOHandler,       /*  63  USART3                */
+  _OSIOHandler,       /*  64  UART4                 */
+  _OSIOHandler,       /*  65  UART5                 */
+  _OSIOHandler,       /*  66  LPUART1               */
+  _OSIOHandler,       /*  67  LPTIM1                */
+  _OSIOHandler,       /*  68  LPTIM2                */
+  _OSIOHandler,       /*  69  TIM15                 */
+  _OSIOHandler,       /*  70  TIM16                 */
+  _OSIOHandler,       /*  71  TIM17                 */
+  _OSIOHandler,       /*  72  COMP                  */
+  _OSIOHandler,       /*  73  OTG_FS                */
+  _OSIOHandler,       /*  74  CRS                   */
+  _OSIOHandler,       /*  75  FMC                   */
+  _OSIOHandler,       /*  76  OCTOSPI1              */
+  _OSIOHandler,       /*  77  PWR_S3WU              */
+  _OSIOHandler,       /*  78  SDMMC1                */
+  _OSIOHandler,       /*  79  SDMMC2                */
+  _OSIOHandler,       /*  80  GPDMA1_Channel8       */
+  _OSIOHandler,       /*  81  GPDMA1_Channel9       */
+  _OSIOHandler,       /*  82  GPDMA1_Channel10      */
+  _OSIOHandler,       /*  83  GPDMA1_Channel11      */
+  _OSIOHandler,       /*  84  GPDMA1_Channel12      */
+  _OSIOHandler,       /*  85  GPDMA1_Channel13      */
+  _OSIOHandler,       /*  86  GPDMA1_Channel14      */
+  _OSIOHandler,       /*  87  GPDMA1_Channel15      */
+  _OSIOHandler,       /*  88  I2C3_EV               */
+  _OSIOHandler,       /*  89  I2C3_ER               */
+  _OSIOHandler,       /*  90  SAI1                  */
+  _OSIOHandler,       /*  91  SAI2                  */
+  _OSIOHandler,       /*  92  TSC                   */
   UndefinedInterrupt, /*  93  reserved              */
-  UndefinedInterrupt, /*  94  RNG                   */
-  UndefinedInterrupt, /*  95  FPU                   */
-  UndefinedInterrupt, /*  96  HASH                  */
+  _OSIOHandler,       /*  94  RNG                   */
+  _OSIOHandler,       /*  95  FPU                   */
+  _OSIOHandler,       /*  96  HASH                  */
   UndefinedInterrupt, /*  97  reserved              */
-  UndefinedInterrupt, /*  98  LPTIM3                */
-  UndefinedInterrupt, /*  99  SPI3                  */
-  UndefinedInterrupt, /* 100  I2C4_ER               */
-  UndefinedInterrupt, /* 101  I2C4_EV               */
-  UndefinedInterrupt, /* 102  MDF1_FLT0             */
-  UndefinedInterrupt, /* 103  MDF1_FLT1             */
-  UndefinedInterrupt, /* 104  MDF1_FLT2             */
-  UndefinedInterrupt, /* 105  MDF1_FLT3             */
-  UndefinedInterrupt, /* 106  UCPD1                 */
-  UndefinedInterrupt, /* 107  ICACHE                */
+  _OSIOHandler,       /*  98  LPTIM3                */
+  _OSIOHandler,       /*  99  SPI3                  */
+  _OSIOHandler,       /* 100  I2C4_ER               */
+  _OSIOHandler,       /* 101  I2C4_EV               */
+  _OSIOHandler,       /* 102  MDF1_FLT0             */
+  _OSIOHandler,       /* 103  MDF1_FLT1             */
+  _OSIOHandler,       /* 104  MDF1_FLT2             */
+  _OSIOHandler,       /* 105  MDF1_FLT3             */
+  _OSIOHandler,       /* 106  UCPD1                 */
+  _OSIOHandler,       /* 107  ICACHE                */
   UndefinedInterrupt, /* 108  reserved              */
   UndefinedInterrupt, /* 109  reserved              */
-  UndefinedInterrupt, /* 110  LPTIM4                */
-  UndefinedInterrupt, /* 111  DCACHE1               */
-  UndefinedInterrupt, /* 112  ADF1                  */
-  UndefinedInterrupt, /* 113  ADC4                  */
-  UndefinedInterrupt, /* 114  LPDMA1_Channel0       */
-  UndefinedInterrupt, /* 115  LPDMA1_Channel1       */
-  UndefinedInterrupt, /* 116  LPDMA1_Channel2       */
-  UndefinedInterrupt, /* 117  LPDMA1_Channel3       */
-  UndefinedInterrupt, /* 118  DMA2D                 */
-  UndefinedInterrupt, /* 119  DCMI_PSSI             */
-  UndefinedInterrupt, /* 120  OCTOSPI2              */
-  UndefinedInterrupt, /* 121  MDF1_FLT4             */
-  UndefinedInterrupt, /* 122  MDF1_FLT5             */
-  UndefinedInterrupt, /* 123  CORDIC                */
-  UndefinedInterrupt, /* 124  FMAC                  */
-  UndefinedInterrupt  /* 125  LSECSSD               */
+  _OSIOHandler,       /* 110  LPTIM4                */
+  _OSIOHandler,       /* 111  DCACHE1               */
+  _OSIOHandler,       /* 112  ADF1                  */
+  _OSIOHandler,       /* 113  ADC4                  */
+  _OSIOHandler,       /* 114  LPDMA1_Channel0       */
+  _OSIOHandler,       /* 115  LPDMA1_Channel1       */
+  _OSIOHandler,       /* 116  LPDMA1_Channel2       */
+  _OSIOHandler,       /* 117  LPDMA1_Channel3       */
+  _OSIOHandler,       /* 118  DMA2D                 */
+  _OSIOHandler,       /* 119  DCMI_PSSI             */
+  _OSIOHandler,       /* 120  OCTOSPI2              */
+  _OSIOHandler,       /* 121  MDF1_FLT4             */
+  _OSIOHandler,       /* 122  MDF1_FLT5             */
+  _OSIOHandler,       /* 123  CORDIC                */
+  _OSIOHandler,       /* 124  FMAC                  */
+  _OSIOHandler        /* 125  LSECSSD               */
 };
 
 

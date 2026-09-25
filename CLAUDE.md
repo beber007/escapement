@@ -35,7 +35,7 @@ make -C Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
 renode-test emulation/renode/escapement_pico2.robot
 
-# STM32U5 (NUCLEO-U575ZI-Q, Cortex-M33) — five examples, Renode only so far, on a platform
+# STM32U5 (NUCLEO-U575ZI-Q, Cortex-M33) — six examples, Renode only so far, on a platform
 # of our own as for the Pico 2 (docs/stm32u5.md); no KERNEL=PA
 make -C Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q
 renode-test emulation/renode/escapement_u5.robot

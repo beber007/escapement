@@ -4,10 +4,11 @@
 // NUCLEO-U575ZI-Q (STM32U575) for Escapement: a platform of our own, since Renode models
 // no STM32U5 (docs/roadmap.md). Only what the examples of Escapement/CORTEX-Mx/STM32U5
 // touch: a Cortex-M33 with its NVIC, 4 bits of priority, 2 MB of flash, the 768 KB of
-// SRAM1 to SRAM3, TIM2 and TIM5 (the fixed timer model of the STM32F4 platform,
-// Escapement_STM32_Timer.cs), USART1 and ports A to C of GPIO, which Renode models for
-// the STM32L552, of the same family, with the outputs of BoardU5.h as LEDs, and the
-// blocks the clock set-up waits on. Addresses from RM0456 and cmsis-device-u5.
+// SRAM1 to SRAM3, TIM2, TIM3 and TIM5 (the fixed timer model of the STM32F4 platform,
+// Escapement_STM32_Timer.cs), and the independent watchdog, USART1 and ports A to C of
+// GPIO, which Renode models for the STM32L552, of the same family, with the outputs of
+// BoardU5.h as LEDs; and the blocks the clock set-up waits on. Addresses from RM0456 and
+// cmsis-device-u5.
 //
 // Those blocks keep what is written and read the bits the code waits for as set: the
 // voltage range and the booster ready, PLL1 locked, the switch of the system clock
@@ -36,10 +37,18 @@ timer2: Timers.Escapement_STM32_Timer @ sysbus 0x40000000
     frequency: 160000000
     initialLimit: 0xFFFFFFFF
 
+timer3: Timers.Escapement_STM32_Timer @ sysbus 0x40000400
+    -> nvic@46
+    frequency: 160000000
+    initialLimit: 0xFFFF
+
 timer5: Timers.Escapement_STM32_Timer @ sysbus 0x40000C00
     -> nvic@48
     frequency: 160000000
     initialLimit: 0xFFFFFFFF
+
+iwdg: Timers.STM32_IndependentWatchdog @ sysbus 0x40003000
+    frequency: 32000
 
 usart1: UART.STM32F7_USART @ sysbus 0x40013800
     frequency: 160000000

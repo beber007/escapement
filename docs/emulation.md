@@ -283,4 +283,7 @@ second core. For the 2^30 wrap, the timer has to be built 1000 times faster
 (`escapement_u5_wrap.repl`): set at run time, the frequency reaches the counter but not
 the compare channels of the model, which keep the rate they were built with, and the
 tasks are then never woken. Under the four builds of the port the suite passed 6 tests
-of 6 on 2026-09-25, the first build as written, with no change to the port.
+of 6 on 2026-09-25, the first build as written, with no change to the port; the
+endurance test, added the same day, made it 7 of 7 once the port routed every
+interrupt of the chip to the kernel's dispatcher (`stm32u5.md`). The platform adds TIM3
+and Renode's model of the independent watchdog for it.

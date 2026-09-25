@@ -120,8 +120,11 @@ Scheduling survives the 2^30 wrap of the kernel clock
     Assert LED State          true   testerId=${flag2}  pauseEmulation=true
     Assert LED State          true   testerId=${flag3}  pauseEmulation=true
 
-    # Cross it: the kernel has shifted its times once the counter wrapped.
+    # Cross it: 1.2 s at the 1 ns tick is past 2^30, so a counter below 2^30 now has
+    # wrapped, which one ignoring its limit would not have (TIM2_CNT).
     Execute Command           emulation RunFor "1.2"
+    ${count}=                 Read Word  0x40000024
+    Should Be True            ${count} < 0x40000000
 
     # After the boundary: every task must still be scheduled, the probe on time.
     Assert LED Is Blinking    testDuration=0.5  onDuration=0.05  offDuration=0.05  tolerance=0.02  testerId=${probe}  pauseEmulation=true
@@ -174,3 +177,33 @@ Tasks preempt one another inside the FIFO queue and a slot buffer
     Should Be Equal As Integers  ${slot_torn}  0
     Should Be Equal As Integers  ${registers}  0
     Should Be True            ${helped} > 0
+
+Every part of the endurance test runs without error
+    [Documentation]           SoakU5, the firmware of the endurance test, for 3.5 s: its marker
+    ...                       set, its heartbeat past three seconds, every part active and none
+    ...                       in error — the pulse on time, the queue in order, the buffers
+    ...                       never torn nor repeated, the one the interrupt of TIM3 writes
+    ...                       among them, the timer events on time, the heartbeat seeing every
+    ...                       part move each second, and the stack and the guard words intact.
+    ...                       The watchdog, started by the first heartbeat and reloaded by the
+    ...                       others, must not have restarted the board: the counts, cleared
+    ...                       at each start, would then be those of less than 3 s.
+    [Timeout]                 10 minutes
+    Load Escapement           SoakU5
+
+    Execute Command           emulation RunFor "3.5"
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${marker}=                Read Word  ${results}
+    ${seconds}=               Read Word  ${results + 4}
+    ${pulses}=                Read Word  ${results + 12}
+    Should Be Equal As Integers  ${marker}  0x534F414B
+    Should Be True            ${seconds} >= 3 and ${pulses} >= 3400
+    FOR  ${part}  IN RANGE  8
+        ${activity}=          Read Word  ${results + 12 + 4 * ${part}}
+        ${errors}=            Read Word  ${results + 44 + 4 * ${part}}
+        Log To Console        part ${part}: ${activity} done, ${errors} errors
+        Should Be True        ${activity} > 0
+        Should Be Equal As Integers  ${errors}  0
+    END
