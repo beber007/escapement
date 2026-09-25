@@ -52,15 +52,17 @@
    static inline UINT32 GetPriMask(void)
    {
      UINT32 priMask;
-     asm volatile ("MRS %0,PRIMASK":"=r"(priMask));
+     asm volatile ("MRS %0,PRIMASK":"=r"(priMask)::"memory");
      return priMask;
    } /* end of GetPriMask */
 
-   /* Restore PRIMASK bit. */
+   /* Restore PRIMASK bit. The "memory" clobber keeps the store of an SC before it: moved
+   ** after, it would be made with interrupts unmasked, over what an interrupt wrote. */
    static inline void RestorePriMask(UINT32 priMask)
    {
-      asm volatile ("MSR PRIMASK,%0"::"r"(priMask));
+      asm volatile ("MSR PRIMASK,%0"::"r"(priMask):"memory");
    } /* end of RestorePriMask */
+
 #endif
 
 
@@ -73,8 +75,12 @@ inline UINT8 OSUINT8_LL(UINT8 *memAddr)
      asm volatile ("LDREXB %0,[%1]":"=&b"(tmp):"r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
-     _OSLLReserveBit = TRUE;     // Mark reserved
-     return *memAddr;            // Return the contents of the memAddr location
+     /* The load comes after the reservation: GCC moved it before the store of the bit
+     ** in some LLs, and an interrupt in between could change the value and clear the
+     ** bit, set again after it; the SC then succeeded on the value read before. */
+     _OSLLReserveBit = TRUE;           // Mark reserved
+     __asm volatile ("" ::: "memory");
+     return *memAddr;                  // Return the contents of the memAddr location
   #endif
 } /* end of OSUINT8_LL */
 
@@ -116,8 +122,9 @@ inline UINT16 OSUINT16_LL(UINT16 *memAddr)
      asm volatile ("LDREXH %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
-     _OSLLReserveBit = TRUE;     // Mark reserved
-     return *memAddr;            // Return the contents of the memAddr location
+     _OSLLReserveBit = TRUE;           // Mark reserved, then load (see OSUINT8_LL)
+     __asm volatile ("" ::: "memory");
+     return *memAddr;                  // Return the contents of the memAddr location
   #endif
 } /* end of OSUINT16_LL */
 
@@ -155,8 +162,9 @@ inline INT16 OSINT16_LL(INT16 *memAddr)
      asm volatile ("LDREXH %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
-     _OSLLReserveBit = TRUE;     // Mark reserved
-     return *memAddr;            // Return the contents of the memAddr location
+     _OSLLReserveBit = TRUE;           // Mark reserved, then load (see OSUINT8_LL)
+     __asm volatile ("" ::: "memory");
+     return *memAddr;                  // Return the contents of the memAddr location
   #endif
 } /* end of OSINT16_LL */
 
@@ -194,8 +202,9 @@ inline UINT32 OSUINT32_LL(UINT32 *memAddr)
      asm volatile ("LDREX %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
-     _OSLLReserveBit = TRUE;     // Mark reserved
-     return *memAddr;            // Return the contents of the memAddr location
+     _OSLLReserveBit = TRUE;           // Mark reserved, then load (see OSUINT8_LL)
+     __asm volatile ("" ::: "memory");
+     return *memAddr;                  // Return the contents of the memAddr location
   #endif
 } /* end of OSUINT32_LL */
 
@@ -233,8 +242,9 @@ inline INT32 OSINT32_LL(INT32 *memAddr)
      asm volatile ("LDREX %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
-     _OSLLReserveBit = TRUE;     // Mark reserved
-     return *memAddr;            // Return the contents of the memAddr location
+     _OSLLReserveBit = TRUE;           // Mark reserved, then load (see OSUINT8_LL)
+     __asm volatile ("" ::: "memory");
+     return *memAddr;                  // Return the contents of the memAddr location
   #endif
 } /* end of OSINT32_LL */
 
