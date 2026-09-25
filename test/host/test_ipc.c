@@ -88,6 +88,88 @@ static void TestCoreQueue(void)
 }
 
 
+/* TestCoreQueueInterleaved: The other core's operation run between an LL and its SC of
+** this one, at each LL in turn: it finds a place taken but Tail or Head not yet moved,
+** and moves it on itself (E12-E13, D12-D13). The queue must then hold what one of the two
+** orders leaves, and each operation return what that order gives it. The interleavings
+** the host reaches are those at an LL; test/model/fifo_mp.py explores them all. */
+static void *CoreQ;
+static int CoreItems[16], CoreInner, CoreInnerDone;
+static void *CoreInnerGot;
+static unsigned CoreAt, CoreCount;
+
+static BOOL OtherCore(void)
+{
+  if (++CoreCount != CoreAt)
+     return FALSE;
+  HostLLHook = NULL;
+  if (CoreInner)
+     CoreInnerDone = OSEnqueueCoreQueue(CoreQ, &CoreItems[9]);
+  else
+     CoreInnerGot = OSDequeueCoreQueue(CoreQ);
+  HostLLHook = OtherCore;
+  return TRUE;
+}
+
+static void TestCoreQueueInterleaved(void)
+{
+  unsigned outer, inner, filled, at, i, reached, cases = 0, bad = 0;
+  char label[80];
+  printf("\nqueue between the cores, the other core's operation at each LL\n\n");
+  for (outer = 0; outer < 2; outer += 1)
+     for (inner = 0; inner < 2; inner += 1)
+        for (filled = 0; filled <= CORE_LENGTH; filled += 1)
+           for (at = 1, reached = 1; reached; at += 1) {
+              void *got[CORE_LENGTH + 3], *outerGot = NULL;
+              int outerDone = -1, k, ok[2];
+              unsigned n;
+              CoreQ = OSInitCoreQueue(CORE_LENGTH);
+              for (i = 0; i < filled; i += 1)
+                 OSEnqueueCoreQueue(CoreQ, &CoreItems[i]);
+              CoreInner = (int)inner; CoreInnerDone = -1; CoreInnerGot = NULL;
+              CoreAt = at; CoreCount = 0;
+              HostLLHook = OtherCore;
+              if (outer)
+                 outerDone = OSEnqueueCoreQueue(CoreQ, &CoreItems[8]);
+              else
+                 outerGot = OSDequeueCoreQueue(CoreQ);
+              HostLLHook = NULL;
+              if (!(reached = CoreCount >= at))
+                 break;
+              cases += 1;
+              for (n = 0; (got[n] = OSDequeueCoreQueue(CoreQ)) != NULL; n += 1);
+              for (k = 0; k < 2; k += 1) {       /* k = 0: this core's operation first */
+                 void *q[CORE_LENGTH + 2], *took[2] = {NULL, NULL};
+                 int done[2] = {0, 0}, j;
+                 unsigned m = 0;
+                 for (i = 0; i < filled; i += 1)
+                    q[m++] = &CoreItems[i];
+                 for (j = 0; j < 2; j += 1) {
+                    int mine = (k == 0) == (j == 0), isEnq = mine ? (int)outer : (int)inner;
+                    if (isEnq && m < CORE_LENGTH) {
+                       q[m++] = &CoreItems[mine ? 8 : 9];
+                       done[mine] = 1;
+                    }
+                    else if (!isEnq && m > 0) {
+                       took[mine] = q[0];
+                       memmove(q, q + 1, (m - 1) * sizeof q[0]);
+                       m -= 1;
+                    }
+                 }
+                 ok[k] = m == n && (outer ? outerDone == done[1] : outerGot == took[1]) &&
+                         (inner ? CoreInnerDone == done[0] : CoreInnerGot == took[0]);
+                 for (i = 0; ok[k] && i < m; i += 1)
+                    ok[k] = got[i] == q[i];
+              }
+              if (!ok[0] && !ok[1] && ++bad <= 5)
+                 printf("  this core %s, the other %s, %u queued, at LL %u: wrong\n",
+                        outer ? "enqueues" : "dequeues", inner ? "enqueues" : "dequeues", filled, at);
+           }
+  snprintf(label, sizeof label, "  every interleaving leaves one of the two orders: %u cases", cases);
+  Check(label, bad == 0 && cases > 0);
+}
+
+
 /* FIFO QUEUE ---------------------------------------------------------------------------- */
 #define NODES     4
 #define NODE_SIZE 8
@@ -163,6 +245,122 @@ static void TestFIFO(void)
         ok = 0;
   }
   Check("  nodes come out in order, with their data and size", ok);
+}
+
+
+/* TestFIFOPreempted: An operation interrupted between an LL and its SC by another on the
+** same queue, as an interrupt handler preempting a task does: the interrupting one finds
+** the first posted in PendingOp and completes it before its own, and the interrupted one,
+** its SC failed, finds its work done. Each pair of operations, enqueue or dequeue, is
+** interrupted at each of its LLs in turn; the queue must then hold what one of the two
+** orders of the operations leaves, and each must return what that order gives it. */
+#define PRE_NODES 4
+static void *PreQueue, *PreNode[PRE_NODES + 2];
+static int PreInner, PreInnerSize, PreInnerDone;      /* the interrupting operation */
+static unsigned PreAt, PreCount;
+static void *PreGot;
+static UINT16 PreGotSize;
+
+static BOOL Interrupt(void)
+{
+  if (++PreCount != PreAt)
+     return FALSE;
+  HostLLHook = NULL;
+  if (PreInner)
+     PreInnerDone = OSEnqueueFIFO(PreQueue, PreNode[PRE_NODES + 1], (UINT16)PreInnerSize);
+  else
+     PreGot = OSDequeueFIFO(PreQueue, &PreGotSize);
+  HostLLHook = Interrupt;
+  return TRUE;
+}
+
+/* Drain: What the queue holds, as sizes, oldest first; -1 ends. */
+static void Drain(int *sizes)
+{
+  UINT8 *node;
+  UINT16 size;
+  int n = 0;
+  while ((node = OSDequeueFIFO(PreQueue, &size)) != NULL) {
+     sizes[n++] = size;
+     OSReleaseNodeFIFO(PreQueue, node);
+  }
+  sizes[n] = -1;
+}
+
+static void TestFIFOPreempted(void)
+{
+  unsigned outer, inner, filled, at, i, reached, cases = 0, bad = 0;
+  printf("\nFIFO queue, an operation interrupted by another at each of its LLs\n\n");
+  for (outer = 0; outer < 2; outer += 1)            /* 1: enqueue, 0: dequeue */
+     for (inner = 0; inner < 2; inner += 1)
+        for (filled = 0; filled <= PRE_NODES; filled += 1)
+           for (at = 1, reached = 1; reached; at += 1) {
+              int got[PRE_NODES + 4], model1[PRE_NODES + 4], model2[PRE_NODES + 4];
+              int q[PRE_NODES + 4], n = 0, k, outerDone = 0, ok1, ok2;
+              void *outerGot = NULL;
+              UINT16 outerSize = 0;
+              PreQueue = OSInitFIFOQueue(PRE_NODES, 8);
+              for (i = 0; i < PRE_NODES; i += 1)
+                 PreNode[i] = OSGetFreeNodeFIFO(PreQueue);
+              for (i = 0; i < filled; i += 1)
+                 OSEnqueueFIFO(PreQueue, PreNode[i], (UINT16)(10 + i));
+              /* Nodes for the operations: from another queue, if this one is empty. */
+              PreNode[PRE_NODES] = filled < PRE_NODES ? PreNode[filled] : OSGetFreeNodeFIFO(OSInitFIFOQueue(2, 8));
+              PreNode[PRE_NODES + 1] = OSGetFreeNodeFIFO(OSInitFIFOQueue(2, 8));
+              PreInner = (int)inner; PreInnerSize = 99; PreInnerDone = -1; PreGot = NULL;
+              PreAt = at; PreCount = 0;
+              HostLLHook = Interrupt;
+              if (outer)
+                 outerDone = OSEnqueueFIFO(PreQueue, PreNode[PRE_NODES], 50);
+              else
+                 outerGot = OSDequeueFIFO(PreQueue, &outerSize);
+              HostLLHook = NULL;
+              reached = PreCount >= at;
+              if (!reached)
+                 break;
+              cases += 1;
+              Drain(got);
+              /* The two orders, on a model of the queue: sizes 10.. then the operations. */
+              for (k = 0; k < 2; k += 1) {
+                 int *m = k ? model2 : model1, e1 = 0, d1 = -1, e2 = 0, d2 = -1, j;
+                 n = 0;
+                 for (i = 0; i < filled; i += 1)
+                    q[n++] = 10 + (int)i;
+                 for (j = 0; j < 2; j += 1) {
+                    int first = (k == 0) == (j == 0);     /* k=0: outer first */
+                    int isEnq = first ? (int)outer : (int)inner, size = first ? 50 : 99;
+                    int done = 0, took = -1;
+                    if (isEnq) {
+                       if (n < PRE_NODES) { q[n++] = size; done = 1; }
+                    }
+                    else if (n > 0) {
+                       took = q[0];
+                       memmove(q, q + 1, (size_t)(n - 1) * sizeof q[0]);
+                       n -= 1;
+                    }
+                    if (first) { e1 = done; d1 = took; } else { e2 = done; d2 = took; }
+                 }
+                 for (i = 0; i < (unsigned)n; i += 1)
+                    m[i] = q[i];
+                 m[n] = -1;
+                 /* What each operation returned must match this order. */
+                 m[PRE_NODES + 2] = (outer ? outerDone == e1 : (d1 < 0 ? outerGot == NULL : outerGot != NULL && outerSize == d1)) &&
+                                    (inner ? PreInnerDone == e2 : (d2 < 0 ? PreGot == NULL : PreGot != NULL && PreGotSize == d2));
+              }
+              for (ok1 = model1[PRE_NODES + 2], i = 0; ok1 && (i == 0 || got[i - 1] != -1); i += 1)
+                 ok1 = got[i] == model1[i];
+              for (ok2 = model2[PRE_NODES + 2], i = 0; ok2 && (i == 0 || got[i - 1] != -1); i += 1)
+                 ok2 = got[i] == model2[i];
+              if (!ok1 && !ok2) {
+                 bad += 1;
+                 if (bad <= 5)
+                    printf("  outer %s, inner %s, %u queued, interrupted at LL %u: wrong\n",
+                           outer ? "enqueue" : "dequeue", inner ? "enqueue" : "dequeue", filled, at);
+              }
+           }
+  char label[80];
+  snprintf(label, sizeof label, "  every interruption leaves one of the two orders: %u cases", cases);
+  Check(label, bad == 0 && cases > 0);
 }
 
 
@@ -289,6 +487,33 @@ static void TestPublication(UINT8 type, const char *name)
 }
 
 
+/* TestOutOfMemory: Each allocation of each creation made to fail in turn, as OSMalloc
+** does when its heap is used up: the creation must say so, not crash nor hand out a
+** structure missing a part. The budget of allocations grows until the creation succeeds. */
+static void TestOutOfMemory(void)
+{
+  static const char *const what[] = {"a FIFO queue", "a 3-slot buffer", "a 4-slot buffer",
+                                     "a queue between the cores"};
+  unsigned kind;
+  printf("\ncreations when memory runs out\n\n");
+  for (kind = 0; kind < 4; kind += 1) {
+     int budget, failures = 0;
+     void *made = NULL;
+     char label[80];
+     for (budget = 0; made == NULL && budget < 40; budget += 1) {
+        HostMallocBudget = budget;
+        made = kind == 0 ? OSInitFIFOQueue(3, 8) :
+               kind == 1 ? OSInitBuffer(3, OS_BUFFER_TYPE_3_SLOT, NULL) :
+               kind == 2 ? OSInitBuffer(3, OS_BUFFER_TYPE_4_SLOT, NULL) : OSInitCoreQueue(4);
+        failures += made == NULL;
+     }
+     HostMallocBudget = -1;
+     snprintf(label, sizeof label, "  %s: refused %d times, then made", what[kind], failures);
+     Check(label, made != NULL && failures > 0);
+  }
+}
+
+
 /* The wait-free queue retries in loops that a broken index never leaves. */
 static void Timeout(int signal)
 {
@@ -304,11 +529,14 @@ int main(void)
   signal(SIGALRM, Timeout);
   alarm(10);
   TestFIFO();
+  TestFIFOPreempted();
   TestCoreQueue();
+  TestCoreQueueInterleaved();
   TestBuffer(OS_BUFFER_TYPE_3_SLOT, "3-slot");
   TestBuffer(OS_BUFFER_TYPE_4_SLOT, "4-slot");
   TestPublication(OS_BUFFER_TYPE_3_SLOT, "3-slot");
   TestPublication(OS_BUFFER_TYPE_4_SLOT, "4-slot");
+  TestOutOfMemory();
   printf("\n%s\n", Failures ? "FAILURES" : "all checks passed");
   return Failures ? 1 : 0;
 }

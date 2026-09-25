@@ -97,9 +97,15 @@ void _OSIOHandler(void) { }
 ** each block with that byte instead of zeros, so that a field the kernel forgets to set
 ** does not read as 0. */
 int HostMallocFill = -1;
+int HostMallocBudget = -1;       /* allocations left before OSMalloc fails, -1 for no limit */
 void *OSMalloc(UINT16 size)
 {
-  void *block = calloc(1, size);
+  void *block;
+  if (HostMallocBudget == 0)
+     return NULL;
+  if (HostMallocBudget > 0)
+     HostMallocBudget -= 1;
+  block = calloc(1, size);
   if (block != NULL && HostMallocFill >= 0)
      memset(block, HostMallocFill, size);
   return block;
@@ -113,20 +119,31 @@ void (*HostSoftTimerHook)(void) = NULL;
 ** between the LL and the SC does on the target. */
 unsigned HostFailingSC = 0;
 unsigned HostPassingSC = 0;      /* store-conditionals let through before those that fail */
-#define SC(a, v) do { if (HostPassingSC > 0) HostPassingSC -= 1; \
+/* An LL reserves, its SC consumes the reservation. A test may set HostLLHook to run
+** code between an LL and its SC, as an interrupt does; returning from it loses the
+** reservation, as the return from an interrupt does on the target, so the SC fails.
+** The hook returns whether it ran anything. */
+BOOL (*HostLLHook)(void) = NULL;
+static BOOL Reserved = FALSE;
+#define LL(a) do { Reserved = TRUE; value = *(a); \
+                   if (HostLLHook && HostLLHook()) Reserved = FALSE;  \
+                   return value; } while (0)
+#define SC(a, v) do { if (!Reserved) return FALSE; \
+                      Reserved = FALSE; \
+                      if (HostPassingSC > 0) HostPassingSC -= 1; \
                       else if (HostFailingSC > 0) { HostFailingSC -= 1; return FALSE; } \
                       *(a) = (v); return TRUE; } while (0)
-UINT8  OSUINT8_LL(UINT8 *a)   { return *a; }
+UINT8  OSUINT8_LL(UINT8 *a)   { UINT8 value; LL(a); }
 BOOL   OSUINT8_SC(UINT8 *a, UINT8 v)   { SC(a, v); }
-UINT16 OSUINT16_LL(UINT16 *a) { return *a; }
+UINT16 OSUINT16_LL(UINT16 *a) { UINT16 value; LL(a); }
 BOOL   OSUINT16_SC(UINT16 *a, UINT16 v) { SC(a, v); }
-INT16  OSINT16_LL(INT16 *a)   { return *a; }
+INT16  OSINT16_LL(INT16 *a)   { INT16 value; LL(a); }
 BOOL   OSINT16_SC(INT16 *a, INT16 v)   { SC(a, v); }
-UINT32 OSUINT32_LL(UINT32 *a) { return *a; }
+UINT32 OSUINT32_LL(UINT32 *a) { UINT32 value; LL(a); }
 BOOL   OSUINT32_SC(UINT32 *a, UINT32 v) { SC(a, v); }
-INT32  OSINT32_LL(INT32 *a)   { return *a; }
+INT32  OSINT32_LL(INT32 *a)   { INT32 value; LL(a); }
 BOOL   OSINT32_SC(INT32 *a, INT32 v)   { SC(a, v); }
-UINTPTR OSUINTPTR_LL(UINTPTR *a) { return *a; }
+UINTPTR OSUINTPTR_LL(UINTPTR *a) { UINTPTR value; LL(a); }
 BOOL   OSUINTPTR_SC(UINTPTR *a, UINTPTR v) { SC(a, v); }
 
 

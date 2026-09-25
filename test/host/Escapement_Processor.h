@@ -24,9 +24,11 @@ extern unsigned HostContextSwitchesRequested;
 extern unsigned HostSoftTimerRequests;
 extern unsigned HostFailingSC;       /* store-conditionals to fail, see host_port.c */
 extern unsigned HostPassingSC;       /* those let through first */
+extern BOOL (*HostLLHook)(void);     /* runs between an LL and its SC, see host_port.c */
 /* Called at each memory barrier: where the kernel orders its stores for another core is
 ** also where an interrupt on this one may fall between them (test_ipc.c). */
 extern void (*HostBarrierHook)(void);
+extern int HostMallocBudget;         /* allocations before OSMalloc fails, -1 no limit */
 extern int HostMallocFill;           /* byte OSMalloc fills blocks with, -1 for zeros */
 
 #define _OSScheduleTask()               (HostContextSwitchesRequested += 1)

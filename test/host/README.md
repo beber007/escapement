@@ -35,7 +35,9 @@ loops.
 | `overrun` | a task takes six times its WCET: past it, the power-aware kernel runs it at the fastest speed |
 | `firm` | (m,k)-firm tasks under a declared overload of 220 %, soft kernel only |
 | `firmwrap`, `firmlong` | optional instances across the wrap, and one of 2^23 ticks, whose schedulability test left 32 bits |
-| `test_ipc` | the FIFO queue past the wrap of its indices and refusing a node when full, both slot buffers through their states and a reader coming in the middle of a write, at the writer's first barrier, over blocks filled with 0xA5 as SRAM is rather than zeros, the queue between the cores of the RP2350 (`Escapement_CoreQueue.c`) in order, full, empty and round its array, its SCs made to fail — the one that advances Tail or Head among them —, store-conditionals made to fail on purpose |
+| `firmevents` | (m,k)-firm tasks beside an event-driven task, whose workload the soft kernel computes under EDF; each task reads its place in its pattern (`OSGetTaskInstance`) |
+| `minspeed` | a light load with `OSSetMinimalProcessorSpeed`: the power-aware kernel never goes below it, which four of its five policies would otherwise do; two tasks released together with equal deadlines, which EDF* breaks by arrival and address |
+| `test_ipc` | each operation of the FIFO queue, and of the queue between the cores, interrupted at each of its LLs by another, which must complete it or move Tail or Head on for it; every creation of a queue or buffer refused, not crashing, when memory runs out at each of its allocations; the FIFO queue past the wrap of its indices and refusing a node when full, both slot buffers through their states and a reader coming in the middle of a write, at the writer's first barrier, over blocks filled with 0xA5 as SRAM is rather than zeros, the queue between the cores of the RP2350 (`Escapement_CoreQueue.c`) in order, full, empty and round its array, its SCs made to fail — the one that advances Tail or Head among them —, store-conditionals made to fail on purpose |
 
 Under the power-aware kernel every run also checks the speeds asked for: always one of
 the operating points of the RP2040; where slowing down is possible, some below the
@@ -56,6 +58,11 @@ and a crash on x86; under DM it shifted at every wrap a deadline it never set, u
 the value overflowed. A workload given is now taken as is, a creation with neither is
 refused, the deadline is set for every instance, and the sanitizer flags fail on the
 old code.
+
+The atomics of the host keep a reservation, as the target does: an LL sets it, its SC
+consumes it, and code a test runs between them (`HostLLHook`), as an interrupt would,
+makes the SC fail. `OSMalloc` can be given a budget of allocations (`HostMallocBudget`)
+and fill its blocks with a byte instead of zeros (`HostMallocFill`), as SRAM is.
 
 The audit of the inherited kernel (2026-09-25) added the runs `create` to `firmlong`
 and the reader in the middle of a write; each failed on the kernel before its fix — a
@@ -80,9 +87,14 @@ nothing, passed every other run.
 Line coverage, measured when each kernel joined the test — the Makefile has no target
 for it — was 90 % of the hard kernel (2026-09-21, up from 24 % before the runs of
 events, queue and buffers), 87 % of the soft one (2026-09-21) and 90 % of the
-power-aware one in its shipped configuration, one task extension (2026-09-22). What
-remains is mostly the paths a preempted operation takes, which one thread cannot reach:
-those are for the models of `test/model`. Tasks run on no stack of their own and the
+power-aware one in its shipped configuration, one task extension (2026-09-22). Over the
+nine builds together, with clang's `--coverage`, it was 92 %, 89 % and 92.5 %, and 85.5 %
+of the queue between the cores, before the preempted operations, the allocations that
+fail, `firmevents` and `minspeed`; 96.9 %, 95.1 %, 96.2 % and 100 % after (2026-09-25).
+What is left of the wait-free queue is an operation that finds its work done while
+helping another, which takes two interruptions nested. The host interrupts an operation
+only at an LL, one thread at a time: every interleaving is for the models of
+`test/model`. Tasks run on no stack of their own and the
 test calls the elected task itself, so the context switch is not tested here — the
 defect of the Cortex-M0 context switch that lost the idle task's type showed only once
 its assembler ran, under Renode. And the kernel's own code and each change of speed take
