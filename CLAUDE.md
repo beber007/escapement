@@ -22,7 +22,8 @@ tools/board_ci.sh --force                     # board checks, run by a timer on 
 tools/timer_events.py <elf>                   # TestTimerEventPico (TRACE=1 + cost build) summed up
 tools/dvfs_bench.py <elf>                     # BenchDVFSPico: means of each change of speed
 
-# STM32F4 examples — the only test of the Cortex-M3/M4 assembler path
+# STM32F4 examples — the Cortex-M3/M4 assembler path on Renode's own platform (the
+# RP2350 takes that path too, on ours)
 make -C Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
 
 # Pico 2 (RP2350, Cortex-M33) — six examples; no KERNEL=PA yet. Its Renode suite runs
@@ -35,7 +36,7 @@ make -C test/host run
 
 # Exhaustive models of the lock-free mechanisms (run by the CI)
 python3 test/model/fourslot.py
-python3 test/model/threeslot.py
+python3 test/model/threeslot.py      # ~1 min, up to 1.2 GB
 python3 test/model/fifo.py           # ~35 s
 
 sh tools/check_encoding.sh           # every tracked file must be valid UTF-8
@@ -46,8 +47,8 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
 
 ## Before a commit
 
-- Host tests, the three models, the encoding check, and every Pico variant plus the F4
-  still build.
+- Host tests, the three models, the encoding check, and every Pico and Pico 2 variant
+  plus the F4 still build.
 - A change meant to leave a build alone (comments, an option off by default) must leave
   its images byte for byte identical: compare `arm-none-eabi-objcopy -O binary` outputs
   against those of `main`.

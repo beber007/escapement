@@ -9,6 +9,7 @@
   <a href="https://github.com/beber007/escapement/actions/workflows/build.yml"><img src="https://github.com/beber007/escapement/actions/workflows/build.yml/badge.svg" alt="build"></a>
   <img src="https://img.shields.io/badge/language-C-555555" alt="C">
   <img src="https://img.shields.io/badge/RP2040-Cortex--M0%2B-c51a4a?logo=raspberrypi&logoColor=white" alt="RP2040">
+  <img src="https://img.shields.io/badge/RP2350-Cortex--M33-c51a4a?logo=raspberrypi&logoColor=white" alt="RP2350">
   <img src="https://img.shields.io/badge/STM32F4-Cortex--M4-03234b?logo=stmicroelectronics&logoColor=white" alt="STM32F4">
   <img src="https://img.shields.io/badge/emulated-Renode-2f6f9f" alt="Renode">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-permissive-3fb950" alt="licence"></a>
@@ -19,19 +20,20 @@ kilobytes of RAM.**
 
 Escapement schedules by earliest deadline first (EDF) or by deadline-monotonic
 priorities (DM), and has **no periodic tick**: it arms a comparator on the next
-deadline and wakes the processor for that instant alone. Its *power-aware* variant lowers the core voltage and
-frequency according to the actual load, using the worst-case execution times
-declared by the tasks — without ever missing a deadline.
+deadline and wakes the processor for that instant alone. Its *power-aware*
+variant lowers the core voltage and frequency according to the actual load, using
+the worst-case execution times declared by the tasks — without ever missing a
+deadline.
 
 > The name comes from the watchmaking escapement: the part that releases the
-> energy of the mainspring in regular increments — precisely what a frugal
-> real-time scheduler does.
+> energy of the mainspring in regular increments, as the scheduler releases the
+> processor to its tasks.
 
 ## In three figures
 
 | | |
 |---|---|
-| **5,156 bytes** | the whole kernel and four periodic tasks, on a Cortex-M0+ |
+| **5,164 bytes** | the whole kernel and four periodic tasks, on a Cortex-M0+ |
 | **3.2 µs** | cost of one scheduling round of the hard kernel, measured on the board — 0.33 % of the processor at 1,000 activations per second, under EDF as under DM: see [`docs/rp2040.md`](docs/rp2040.md) |
 | **+28 ppm** | deviation of the periods read by an external frequency counter: the tolerance of the crystal on the board, not that of the scheduler |
 
@@ -54,10 +56,10 @@ scheduler decided what it was supposed to decide.
 
 | Level | Means | What it establishes |
 |---|---|---|
-| Compilation | GitHub Actions, with a toolchain other than the developer's | the examples of the Pico and of the STM32F4, on every push |
+| Compilation | GitHub Actions, with a toolchain other than the developer's | the examples of the Pico, the Pico 2 and the STM32F4, on every push |
 | The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for — 87 to 90 % of the lines of each kernel |
-| Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access, both slot buffers on two cores too: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
-| Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the STM32F4 and the RP2040; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after — all as regression tests |
+| Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access, both slot buffers on two cores too, each core free to reorder its accesses as the architecture allows: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
+| Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the STM32F4, the RP2040 and the RP2350; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after, and on the RP2350 the 4-slot buffer between its two cores — all as regression tests |
 | Internal state on hardware | OpenOCD and SWD on a Pico | a trace of the scheduling read without stopping a core: deadlines armed ahead of the counter, timer events delivered on the microsecond, the clock changed by the power-aware kernel; cost counters read back from SRAM |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
 
@@ -65,13 +67,15 @@ That last level reads 500.02 Hz, 50.0014 Hz and 16.66713 Hz for declared periods
 of 1, 20 and 60 ms, and 100.0031 Hz for the 10 ms output of the timer events under
 each of the three kernels. Details in [`docs/rp2040.md`](docs/rp2040.md).
 
-None of this is decoration. The host test, when it came, found that the levels
-before it had all been green on a kernel that was not running the algorithm this
-page advertises. The models, added after, found three defects every other level had
-passed: a 3-slot reader that could read past its array when an interrupt came at
-the wrong instruction, an event queue whose signal could wake two tasks, and, once
-a model covered two cores, a 3-slot writer that could hand the reader the very slot
-it was writing. Those stories are in [`docs/method.md`](docs/method.md).
+The host test, when it came, found that the levels before it had all been green on a
+kernel that was not running the algorithm this page advertises. The models, added
+after, found three defects every other level had passed: a 3-slot reader that could
+read past its array when an interrupt came at the wrong instruction, an event queue
+whose signal could wake two tasks, and, once a model covered two cores, a 3-slot
+writer that could hand the reader the very slot it was writing. Once each core was
+allowed to reorder its accesses, the models showed that neither slot buffer was safe
+between two cores without memory barriers, which the kernels lacked. Those stories are in
+[`docs/method.md`](docs/method.md).
 
 ![Chronogram of three periodic tasks scheduled by Escapement](docs/images/f4-schedule.svg)
 
@@ -123,8 +127,8 @@ execution time; the kernel uses it to know *by how much* it may slow the core
 down without endangering a deadline — which is what the DRA, OTE and DM_SLACK
 algorithms compute. The power-aware kernel schedules by EDF\*, an EDF whose ties
 are broken deterministically, so that it can forecast when each task will end.
-Whether that lever actually saves energy is examined, without indulgence, in
-[`docs/power-aware.md`](docs/power-aware.md).
+Whether that lever actually saves energy is examined in
+[`docs/power-aware.md`](docs/power-aware.md), and not settled yet.
 
 **A time base independent of the core, on the RP2040.** Its counter is fed by a
 one-microsecond tick derived from the reference clock: changing the processor
@@ -133,15 +137,15 @@ good target for the power-aware variant.
 
 ### Concurrency without locks
 
-**A kernel that takes no lock.** None of the three kernels masks interrupts to
-protect its queues: they are updated with load-linked / store-conditional pairs,
-`LDREX`/`STREX` on the Cortex-M3 and M4. The Cortex-M0+ has no such instructions;
-there the reservation is a flag that every context switch and every interrupt
-clears on its way out, and only the store-conditional runs with interrupts masked,
-for a few instructions. No task ever waits for another, so no priority inversion
-can arise inside the kernel. The emulation holds on one core: on the RP2040 the
-kernel runs on core 0 alone. The RP2040 port itself masks interrupts in a few short
-places — a change of speed, the list of pending timer events, the trace.
+**A kernel that takes no lock.** None of the three kernels masks interrupts to protect
+its queues: they are updated with load-linked / store-conditional pairs, `LDREX`/`STREX`
+on the Cortex-M3, M4 and M33. The Cortex-M0+ has no such instructions; there the
+reservation is a flag that every context switch and every interrupt clears on its way
+out, and only the store-conditional runs with interrupts masked, for a few instructions.
+No task ever waits for another, so no priority inversion can arise inside the kernel.
+The emulated reservation holds on one core only: on the RP2040 the kernel runs on core 0
+alone. The RP2040 port itself masks interrupts in a few short places — a change of
+speed, the list of pending timer events, the trace.
 
 **FIFO queues shared with interrupt handlers.** `OSInitFIFOQueue` gives any number
 of producers and consumers, interrupt handlers included, a queue whose buffers are
@@ -159,7 +163,8 @@ without any atomic instruction, or with three slots after Chen and Burns [3],
 using less memory and a load-linked / store-conditional pair. The four slots also
 cross between the two cores of the Pico, as Simpson meant them to: 320,000 reads by a
 task on core 0 of what bare code on core 1 wrote, none torn, where a plain array
-tore one in twenty ([`docs/rp2040.md`](docs/rp2040.md)).
+tore one in twenty ([`docs/rp2040.md`](docs/rp2040.md)). Those runs predate the
+memory barriers the weak-memory models call for, added on 2026-09-25.
 
 **Checked over every interleaving.** Each of the three has a model in
 [`test/model`](test/model), explored exhaustively in CI: the reader and the writer
@@ -217,6 +222,7 @@ wrongly suspected when the defect was in the firmware. The full account is in
 | [`docs/emulation.md`](docs/emulation.md) | Renode, tests replayed in CI, fixes to the timer model |
 | [`docs/power-aware.md`](docs/power-aware.md) | DVFS, energy analysis, choosing a target |
 | [`docs/rp2040.md`](docs/rp2040.md) | Raspberry Pi Pico port and hardware measurements |
+| [`emulation/renode/RP2040.md`](emulation/renode/RP2040.md) | emulating the Pico under Renode |
 | [`docs/method.md`](docs/method.md) | verifying AI-assisted development |
 | [`test/host`](test/host) | the scheduler built for the machine it runs on |
 | [`docs/roadmap.md`](docs/roadmap.md) | current state and open work |

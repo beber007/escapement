@@ -23,8 +23,7 @@ mode of the port never saw its overflow; the derived platform fixed it.
 
 ## Is DVFS worth anything?
 
-An open question, and one worth asking honestly before investing in this
-variant.
+An open question, to be settled before investing further in this variant.
 
 **The physics.** For a fixed amount of work of *W* cycles, the dynamic energy
 is `α·C·V²·f · W/f = α·C·V²·W`: it **does not depend on the frequency**.
@@ -54,10 +53,9 @@ always at least as good, and far simpler.
 
 **DVFS only wins when sleeping is not an option:** idle gaps shorter than the
 cost of waking up (leaving Stop plus relocking the PLL, a few tens of µs — to
-be compared with the 820 µs and 1.64 ms periods of our examples), a latency
+be compared with the 1 ms probe of `TaskLEDPico`), a latency
 constraint forbidding deep sleep, or a peripheral requiring the core clock
-domain. Note that the 90 % load of the example leaves almost no idle time to
-exploit anyway.
+domain.
 
 **What remains solid in this project**, regardless of the energy gain: the
 contribution is not “lowering the frequency” but **knowing when it can be
@@ -68,8 +66,8 @@ stands even if the measured gain proves modest.
 ## Measuring the RP2040
 
 This documentation argues that the RP2040 is where DVFS has a niche, because it sleeps
-poorly, and it is the board at hand. Measuring it needs a bench, which is described here so that it can be built
-when the time comes.
+poorly, and it is the board at hand. Measuring it needs a bench, which is described here
+so that it can be built when the time comes.
 
 **Where to insert the measurement.** On a Pico, 5 V from `VSYS` goes through a buck-boost
 converter before reaching the 3V3 rail that feeds the RP2040. Measuring upstream of it
@@ -92,7 +90,8 @@ program. A **Nordic Power Profiler Kit II** costs an order of magnitude more and
 if the measurement becomes an axis of the project: it powers the target, spans about a
 hundred nanoamps to an amp, and **integrates energy over a window** — which is the quantity
 that actually settles DVFS against race-to-sleep, a comparison about energy per unit of
-work rather than about average current.
+work rather than about average current. The PPK2 was chosen on 2026-09-24; the bench
+has not been built yet.
 
 **One caveat before spending anything.** The core regulator of the RP2040 is a **linear
 regulator**, not a switching one, so part of the theoretical benefit is dissipated in the
@@ -155,7 +154,7 @@ clock: the registers are driven in the right order, and nothing is said about en
 ## Which MCU to port to next?
 
 The selection criterion **inverts the usual ranking**: DVFS pays off where
-sleep is poor. The best low-power MCUs are precisely the ones where it helps
+sleep is poor. The best low-power MCUs are the very ones where it helps
 least, since race-to-sleep dominates everything there.
 
 What to look for: a wide voltage range that is **finely controllable**, fixed
@@ -166,13 +165,13 @@ sleeping.
 | Target | Why | Caveat |
 |---|---|---|
 | **RP2040** | Core voltage adjustable by 50 mV steps — though the datasheet only guarantees 1.05 to 1.16 V, see above — clock programmable from a few kHz to 133 MHz, and above all **poor sleep**: no 1 µA Stop mode, and dormant mode loses the clocks. Race-to-sleep is weak there, so DVFS regains a real niche. Cortex-M0+, already covered by the generic layer. | External QSPI flash running XIP, which does not follow the core voltage: a new fixed cost that will eat into the gain. |
-| **RP2350** | The sequel to the RP2040 on a board as cheap, the Pico 2, and the way to take what is learnt on it further: same PLL and core regulator scheme, so the DVFS driver should largely carry over, and 150 MHz. Its core regulator is a **switching** one, which removes the caveat of the linear regulator of the RP2040 below. Its Cortex-M33 is ARMv8-M, the same kernel port as the U5 — made here on a better DVFS target, it would leave the U5 a mere board port. | Sleep is better than on the RP2040 — a power manager with switchable domains and SRAM retention — so the argument of poor sleep weakens; how much, only a measurement will say. XIP from QSPI flash as on the RP2040. **No Renode model exists** (checked 2026-09-22): Renode itself models neither the RP2040 nor the RP2350, and the RP2350 branch of the RP2040 models stopped at its first commits, in 2024. Renode does emulate the Cortex-M33, so the emulation level of verification would take a minimal platform of our own — see `roadmap.md`. |
-| **Cortex-M7 (STM32H7…)** | The largest gain in absolute watts: at 400–550 MHz switching finally dominates the budget, so V² applies to the majority share. Typical workloads — audio, SDR, motor control — are **continuous**, hence impossible to put to sleep. | Core not covered by the generic layer, which stops at M4. |
+| **RP2350** | The sequel to the RP2040 on a board as cheap, the Pico 2, and the way to take what is learnt on it further: the same PLL scheme, so the clock half of the DVFS driver should largely carry over, and 150 MHz. Its core regulator is a **switching** one, to be driven anew, which removes the caveat of the linear regulator of the RP2040 above. Its Cortex-M33 is ARMv8-M, which the generic layer now covers (2026-09-24), and the port exists, without the DVFS driver yet (`architecture.md`). | Sleep is better than on the RP2040 — a power manager with switchable domains and SRAM retention — so the argument of poor sleep weakens; how much, only a measurement will say. XIP from QSPI flash as on the RP2040. **No Renode model exists** (checked 2026-09-22): Renode itself models neither the RP2040 nor the RP2350, and the RP2350 branch of the RP2040 models stopped at its first commits, in 2024. Renode does emulate the Cortex-M33, so the project wrote a minimal platform of its own (`emulation.md`). |
+| **Cortex-M7 (STM32H7…)** | The largest gain in absolute watts: at 400–550 MHz switching finally dominates the budget, so V² applies to the majority share. Typical workloads — audio, SDR, motor control — are **continuous**, hence impossible to put to sleep. | Core not covered by the generic layer, which has the M0, M3, M4 and M33. |
 | **STM32L4** | The cheapest STM32 port: a Cortex-M4, which the generic layer already covers, with wider voltage scaling than the L1. | Renode ships no L4 platform, so the emulation level of verification would have to be built along with the port. |
-| **STM32U5** | Four voltage ranges, a 40 nm process, less leakage than anything else here. | Two traps. It is a **Cortex-M33**, so ARMv8-M: the generic layer stops at ARMv7-M and this is a kernel port, not a board port. And its Stop 2 mode reaches about a µA, so race-to-sleep dominates even more than on the L1 — the gain is probably **smaller**, not larger. |
+| **STM32U5** | Four voltage ranges, a 40 nm process, less leakage than anything else here. | Its Stop 2 mode reaches about a µA, so race-to-sleep dominates even more than on the L1 — the gain is probably **smaller**, not larger. |
 | ESP32, Ambiq Apollo | — | To rule out: the ESP32 already has vendor DFS (`esp_pm`) with automatic idling; on Ambiq parts the voltage is managed internally, with no lever for the user. |
 
-Cost of a port, measured on the current base:
+Cost of a port, measured on 2026-09-20, before the Cortex-M33 joined the generic layer:
 
 ```
 Generic Cortex-M layer (M0/M3/M4)      921 lines   reusable as is
@@ -184,9 +183,10 @@ The context switch, the atomics and the scheduler do not move. The bulk of the
 work is the comparator timer, the vector table and the UART — not energy
 management.
 
-**But the order matters.** Measuring comes before porting: until there is a
-figure from hardware, choosing the next target is done blind. The bench described
-above uses a board that is already at hand.
+**But the order matters.** Measuring comes before porting for energy: until there
+is a figure from hardware, choosing the next target is done blind. The bench described
+above uses a board that is already at hand. The RP2350 port was begun anyway, for its
+two cores rather than for its regulator (`roadmap.md`).
 
 One practical note on any STM32 beyond the F4 kept here: Renode
 provides platforms for the F0, F1, F4, F7, G0, H7, L0, L1, L5 and W families, but

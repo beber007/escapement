@@ -96,8 +96,8 @@ task where in its pattern it stands. `wcet` may be 0 when every task has `m = k`
 **Power-aware kernel.** `wcet` is the worst-case execution time in ticks at the
 fastest speed; the kernel slows the processor so that the work left fits before
 the deadline, and trusts that figure. Understated, it lets the kernel pick a
-speed too low for the task: in `FourSlotCoresPico`, a reader that took up to
-606 µs, declared at 200, stopped being scheduled within its first run. Measure,
+speed too low for the task, which then misses its deadline. `FourSlotCoresPico`
+declares 400 µs for a reader measured at 314 µs at most (`rp2040.md`): measure,
 then add a margin. `OSSetMinimalProcessorSpeed(speed)`,
 before `OSStartMultitasking`, keeps the processor above an operating point
 (`OS_12MHZ_SPEED`, `OS_50MHZ_SPEED`, `OS_125MHZ_SPEED` on the Pico).
@@ -205,11 +205,16 @@ event-driven reader.
 store-conditional also fails when an interrupt merely came in between, the
 value unchanged: always retry it in a loop, never read a failure as a conflict.
 
-All three assume one core, with one exception: the 4-slot buffer read with
-`OS_READ_MULTIPLE` works between the two cores of the Pico, as
-`FourSlotCoresPico` shows (`rp2040.md`). The LL/SC pair of the Cortex-M0+ is
-emulated with a reservation bit that only interrupts clear, and the queue's
-announced operation assumes preemptions that nest.
+All three assume one core, with exceptions for the slot buffers read with
+`OS_READ_MULTIPLE` (`OS_READ_ONLY_ONCE` marks the slot read with an LL/SC pair, which
+the Cortex-M0+ emulates for one core). The 4-slot buffer works between the two cores of
+the Pico, as `FourSlotCoresPico` shows (`rp2040.md`), and of the Pico 2 under Renode;
+there the 3-slot buffer should too, since the port makes `LDREX`/`STREX` see both cores
+— its model says so, no board has shown it yet (`ThreeSlotCoresPico2`). Between the
+cores the buffer takes no event: signalled from core 1, it would pend the kernel's
+interrupt on core 1, where no kernel runs. The LL/SC pair of the Cortex-M0+ is emulated
+with a reservation bit that only interrupts clear, and the queue's announced operation
+assumes preemptions that nest.
 
 ## Interrupts
 
@@ -267,7 +272,10 @@ There is no `free` and no C library: the code is built freestanding.
   receives.
 - **Core 1** runs bare code beside the kernel, started by `OSLaunchCore1(entry,
   stackTop)` from `main` (`Escapement_Core1.h`); it shares memory with the tasks
-  through a 4-slot buffer, and calls nothing else of the kernel.
+  through a slot buffer, and calls nothing else of the kernel.
 - **Watching it run**: `make TRACE=1` records the scheduling in RAM, which
   `tools/read_trace.py` reads without stopping the processor; halting a core
   stops the kernel's timer with it (`rp2040.md`).
+- **The Pico 2** takes the same calls, under `RP2350/Examples/pico2`, its core
+  at 150 MHz. The power-aware kernel is not ported to it, and no board has run
+  the port yet: only Renode has (`emulation.md`).

@@ -44,7 +44,7 @@ power-aware kernel.
 
 The kernels mask interrupts only at start-up and in the traps of `DEBUG_MODE`: their
 queues are updated with load-linked / store-conditional pairs, `LDREX`/`STREX` on the
-Cortex-M3 and M4 and an emulation on the Cortex-M0+, where a flag stands for the
+Cortex-M3, M4 and M33 and an emulation on the Cortex-M0+, where a flag stands for the
 reservation and every context switch and every interrupt clears it on its way out
 (`Escapement_Atomic.c`, `_OSIOHandler`, the end of `_OSContextSwapHandler`). The
 application gets the same guarantees from two mechanisms:
@@ -64,39 +64,45 @@ application gets the same guarantees from two mechanisms:
   the other: four slots after Simpson (1990), without atomic instructions, or three
   after Chen and Burns (1997), with an LL/SC pair. `test/model/fourslot.py` and
   `threeslot.py` explore every interleaving of the writer, an interrupt handler, with
-  its reader — the first also with the writer on a core of its own — the LL/SC pair emulated as on the Cortex-M0+, and check that no read mixes
-  two records and none goes backwards — the properties Rushby model-checked for
-  Simpson's algorithm; the CI runs both, and the FIFO model. The second found that a store-conditional,
+  its reader, and both also with the writer on a core of its own, the LL/SC pair
+  emulated as on the Cortex-M0+; they check that no read mixes two records and none
+  goes backwards — the properties Rushby model-checked for Simpson's algorithm. The
+  CI runs both, and the FIFO model. The second found that a store-conditional,
   unlike the compare-and-swap of Chen and Burns, fails when an interrupt merely came
   between it and its load-linked, which left the reader on a slot that does not exist;
   the reader now tries again. Taken to two cores, each with its own reservation, the
   same model found the writer at fault the same way: it tried its SC once, and the
   reader, whose reservation an interrupt of the writer's core no longer cleared, took
-  the slot being written. The writer now tries again too.
+  the slot being written. The writer now tries again too. Last, each core was allowed
+  to perform its loads and stores out of program order, as Armv6-M and Armv8-M allow:
+  both buffers then need four barriers each, which the kernels lacked. They now
+  call `_OSMemoryBarrier()` at those points, a `DMB` on the RP2040 and the RP2350
+  and a compiler barrier alone in the single-core STM32 port and the host build.
 
 All of this assumes **one processor**. The emulated LL/SC and the announced operation of
 the queue both rely on preemptions nesting, which two cores do not give; the kernel runs
-on core 0 of the RP2040 alone. Of the three mechanisms, only Simpson's works between two
-cores of the RP2040: `fourslot.py` checks it on two cores as well, and on the Pico it
-carried 320,000 reads from core 1 to a task on core 0 without a torn one, where a plain
-array tore one in twenty (`rp2040.md`, `FourSlotCoresPico`). The 3-slot buffer holds on
-two cores in its model since its writer retries, provided the exclusive monitors of
-each core see the stores of the other — ACTLR.EXTEXCLALL on the RP2350, without which
-the model catches it failing, and which the port sets on both cores. The references are
-listed in the README, and the roadmap keeps the 3-slot buffer and the queue across the
-cores for the Pico 2.
+on core 0 alone. Of the three mechanisms, only Simpson's works between the two cores of
+the RP2040: `fourslot.py` checks it on two cores as well, and on the Pico it carried
+320,000 reads from core 1 to a task on core 0 without a torn one, where a plain array
+tore one in twenty (`rp2040.md`, `FourSlotCoresPico`) — before the barriers above. The
+3-slot buffer holds on two cores in its model since its writer retries, provided the
+exclusive monitors of each core see the stores of the other — ACTLR.EXTEXCLALL on the
+RP2350, without which the model catches it failing, and which the port sets on both
+cores; `ThreeSlotCoresPico2` waits for a board to show it. Code on core 1 may not signal
+an event: `OSScheduleSuspendedTask` would pend the timer interrupt of core 1, where no
+kernel runs. The references are listed in the README, and the roadmap keeps the queue
+across the cores for the Pico 2.
 
 ## Supported targets
 
-- **ARM Cortex-M0 / M3 / M4** — port under `Escapement/CORTEX-Mx/`. The ST
-  libraries are bundled for the STM32F4 only, the one family the examples use.
-  Support for the F0, F1 and F2 families was removed on 2026-09-20: those
-  examples were only ever compiled, and this is a demonstration of what the
-  kernel does, not a catalogue of the parts it could run on. The L1 followed on
-  2026-09-22, with its DVFS driver: the Pico had come to run every test it ran,
-  and the F4 is kept for the Cortex-M3/M4 path of the context switch, which only
-  it executes. The port still carries branches for the families removed; none is
-  built.
+- **ARM Cortex-M0 / M3 / M4** — port under `Escapement/CORTEX-Mx/`. The ST libraries are
+  bundled for the STM32F4 only, the one family the examples use. Support for the F0, F1
+  and F2 families was removed on 2026-09-20: those examples were only ever compiled, and
+  this is a demonstration of what the kernel does, not a catalogue of the parts it could
+  run on. The L1 followed on 2026-09-22, with its DVFS driver: the Pico had come to run
+  every test it ran, and the F4 is kept for the Cortex-M3/M4 path of the context switch,
+  which it alone executed until the RP2350 port took that path too. The port still
+  carries branches for the families removed; none is built.
 - **ARM Cortex-M33** (ARMv8-M Mainline), toward the RP2350 of the Pico 2: the generic
   layer takes it down the Cortex-M3/M4 path — the same registers to save, the same
   frame with the floating-point unit left off, `LDREX`/`STREX`/`CLREX` — under
@@ -105,16 +111,18 @@ cores for the Pico 2.
   `Escapement/CORTEX-Mx/RP2350/`, transposed from the RP2040 port on 2026-09-24: the
   clocks at 150 MHz, TIMER0 with its tick from the TICKS block, 52 interrupts, the pads
   released from their isolation, the UART, the timer events and the launch of core 1.
-  The hard and the soft kernel build the five examples of the Pico under `pico2/` in the
-  CI, and run under Renode on a platform of our own (`emulation.md`), the 2^30 wrap of
-  the kernel clock and the 4-slot buffer between the two cores included, which shows
-  that they schedule, not that the clocks are programmed right. The power-aware kernel is
-  not ported, and no board has run the port yet.
+  The hard and the soft kernel build six examples under `pico2/` in the CI — the five of
+  the Pico and `ThreeSlotCoresPico2` — and five of them run under Renode on a platform
+  of our own (`emulation.md`), the 2^30 wrap of the kernel clock and the 4-slot buffer
+  between the two cores included, which shows that they schedule, not that the clocks
+  are programmed right. The power-aware kernel is not ported, and no board has run the
+  port yet.
 - **Raspberry Pi RP2040** — Cortex-M0+, port under
   `Escapement/CORTEX-Mx/RP2040/`. A 64-bit timer with four alarms, clocked
   **independently of the core clock**: the kernel takes two of them, the timer
   events one of the other two. The target of the power-aware kernel, with the
   DVFS driver of the project (`power-aware.md`).
+
 Escapement began life on the TI MSP430, and that port was removed on
 2026-09-20: see `roadmap.md`. The history keeps it, and so does the archived
 `beber007/zottaos`.
@@ -127,13 +135,15 @@ Escapement/
   EscapementSoft.{c,h}      (m,k)-firm real-time kernel
   Escapement_Modes.h        names of the scheduling algorithms
   EscapementHardPA.{c,h}    power-aware hard real-time kernel
-  CORTEX-Mx/                ARM port: generic Cortex-M layer, STM32, RP2040
+  CORTEX-Mx/                ARM port: generic Cortex-M layer, STM32, RP2040, RP2350
   CORTEX-Mx/STM32/Examples/ the STM32F4-Discovery example
-  CORTEX-Mx/RP2040/Examples/ the Raspberry Pi Pico example
+  CORTEX-Mx/RP2040/Examples/ the Raspberry Pi Pico examples
+  CORTEX-Mx/RP2350/Examples/ the Raspberry Pi Pico 2 examples
 test/host/                  the three kernels built for the host
+test/model/                 exhaustive models of the lock-free mechanisms
 emulation/renode/           Renode platforms, models and Robot suites
-tools/                      trace capture and figure generation
-.github/workflows/build.yml builds both examples, runs them under Renode on
-                            every kernel and algorithm, and the kernels on
-                            the host
+tools/                      trace capture, board checks and figure generation
+.github/workflows/build.yml builds the examples, runs them under Renode on
+                            every kernel and algorithm, the models, and the
+                            kernels on the host
 ```

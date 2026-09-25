@@ -16,7 +16,7 @@ Scheduling survives the 2^30 wrap of the kernel clock
     [Documentation]           The kernel counts time modulo 2^30 and shifts every temporal
     ...                       variable back when its counter wraps. At the usual tick rate
     ...                       that happens once every eighteen minutes, so no test had ever
-    ...                       reached it. Here TIM2 is clocked 8200 times faster and
+    ...                       reached it. Here TIM2 is clocked 82,000 times faster and
     ...                       TaskWrapF4 scales its periods to match, which puts the
     ...                       boundary at 107 ms of emulated time for an unchanged load.
     ...                       Each task must still raise and lower its output afterwards.

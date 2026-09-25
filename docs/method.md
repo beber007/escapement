@@ -1,15 +1,14 @@
 # Verifying AI-assisted development
 
-This project is written with an AI assistant. That is worth stating plainly,
-because it changes what the repository has to prove: not that code was
-produced, but that what was produced is correct.
+This project is written with an AI assistant. That changes what the repository
+has to prove: not that code was produced, but that what was produced is correct.
 
 The working rule is one line: **the AI proposes, the instrument decides.**
 Nothing here is considered established because it was asserted confidently — by
 the assistant or by anyone else. It is established when something outside the
 claim confirms it.
 
-## Five independent levels
+## Six independent levels
 
 | Level | Means | Catches |
 |---|---|---|
@@ -21,7 +20,7 @@ claim confirms it.
 | Independent instrument | frequency counter of a Bus Pirate v4 | everything above at once — it trusts no software from this repository |
 
 The levels are ordered by how much they cost and by how little they assume. The
-fifth exists because the fourth still runs through a debugger, which turned out
+sixth exists because the fifth still runs through a debugger, which turned out
 to matter: see the `TIMER_DBGPAUSE` investigation in `rp2040.md`.
 
 ## Hypotheses that were wrong
@@ -46,6 +45,7 @@ has to design around.
 | The four Pico builds passing their suite meant the Cortex-M0 context switch was sound | The power-aware kernel on the Pico, which read and wrote past the end of the RAM from its timer handler — a warning in the Renode log, not a failed test | The context switch reduced the state of every starting task to its running bit with an `ANDS`, where the Cortex-M3 variant tests into another register. The idle task lost `TASKTYPE_BLOCKING`, and the power-aware kernel took it for a periodic task with work left, 44 bytes into a 20-byte block. The hard and soft kernels only consult that flag on the idle task to sort arrivals ahead of it, and then read a field it does not have, which happened to do no harm in the examples; no Pico example has an event-driven task, the other kind it would have hurt. The suite now fails on any access past the RAM |
 | The 3-slot buffer is Chen and Burns' mechanism, with an LL/SC pair where they use compare-and-swap, and so as sound as theirs | An exhaustive model of the reader and the writer (`test/model/threeslot.py`), with the LL/SC pair emulated as on the Cortex-M0+ | A compare-and-swap fails only when the value changed; a store-conditional fails also when an interrupt merely came between it and its load-linked. The reader then left `Reading` at 3 and read slot 3 of three. The reader now tries again, and the host test makes store-conditionals fail on purpose to check it |
 | The 3-slot buffer, its reader retrying, is sound between two cores as it is on one | The model taken to two cores, each with its own reservation, which a store of the other core to `Reading` clears (2026-09-24) | The writer tried its store-conditional once. On one core that was harmless: the interrupt that makes it fail clears the reader's reservation too. Between two cores the reader's survives, its store-conditional hands it a `Latest` read before the writer published, and the writer, choosing the slot neither `Reading` nor the new `Latest`, writes the one being read. The writer now tries again, in all three kernels; the model also fails with monitors local to each core, which is why the RP2350 needs `ACTLR.EXTEXCLALL` |
+| The slot buffers need nothing more between two cores than on one: the 4-slot buffer carried 320,000 reads between the cores of the Pico with none torn, and the models of both held on two cores | The same models with each core free to perform its loads and stores out of program order, as Armv6-M and Armv8-M allow for Normal memory (2026-09-25) | Nothing in the kernels ordered a slot's bytes before its announcement, nor the reader's announcement before its copy. Each buffer needs four barriers, and the model catches the removal of any one: a read then mixes two records. The kernels now have them, a `DMB` on the RP2040 and the RP2350. That the board showed no torn read without them proves only that its cores did not reorder those accesses in that test; the architecture does not promise it |
 | The FIFO queue of the kernels is wait-free on one core, its announced operation completed by whoever preempts it | An exhaustive model of the queue (`test/model/fifo.py`), run by run checked for linearizability | A dequeue that signals an event and finds the queue empty leaves the signal, then gets preempted before marking itself done. The first helper to see the signal left without marking it either; once a waiting task had taken the signal, a second helper, preempted since before, found the slot empty and put a signal back. One event, two tasks woken. The dequeue now marks itself done when it finds its signal |
 | A full FIFO queue refusing a node would corrupt its tail, having no capacity test like the one in Evéquoz's paper — stated by the assistant from reading the code | The host test, strengthened to check the queue after the refusal | The enqueue only ever writes into an empty slot, a guard the reading had missed; the queue refuses cleanly |
 | DRA, DR_OTE and DM_SLACK compile, and only running them is left — the roadmap, from reading the build | Building the power-aware kernel with each of them, on the target and on the host (2026-09-24) | None compiled. DRA and DR_OTE called an interrupt intrinsic of the MSP430 and gave the task control block a third link where the context switch reads its fields; DM_SLACK read a clock variable that no longer exists. Once built, the host test found four defects: the speed computation multiplied a time by a ratio and overflowed past 21 s, which OTE shares; DRA shifted a time that nothing updates without event-driven tasks and overflowed at the third wraparound; DRA looked for the running task in its simulation queue and read through a null link when the task had outlived its WCET there; and DM_SLACK gave the time a task left unused to tasks of higher priority, which never counted it in their response time — a hand-built task set shows the first task missing its deadline, and the time now goes to tasks of lower priority, as the kernel's own comment said |
@@ -58,8 +58,7 @@ Working in a repository where every step is committed is what made that cheap.
 
 ## What `-O2` exposed
 
-Worth recording in full, because it is the clearest case so far of a test that
-said yes for the wrong reason.
+A test that said yes for the wrong reason, recorded in full.
 
 Adding `-O2` to the Makefiles built cleanly, passed both Renode suites locally
 three times over, and the board reported the per-activation cost falling from
@@ -83,18 +82,17 @@ thread mode faults. At `-O0` the epilogue was long enough for the exception to
 arrive first; optimised, `bx lr` sits one instruction after the store. `dsb`
 and `isb` close it, the CI agrees, and the build is at `-O2`.
 
-Two things are worth keeping from this. A local build passing is a statement
-about one version of one compiler — the toolchain in the CI, not the version on the
-developer's machine, was the only thing between this defect and a repository claiming to be measured and verified.
-And the first diagnosis was wrong: seeing the registers written through
-non-volatile pointers, I concluded the compiler had dropped the store, and the
-disassembly of the CI binary showed it there all along. The `volatile` was added
-anyway, because the code had no right to that store being kept, but it was not
-the bug.
+Two things are worth keeping from this. A local build passing is a statement about one
+version of one compiler — the toolchain in the CI, not the version on the developer's
+machine, was the only thing between this defect and a repository claiming to be measured
+and verified. And the first diagnosis was wrong: the registers being written through
+non-volatile pointers, it concluded that the compiler had dropped the store, and the
+disassembly of the CI binary showed it there all along. The `volatile` was added anyway,
+because the code had no right to that store being kept, but it was not the bug.
 
 ## The repository was not scheduling the way it said
 
-The clearest case of all, and it took until the scheduler ran on a host to find it.
+It took until the scheduler ran on a host to find it.
 
 The README leads with earliest-deadline-first scheduling, and it is what makes this kernel
 worth looking at next to a fixed-priority one. `EscapementHard.h` nevertheless selected
@@ -131,7 +129,14 @@ interrupt, a zero-sized transmission that emptied 64 KB onto the port, missing
 header dependencies, and stale comments. The **kernel inherited from 2016 has
 not been through that audit yet.**
 
-The execution tests exercise three or four tasks. Nothing here establishes how
-the scheduler behaves with thirty, nor across the 2³⁰ wrap of its clock, which
-takes about eighteen minutes to reach on hardware. Testing the scheduler on the
-host is the next item in `roadmap.md` for exactly that reason.
+The execution tests exercise three or four tasks, the host test ten. Nothing here
+establishes how the scheduler behaves with thirty. The 2³⁰ wrap of its clock, about
+eighteen minutes away on hardware, is crossed on the host and under Renode, never on
+a board.
+
+The RP2350 port has not run on a board, and nothing of it has been audited line by
+line; its clocks are acknowledged blindly by the emulated platform (`emulation.md`).
+Between the cores, the models cover the order of accesses the architecture allows,
+not the instructions the compiler emits: that the compiled code keeps the modelled
+order has been read once in the disassembly of the Pico 2, not of the Pico, and not
+checked by a tool.

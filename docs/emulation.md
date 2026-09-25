@@ -41,17 +41,21 @@ counter wraps. At the usual tick rate that happens once every eighteen minutes, 
 why the path had never been executed once in the life of this code.
 
 Reaching it in a test takes a platform, not a trick. `escapement_f4_wrap.repl` clocks TIM2
-8200 times faster; the kernel still programs its prescaler of 81, so its counter ticks at
-1 GHz and reaches the boundary after 1.07 s. `TaskWrapF4.c` scales its periods by the same
-factor — 1, 2 and 6 ms — so the kernel carries the load it would have on hardware, with a
-counter that happens to run fast.
+82,000 times faster; the kernel still programs its prescaler of 81, so its counter ticks at
+10 GHz and reaches the boundary after 107 ms. `TaskWrapF4.c` scales its periods by the
+same factor, so the kernel carries the load it would have on hardware, with a counter that
+happens to run fast.
 
-Traced with `tools/trace_gpio.sh` over 1.3 s: 2,167 pulses, which is exactly the 1,300 +
-650 + 217 activations the three periods call for, and 377 of them fall after the boundary.
-Nothing is lost in the crossing.
+Traced with `tools/trace_gpio.sh` on 2026-09-20, when the platform ran the counter at 1 GHz
+and the boundary came at 1.07 s, over 1.3 s: 2,167 pulses, which is exactly the 1,300 +
+650 + 217 activations the three periods of 1, 2 and 6 ms called for, and 377 of them fall
+after the boundary. Nothing is lost in the crossing. The clock was made ten times faster the
+same day: at 1 GHz the test was starving a CI runner.
 
-The test earns its place: neutralising the time shift in `_OSTimerIsOverflow` makes it
-fail, and restoring it makes it pass again.
+Neutralising the time shift in `_OSTimerIsOverflow` makes the test fail, and restoring
+it makes it pass again.
+
+## The first run
 
 `TaskLEDF4` creates three periodic tasks of 100, 200 and 600 ticks, each
 toggling one output of GPIOB. Over one emulated second:
@@ -154,18 +158,20 @@ torn or went backwards. That the interleavings are all covered is the model's to
 (`test/model/fourslot.py`, two cores); what the emulation adds is the kernel's code, as
 compiled for the Cortex-M33, carrying it.
 
-`escapement_pico2.robot` runs the checks of the RP2040 suite the examples allow — the
-1 ms probe, the three periodic tasks, the UART echo, the timer events, and the crossing
-of the 2^30 boundary of the kernel clock by `TaskWrapPico2`, the timer model raised to
-1 GHz as on the RP2040 — and the 4-slot buffer between the cores, on the hard and the
-soft kernel under both algorithms, in the CI and on a Mac: the platform needs no models
-to build, so Renode's portable package runs it as it is. On 2026-09-24 the six tests
-passed under the four builds, and failed where they should on code made faulty on
-purpose: the UART enabled in the first word of the NVIC's registers, as the RP2040
-driver does for its interrupts below 32, failed the echo alone; the interrupt registers
-of the timer at their RP2040 offsets failed the three tests that depend on them; an
-ALARM1 that no longer signalled the wrap failed the wrap test alone; a 4-slot writer
-choosing the reader's pair failed the test between the cores alone.
+`escapement_pico2.robot` runs the checks of the RP2040 suite the examples allow — the 1
+ms probe, the three periodic tasks, the UART echo, the timer events, and the crossing of
+the 2^30 boundary of the kernel clock by `TaskWrapPico2`, the timer model raised to 1
+GHz as on the RP2040 — and the 4-slot buffer between the cores, on the hard and the soft
+kernel under both algorithms, in the CI and on a Mac: the platform needs no models to
+build, so Renode's portable package runs it as it is. On 2026-09-24 the six tests passed
+under the four builds, and failed where they should on code made faulty on purpose
+(below); on 2026-09-25 they passed again under the hard EDF build, with the memory
+barriers the slot buffers now take between cores. The faults: the UART enabled in the
+first word of the NVIC's registers, as the RP2040 driver does for its interrupts below
+32, failed the echo alone; the interrupt registers of the timer at their RP2040 offsets
+failed the three tests that depend on them; an ALARM1 that no longer signalled the wrap
+failed the wrap test alone; a 4-slot writer choosing the reader's pair failed the test
+between the cores alone.
 
 The 3-slot buffer between the cores (`ThreeSlotCoresPico2`) is not in the suite, and
 Renode is why. Its writer and reader hand a slot over with LDREXB/STREXB, and Renode's

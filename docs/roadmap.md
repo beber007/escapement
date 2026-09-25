@@ -13,16 +13,18 @@ here that has been verified on hardware.
 
 New work goes to the **Pico and the Pico 2** only. The RP2350 of the Pico 2 is
 the sequel to the RP2040 and the better reason to write the ARMv8-M kernel port
-it needs: its regulator switches rather than dissipates. It comes after the
-RP2040 bench, and only if that bench shows DVFS beating race-to-sleep.
+it needs: its regulator switches rather than dissipates. Its DVFS driver comes after
+the RP2040 bench, and only if that bench shows DVFS beating race-to-sleep; the port
+itself was begun on 2026-09-24, for its two cores.
 
 Of the **STM32**, only the F4 example stays, with no new example or port. The
 Pico runs every test the STM32 ran, so the L1 examples went on 2026-09-22 with
-their DVFS driver; the F4 is kept because it alone executes the Cortex-M3/M4
-path of the context switch, from which an RP2350 port would start, because its
+their DVFS driver; the F4 is kept because it was the only one to execute the
+Cortex-M3/M4 path of the context switch, from which the RP2350 port started, because its
 suites run on the Mac where those of the Pico need Linux, and because they rest
-on the platforms of Renode itself rather than on third-party models. Once an
-RP2350 port runs that path, the F4 can be reconsidered. The **STM32L4** and **STM32U5**,
+on the platforms of Renode itself rather than on third-party models. The RP2350
+port has run that path under Renode since 2026-09-24; once a Pico 2 board runs it,
+the F4 can be reconsidered. The **STM32L4** and **STM32U5**,
 once the next steps, are set aside: the L4 would need its own Renode platform,
 and the U5 sleeps too well for DVFS to have much to gain (`power-aware.md`).
 
@@ -37,7 +39,7 @@ repository carried.
 It had not been built once since the takeover: the original projects were IAR
 and Code Composer projects that are not in the repository, and the per-derivative
 headers it needs were produced by a configurator tool that is not either. Keeping
-it meant carrying a quarter of the source tree that no test could reach and no
+it meant carrying a fifth of the source tree that no test could reach and no
 reader could trust, in a project whose point is that everything it claims is
 verified.
 
@@ -69,9 +71,9 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       reproduce, even from the revision that published it: 0.33 % at 1,000.
 - [x] ~~Propose the two fixes to the Renode `Timers.STM32_Timer` upstream.~~ Dropped
       on 2026-09-24: the fixed copy lives in `emulation/renode` and the CI loads it,
-      so nothing waits on Renode taking them. The STM32 port stays: it is the only
-      one that runs the exclusive instructions (`LDREX`, `STREX`, `CLREX`), which the
-      Cortex-M0+ of the RP2040 lacks and the Cortex-M33 of the RP2350 will use.
+      so nothing waits on Renode taking them. The STM32 port stays: it was then the
+      only one to run the exclusive instructions (`LDREX`, `STREX`, `CLREX`), which
+      the Cortex-M0+ of the RP2040 lacks and the Cortex-M33 of the RP2350 now uses.
 - [x] **Write the DVFS driver for the RP2040.** `OSSetProcessorSpeed` moves
       between 12, 50 and 125 MHz with the system PLL kept locked, so no change
       waits for it, and sets the core voltage through `VREG`: 1.10 V at 125 MHz
@@ -128,9 +130,13 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       core 0 reads them; in 320,000 reads under each kernel none was torn and none
       went backwards, the two properties Rushby model-checked, while a plain array
       run the same way tore one read in twenty; `fourslot.py` checks the buffer on
-      two cores as well. Left: on the Pico 2, the three-slot buffer and the FIFO
-      queue too, with `LDREX`/`STREX` made
-      coherent between the cores by `ACTLR.EXTEXCLALL` (the SIO spinlocks are
+      two cores as well. On the Pico 2, `ACTLR.EXTEXCLALL` now makes `LDREX`/`STREX`
+      coherent between the cores, `ThreeSlotCoresPico2` carries the three-slot buffer
+      across them, waiting for a board since Renode's exclusives differ
+      (`emulation.md`), and on 2026-09-25 the models, each core allowed to reorder
+      its accesses, gave both buffers the four `DMB` each that the kernels now have
+      (`method.md`); the Pico results above predate them. Left: the board, and
+      the FIFO queue across the cores (the SIO spinlocks are
       unreliable there, erratum RP2350-E2 of the
       [RP2350 datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf);
       see how [TinyGo](https://github.com/tinygo-org/tinygo/pull/5708) and the
@@ -146,40 +152,34 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       requests on that machine too. The timer events joined it under each kernel,
       and the changes of speed of the DVFS driver; the regulator bench stays by hand,
       since it runs the core below its specified voltage.
-- [ ] Then build the current measurement bench described in `power-aware.md` — a
-      plain Pico rather than a Pico W, an INA226 read from the Bus Pirate — and
-      answer, on the target this documentation calls the most promising, whether
-      DVFS beats race-to-sleep.
-- [ ] If it does, port to the **RP2350** (Pico 2) rather than the STM32U5: the
-      same ARMv8-M kernel port, on a target where DVFS stands a better chance —
-      a switching core regulator, and a PLL and regulator scheme close to the
-      RP2040's. Its sleep is better, which has to be weighed on the bench too;
-      see the table in `power-aware.md`.
-      No Renode model of the RP2350 exists (checked 2026-09-22): Renode ships
-      none, and the `rp2350Blinking` branch of matgla/Renode_RP2040, begun in
-      November 2024, stopped at a GPIO and a SIO — its author has since frozen
-      the project, porting every peripheral being too costly. Renode does emulate
-      the Cortex-M33 core. What the Escapement tests use is small: the core and
-      its SRAM, the timer (the fixed copy of `Escapement_RP2040_Timer.cs`, moved
-      to the addresses of the RP2350), a PL011 UART, which Renode models, the
-      GPIO outputs of the SIO, and ready bits for the clocks, the PLL, the resets
-      and the regulator, as the VREG model of `escapement_pico.repl` does. A
-      platform of our own, a few hundred lines, would keep the port under
-      emulation; without it, the port could be checked on the board alone.
-      Nothing else covers the RP2350 either: QEMU has an RFC for the RP2040 only
-      (v3, September 2026, not merged; it models the timer, the clocks, VREG,
-      the SIO and the UART, and could replace the frozen models for the Pico
-      once merged) and a mere feature request for the RP2350; Wokwi runs in the
-      cloud, closed, with an RP2350 still incomplete. The lasting answer is a
-      bench on the board, run by the CI from a machine of the house.
-      Begun on 2026-09-24 ahead of the measurement, since the lock-free mechanisms
-      across the cores need no energy figure: first the generic layer on ARMv8-M,
-      compiled for the three kernels (`architecture.md`); then the port, whose hard
-      and soft kernels build the five examples of the Pico in the CI; then a Renode
-      platform of our own, on which all five pass the checks of the RP2040 suite, the
-      2^30 wrap and the 4-slot buffer between the cores included (`emulation.md`);
-      ACTLR.EXTEXCLALL set on both cores; the DVFS driver and the other two mechanisms
-      across the cores still to come; then the board.
+- [ ] Then build the current measurement bench described in `power-aware.md` — a plain
+      Pico rather than a Pico W, powered and measured by a Power Profiler Kit II, chosen
+      on 2026-09-24 over an INA226 — and answer, on the target this documentation calls
+      the most promising, whether DVFS beats race-to-sleep.
+- [ ] If it does, take DVFS to the **RP2350** (Pico 2) rather than the STM32U5: the same
+      ARMv8-M kernel port, on a target where DVFS stands a better chance — a switching
+      core regulator, and a PLL scheme close to the RP2040's. Its sleep is better, which
+      has to be weighed on the bench too; see the table in `power-aware.md`. No Renode
+      model of the RP2350 exists (checked 2026-09-22): Renode ships none, and the
+      `rp2350Blinking` branch of matgla/Renode_RP2040, begun in November 2024, stopped
+      at a GPIO and a SIO — its author has since frozen the project, porting every
+      peripheral being too costly. Renode does emulate the Cortex-M33 core, and what the
+      Escapement tests use is small, so the project wrote a platform of its own
+      (`emulation.md`). Nothing else covers the RP2350 either: QEMU has an RFC for the
+      RP2040 only (v3, September 2026, not merged; it models the timer, the clocks,
+      VREG, the SIO and the UART, and could replace the frozen models for the Pico once
+      merged) and a mere feature request for the RP2350; Wokwi runs in the cloud,
+      closed, with an RP2350 still incomplete. The lasting answer is a bench on the
+      board, run by the CI from a machine of the house. Begun on 2026-09-24 ahead of the
+      measurement, since the lock-free mechanisms across the cores need no energy
+      figure: first the generic layer on ARMv8-M, compiled for the three kernels
+      (`architecture.md`); then the port, whose hard and soft kernels build the five
+      examples of the Pico in the CI; then a Renode platform of our own, on which all
+      five pass the checks of the RP2040 suite, the 2^30 wrap and the 4-slot buffer
+      between the cores included (`emulation.md`); ACTLR.EXTEXCLALL set on both cores;
+      `ThreeSlotCoresPico2`, a sixth example, which Renode cannot run; the barriers
+      between the cores. The DVFS driver and the FIFO queue across the cores are still
+      to come; then the board.
 - [x] **Fix what `-O2` exposed**: pending an exception did not take effect
       before the next instruction, so an optimised `OSEndTask` returned instead
       of switching context and faulted with `INVPC`. Barriers added; the build
@@ -270,29 +270,28 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       slowing down keeps the deadlines is not something this test can see; and
       the defect of the idle task found on the Pico would not have shown either,
       since it needed the assembler context switch of the Cortex-M0.
-- [x] **Settle `EscapementSoft` and deadline-monotonic scheduling: kept, and
-      tested.** The host test now builds both kernels under both algorithms,
-      adds an (m,k)-firm scenario under a declared overload of 220 % and
-      checks that tasks released together run in priority order; the `variants`
-      CI job runs the Renode suites on the soft kernel and under
-      deadline-monotonic scheduling. It found the soft and the power-aware
-      headers still forcing deadline-monotonic, as the hard one had, and the
-      port testing the algorithm before its names were defined (`method.md`).
-      One consequence: `stm32l-discovery-pa` now runs EDF, as its configuration
-      always said. Of the deliberate defects in the soft kernel, one is not
-      caught: ignoring the interference of other tasks in the schedulability
-      test of optional instances, which only shows when tasks take time.
-- [x] **Two things the soft kernel left to its caller.** Under EDF it computed
-      the workload of an event-driven task as `(wcet << 8) / aperiodicUtilization`
-      and ignored the one passed: `TestTimerEventF4` and `TestTimerEventL1` pass 0
-      for both in their soft branch, which divides by zero — 0 on a Cortex-M, a
-      crash on x86. A workload given is now taken as is, and a creation with
-      neither is refused. And under deadline-monotonic scheduling it shifted at
-      every 2^30 wrap the deadline of mandatory instances, which it never set,
-      until the value overflowed; it is now set for every instance. The host test
-      builds with `-fsanitize=signed-integer-overflow` and fails on the old code;
-      both soft variants in CI now run `escapement_f4_events.robot` too, the soft
-      branch of the example taking the periods of the hard one.
+- [x] **Settle `EscapementSoft` and deadline-monotonic scheduling: kept, and tested.**
+      The host test now builds both kernels under both algorithms, adds an (m,k)-firm
+      scenario under a declared overload of 220 % and checks that tasks released
+      together run in priority order; the `variants` CI job runs the Renode suites on
+      the soft kernel and under deadline-monotonic scheduling. It found the soft and the
+      power-aware headers still forcing deadline-monotonic, as the hard one had, and the
+      port testing the algorithm before its names were defined (`method.md`). One
+      consequence: `stm32l-discovery-pa` then ran EDF, as its configuration always said
+      (the L1 examples were removed since). Of the deliberate defects in the soft
+      kernel, one is not caught: ignoring the interference of other tasks in the
+      schedulability test of optional instances, which only shows when tasks take time.
+- [x] **Two things the soft kernel left to its caller.** Under EDF it computed the
+      workload of an event-driven task as `(wcet << 8) / aperiodicUtilization` and
+      ignored the one passed: `TestTimerEventF4` and `TestTimerEventL1`, since removed,
+      passed 0 for both in their soft branch, which divides by zero — 0 on a Cortex-M, a
+      crash on x86. A workload given is now taken as is, and a creation with neither is
+      refused. And under deadline-monotonic scheduling it shifted at every 2^30 wrap the
+      deadline of mandatory instances, which it never set, until the value overflowed;
+      it is now set for every instance. The host test builds with
+      `-fsanitize=signed-integer-overflow` and fails on the old code; both soft variants
+      in CI now run `escapement_f4_events.robot` too, the soft branch of the example
+      taking the periods of the hard one.
 - [x] **Give the STM32 port a defined starting time.** The kernel assumed its
       counter started near zero; `_OSStartTimer` now clears it, which costs one
       store. Shown under Renode: started with the counter at 0x3FFFF000 the
