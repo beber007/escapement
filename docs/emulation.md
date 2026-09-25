@@ -166,3 +166,19 @@ driver does for its interrupts below 32, failed the echo alone; the interrupt re
 of the timer at their RP2040 offsets failed the three tests that depend on them; an
 ALARM1 that no longer signalled the wrap failed the wrap test alone; a 4-slot writer
 choosing the reader's pair failed the test between the cores alone.
+
+The 3-slot buffer between the cores (`ThreeSlotCoresPico2`) is not in the suite, and
+Renode is why. Its writer and reader hand a slot over with LDREXB/STREXB, and Renode's
+exclusives are not those of the RP2350 with ACTLR.EXTEXCLALL set. In Renode 1.17 a
+STREX succeeds while its own core's reservation stands and the location still holds
+what the LDREX read (`gen_store_exclusive` in tlib, `arch/arm/translate.c`, at the
+commit Renode 1.17.0 pins); a plain store by the other core leaves the reservation
+alone. On 2026-09-24, with core 0 holding a reservation some 98 % of the time, eleven
+stores of the same value by core 1 made none of about 170 STREX fail, and one store of
+another value made one fail. The model, given that monitor
+(`test/model/threeslot.py`, `value_compare`), still finds a writer that takes the slot
+being read, but not a writer that tries its SC once — nor would a real monitor, as long
+as core 1 takes no interrupt between its LL and its SC. And where both cores touch a
+reserved location, Renode slowed down about a thousandfold or stalled: of three runs of
+the same image, one covered 150 ms in 40 s and two stalled within the first 50 ms, and
+the test stalled in the suite for over ten minutes. The demo waits for the board.

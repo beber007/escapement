@@ -66,13 +66,13 @@ endif
 $(shell mkdir -p build)
 
 all: build/TaskLEDPico2.elf build/UARTEchoPico2.elf build/TestTimerEventPico2.elf \
-     build/FourSlotCoresPico2.elf build/TaskWrapPico2.elf
+     build/FourSlotCoresPico2.elf build/ThreeSlotCoresPico2.elf build/TaskWrapPico2.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
 
 bin: all build/TaskLEDPico2.bin build/UARTEchoPico2.bin build/TestTimerEventPico2.bin \
-     build/FourSlotCoresPico2.bin build/TaskWrapPico2.bin
+     build/FourSlotCoresPico2.bin build/ThreeSlotCoresPico2.bin build/TaskWrapPico2.bin
 
 build/%.bin : build/%.elf
 	$(OBJCOPY) -O binary $< $@
@@ -122,6 +122,8 @@ build/TestTimerEventPico2.o : TestTimerEventPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/FourSlotCoresPico2.o : FourSlotCoresPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/ThreeSlotCoresPico2.o : ThreeSlotCoresPico2.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TaskWrapPico2.o : TaskWrapPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
@@ -133,6 +135,8 @@ build/TestTimerEventPico2.elf : $(COMMON) build/Escapement_TimerEvent.o build/Te
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico2.o -T$(LINKERFILE) -lgcc
 build/FourSlotCoresPico2.elf : $(COMMON) build/Escapement_Core1.o build/FourSlotCoresPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/FourSlotCoresPico2.o -T$(LINKERFILE) -lgcc
+build/ThreeSlotCoresPico2.elf : $(COMMON) build/Escapement_Core1.o build/ThreeSlotCoresPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/ThreeSlotCoresPico2.o -T$(LINKERFILE) -lgcc
 build/TaskWrapPico2.elf : $(COMMON) build/TaskWrapPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/TaskWrapPico2.o -T$(LINKERFILE) -lgcc
 

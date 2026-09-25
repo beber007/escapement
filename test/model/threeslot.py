@@ -112,7 +112,8 @@ def explore(retry=True, sc_checks_reservation=True, next_table=NEXT, writer_retr
     return None
 
 
-def explore_two_cores(retry=True, global_monitor=True, next_table=NEXT, writer_retries=True):
+def explore_two_cores(retry=True, global_monitor=True, next_table=NEXT, writer_retries=True,
+                      value_compare=False, writer_spurious=True):
     """The same buffer with the writer on a core of its own, as on the RP2350: every
     statement of OSWriteBuffer is a step of its own, and any of the reader's can fall
     between two of them. Each core has its own reservation, taken by its LL and lost when
@@ -124,7 +125,15 @@ def explore_two_cores(retry=True, global_monitor=True, next_table=NEXT, writer_r
     still 3. The writer used to try once: on one core harmless, since whatever made its
     SC fail also cleared the reader's reservation; on two, the reader's survives, its SC
     hands it the Latest it read before the writer published, and the writer, taking the
-    slot that is neither Reading nor the new Latest, writes into it."""
+    slot that is neither Reading nor the new Latest, writes into it.
+
+    value_compare=True is the monitor of Renode instead (1.17, tlib's
+    gen_store_exclusive): the other core's stores leave a reservation alone, and an SC
+    succeeds while its core's reservation stands and the location still holds what the
+    LL read. writer_spurious=False takes away the writer's failures without a visible
+    reason: in ThreeSlotCoresPico2 the writer runs bare on core 1 and takes no interrupt
+    between its LL and its SC. The reader's stay, the kernel clearing the monitor when
+    it switches context on core 0."""
     empty = tuple((0,) * BYTES for _ in range(3))
     # slots, Latest, Reading, reader's and writer's reservations,
     # writer slot/byte/value/step/value loaded by its LL,
@@ -143,6 +152,7 @@ def explore_two_cores(retry=True, global_monitor=True, next_table=NEXT, writer_r
             return (slots, latest, reading, res_r, res_w) + writer + reader
 
         nexts = []
+        clears = global_monitor and not value_compare
         if value <= LAST:                                  # a writer step
             if wstep == 0:                                 # write one byte
                 if rstep == 5 and wslot == rslot:
@@ -160,16 +170,20 @@ def explore_two_cores(retry=True, global_monitor=True, next_table=NEXT, writer_r
             elif wstep == 2:                               # LL(&Reading)
                 nexts.append(with_(res_w=True, writer=(wslot, 0, value, 3, reading)))
             elif wstep == 3:                               # == 3 ? SC(&Reading, windex)
-                if wloaded == ASKING and res_w:            # succeeds, or fails anyway
+                succeeds = (wloaded == ASKING and res_w
+                            and (reading == wloaded or not value_compare))
+                if succeeds:                               # succeeds, or fails anyway
                     nexts.append(with_(reading=wslot, res_w=False,
-                                       res_r=res_r and not global_monitor,
+                                       res_r=res_r and not clears,
                                        writer=(wslot, 0, value, 4, 0)))
-                again = wloaded == ASKING and writer_retries
-                nexts.append(with_(res_w=False, writer=(wslot, 0, value, 2 if again else 4, 0)))
+                if not succeeds or writer_spurious:
+                    again = wloaded == ASKING and writer_retries
+                    nexts.append(with_(res_w=False,
+                                       writer=(wslot, 0, value, 2 if again else 4, 0)))
             else:                                          # next[Reading][Latest]
                 nexts.append(with_(writer=(next_table[reading][latest], 0, value + 1, 0, 0)))
         if rstep == 0:                                     # Reading = 3
-            nexts.append(with_(reading=ASKING, res_w=res_w and not global_monitor,
+            nexts.append(with_(reading=ASKING, res_w=res_w and not clears,
                                reader=(1,) + reader[1:]))
         elif rstep == 1:                                   # LL(&Reading)
             nexts.append(with_(res_r=True, reader=(2, reading) + reader[2:]))
@@ -179,9 +193,10 @@ def explore_two_cores(retry=True, global_monitor=True, next_table=NEXT, writer_r
             else:
                 nexts.append(with_(reader=(4,) + reader[1:]))
         elif rstep == 3:                                   # SC(&Reading, Latest)
-            if res_r:                                      # succeeds
+            succeeds = res_r and (reading == loaded or not value_compare)
+            if succeeds:
                 nexts.append(with_(reading=rlatest, res_r=False,
-                                   res_w=res_w and not global_monitor,
+                                   res_w=res_w and not clears,
                                    reader=(4,) + reader[1:]))
             # or fails: LL again, or give up if the reader does not retry
             nexts.append(with_(res_r=False, reader=((1,) if retry else (4,)) + reader[1:]))
@@ -236,6 +251,22 @@ def main():
         failure = explore_two_cores(**kwargs)
         print(f"  {name} is caught: {failure or 'NOT CAUGHT'}")
         ok = ok and failure is not None
+    print("two cores, the monitor of Renode (an SC compares values), the writer's SC"
+          " failing only for a reason:")
+    renode = {"value_compare": True, "writer_spurious": False}
+    failure = explore_two_cores(**renode)
+    print(f"  the kernel's 3-slot buffer {'holds' if failure is None else 'FAILS: ' + failure}")
+    ok = ok and failure is None
+    failure = explore_two_cores(next_table=faulty_next, **renode)
+    print(f"  a writer that may take the slot being read is caught: {failure or 'NOT CAUGHT'}")
+    ok = ok and failure is not None
+    failure = explore_two_cores(retry=False, **renode)
+    print(f"  a reader that does not retry a failed SC is caught: {failure or 'NOT CAUGHT'}")
+    ok = ok and failure is not None
+    failure = explore_two_cores(writer_retries=False, **renode)
+    print(f"  a writer that does not retry a failed SC cannot be seen there:"
+          f" {'right' if failure is None else 'WRONG, it fails: ' + failure}")
+    ok = ok and failure is None
     print("all checks passed" if ok else "FAILED")
     return 0 if ok else 1
 
