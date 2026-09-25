@@ -209,6 +209,11 @@ TCB *_OSActiveTask = NULL;
 ** never be saved. (see function OSEndTask()) */
 BOOL _OSNoSaveContext = TRUE;
 
+/* CompilerBarrier: Keeps the compiler from moving memory accesses across it, where an
+** interrupt on this core may come in between and must find them in program order.
+** _OSMemoryBarrier orders them for the other core too. */
+#define CompilerBarrier() __asm volatile ("" ::: "memory")
+
 
 /* TASK EXECUTION STACK
 ** _OSStackBasePointer: Pointer to the stack base of currently running task: Local varia-
@@ -411,6 +416,7 @@ void OSEndTask(void)
   ** queue and that its context should not be saved. */
   _OSActiveTask->TaskState |= STATE_ZOMBIE;
   _OSNoSaveContext = TRUE; // Don't save the context of this task
+  CompilerBarrier();       // a zombie before it leaves the ready queue
   /* Remove the task from the ready queue */
   _OSQueueHead->Next[READYQ] = _OSActiveTask->Next[READYQ];
   ScheduleNextTask();
@@ -982,6 +988,7 @@ void OSSuspendSynchronousTask(void)
   ** ready queue and that its context should not be saved. */
   _OSActiveTask->TaskState |= STATE_ZOMBIE;
   _OSNoSaveContext = TRUE;    // Don't save the context of this task
+  CompilerBarrier();          // a zombie before it leaves the ready queue
   /* Remove the task from the ready queue */
   _OSQueueHead->Next[READYQ] = _OSActiveTask->Next[READYQ];
   ScheduleNextTask();
@@ -1246,9 +1253,13 @@ UINTPTR FIFODequeue(FIFOQUEUE *queue, UINTPTR signal)
      else
         FIFOEnqueueHelper(queue,(ENQUEUE_DESCRIPTOR *)op);
   }
-  /* Post current dequeue operation and do it. */
+  /* Post current dequeue operation and do it: an interrupt that helps it must find the
+  ** descriptor written, and the queue is read only once the operation is posted. */
+  CompilerBarrier();
   queue->PendingOp = (void *)GetMarkedReference(&des);
+  CompilerBarrier();
   FIFODequeueHelper(queue,signal,&des);  // Do the operation
+  CompilerBarrier();
   queue->PendingOp = NULL;               // Assert that no other task does this operation
   if (des.SlotReturn == (UINTPTR)SIGNAL) // Was there already a signal?
      return NULL;                        // Do not return the signal
@@ -1342,9 +1353,12 @@ BOOL FIFOEnqueue(FIFOQUEUE *queue, UINTPTR signal, UINTPTR item)
      else
         FIFOEnqueueHelper(queue,(ENQUEUE_DESCRIPTOR *)op);
   }
-  /* Post and do this enqueue operation. */
+  /* Post and do this enqueue operation, as FIFODequeue does. */
+  CompilerBarrier();
   queue->PendingOp = &des;
+  CompilerBarrier();
   FIFOEnqueueHelper(queue,&des);
+  CompilerBarrier();
   queue->PendingOp = NULL;           // Assert that no other task does this operation
   return des.SlotReturn == signal;   // Extract the value to return.
 } /* end of FIFOEnqueue */
