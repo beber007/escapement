@@ -71,10 +71,11 @@ verified execution of the kernel since the project was taken over.
 
 ## The chronogram
 
-The figure in the README is drawn from a trace, not by hand. The kernel drives
-its outputs through the BSRR register of the STM32: writing a bit at offset 0x18
-raises a pin, writing it at 0x1A lowers it. Two Renode watchpoints report those
-writes along with the elapsed virtual time, which gives an exact transition list.
+The figure in the README is drawn from a trace, not by hand. The example drives
+its outputs through the BSRR register of the STM32, one 32-bit write per edge: the pin
+in the low half raises it, in the high half lowers it. A Renode watchpoint on that
+register reports each write with the elapsed virtual time, which gives an exact
+transition list.
 
 ```sh
 cd Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery && make bin && cd -
@@ -84,8 +85,13 @@ tools/chronogram.py docs/data/f4-gpio-trace.csv docs/images/f4-schedule.svg
 
 The trace is kept in `docs/data/`, so the figure can be redrawn without running
 the emulator at all. Note what the figure cannot show: the tasks of this example
-execute for 0 to 29 us against periods of 820 us and more, so they never overlap
+execute for 0 to 26 us against periods of 820 us and more, so they never overlap
 — there is no preemption to be seen here, only the regularity of the periods.
+
+The trace was taken again on 2026-09-25. The first, of 2026-09-20, gave 0 to 29 us;
+from 2026-09-21 the example wrote the 32-bit BSRR, which the script, still watching
+16-bit writes at 0x18 and 0x1A, no longer saw: it captured nothing until it was
+fixed.
 
 ## The Renode timer model had to be fixed
 

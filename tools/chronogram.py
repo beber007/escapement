@@ -13,14 +13,12 @@ dependency, so that the figure can be regenerated from the data alone:
 import csv
 import sys
 
-# The value written into BSRR is the pin mask. A 16-bit write of bit 15 reaches
-# the hook sign-extended, hence the second spelling of PB15.
+# The value trace_gpio.sh reports is the pin mask, whichever half of BSRR it was in.
 PINS = [
     (8192,  "PB13", "task 1", 820,  "#1f6feb"),
     (16384, "PB14", "task 2", 1640, "#6f42c1"),
     (32768, "PB15", "task 3", 4920, "#bc4c00"),
 ]
-ALIASES = {4294934528: 32768}
 
 WINDOW_US = 10000      # what the figure shows
 W, LEFT, RIGHT = 900, 104, 24
@@ -36,8 +34,7 @@ def read_runs(path):
     with open(path, newline="") as fh:
         for row in csv.DictReader(fh):
             t, edge = int(row["time_us"]), row["edge"]
-            value = int(row["value"])
-            mask = ALIASES.get(value, value)
+            mask = int(row["value"])
             if mask not in runs:
                 continue
             if edge == "rise":

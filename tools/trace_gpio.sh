@@ -5,12 +5,10 @@
 # Capture the GPIO transitions of the stm32f4 example under Renode, with virtual
 # time, and write them as CSV on standard output.
 #
-# Written when the example drove its outputs through the BSRR register of the STM32
-# in halves: a bit written at offset 0x18 raised the pin, at 0x1A lowered it, and two
-# watchpoints reported those writes with the elapsed virtual time. Since 67a8843
-# (2026-09-21) the example writes the 32-bit BSRR at 0x18 for both edges, so the second
-# watchpoint sees nothing and falling edges are not captured; docs/data/f4-gpio-trace.csv
-# predates that change.
+# The example drives its outputs through the BSRR register of the STM32 (offset 0x18),
+# one 32-bit write per edge: the pin in the low half raises it, in the high half lowers
+# it. A watchpoint on that register reports each write with the elapsed virtual time,
+# and the edge is read from the half the pin is in.
 #
 #   tools/trace_gpio.sh > docs/data/f4-gpio-trace.csv
 #
@@ -34,7 +32,6 @@ mach create \"f4\"
 machine LoadPlatformDescription @$ROOT/emulation/renode/escapement_f4.repl
 sysbus LoadELF @$EXAMPLE.elf
 sysbus LoadBinary @$EXAMPLE.bin 0x08000000
-sysbus AddWatchpointHook 0x40020418 Word Write \"print 'EV %d,rise,%d' % ($TIME_US, value)\"
-sysbus AddWatchpointHook 0x4002041A Word Write \"print 'EV %d,fall,%d' % ($TIME_US, value)\"
+sysbus AddWatchpointHook 0x40020418 DoubleWord Write \"print 'EV %d,%s,%d' % ($TIME_US, 'rise' if value & 0xFFFF else 'fall', (value & 0xFFFF) or (value >> 16))\"
 emulation RunFor \"$DURATION\"
 quit" 2>/dev/null | sed -n 's/^EV //p'
