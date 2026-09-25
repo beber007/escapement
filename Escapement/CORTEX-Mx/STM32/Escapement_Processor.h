@@ -38,7 +38,6 @@
 ** across: the core itself sees them in program order, and so does an interrupt. */
 #define _OSMemoryBarrier() __asm volatile ("" ::: "memory")
 
-/* The STM32 port no longer provides the power-aware kernel: its DVFS driver was written
-** for the STM32L1, removed with the examples of that family. The history keeps both. */
+/* The STM32 port has no DVFS driver, and so no power-aware kernel. */
 
 #endif /* ESCAPEMENT_PROCESSOR_H_ */

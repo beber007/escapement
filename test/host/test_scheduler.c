@@ -44,8 +44,7 @@
 ** the same way from the same declaration. The layout is not the same in every build:
 ** under deadline-monotonic scheduling EscapementHard.c inserts a priority byte after the
 ** state and drops the two deadline fields, which moves everything after them — reading a
-** deadline then returns a neighbouring pointer. That is exactly how this test found that
-** the kernel was not scheduling the way the repository said it was. */
+** deadline through the wrong mirror returns a neighbouring pointer. */
 #if defined(ESCAPEMENT_VERSION_HARD) && SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
    typedef struct HostTCB {
      struct HostTCB *Next[2];

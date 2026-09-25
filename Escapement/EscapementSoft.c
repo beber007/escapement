@@ -152,9 +152,9 @@ typedef struct ETCB {
 #define BLOCKQ    ARRIVALQ
 
 /* The sentinels of the queues, the tail being also the idle task. Both are whole TCBs,
-** zeroed as the rest of .bss: the kernel reads task fields through the tail, and blocks
-** allocated to the size of the fields a sentinel uses made those reads fall past them —
-** into the next allocation or past the end of the RAM. */
+** zeroed as the rest of .bss: the kernel reads task fields through the tail, and a
+** sentinel sized to the few fields it uses would let those reads fall past it — into
+** the next allocation or past the end of the RAM. */
 static TCB QueueHeadSentinel, QueueTailSentinel;
 TCB *_OSQueueHead = NULL;
 TCB *_OSQueueTail = NULL;

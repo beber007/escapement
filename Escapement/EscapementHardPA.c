@@ -187,9 +187,9 @@ typedef struct ETCB {
 #define BLOCKQ    ARRIVALQ
 
 /* The sentinels of the queues, the tail being also the idle task. Both are whole TCBs,
-** zeroed as the rest of .bss: the kernel reads task fields through the tail, and blocks
-** allocated to the size of the fields a sentinel uses made those reads fall past them —
-** into the next allocation or past the end of the RAM. */
+** zeroed as the rest of .bss: the kernel reads task fields through the tail, and a
+** sentinel sized to the few fields it uses would let those reads fall past it — into
+** the next allocation or past the end of the RAM. */
 static TCB QueueHeadSentinel, QueueTailSentinel;
 TCB *_OSQueueHead = NULL;
 static TCB *OSQueueTail = NULL;
@@ -666,7 +666,7 @@ void _OSTimerInterruptHandler(void)
         #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
            DRASimTime -= ShiftTimeLimit;
            /* Only an event-driven task brings this time forward: without one, shifting it
-           ** overflowed at the third wraparound. Moved to zero, it only loses excess. */
+           ** at every wraparound would overflow it. Moved to zero, it only loses excess. */
            SubOrZeroIfNeg(AperiodicExcessTime,ShiftTimeLimit);
         #endif
      }
@@ -1583,9 +1583,8 @@ UINT8 GetProcessorSpeed(INT32 time)
               #endif
         }
         /* The slack goes to tasks of lower priority than its owner, a larger number:
-        ** only they counted the owner's WCET in their response time. The comparison
-        ** read <, giving it to tasks of higher priority, which the host test caught
-        ** missing deadlines. */
+        ** only they counted the owner's WCET in their response time. A task of higher
+        ** priority never did, and given the slack it could miss its deadline. */
         else if (_OSActiveTask->Priority > DMSlackPriority && DMSlackAmount > 0)
            completionTime = DMSlackAmount + _OSActiveTask->RemainingWork;
         else
@@ -1654,8 +1653,8 @@ INT32 GetEarliestAperiodicArrival(void)
 ** stance.
 ** An instance still running once the simulation has used up its WCET is no longer in the
 ** simulated queue: it overran its WCET, or ended with it at the instant a timer interrupt
-** took it out. The search then went past the tail and read through a null link; no time
-** is left to give, and the task goes on at the fastest speed. */
+** took it out. The search then stops at the tail rather than follow its null link: no
+** time is left to give, and the task goes on at the fastest speed. */
 INT32 GetDRASlackTime(void)
 {
   TCB *task;
