@@ -33,6 +33,11 @@
 #include "Escapement_Config.h"
 #include "Escapement_CortexMx.h"
 
+/* _OSMemoryBarrier: Where the slot buffers need a DMB between two cores (see the RP2040
+** and RP2350 ports), one core only needs its compiler kept from moving the accesses
+** across: the core itself sees them in program order, and so does an interrupt. */
+#define _OSMemoryBarrier() __asm volatile ("" ::: "memory")
+
 /* The STM32 port no longer provides the power-aware kernel: its DVFS driver was written
 ** for the STM32L1, removed with the examples of that family. The history keeps both. */
 

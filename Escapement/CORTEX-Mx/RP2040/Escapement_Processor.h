@@ -33,6 +33,14 @@
 #include "Escapement_Config.h"
 #include "Escapement_CortexMx.h"
 
+/* _OSMemoryBarrier: Orders the accesses of the slot buffers where the model of each says
+** it must (test/model/fourslot.py, explore_weak): with the writer on one core and the
+** reader on the other, each core may perform its loads and stores to Normal memory out
+** of program order, as seen from the other (Armv6-M Architecture Reference Manual,
+** A3.7.2). A DMB orders all those before it before all those after; the memory clobber
+** keeps the compiler from moving them across as well. */
+#define _OSMemoryBarrier() __asm volatile ("DMB" ::: "memory")
+
 /* Operating points of the power-aware variant, slowest first. The system PLL stays locked
 ** at 1500 MHz whichever is selected: moving between them only changes a post divider or
 ** the source of clk_sys, so none waits for the PLL to lock again. */

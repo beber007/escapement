@@ -34,6 +34,15 @@
 #include "Escapement_Config.h"
 #include "Escapement_CortexMx.h"
 
+/* _OSMemoryBarrier: Orders the accesses of the slot buffers where the model of each says
+** it must (test/model/fourslot.py and threeslot.py, explore_weak): with the writer on one
+** core and the reader on the other, each core may perform its loads and stores to Normal
+** memory out of program order, as seen from the other (Armv8-M Architecture Reference
+** Manual, DDI0553B.y, B7). A DMB orders all those before it before all those after
+** (B7.2.11), whatever the shareability of SRAM, which LDA/STL would not; the memory
+** clobber keeps the compiler from moving them across as well. */
+#define _OSMemoryBarrier() __asm volatile ("DMB" ::: "memory")
+
 #ifdef ESCAPEMENT_VERSION_HARD_PA
    #error "the power-aware kernel is not ported to the RP2350 yet (docs/roadmap.md)"
 #endif

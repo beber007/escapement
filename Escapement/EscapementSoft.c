@@ -1642,7 +1642,11 @@ UINT8 OSWriteBuffer(void *descriptor, UINT8 *data, UINT8 size)
            BOOL wpair;
            BUFFER_4_SLOT *buf = (BUFFER_4_SLOT*)((BUFFER_DESCRIPTOR*)descriptor)->Buffer;
            wpair = buf->CurrentWriterPair;      // Continue with the previous buffer pair
+           /* A reader on the other core must see the slot filled before it is named, and
+           ** its index before its pair (test/model/fourslot.py, explore_weak). */
+           _OSMemoryBarrier();
            buf->Index[wpair] = buf->CurrentWriterIndex; // Writer indicates slot
+           _OSMemoryBarrier();
            buf->Latest = wpair;                         // Writer indicates pair
            /* Prepare for the next time the writer gets a new byte. */
            buf->CurrentWriterPair = !buf->Reading;
@@ -1655,7 +1659,11 @@ UINT8 OSWriteBuffer(void *descriptor, UINT8 *data, UINT8 size)
            UINT8 windex;
            BUFFER_3_SLOT *buffer;
            buffer = (BUFFER_3_SLOT*)((BUFFER_DESCRIPTOR*)descriptor)->Buffer;
+           /* A reader on the other core must see the slot filled before it is named, and
+           ** named before it is handed over (test/model/threeslot.py, explore_weak). */
+           _OSMemoryBarrier();
            buffer->Latest = windex = buffer->CurrentWriterIndex;
+           _OSMemoryBarrier();
            /* Hand the slot over if the reader asks for one, again until the SC succeeds or
            ** the reader has taken one: an SC also fails when an interrupt merely came
            ** between it and its LL. On one core that interrupt clears the reader's
@@ -1758,7 +1766,12 @@ BUFFER_DATA *GetReadyBuffer4Slot(BUFFER_DESCRIPTOR *descriptor)
   BOOL rpair, rindex;
   BUFFER_4_SLOT *buffer = (BUFFER_4_SLOT *)descriptor->Buffer;
   rpair = buffer->Latest;         // Reader chooses pair
+  /* With the writer on the other core: the previous slot read before the pair is chosen
+  ** again, and the pair announced before its slot is read (test/model/fourslot.py,
+  ** explore_weak). */
+  _OSMemoryBarrier();
   buffer->Reading = rpair;        // Reader indicates pair
+  _OSMemoryBarrier();
   rindex = buffer->Index[rpair];  // Reader chooses slot
   return &buffer->Slot[rpair][rindex];
 } /* end of GetReadyBuffer4Slot */
@@ -1770,7 +1783,12 @@ BUFFER_DATA *GetReadyBuffer4Slot(BUFFER_DESCRIPTOR *descriptor)
 BUFFER_DATA *GetReadyBuffer3Slot(BUFFER_DESCRIPTOR *descriptor)
 {
   BUFFER_3_SLOT *buffer = (BUFFER_3_SLOT *)descriptor->Buffer;
+  /* With the writer on the other core: the previous slot read before a new one is asked
+  ** for, and the request seen before the slot is read (test/model/threeslot.py,
+  ** explore_weak). */
+  _OSMemoryBarrier();
   buffer->Reading = 3;
+  _OSMemoryBarrier();
   /* Unlike the compare-and-swap of Chen and Burns, an SC also fails when an interrupt
   ** merely came between it and its LL, with Reading still 3: try again until the SC
   ** succeeds or the writer has chosen for the reader (test/model/threeslot.py). */

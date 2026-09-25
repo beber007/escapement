@@ -30,6 +30,7 @@ extern unsigned HostFailingSC;       /* store-conditionals to fail, see host_por
 #define _OSEnableInterrupts()           ((void)0)
 #define _OSDisableInterrupts()          ((void)0)
 #define _OSSleep()                      ((void)0)
+#define _OSMemoryBarrier()              __asm volatile ("" ::: "memory")
 
 /* The assembler context switch, and the offsets it assumes, do not exist here. */
 #define OSCheckTCBLayout() struct OSCheckTCBLayoutNotApplicable
