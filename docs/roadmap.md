@@ -37,14 +37,11 @@ DVFS to gain much (`power-aware.md`).
    programmed right, which the Renode platform acknowledges blindly; then the six
    examples, `ThreeSlotCoresPico2` first, and litmus tests of the order in which each
    core sees the other's accesses.
-3. **What is left to verify between the cores.**
-   - The FIFO queue across the cores, in the multiprocessor form of Evéquoz's paper: the
-     announced operation of the kernel's queue assumes one core. The SIO spinlocks are
-     no way round it, being unreliable on the RP2350 (erratum RP2350-E2 of the
-     [datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf); see
-     how [TinyGo](https://github.com/tinygo-org/tinygo/pull/5708) and the
-     [pico-sdk](https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/hardware_sync_spin_lock/include/hardware/sync/spin_lock.h)
-     deal with it).
+3. **What is left to verify between the cores.** The queue between the cores
+   (`Escapement_CoreQueue.c`) puts a DMB between any two of its accesses to different
+   words, which lets its model take each core's accesses in program order; a model of
+   weakly ordered cores, as the slot buffers have, would keep only those it needs. Its
+   demo has one producer and one consumer per queue, where the model has two of each.
 4. **DVFS on the RP2350**, if the verdict of item 1 is for it: its regulator and its
    power manager differ from the RP2040's, and the driver is to be written from the
    pico-sdk headers.
@@ -77,7 +74,9 @@ DVFS to gain much (`power-aware.md`).
   Renode, `ACTLR.EXTEXCLALL` set, and memory barriers between the cores
   (`architecture.md`), whose compiled order the CI checks against the models
   (`tools/check_order.py`); the 3-slot buffer across the cores under Renode, with the
-  RP2350's exclusive monitor played in place of Renode's (`emulation.md`).
+  RP2350's exclusive monitor played in place of Renode's (`emulation.md`); a FIFO queue
+  between the cores, Figure 3 of Evéquoz's paper adapted to the RP2350's LL/SC
+  (`Escapement_CoreQueue.c`, `test/model/fifo_mp.py`).
 - **`-O2`**, once the barrier that makes a pended exception take effect went in
   (`method.md`): 3.2 µs a round instead of 7.0.
 - **The queue sentinels made whole task control blocks.** Two defects came from reading

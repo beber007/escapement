@@ -99,7 +99,9 @@ void *OSMalloc(UINT16 size) { return calloc(1, size); }
 ** test sets HostFailingSC to make that many store-conditionals fail, as an interrupt
 ** between the LL and the SC does on the target. */
 unsigned HostFailingSC = 0;
-#define SC(a, v) do { if (HostFailingSC > 0) { HostFailingSC -= 1; return FALSE; } \
+unsigned HostPassingSC = 0;      /* store-conditionals let through before those that fail */
+#define SC(a, v) do { if (HostPassingSC > 0) HostPassingSC -= 1; \
+                      else if (HostFailingSC > 0) { HostFailingSC -= 1; return FALSE; } \
                       *(a) = (v); return TRUE; } while (0)
 UINT8  OSUINT8_LL(UINT8 *a)   { return *a; }
 BOOL   OSUINT8_SC(UINT8 *a, UINT8 v)   { SC(a, v); }

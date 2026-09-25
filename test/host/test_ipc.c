@@ -3,7 +3,8 @@
 ** Distributed under the terms of LICENSE at the root of this repository.
 */
 /* File test_ipc.c: Exercises the inter-task communication of the kernel on the host: the
-** concurrent FIFO queue and the 3- and 4-slot buffers.
+** concurrent FIFO queue, the queue between the cores of the RP2350, and the 3- and 4-slot
+** buffers.
 **
 ** Both are data structures that need no scheduling, so they are driven directly. What
 ** this cannot show is their behaviour under preemption: the host runs single threaded.
@@ -16,6 +17,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "Escapement.h"
+#include "../../Escapement/CORTEX-Mx/RP2350/Escapement_CoreQueue.h"
 
 static unsigned Failures = 0;
 
@@ -23,6 +25,66 @@ static void Check(const char *what, int ok)
 {
   printf("%-58s %s\n", what, ok ? "ok" : "FAILED");
   if (!ok) Failures += 1;
+}
+
+
+/* QUEUE BETWEEN THE CORES (RP2350) ------------------------------------------------------ */
+/* One thread here: the order of items, the full and the empty queue, the indices going
+** round, and the retries of every SC — test/model/fifo_mp.py explores the two cores. */
+#define CORE_LENGTH 4
+
+static void TestCoreQueue(void)
+{
+  void *queue = OSInitCoreQueue(CORE_LENGTH);
+  static int items[CORE_LENGTH + 1];
+  int model[CORE_LENGTH], head = 0, count = 0;
+  unsigned i, round, n, ok;
+
+  printf("\nqueue between the cores, %d places\n\n", CORE_LENGTH);
+  Check("  a length that is not a power of 2 is refused", OSInitCoreQueue(3) == NULL);
+  Check("  an empty queue dequeues nothing, NULL is refused",
+        OSDequeueCoreQueue(queue) == NULL && !OSEnqueueCoreQueue(queue, NULL));
+  for (i = 0, ok = 1; i < CORE_LENGTH; i += 1)
+     ok = ok && OSEnqueueCoreQueue(queue, &items[i]);
+  Check("  it takes as many items as it has places, then refuses",
+        ok && !OSEnqueueCoreQueue(queue, &items[CORE_LENGTH]));
+  for (i = 0, ok = 1; i < CORE_LENGTH; i += 1)
+     ok = ok && OSDequeueCoreQueue(queue) == &items[i];
+  Check("  and gives them back in order", ok && OSDequeueCoreQueue(queue) == NULL);
+
+  /* Rounds of a few enqueues and dequeues, checked against a plain ring, the indices
+  ** going round the array many times. */
+  for (round = 0, ok = 1; round < 1000 && ok; round += 1) {
+     for (n = round % 3 + 1; n > 0; n -= 1) {
+        int accepted = OSEnqueueCoreQueue(queue, &items[round % (CORE_LENGTH + 1)]);
+        ok = ok && accepted == (count < CORE_LENGTH);
+        if (accepted)
+           model[(head + count++) % CORE_LENGTH] = round % (CORE_LENGTH + 1);
+     }
+     for (n = round % 4; n > 0; n -= 1) {
+        void *item = OSDequeueCoreQueue(queue);
+        ok = ok && (count ? item == &items[model[head]] : item == NULL);
+        if (count) { head = (head + 1) % CORE_LENGTH; count -= 1; }
+     }
+  }
+  Check("  a thousand rounds against a plain queue", ok);
+  while (OSDequeueCoreQueue(queue) != NULL);
+
+  /* The SC that publishes an item goes through; the one that advances Tail fails, twice:
+  ** an enqueue that tried it once would leave Tail behind, and the item unseen. */
+  HostPassingSC = 1; HostFailingSC = 2;
+  ok = OSEnqueueCoreQueue(queue, &items[0]);
+  Check("  Tail advanced although its SC failed twice",
+        ok && OSDequeueCoreQueue(queue) == &items[0] && OSDequeueCoreQueue(queue) == NULL);
+  OSEnqueueCoreQueue(queue, &items[1]);
+  HostPassingSC = 1; HostFailingSC = 2;
+  ok = OSDequeueCoreQueue(queue) == &items[1];
+  Check("  Head advanced although its SC failed twice",
+        ok && OSDequeueCoreQueue(queue) == NULL && OSEnqueueCoreQueue(queue, &items[2]) &&
+        OSDequeueCoreQueue(queue) == &items[2]);
+  HostPassingSC = 0; HostFailingSC = 3;
+  ok = OSEnqueueCoreQueue(queue, &items[3]) && OSDequeueCoreQueue(queue) == &items[3];
+  Check("  a failed SC on a place is tried again", ok && HostFailingSC == 0);
 }
 
 
@@ -195,6 +257,7 @@ int main(void)
   signal(SIGALRM, Timeout);
   alarm(10);
   TestFIFO();
+  TestCoreQueue();
   TestBuffer(OS_BUFFER_TYPE_3_SLOT, "3-slot");
   TestBuffer(OS_BUFFER_TYPE_4_SLOT, "4-slot");
   printf("\n%s\n", Failures ? "FAILURES" : "all checks passed");

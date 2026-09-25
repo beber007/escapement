@@ -99,6 +99,7 @@ jobs:
           python3 test/model/fourslot.py
           python3 test/model/threeslot.py
           python3 test/model/fifo.py
+          python3 test/model/fifo_mp.py
 
   emulation:
     name: Execution under Renode (STM32F407VG)

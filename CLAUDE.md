@@ -26,7 +26,7 @@ tools/dvfs_bench.py <elf>                     # BenchDVFSPico: means of each cha
 # RP2350 takes that path too, on ours)
 make -C Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
 
-# Pico 2 (RP2350, Cortex-M33) — six examples; no KERNEL=PA yet. Its Renode suite runs
+# Pico 2 (RP2350, Cortex-M33) — seven examples; no KERNEL=PA yet. Its Renode suite runs
 # on a platform of our own, on the Mac too (Renode 1.17 portable, robotframework 6.1 venv)
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
 renode-test emulation/renode/escapement_pico2.robot
@@ -38,6 +38,7 @@ make -C test/host run
 python3 test/model/fourslot.py
 python3 test/model/threeslot.py      # ~1 min, up to 1.2 GB
 python3 test/model/fifo.py           # ~35 s
+python3 test/model/fifo_mp.py        # the queue between the cores, ~1 s
 
 # The compiled order of the slot buffers against the models (RP builds, run by the CI)
 tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement*.o

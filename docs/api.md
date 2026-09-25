@@ -216,6 +216,20 @@ interrupt on core 1, where no kernel runs. The LL/SC pair of the Cortex-M0+ is e
 with a reservation bit that only interrupts clear, and the queue's announced operation
 assumes preemptions that nest.
 
+**A queue between the cores, on the Pico 2.** `Escapement_CoreQueue.h` gives the RP2350 a
+FIFO queue of pointers that any code on either core may use, task, handler or bare loop
+on core 1:
+
+```c
+void *queue = OSInitCoreQueue(16);        /* in main; the length a power of 2 */
+OSEnqueueCoreQueue(queue, node);          /* FALSE when full; node never NULL */
+void *node = OSDequeueCoreQueue(queue);   /* NULL when empty */
+```
+
+It carries pointers and owns nothing: nodes go round through a second such queue, as
+`FIFOCoresPico2` does. It signals no event, so a task on core 0 polls it. It is
+lock-free, not wait-free: an operation retries while the other core keeps winning.
+
 ## Interrupts
 
 The kernel owns the vector table and routes every peripheral interrupt through

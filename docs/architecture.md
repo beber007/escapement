@@ -70,14 +70,27 @@ and, between two cores, with each core free to reorder its accesses. The models 
 four defects, now fixed (`method.md`).
 
 **Across the two cores.** The kernel runs on core 0 alone. The emulated LL/SC and the
-announced operation of the queue both rely on preemptions nesting, which two cores do
-not give, so between the cores only the slot buffers work. The 4-slot buffer works on
+announced operation of the kernel's queue both rely on preemptions nesting, which two
+cores do not give, so between the cores the slot buffers work, and on the RP2350 a
+queue of its own. The 4-slot buffer works on
 both chips, and was measured on the Pico (`rp2040.md`). On the RP2350 the 3-slot buffer
 should work too: its model holds provided the exclusive monitors see both cores —
 `ACTLR.EXTEXCLALL`, which the port sets on each — and `ThreeSlotCoresPico2` holds
 under Renode with that monitor played (`emulation.md`), until a board shows it. Code on
 core 1 may not signal an event: `OSScheduleSuspendedTask` would pend the timer interrupt
-of core 1, where no kernel runs. The queue across the cores is in the roadmap.
+of core 1, where no kernel runs.
+
+The queue between the cores of the RP2350 (`Escapement_CoreQueue.c`, `OSInitCoreQueue`)
+is the array-based queue of Evéquoz's Figure 3, lock-free rather than wait-free, for any
+number of producers and consumers on either core, adapted to the chip in two ways its
+model (`test/model/fifo_mp.py`) asked for. Figure 3 assumes an SC that fails only when
+another thread's succeeded, which the paper itself notes real LL/SC do not promise; on
+the RP2350 an SC also fails when the other core wrote in its granule, or for no reason,
+so the SC that advances Tail or Head after an operation is tried again while the index
+has not moved. And a DMB stands between any two of its accesses to different words. The
+hardware spinlocks of the SIO offered no alternative, being unreliable on that chip
+(erratum RP2350-E2 of the
+[datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)).
 
 ## Supported targets
 
@@ -97,12 +110,12 @@ of core 1, where no kernel runs. The queue across the cores is in the roadmap.
   `Escapement/CORTEX-Mx/RP2350/`, transposed from the RP2040 port on 2026-09-24: the
   clocks at 150 MHz, TIMER0 with its tick from the TICKS block, 52 interrupts, the pads
   released from their isolation, the UART, the timer events and the launch of core 1.
-  The hard and the soft kernel build six examples under `pico2/` in the CI — the five of
-  the Pico and `ThreeSlotCoresPico2` — and all six run under Renode on a platform of
-  our own (`emulation.md`), the 2^30 wrap of the kernel clock and both slot buffers
-  between the two cores included, which shows that they schedule, not that the clocks
-  are programmed right. The power-aware kernel is not ported, and no board has run the
-  port yet.
+  The hard and the soft kernel build seven examples under `pico2/` in the CI — the five
+  of the Pico, `ThreeSlotCoresPico2` and `FIFOCoresPico2` — and all seven run under
+  Renode on a platform of our own (`emulation.md`), the 2^30 wrap of the kernel clock
+  and both slot buffers between the two cores included, which shows that they schedule,
+  not that the clocks are programmed right. The power-aware kernel is not ported, and no
+  board has run the port yet.
 - **Raspberry Pi RP2040** — Cortex-M0+, port under
   `Escapement/CORTEX-Mx/RP2040/`. A 64-bit timer with four alarms, clocked
   **independently of the core clock**: the kernel takes two of them, the timer

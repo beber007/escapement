@@ -7,8 +7,8 @@
 ** Escapement schedules its tasks on core 0 alone. Core 1 runs bare code beside it, with
 ** no task, no interrupt and no call into the scheduler: what it shares with the tasks is
 ** memory, through a slot buffer: the 4-slot buffer, or the 3-slot one, whose LL/SC pairs
-** see both cores once each sets ACTLR.EXTEXCLALL. The FIFO queue does not hold between
-** them.
+** see both cores once each sets ACTLR.EXTEXCLALL, or the queue of Escapement_CoreQueue.h.
+** The kernel's FIFO queue does not hold between them.
 **
 ** Platform version: RP2350 (Raspberry Pi Pico 2).
 */

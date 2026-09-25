@@ -33,16 +33,22 @@ Load Escapement
     Execute Command           sysbus.cpu1 IsHalted true
 
 Play The Exclusive Monitor Of The RP2350
-    [Documentation]           Hooks the entry of OSUINT8_LL and OSUINT8_SC on both cores, and
-    ...                       the start of their exceptions, to rp2350_exclusive_monitor.py,
-    ...                       which plays the global monitor of the chip with EXTEXCLALL set
-    ...                       instead of Renode's.
-    ${ll}=                    Execute Command  sysbus GetSymbolAddress "OSUINT8_LL"
-    ${sc}=                    Execute Command  sysbus GetSymbolAddress "OSUINT8_SC"
+    [Documentation]           Hooks the entry of the byte and word LL/SC functions the image
+    ...                       holds on both cores, and the start of their exceptions, to
+    ...                       rp2350_exclusive_monitor.py, which plays the global monitor of
+    ...                       the chip with EXTEXCLALL set instead of Renode's.
     Execute Command           python "${MONITOR}; m.setup('global', 0)"
+    FOR  ${size}  ${ll}  ${sc}  IN  1  OSUINT8_LL  OSUINT8_SC  4  OSUINT32_LL  OSUINT32_SC
+        ${found}  ${lla}=     Run Keyword And Ignore Error  Execute Command  sysbus GetSymbolAddress "${ll}"
+        IF  $found == "PASS"
+            ${sca}=           Execute Command  sysbus GetSymbolAddress "${sc}"
+            FOR  ${cpu}  IN  cpu0  cpu1
+                Execute Command  sysbus.${cpu} AddHook ${lla.strip()} "${MONITOR}; m.ll(self, ${size})"
+                Execute Command  sysbus.${cpu} AddHook ${sca.strip()} "${MONITOR}; m.sc(self, ${size})"
+            END
+        END
+    END
     FOR  ${cpu}  IN  cpu0  cpu1
-        Execute Command       sysbus.${cpu} AddHook ${ll.strip()} "${MONITOR}; m.ll(self)"
-        Execute Command       sysbus.${cpu} AddHook ${sc.strip()} "${MONITOR}; m.sc(self)"
         Execute Command       sysbus.${cpu} AddHookAtInterruptBegin "${MONITOR}; m.exception(self)"
     END
 
@@ -214,3 +220,34 @@ The 3-slot buffer crosses between the two cores
     Should Be Equal As Integers  ${backwards}  0
     Should Be True            ${plain_torn} > 0
     Should Be True            ${reader_failed} > 0 and ${cleared} > 0
+
+The queue of Evéquoz crosses between the two cores
+    [Documentation]           FIFOCoresPico2 passes records from core 1 to a task on core 0
+    ...                       through the queue between the cores (Escapement_CoreQueue.c),
+    ...                       their nodes going back through a second one, with the exclusive
+    ...                       monitor of the RP2350 played. Every record must arrive once, in
+    ...                       order and whole. Renode runs each core for a slice of 1 us here,
+    ...                       and some SCs of each core must have failed through the other's
+    ...                       stores: at its usual slice the two cores never overlap in the
+    ...                       queue. Each queue has one producer and one consumer; the races
+    ...                       of two of either are the model's (test/model/fifo_mp.py).
+    [Timeout]                 3 minutes
+    Load Escapement           FIFOCoresPico2
+    Play The Exclusive Monitor Of The RP2350
+    Execute Command           emulation SetGlobalQuantum "0.000001"
+
+    Execute Command           emulation RunFor "0.05"
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${written}=               Read Word  ${results}
+    ${taken}=                 Read Word  ${results + 4}
+    ${torn}=                  Read Word  ${results + 8}
+    ${out_of_order}=          Read Word  ${results + 12}
+    ${cleared0}=              Monitor Count  cleared.write0
+    ${cleared1}=              Monitor Count  cleared.write1
+    Should Be True            ${taken} > 1000
+    Should Be True            ${written} - ${taken} <= 32
+    Should Be Equal As Integers  ${torn}  0
+    Should Be Equal As Integers  ${out_of_order}  0
+    Should Be True            ${cleared0} > 0 and ${cleared1} > 0

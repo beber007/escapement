@@ -27,6 +27,7 @@ export ASAN_OPTIONS = detect_leaks=0
 HARD = ../../Escapement/EscapementHard.c
 SOFT = ../../Escapement/EscapementSoft.c
 PA = ../../Escapement/EscapementHardPA.c
+COREQUEUE = ../../Escapement/CORTEX-Mx/RP2350/Escapement_CoreQueue.c
 HEADERS = Escapement.h Escapement_Config.h Escapement_Types.h Escapement_Processor.h \
           Escapement_Timer.h Escapement_Interrupts.h
 
@@ -72,14 +73,14 @@ run: $(BUILDS:%=build/test_scheduler_%) build/test_ipc_hard build/test_ipc_soft 
 build/test_scheduler_%: test_scheduler.c host_port.c $$(KERNEL_$$*) $(HEADERS)
 	$(CC) $(CFLAGS) $(FLAGS_$*) -o $@ test_scheduler.c host_port.c $(KERNEL_$*)
 
-build/test_ipc_hard: test_ipc.c host_port.c $(HARD) $(HEADERS)
-	$(CC) $(CFLAGS) -o $@ test_ipc.c host_port.c $(HARD)
+build/test_ipc_hard: test_ipc.c host_port.c $(HARD) $(COREQUEUE) $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ test_ipc.c host_port.c $(HARD) $(COREQUEUE)
 
-build/test_ipc_soft: test_ipc.c host_port.c $(SOFT) $(HEADERS)
-	$(CC) $(CFLAGS) -DHOST_KERNEL_SOFT -o $@ test_ipc.c host_port.c $(SOFT)
+build/test_ipc_soft: test_ipc.c host_port.c $(SOFT) $(COREQUEUE) $(HEADERS)
+	$(CC) $(CFLAGS) -DHOST_KERNEL_SOFT -o $@ test_ipc.c host_port.c $(SOFT) $(COREQUEUE)
 
-build/test_ipc_pa: test_ipc.c host_port.c $(PA) $(HEADERS)
-	$(CC) $(CFLAGS) -DHOST_KERNEL_PA -o $@ test_ipc.c host_port.c $(PA)
+build/test_ipc_pa: test_ipc.c host_port.c $(PA) $(COREQUEUE) $(HEADERS)
+	$(CC) $(CFLAGS) -DHOST_KERNEL_PA -o $@ test_ipc.c host_port.c $(PA) $(COREQUEUE)
 
 clean:
 	rm -rf build

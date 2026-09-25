@@ -204,20 +204,32 @@ the same image, one covered 150 ms in 40 s and two stalled within the first 50 m
 the test stalled in the suite for over ten minutes.
 
 So the suite plays the monitor of the RP2350 itself (`rp2350_exclusive_monitor.py`,
-2026-09-25). It hooks the entry of `OSUINT8_LL` and `OSUINT8_SC` on both cores, does the
-access and returns, so that no LDREXB or STREXB runs: one reservation per core on a
-granule of 16 bytes, cleared by any write of the other core to it whatever the value,
-by an exception on its own core, and by its SC. Under it the demo covers 200 ms in about
-8 s and does not stall. On 2026-09-25, on the hard kernel: 6,368 reads, none torn or
-going backwards, the plain array torn 16 to 31 times, and some 1,060 of the reader's SCs
-failed because the writer had stored into the granule, which Renode's monitor never
-does. `The 3-slot buffer crosses between the two cores` now runs under the four builds.
-A writer that may take the slot being read fails it (24 and 27 reads torn), and a
-reader that tries its SC once stalls it. What it does not catch are the races that
-need the other core between an LL and its SC: monitors local to each core, and a
-writer that tries its SC once while one SC in three of core 1 fails for no reason, both
-held for 200 ms without a torn read, although some 6,000 writes of the other core fell
-inside a reservation. Renode runs each core for a slice of time and seldom switches
-inside those few instructions, even with a slice of 0.1 us; the model
-(`test/model/threeslot.py`) covers every interleaving, and the board will be the
-third witness.
+2026-09-25). It hooks the entry of the byte and word LL and SC functions on both cores,
+does the access and returns, so that no LDREX or STREX runs: one reservation per core
+on a granule of 16 bytes, cleared by any write of the other core to it whatever the
+value, by an exception on its own core, and by its SC. Under it the demo covers 200 ms
+in about 8 s and does not stall. `The 3-slot buffer crosses between the two cores` now
+runs under the four builds. On the hard kernel: 6,368 reads, none torn or going
+backwards, the plain array torn 16 to 31 times, and 1,644 of the reader's SCs failed
+because the writer had stored into the granule, which Renode's monitor never does.
+The first version of the monitor, earlier the same day, counted some 1,060: its SC wrote
+through the bus, which reaches no watchpoint, and left the other core's reservation in
+place; only the plain stores cleared it. A writer that may take the slot being read
+fails the test (24 and 27 reads torn), and a reader that tries its SC once stalls it.
+What it does not catch are the races that need the other core between an LL and its
+SC: monitors local to each core, and a writer that tries its SC once while one SC in
+three of core 1 fails for no reason, both held for 200 ms without a torn read, with
+Renode's usual slice and with one of 1 us, although thousands of writes of the other
+core fell inside a reservation. Renode runs each core for a slice of time and seldom
+switches inside those few instructions; the model (`test/model/threeslot.py`) covers
+every interleaving, and the board will be the third witness.
+
+The queue between the cores (`Escapement_CoreQueue.c`) runs the same way:
+`FIFOCoresPico2` passes records from core 1 to a task on core 0 through one such queue
+and gives their nodes back through another. At Renode's usual slice the two cores never
+overlap in a queue — core 0 takes its records in a burst, core 1 refills the nodes in
+its own turn — and the monitor clears no reservation. With a slice of 1 us they do: on
+2026-09-25, over 50 ms, 1,600 records taken in order, none torn, and 366 SCs failed
+because the other core had written in the granule. `The queue of Evéquoz crosses between
+the two cores` sets that slice and asks for such failures on both cores. Each queue has
+one producer and one consumer there; two of either are the model's (`fifo_mp.py`).

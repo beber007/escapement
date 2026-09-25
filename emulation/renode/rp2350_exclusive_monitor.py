@@ -14,9 +14,9 @@
 #   - an exception taken by the core clears it, entry and return alike;
 #   - the SC succeeds only with the reservation in place, and clears it.
 #
-# escapement_pico2.robot hooks the entry of OSUINT8_LL and OSUINT8_SC on both cores to
-# ll() and sc(), which do the access themselves and return to the caller, so that no
-# LDREXB or STREXB runs; the start of every exception to exception(); and the first LL on
+# escapement_pico2.robot hooks the entry of OSUINT8_LL, OSUINT8_SC, OSUINT32_LL and
+# OSUINT32_SC (which OSUINTPTR_LL and _SC are) on both cores to ll() and sc(), which do
+# the access themselves and return to the caller, so that no LDREX or STREX runs; the start of every exception to exception(); and the first LL on
 # a granule installs write hooks on it that call write(). The state is kept in the
 # AppDomain, which the hooks of both cores share.
 #
@@ -64,17 +64,20 @@ def ret(cpu, value):
     cpu.PC = cpu.LR
 
 
-def ll(cpu):
+def ll(cpu, size=1):
+    """OSUINT8_LL (size 1) or OSUINT32_LL (size 4)."""
     k, address = core(cpu), register(cpu, 0)
     granule = address & GRANULE
     put("reservation%d" % k, granule)
     watch(cpu.Bus, granule)
     count("ll%d" % k)
-    ret(cpu, cpu.Bus.ReadByte(address))
+    ret(cpu, cpu.Bus.ReadByte(address) if size == 1 else cpu.Bus.ReadDoubleWord(address))
 
 
-def sc(cpu):
-    k, address, value = core(cpu), register(cpu, 0), register(cpu, 1) & 0xFF
+def sc(cpu, size=1):
+    """OSUINT8_SC (size 1) or OSUINT32_SC (size 4)."""
+    k, address = core(cpu), register(cpu, 0)
+    value = register(cpu, 1) & (0xFF if size == 1 else 0xFFFFFFFF)
     held = get("reservation%d" % k) == address & GRANULE
     put("reservation%d" % k, None)
     spurious = get("every", 0)
@@ -84,9 +87,11 @@ def sc(cpu):
             held = False
             count("sc1.spurious")
     if held:
-        put("writer", k)
-        cpu.Bus.WriteByte(address, value)     # clears the other core's, through write()
-        put("writer", None)
+        if size == 1:
+            cpu.Bus.WriteByte(address, value)
+        else:
+            cpu.Bus.WriteDoubleWord(address, value)
+        clear_other(k, address)     # a write from here reaches no watchpoint
         count("sc%d.ok" % k)
     else:
         count("sc%d.failed" % k)
@@ -101,12 +106,13 @@ def exception(cpu):
 
 
 def write(cpu, address):
-    """A write reached the granule: the other core loses its reservation there."""
-    k = get("writer")
-    if k is None:
-        k = core(cpu) if cpu is not None else None
-    if k is None:
-        return
+    """A write of a core's code reached the granule, through a watchpoint."""
+    if cpu is not None:
+        clear_other(core(cpu), address)
+
+
+def clear_other(k, address):
+    """Core k wrote at address: the other core loses its reservation on that granule."""
     other = 1 - k
     if get("reservation%d" % other) == address & GRANULE:
         if get("monitor") == "local":

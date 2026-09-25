@@ -23,6 +23,7 @@
 extern unsigned HostContextSwitchesRequested;
 extern unsigned HostSoftTimerRequests;
 extern unsigned HostFailingSC;       /* store-conditionals to fail, see host_port.c */
+extern unsigned HostPassingSC;       /* those let through first */
 
 #define _OSScheduleTask()               (HostContextSwitchesRequested += 1)
 #define _OSGenerateSoftTimerInterrupt() (HostSoftTimerRequests += 1)

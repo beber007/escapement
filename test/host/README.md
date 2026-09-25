@@ -27,7 +27,7 @@ loops.
 | `expiry` | the time a task left unused runs out while the processor idles; the task set was found by searching random ones for a deadline that a kernel whose slack never runs out misses |
 | `reclaim` | that time slows down a task that is not the last of its busy period |
 | `firm` | (m,k)-firm tasks under a declared overload of 220 %, soft kernel only |
-| `test_ipc` | the FIFO queue past the wrap of its indices and refusing a node when full, both slot buffers through their states, store-conditionals made to fail on purpose |
+| `test_ipc` | the FIFO queue past the wrap of its indices and refusing a node when full, both slot buffers through their states, the queue between the cores of the RP2350 (`Escapement_CoreQueue.c`) in order, full, empty and round its array, its SCs made to fail — the one that advances Tail or Head among them —, store-conditionals made to fail on purpose |
 
 Under the power-aware kernel every run also checks the speeds asked for: always one of
 the operating points of the RP2040; where slowing down is possible, some below the
