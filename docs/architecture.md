@@ -110,8 +110,8 @@ hardware spinlocks of the SIO offered no alternative, being unreliable on that c
   `Escapement/CORTEX-Mx/RP2350/`, transposed from the RP2040 port on 2026-09-24: the
   clocks at 150 MHz, TIMER0 with its tick from the TICKS block, 52 interrupts, the pads
   released from their isolation, the UART, the timer events and the launch of core 1.
-  The hard and the soft kernel build seven examples under `pico2/` in the CI — the five
-  of the Pico, `ThreeSlotCoresPico2` and `FIFOCoresPico2` — and all seven run under
+  The hard and the soft kernel build eight examples under `pico2/` in the CI — the six
+  of the Pico, `ThreeSlotCoresPico2` and `FIFOCoresPico2` — and all eight run under
   Renode on a platform of our own (`emulation.md`), the 2^30 wrap of the kernel clock
   and both slot buffers between the two cores included, which shows that they schedule,
   not that the clocks are programmed right. The power-aware kernel is not ported, and no

@@ -26,7 +26,7 @@ tools/dvfs_bench.py <elf>                     # BenchDVFSPico: means of each cha
 # RP2350 takes that path too, on ours)
 make -C Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
 
-# Pico 2 (RP2350, Cortex-M33) — seven examples; no KERNEL=PA yet. Its Renode suite runs
+# Pico 2 (RP2350, Cortex-M33) — eight examples; no KERNEL=PA yet. Its Renode suite runs
 # on a platform of our own, on the Mac too (Renode 1.17 portable, robotframework 6.1 venv)
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
 renode-test emulation/renode/escapement_pico2.robot

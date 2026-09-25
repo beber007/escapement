@@ -233,3 +233,16 @@ its own turn — and the monitor clears no reservation. With a slice of 1 us the
 because the other core had written in the granule. `The queue of Evéquoz crosses between
 the two cores` sets that slice and asks for such failures on both cores. Each queue has
 one producer and one consumer there; two of either are the model's (`fifo_mp.py`).
+
+On one core, `IPCPico2` and `IPCPico` make tasks preempt one another inside the FIFO
+queue and a 3-slot buffer: a task of period 5 ms fills the queue and writes the buffer
+for 3 ms of each instance, a task of period 1 ms preempts it to put its own records and
+read the buffer with `OS_READ_ONLY_ONCE`, and an event-driven task empties the queue.
+The kernel's code that completes an operation left posted by the task it preempted runs
+only then; the suites hook the queue's helpers and count those entered for a descriptor
+on the preempted task's stack. On 2026-09-25, over 50 ms, 660 records went through the
+queue in order and 40 slots were read, none twice nor torn, under each of the four
+builds of the Pico 2, the helpers completing 7 to 22 operations of another task, and
+under the seven builds of the Pico run in the CI's image (hard and soft under both
+algorithms, the power-aware kernel under OTE, DRA and DM_SLACK), 35 to 48. The hooks
+slow the test to 16 to 36 s.

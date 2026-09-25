@@ -78,13 +78,13 @@ endif
 $(shell mkdir -p build)
 
 all: build/TaskLEDPico.elf build/UARTEchoPico.elf build/TaskWrapPico.elf \
-     build/TestTimerEventPico.elf build/FourSlotCoresPico.elf
+     build/TestTimerEventPico.elf build/FourSlotCoresPico.elf build/IPCPico.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
 
 bin: all build/TaskLEDPico.bin build/UARTEchoPico.bin build/TaskWrapPico.bin \
-     build/TestTimerEventPico.bin build/FourSlotCoresPico.bin
+     build/TestTimerEventPico.bin build/FourSlotCoresPico.bin build/IPCPico.bin
 
 build/%.bin : build/%.elf
 	$(OBJCOPY) -O binary $< $@
@@ -132,6 +132,8 @@ build/UARTEchoPico.o : UARTEchoPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TaskWrapPico.o : TaskWrapPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/IPCPico.o : IPCPico.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TestTimerEventPico.o : TestTimerEventPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/FourSlotCoresPico.o : FourSlotCoresPico.c
@@ -147,6 +149,8 @@ build/UARTEchoPico.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o -T$(LINKERFILE) -lgcc
 build/TaskWrapPico.elf : $(COMMON) build/TaskWrapPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/TaskWrapPico.o -T$(LINKERFILE) -lgcc
+build/IPCPico.elf : $(COMMON) build/IPCPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/IPCPico.o -T$(LINKERFILE) -lgcc
 build/TestTimerEventPico.elf : $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico.o -T$(LINKERFILE) -lgcc
 build/FourSlotCoresPico.elf : $(COMMON) build/Escapement_Core1.o build/FourSlotCoresPico.o

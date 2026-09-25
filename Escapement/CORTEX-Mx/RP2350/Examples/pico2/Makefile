@@ -69,14 +69,14 @@ $(shell mkdir -p build)
 
 all: build/TaskLEDPico2.elf build/UARTEchoPico2.elf build/TestTimerEventPico2.elf \
      build/FourSlotCoresPico2.elf build/ThreeSlotCoresPico2.elf build/TaskWrapPico2.elf \
-     build/FIFOCoresPico2.elf
+     build/FIFOCoresPico2.elf build/IPCPico2.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
 
 bin: all build/TaskLEDPico2.bin build/UARTEchoPico2.bin build/TestTimerEventPico2.bin \
      build/FourSlotCoresPico2.bin build/ThreeSlotCoresPico2.bin build/TaskWrapPico2.bin \
-     build/FIFOCoresPico2.bin
+     build/FIFOCoresPico2.bin build/IPCPico2.bin
 
 build/%.bin : build/%.elf
 	$(OBJCOPY) -O binary $< $@
@@ -134,6 +134,8 @@ build/FIFOCoresPico2.o : FIFOCoresPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TaskWrapPico2.o : TaskWrapPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/IPCPico2.o : IPCPico2.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskLEDPico2.elf : $(COMMON) build/TaskLEDPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/TaskLEDPico2.o -T$(LINKERFILE) -lgcc
@@ -149,6 +151,8 @@ build/FIFOCoresPico2.elf : $(COMMON) build/Escapement_Core1.o build/Escapement_C
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/Escapement_CoreQueue.o build/FIFOCoresPico2.o -T$(LINKERFILE) -lgcc
 build/TaskWrapPico2.elf : $(COMMON) build/TaskWrapPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/TaskWrapPico2.o -T$(LINKERFILE) -lgcc
+build/IPCPico2.elf : $(COMMON) build/IPCPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/IPCPico2.o -T$(LINKERFILE) -lgcc
 
 # The .d files produced by -MMD list the headers of each object: without them, a change
 # to Escapement_Config.h triggers no rebuild at all and the next test runs against a

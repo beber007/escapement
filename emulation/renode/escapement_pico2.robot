@@ -227,6 +227,45 @@ The 3-slot buffer crosses between the two cores
     Should Be True            ${plain_torn} > 0
     Should Be True            ${reader_failed} > 0 and ${cleared} > 0
 
+Tasks preempt one another inside the FIFO queue and a slot buffer
+    [Documentation]           IPCPico2: a long task fills a FIFO queue and writes a 3-slot
+    ...                       buffer, a short one of higher priority preempts it wherever it
+    ...                       stands to put its own records and read the buffer once each
+    ...                       time, and an event-driven task empties the queue. Every record
+    ...                       must come out once and in order, and the buffer never give a
+    ...                       record twice. An operation preempted in the queue is completed
+    ...                       by the task that preempts it: the hooks count the helpers of
+    ...                       the queue entered for a descriptor far from the stack pointer,
+    ...                       that is, on the stack of the preempted task, and some must be.
+    Load Escapement           IPCPico2
+    FOR  ${helper}  ${reg}  IN  FIFOEnqueueHelper  1  FIFODequeueHelper  2
+        ${address}=           Execute Command  sysbus GetSymbolAddress "${helper}"
+        Execute Command       sysbus.cpu0 AddHook ${address.strip()} "import System; d = System.AppDomain.CurrentDomain; des = int(str(self.GetRegisterUnsafe(${reg})), 0); sp = int(str(self.GetRegisterUnsafe(13)), 0); d.SetData('helped', (d.GetData('helped') or 0) + (1 if des - sp > 64 else 0))"
+    END
+
+    Execute Command           emulation RunFor "0.05"
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${put0}=                  Read Word  ${results}
+    ${put1}=                  Read Word  ${results + 4}
+    ${taken0}=                Read Word  ${results + 8}
+    ${taken1}=                Read Word  ${results + 12}
+    ${out_of_order}=          Read Word  ${results + 16}
+    ${slot_reads}=            Read Word  ${results + 24}
+    ${slot_repeats}=          Read Word  ${results + 28}
+    ${slot_torn}=             Read Word  ${results + 32}
+    ${helped}=                Execute Command  python "import System; print(System.AppDomain.CurrentDomain.GetData('helped') or 0)"
+    ${helped}=                Convert To Integer  ${helped.strip()}
+    Log To Console            put ${put0}+${put1}, taken ${taken0}+${taken1}, slot reads ${slot_reads}, helped ${helped}
+    Should Be True            ${taken0} > 200 and ${taken1} > 10
+    Should Be True            ${put0} - ${taken0} <= 8 and ${put1} - ${taken1} <= 8
+    Should Be Equal As Integers  ${out_of_order}  0
+    Should Be True            ${slot_reads} > 10
+    Should Be Equal As Integers  ${slot_repeats}  0
+    Should Be Equal As Integers  ${slot_torn}  0
+    Should Be True            ${helped} > 0
+
 The queue of Evéquoz crosses between the two cores
     [Documentation]           FIFOCoresPico2 passes records from core 1 to a task on core 0
     ...                       through the queue between the cores (Escapement_CoreQueue.c),
