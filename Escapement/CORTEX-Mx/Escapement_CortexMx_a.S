@@ -58,10 +58,9 @@
 **       task must be removed.
 **   (2) When a new task instance must be started, the above registers are explicitly
 **       placed on the run-time stack so that a return from interruption can be emulated.
-**   The other registers (R4-R11 for Cortex-M3 and -M4, or R4-R7 for Cortex-M0) must be
-**   explicitly saved by the interrupt handlers if they use them. Note that when the in-
-**   terrupt handler is a C function, the compiler automatically generates the necessary
-**   code to store and restore these registers. There can be no possible corruption of
+**   The other registers (R4-R11) must be explicitly saved by the interrupt handlers if
+**   they use them. Note that when the interrupt handler is a C function, the compiler
+**   automatically generates the necessary code to store and restore these registers. There can be no possible corruption of
 **   these registers because the interrupts are prioritized and cannot be aborted. For
 **   application tasks, all these registers must be explicitly saved during a context
 **   switch because the registers used by the task (a C function) are never restored when
@@ -97,7 +96,7 @@
 **             create a minimal context composed of the automatically saved registers
 **          end if
 **       else if _OSActiveTask->TaskState != STATE_RUNNING then
-**          push manually saved registers R4-R11 or R4-R7  (context of previous task)
+**          push manually saved registers R4-R11           (context of previous task)
 **          push _OSStackBasePointer           (_OSStackBasePointer of previous task)
 **          _OSStackBasePointer := SP
 **          set new LR, PC, and SR
@@ -218,13 +217,19 @@ _OSContextSwapHandler_End:
 /* end of _OSContextSwapHandler */
 .end
 #elif defined(CORTEX_M0)
-/* _OSContextSwapHandler: Same as for Cortex-M3 and Cortex-M4 except that the manually
-** saved general purpose registers are R4 - R7 instead of R4 - R11, and there are minor
-** assembler changes, e.g. MOV becomes MOVS, etc.
+/* _OSContextSwapHandler: Same as for Cortex-M3 and Cortex-M4, with the assembler changes
+** of ARMv6-M, e.g. MOV becomes MOVS, etc. PUSH and POP reach R0-R7 only: R8-R11 go
+** through R4-R7 with MOV. They must be saved all the same, being preserved across calls
+** by the procedure call standard (Arm, AAPCS, "Core registers"), and GCC uses them in
+** Thumb-1 code too: a task that preempts another and ends is wiped from the stack with
+** whatever it left in them, never restoring them. The ZottaOS port for the Cortex-M0
+** saved R4-R7 only, and a task resumed with the R8 of the one that had preempted it
+** (IPCPico under Renode, 2026-09-25).
 ** Contents of the run-time stack when this function is called:
 ** SP ->                           Local variables of the interrupted or terminated task
 **                                   ...
-** _OSStackBasePointer ->          previous _OSStackBasePointer         // Manually saved
+** _OSStackBasePointer ->          R8 - R11 (General-purpose registers) // Manually saved
+**                                 previous _OSStackBasePointer         // Manually saved
 **                                 R4 - R7 (General-purpose registers)  // Manually saved
 **                                 R0  (General-purpose register)  // Automatically saved
 **                                 R1  (General-purpose register)  // Automatically saved
@@ -256,6 +261,11 @@ _OSContextSwapHandler:
   /* Save the context of the task: context switching from an active task to a new task */
   LDR R3,[R2]                              // R3 <- _OSStackBasePointer
   PUSH {R3,R4-R7}                          // push R4-R7 and _OSStackBasePointer
+  MOV R4,R8                                // then R8-R11, through R4-R7
+  MOV R5,R9
+  MOV R6,R10
+  MOV R7,R11
+  PUSH {R4-R7}
   MRS R3,MSP                               // retrieve SP: R3 <- SP
   STR R3,[R2]                              // _OSStackBasePointer <- SP
   B _OSContextSwapHandler_CreateNewContext
@@ -308,6 +318,11 @@ _OSContextSwapHandler_CreateNewContext:
 .thumb_func
 _OSContextSwapHandler_RestoreContext:
   /* Pop manually saved registers */
+  POP {R4-R7}                              // R8-R11, through R4-R7
+  MOV R8,R4
+  MOV R9,R5
+  MOV R10,R6
+  MOV R11,R7
   POP {R0,R4-R7}                           // R0 = previous _OSStackBasePointer
   STR R0,[R2]                              // _OSStackBasePointer <- R0
 .thumb_func

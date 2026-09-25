@@ -232,11 +232,13 @@ Tasks preempt one another inside the FIFO queue and a slot buffer
     ...                       buffer, a short one of higher priority preempts it wherever it
     ...                       stands to put its own records and read the buffer once each
     ...                       time, and an event-driven task empties the queue. Every record
-    ...                       must come out once and in order, and the buffer never give a
-    ...                       record twice. An operation preempted in the queue is completed
-    ...                       by the task that preempts it: the hooks count the helpers of
-    ...                       the queue entered for a descriptor far from the stack pointer,
-    ...                       that is, on the stack of the preempted task, and some must be.
+    ...                       must come out once and in order, the buffer never give a
+    ...                       record twice, and no task find R8-R11 changed by a task that
+    ...                       preempted it and ended. An operation preempted in the queue is
+    ...                       completed by the task that preempts it: the hooks count the
+    ...                       helpers of the queue entered for a descriptor far from the stack
+    ...                       pointer, that is, on the stack of the preempted task, and some
+    ...                       must be.
     Load Escapement           IPCPico2
     FOR  ${helper}  ${reg}  IN  FIFOEnqueueHelper  1  FIFODequeueHelper  2
         ${address}=           Execute Command  sysbus GetSymbolAddress "${helper}"
@@ -255,6 +257,7 @@ Tasks preempt one another inside the FIFO queue and a slot buffer
     ${slot_reads}=            Read Word  ${results + 24}
     ${slot_repeats}=          Read Word  ${results + 28}
     ${slot_torn}=             Read Word  ${results + 32}
+    ${registers}=             Read Word  ${results + 36}
     ${helped}=                Execute Command  python "import System; print(System.AppDomain.CurrentDomain.GetData('helped') or 0)"
     ${helped}=                Convert To Integer  ${helped.strip()}
     Log To Console            put ${put0}+${put1}, taken ${taken0}+${taken1}, slot reads ${slot_reads}, helped ${helped}
@@ -264,6 +267,7 @@ Tasks preempt one another inside the FIFO queue and a slot buffer
     Should Be True            ${slot_reads} > 10
     Should Be Equal As Integers  ${slot_repeats}  0
     Should Be Equal As Integers  ${slot_torn}  0
+    Should Be Equal As Integers  ${registers}  0
     Should Be True            ${helped} > 0
 
 The queue of Evéquoz crosses between the two cores

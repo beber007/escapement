@@ -17,7 +17,9 @@
 ** does so runs only under preemption, which the host test reaches by hand
 ** (test/host/test_ipc.c) and this reaches as a task set does. The Drainer checks that
 ** the records of each producer come out once and in order; the Poker, that the buffer
-** never gives it a record twice nor a torn one. The counts sit in Results, which the
+** never gives it a record twice nor a torn one. Each task also leaves registers R8-R11
+** changed as it ends, which a context switch must not hand to the task it resumes: the
+** Filler checks them around a delay (CheckHighRegisters). The counts sit in Results, which the
 ** Renode suite reads (escapement_pico.robot) and SWD reads on the board.
 ** Platform version: RP2040 (Raspberry Pi Pico).
 */
@@ -44,6 +46,7 @@ typedef struct {
 volatile struct {
   UINT32 Put[2], Taken[2], OutOfOrder, Full;
   UINT32 SlotReads, SlotRepeats, SlotTorn;
+  UINT32 Registers;
 } Results;
 
 static void *Queue, *Slots, *Drain;
@@ -51,6 +54,8 @@ static void *Queue, *Slots, *Drain;
 static void FillerTask(void *argument);
 static void PokerTask(void *argument);
 static void DrainerTask(void *argument);
+static UINT32 CheckHighRegisters(UINT32 seed);
+static void ClobberHighRegisters(void);
 
 #define VTOR              *((volatile UINT32 *)0xE000ED08)
 
@@ -119,6 +124,7 @@ static void FillerTask(void *argument)
      written.Counter += 1;
      written.Complement = ~written.Counter;
      OSWriteBuffer(Slots,(UINT8 *)&written,sizeof written);
+     Results.Registers += CheckHighRegisters(written.Counter);
   }
   OSEndTask();
 } /* end of FillerTask */
@@ -141,6 +147,7 @@ static void PokerTask(void *argument)
         Results.SlotRepeats += 1;
      last = slot->Counter;
   }
+  ClobberHighRegisters();
   OSEndTask();
 } /* end of PokerTask */
 
@@ -162,5 +169,67 @@ static void DrainerTask(void *argument)
      }
      OSReleaseNodeFIFO(Queue,node);
   }
+  ClobberHighRegisters();
   OSSuspendSynchronousTask();
 } /* end of DrainerTask */
+
+
+/* CheckHighRegisters: Sets R8-R11 from a seed, waits long enough for the Poker and the
+** Drainer to preempt the Filler there now and then, and returns how many of them changed
+** meanwhile. On the Cortex-M0+, which reaches R8-R11 only with MOV, the context switch
+** once saved R4-R7 alone (Escapement_CortexMx_a.S). */
+static UINT32 CheckHighRegisters(UINT32 seed)
+{
+  UINT32 changed;
+  __asm volatile (
+     "  .syntax unified       \n"   /* GCC hands Thumb-1 inline assembly over divided */
+     "  mov  r4, %[seed]      \n"
+     "  mov  r8, r4           \n"
+     "  adds r4, #1           \n"
+     "  mov  r9, r4           \n"
+     "  adds r4, #1           \n"
+     "  mov  r10, r4          \n"
+     "  adds r4, #1           \n"
+     "  mov  r11, r4          \n"
+     "  movs r5, #200         \n"
+     "1: subs r5, #1          \n"
+     "  bne  1b               \n"
+     "  movs %[changed], #0   \n"
+     "  mov  r4, %[seed]      \n"
+     "  cmp  r8, r4           \n"
+     "  beq  2f               \n"
+     "  adds %[changed], #1   \n"
+     "2: adds r4, #1          \n"
+     "  cmp  r9, r4           \n"
+     "  beq  3f               \n"
+     "  adds %[changed], #1   \n"
+     "3: adds r4, #1          \n"
+     "  cmp  r10, r4          \n"
+     "  beq  4f               \n"
+     "  adds %[changed], #1   \n"
+     "4: adds r4, #1          \n"
+     "  cmp  r11, r4          \n"
+     "  beq  5f               \n"
+     "  adds %[changed], #1   \n"
+     "5:                      \n"
+     : [changed] "=&l" (changed)
+     : [seed] "l" (seed)
+     : "r4", "r5", "r8", "r9", "r10", "r11", "cc");
+  return changed;
+} /* end of CheckHighRegisters */
+
+
+/* ClobberHighRegisters: Leaves R8-R11 changed; the task calling it ends without
+** restoring them, as a task ending in the middle of a function that uses them does. */
+static void __attribute__((noinline, naked)) ClobberHighRegisters(void)
+{
+  __asm volatile (
+     "  .syntax unified      \n"
+     "  movs r0, #0          \n"
+     "  mvns r0, r0          \n"
+     "  mov  r8, r0          \n"
+     "  mov  r9, r0          \n"
+     "  mov  r10, r0         \n"
+     "  mov  r11, r0         \n"
+     "  bx   lr              \n");
+} /* end of ClobberHighRegisters */
