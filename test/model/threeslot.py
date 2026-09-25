@@ -22,6 +22,9 @@ On two cores, as on the RP2350, the writer runs beside the reader, one step per
 statement, each core with its own reservation, which a store of the other core to
 Reading clears once ACTLR.EXTEXCLALL makes the monitors see it (explore_two_cores).
 
+Two cores also let each core's accesses be seen out of program order, Armv8-M memory
+being weakly ordered: explore_weak() finds which DMB barriers the buffer needs there.
+
 Every interleaving is explored, and two properties checked: the writer never writes
 the slot being read, the reader never takes a slot past the three, and the values read
 never go backwards. Faulty variants must be caught: a reader that does not retry a
@@ -221,6 +224,286 @@ def explore_two_cores(retry=True, global_monitor=True, next_table=NEXT, writer_r
     return None
 
 
+# Two cores, weakly ordered, as fourslot.py models them (explore_weak there): each core
+# performs its loads and stores in any order Armv8-M allows (DDI0553B.y, B7), a load may
+# take its value from a store of its own core the other does not see yet, and a DMB
+# orders everything before it before everything after. Two things are added here.
+#
+# The LL/SC loops branch. A core may perform the loads after a branch before the branch
+# is decided, but no store (a control dependency): so each call is explored along every
+# path its loop can take — the LL finds a request or not, the SC succeeds or fails — up
+# to RETRIES attempts, and a path is dropped as soon as a load or SC it guessed turns out
+# otherwise, which is how a mispredicted branch leaves no trace.
+#
+# The exclusive monitor is the RP2350's (datasheet 2.1.6): a reservation per core, taken
+# by its LL, lost to its own SC and to any store of the other core to the 16-byte
+# granule, which holds Reading and Latest both; ACTLR.EXTEXCLALL makes the monitors see
+# them (global_monitor=False: they do not). An SC may also fail for no visible reason,
+# an interrupt between it and its LL: the reader's always may, the kernel switching
+# context on core 0; the writer's when its core takes interrupts (writer_spurious).
+#
+# One record of the writer, k, fills the slot chosen by record k - 1 with k + 1:
+#   D   byte i of Slot[windex] = k + 1
+#   SL  Latest = windex
+#   LX  LL(&Reading)                     then, if it found 3,
+#   SX  SC(&Reading, windex)             again from LX while the SC fails
+#   LRn, LLn  windex = next[Reading][Latest]
+# One read, k:
+#   SA  Reading = 3
+#   LX  LL(&Reading)                     then, if it found 3,
+#   LLat  Latest                         (before the first LL when latest_first)
+#   SX  SC(&Reading, Latest)             again from LX while the SC fails
+#   LR  Reading
+#   RD  byte i of Slot[Reading]
+WRITER_POINTS = ("before Latest", "before the handover", "after the handover", "after")
+READER_POINTS = ("after asking", "after the handover", "after the copy")
+KERNEL_BARRIERS = (("before Latest", "before the handover"),
+                   ("after asking", "after the copy"))
+LOOKAHEAD = 2
+WEAK_LAST = 3        # records written: the paths make the states many more
+RETRIES = 2
+STORES = ("D", "SL", "SA", "SX")
+
+
+def loop_paths(retries=True):
+    """The ways an LL/SC loop can go, as (LL found 3, SC succeeded or None) pairs."""
+    paths = []
+
+    def walk(prefix, attempts):
+        paths.append(prefix + ((False, None),))
+        if attempts:
+            paths.append(prefix + ((True, True),))
+            if not retries:
+                paths.append(prefix + ((True, False),))
+            elif attempts > 1:
+                walk(prefix + ((True, False),), attempts - 1)
+    walk((), RETRIES)
+    return paths
+
+
+def weak_writer_record(k, barriers, path):
+    ops = [("D", k, i, None) for i in range(BYTES)]
+    if "before Latest" in barriers:
+        ops.append(("DMB", k, 0, None))
+    ops.append(("SL", k, 0, None))
+    if "before the handover" in barriers:
+        ops.append(("DMB", k, 1, None))
+    for attempt, (asking, succeeded) in enumerate(path):
+        ops.append(("LX", k, attempt, asking))
+        if asking:
+            ops.append(("SX", k, attempt, succeeded))
+    if "after the handover" in barriers:
+        ops.append(("DMB", k, 2, None))
+    ops += [("LRn", k, 0, None), ("LLn", k, 0, None)]
+    if "after" in barriers:
+        ops.append(("DMB", k, 3, None))
+    return ops
+
+
+def weak_reader_record(k, barriers, path, latest_first):
+    ops = [("SA", k, 0, None)]
+    if "after asking" in barriers:
+        ops.append(("DMB", k, 0, None))
+    if latest_first:
+        ops.append(("LLat", k, 0, None))
+    for attempt, (asking, succeeded) in enumerate(path):
+        ops.append(("LX", k, attempt, asking))
+        if asking:
+            if not latest_first:
+                ops.append(("LLat", k, attempt, None))
+            ops.append(("SX", k, attempt, succeeded))
+    if "after the handover" in barriers:
+        ops.append(("DMB", k, 1, None))
+    ops.append(("LR", k, 0, None))
+    ops += [("RD", k, i, None) for i in range(BYTES)]
+    if "after the copy" in barriers:
+        ops.append(("DMB", k, 2, None))
+    return ops
+
+
+def weak_writer_slot(regs, k):
+    """The slot record k chose, None while unknown; record -1 is the start."""
+    if k < 0:
+        return 2
+    reading, latest = regs.get(("LRn", k)), regs.get(("LLn", k))
+    return None if reading is None or latest is None else NEXT[reading][latest]
+
+
+def weak_location(op, regs):
+    name, k, i, _ = op
+    if name in ("D", "RD"):
+        slot = weak_writer_slot(regs, k - 1) if name == "D" else regs.get(("LR", k))
+        return ("Slot", None if slot is None else (slot, i))
+    if name in ("SL", "LLn", "LLat"):
+        return ("Latest", 0)
+    if name in ("SA", "SX", "LX", "LRn", "LR"):
+        return ("Reading", 0)
+    return ("DMB", None)
+
+
+def weak_stored(side, op, regs, latest_first):
+    name, k, attempt, _ = op
+    if name == "D":
+        return k + 1
+    if name == "SA":
+        return ASKING
+    if side == "w":                                    # SL, SX
+        return weak_writer_slot(regs, k - 1)
+    return regs[("LLat", k, 0 if latest_first else attempt)]
+
+
+def weak_performable(side, pending, j, regs, latest_first):
+    """None if the access cannot be performed yet, else (the pending store of its own
+    core it takes its value from, or None)."""
+    op = pending[j]
+    name, k, attempt, _ = op
+    if name == "DMB":
+        return (None,) if j == 0 else None
+    if side == "w" and name in ("D", "SL", "SX") and weak_writer_slot(regs, k - 1) is None:
+        return None
+    if side == "r" and name == "SX" and ("LLat", k, 0 if latest_first else attempt) not in regs:
+        return None
+    if name == "RD" and ("LR", k) not in regs:
+        return None
+    variable, where = weak_location(op, regs)
+    source = None
+    for earlier in pending[:j]:
+        if earlier[0] == "DMB":
+            return None
+        if name in STORES and earlier[0] in ("LX", "SX"):
+            return None                                # no store past an open branch
+        evariable, ewhere = weak_location(earlier, regs)
+        if evariable != variable:
+            continue
+        if ewhere is None or where is None:
+            return None
+        if ewhere == where:
+            if name in STORES or name == "LX" or earlier[0] not in STORES or earlier[0] == "SX":
+                return None
+            source = earlier
+    return (source,)
+
+
+def explore_weak(barriers=KERNEL_BARRIERS, latest_first=False, writer_spurious=True,
+                 global_monitor=True, writer_retries=True):
+    """Every execution of the two cores under weak ordering; None, or what went wrong."""
+    wbarriers, rbarriers = barriers
+    memory = {("Latest", 0): 0, ("Reading", 0): ASKING}
+    memory.update({("Slot", (slot, b)): 0 for slot in range(3) for b in range(BYTES)})
+
+    def frozen(mapping):
+        return tuple(sorted(mapping.items(), key=repr))
+
+    def refills(pending, following, side):
+        """Every way to top the pending accesses up, one per path of the new calls."""
+        results = [(tuple(pending), following)]
+        while True:
+            grown = []
+            for accesses, n in results:
+                if len({o[1] for o in accesses}) < LOOKAHEAD and (side == "r" or n < WEAK_LAST):
+                    for path in loop_paths(writer_retries if side == "w" else True):
+                        record = (weak_writer_record(n, wbarriers, path) if side == "w"
+                                  else weak_reader_record(n, rbarriers, path, latest_first))
+                        grown.append((accesses + tuple(record), n + 1))
+                else:
+                    grown.append((accesses, n))
+            if grown == results:
+                return results
+            results = grown
+
+    # memory, the writer's pending accesses, next record, registers and reservation,
+    # the reader's (its records renumbered from the first not read whole), the bytes
+    # read, and the last value read
+    starts = [(frozen(memory), wp, wn, (), False, rp, rn, (), False, (), 0)
+              for wp, wn in refills((), 0, "w") for rp, rn in refills((), 0, "r")]
+    seen, todo = set(starts), deque(starts)
+    while todo:
+        mem, wp, wn, wregs, wres, rp, rn, rregs, rres, read, last = todo.popleft()
+        for side in ("w", "r"):
+            pending, regs = (wp, dict(wregs)) if side == "w" else (rp, dict(rregs))
+            own, other = (wres, rres) if side == "w" else (rres, wres)
+            for j, op in enumerate(pending):
+                verdict = weak_performable(side, pending, j, regs, latest_first)
+                if verdict is None:
+                    continue
+                source = verdict[0]
+                name, k, attempt, guess = op
+                memory, newregs, bytes_read = dict(mem), dict(regs), dict(read)
+                outcomes = []          # memory, registers, own and other reservation
+                if name == "DMB":
+                    outcomes.append((memory, newregs, own, other))
+                elif name == "SX":
+                    spurious = writer_spurious if side == "w" else True
+                    for succeeded in ((True, False) if own and spurious else (own,)):
+                        if succeeded != guess:
+                            continue           # not the path this call took
+                        after = dict(memory)
+                        if succeeded:
+                            after[("Reading", 0)] = weak_stored(side, op, regs, latest_first)
+                        outcomes.append((after, newregs, False,
+                                         other and not (succeeded and global_monitor)))
+                elif name in STORES:
+                    where = weak_location(op, regs)
+                    memory[where] = weak_stored(side, op, regs, latest_first)
+                    in_granule = where[0] in ("Reading", "Latest")
+                    outcomes.append((memory, newregs, own,
+                                     other and not (in_granule and global_monitor)))
+                else:
+                    where = weak_location(op, regs)
+                    value = (weak_stored(side, source, regs, latest_first) if source
+                             else memory[where])
+                    reserved = own
+                    if name == "LX":
+                        if (value == ASKING) != guess:
+                            continue           # not the path this call took
+                        reserved = True
+                    elif name == "RD":
+                        bytes_read[(k, attempt)] = value
+                    elif name == "LR":
+                        if value == ASKING:
+                            return "the reader takes slot 3, past the end of the array"
+                        newregs[("LR", k)] = value
+                    elif name == "LLat":
+                        newregs[("LLat", k, attempt)] = value
+                    else:
+                        newregs[(name, k)] = value
+                    outcomes.append((memory, newregs, reserved, other))
+                rest = pending[:j] + pending[j + 1:]
+                for after, afterregs, afterown, afterother in outcomes:
+                    for topped, following in refills(rest, wn if side == "w" else rn, side):
+                        oldest = min([o[1] for o in topped] + [following])
+                        keep = oldest - 1 if side == "w" else oldest
+                        afterregs = {key: v for key, v in afterregs.items() if key[1] >= keep}
+                        if side == "w":
+                            state = [topped, following, afterregs, afterown,
+                                     rp, rn, dict(rregs), afterother]
+                        else:
+                            state = [wp, wn, dict(wregs), afterother,
+                                     topped, following, afterregs, afterown]
+                        pending_bytes, done, newest = dict(bytes_read), 0, last
+                        while all((done, b) in pending_bytes for b in range(BYTES)):
+                            got = tuple(pending_bytes.pop((done, b)) for b in range(BYTES))
+                            if len(set(got)) != 1:
+                                return f"a read mixes two records: {got}"
+                            if got[0] < newest:
+                                return f"a read returns {got[0]} after {newest}"
+                            done, newest = done + 1, got[0]
+                        if done:       # renumber the reader's records from the first unread
+                            state[4] = tuple((o[0], o[1] - done) + o[2:] for o in state[4])
+                            state[5] -= done
+                            state[6] = {(key[0], key[1] - done) + key[2:]: v
+                                        for key, v in state[6].items()}
+                            pending_bytes = {(r - done, b): v
+                                             for (r, b), v in pending_bytes.items()}
+                        successor = (frozen(after), state[0], state[1], frozen(state[2]),
+                                     state[3], state[4], state[5], frozen(state[6]), state[7],
+                                     frozen(pending_bytes), newest)
+                        if successor not in seen:
+                            seen.add(successor)
+                            todo.append(successor)
+    return None
+
+
 def main():
     ok = True
     print("one core, the writer an interrupt, LL/SC as the Cortex-M0+ emulates it:")
@@ -267,6 +550,30 @@ def main():
     print(f"  a writer that does not retry a failed SC cannot be seen there:"
           f" {'right' if failure is None else 'WRONG, it fails: ' + failure}")
     ok = ok and failure is None
+    print("two cores, each free to reorder its accesses as Armv8-M allows, the writer's"
+          " core taking interrupts:")
+    failure = explore_weak()
+    print(f"  the 3-slot buffer with the kernel's four DMB "
+          f"{'holds' if failure is None else 'FAILS: ' + failure}")
+    ok = ok and failure is None
+    failure = explore_weak(latest_first=True)
+    print(f"  with the reader taking Latest before its LL, "
+          f"{'holds' if failure is None else 'FAILS: ' + failure}")
+    ok = ok and failure is None
+    for side in (0, 1):
+        for point in KERNEL_BARRIERS[side]:
+            fewer = [list(KERNEL_BARRIERS[0]), list(KERNEL_BARRIERS[1])]
+            fewer[side].remove(point)
+            failure = explore_weak((tuple(fewer[0]), tuple(fewer[1])))
+            who = "writer" if side == 0 else "reader"
+            print(f"  without the {who}'s DMB {point}, caught: {failure or 'NOT CAUGHT'}")
+            ok = ok and failure is not None
+    for name, kwargs in (("the monitors local to each core", {"global_monitor": False}),
+                         ("a writer that does not retry a failed SC",
+                          {"writer_retries": False})):
+        failure = explore_weak(**kwargs)
+        print(f"  {name} is caught: {failure or 'NOT CAUGHT'}")
+        ok = ok and failure is not None
     print("all checks passed" if ok else "FAILED")
     return 0 if ok else 1
 
