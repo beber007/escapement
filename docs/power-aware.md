@@ -2,7 +2,7 @@
 
 The power-aware kernel, `EscapementHardPA`, lowers the frequency and the core voltage
 whenever the execution times the tasks declare leave room before the next deadline. Its
-driver is now the one of the RP2040, described below; the kernel itself also runs in the
+driver is now the RP2040's, described below; the kernel itself also runs in the
 host test (`test/host`).
 
 ## The STM32L1 driver, removed
@@ -31,19 +31,19 @@ Lowering *f* alone gains nothing, and even lengthens the active time and
 therefore the leakage energy. The only lever is **V²**, and V can only be
 lowered by lowering f.
 
-**What made the STM32L1 interesting**, the first target. Three regulator ranges — 1.8 V up to
-32 MHz, 1.5 V up to 16 MHz, 1.2 V up to 4.2 MHz. That is (1.8/1.2)² =
-**2.25×** in theory on dynamic energy. And the range is selected by software:
-most firmwares set range 1 at start-up and never touch it again, so there is
-unexploited headroom.
+**What the RP2040 offers.** Within its specification the core runs at 1.10 V at
+125 MHz and at 1.05 V below (see the driver further down): (1.05/1.10)² ≈ 0.91, some
+**9 % less dynamic energy per cycle** in the core. Undervolted, as the bench may do
+outside the specification, 0.90 V at 12 MHz gives (0.90/1.10)² ≈ 0.67, a third less.
 
-**What tempers this considerably.** The figure that matters is the µA/MHz of
-the datasheet, and it does not follow a V² law: the order of magnitude quoted
-for the STM32L1 is around 230 µA/MHz in range 1 against 185 to 200 in range 3 —
-**figures to be checked against the ST datasheet**, they do not come from a
-measurement made here. That is on the order of a 20 % gain per cycle, far from
-the theoretical 2.25×. The V² law applies to switching only; the regulator, the
-flash, the always-on analogue blocks and the leakage are incompressible.
+**What tempers this.** Those are figures for the core alone, computed, not measured.
+The core regulator of the RP2040 is linear: the board draws the core's current at the
+supply voltage, and that current per cycle falls with V, not V², so the 9 % in the
+core is some 5 % at the supply. The V² law applies to switching only; the crystal,
+the PLL kept running, the always-on blocks and the leakage do not scale with it.
+The STM32L1, the first target, promised more on paper — three regulator ranges from
+1.8 to 1.2 V, 2.25× in theory — but the µA/MHz its datasheet was said to quote pointed
+to some 20 % per cycle, a figure never checked here.
 
 **The real competitor is not “stay at maximum”, it is *race-to-sleep*.** Go up
 to 32 MHz, finish as fast as possible, drop into Stop mode at a few µA. Since
@@ -97,7 +97,7 @@ has not been built yet.
 regulator**, not a switching one, so part of the theoretical benefit is dissipated in the
 regulator rather than saved. Lowering the voltage does lower the switching current, so a
 gain remains measurable, but it will fall short of what a V² law suggests — one more
-reason to measure rather than reason. Worth confirming against the datasheet first.
+reason to measure rather than reason (RP2040 datasheet, section 2.10).
 
 ## The DVFS driver of the RP2040
 

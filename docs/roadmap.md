@@ -124,8 +124,8 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
 - [ ] **Show the lock-free mechanisms between the two cores.** The scheduler stays
       on one core; what can be shown is the communication between them. On the
       Pico, only Simpson's four slots work across cores — the Cortex-M0+ has no
-      exclusive accesses, and the emulated LL/SC holds on one core. Done on
-      2026-09-24 (`FourSlotCoresPico`, `rp2040.md`): core 1, started by the port,
+      exclusive accesses, and the emulated LL/SC holds on one core. The Pico part
+      was done on 2026-09-24 (`FourSlotCoresPico`, `rp2040.md`): core 1, started by the port,
       writes records whose words all carry the same rising counter, a task on
       core 0 reads them; in 320,000 reads under each kernel none was torn and none
       went backwards, the two properties Rushby model-checked, while a plain array
@@ -170,7 +170,7 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       VREG, the SIO and the UART, and could replace the frozen models for the Pico once
       merged) and a mere feature request for the RP2350; Wokwi runs in the cloud,
       closed, with an RP2350 still incomplete. The lasting answer is a bench on the
-      board, run by the CI from a machine of the house. Begun on 2026-09-24 ahead of the
+      board, run by the CI from a machine at home. Begun on 2026-09-24 ahead of the
       measurement, since the lock-free mechanisms across the cores need no energy
       figure: first the generic layer on ARMv8-M, compiled for the three kernels
       (`architecture.md`); then the port, whose hard and soft kernels build the five
@@ -226,7 +226,7 @@ The history keeps all of it, and so does the archived `beber007/zottaos`.
       and the 1 ms probe hard — and the `Makefile` links `EscapementSoft.o`, which
       it never did: `make KERNEL=SOFT` did not build. The `emulation-rp2040` job is
       now a matrix of the four builds, each running `escapement_pico.robot`. Run
-      first on a Linux machine of the house, under podman, since the models need
+      first on a Linux machine at home, under podman, since the models need
       the linux-dotnet package (`emulation/renode/RP2040.md`). The power-aware
       kernel followed with the DVFS driver above.
 - [x] **Cross the 2^30 wrap on the Pico.** The port rebuilds the wrap of the

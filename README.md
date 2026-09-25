@@ -170,23 +170,25 @@ memory barriers the weak-memory models call for, added on 2026-09-25.
 [`test/model`](test/model), explored exhaustively in CI: the reader and the writer
 of the slot buffers, the operations of the queue preempting one another at every
 access, the load-linked / store-conditional pair as the Cortex-M0+ emulates it.
-They found three defects, now fixed: the 3-slot reader had not allowed for a
+They found four defects, now fixed: the 3-slot reader had not allowed for a
 store-conditional failing, as it does, unlike a compare-and-swap, whenever an
 interrupt merely came between it and its load-linked; a queue of event-driven
-tasks could let one signal wake two of them; and the 3-slot writer tried its
+tasks could let one signal wake two of them; the 3-slot writer tried its
 store-conditional once too — harmless on one core, where the interrupt that makes
 it fail clears the reader's reservation as well, not between two cores, where the
-reader's survives. None lies in the published algorithms: the first and the third
-came from carrying a compare-and-swap over to a store-conditional tried once, a
-pitfall the literature knows, the second from the signal and the announced
-operation that ZottaOS added to Evéquoz's queue.
+reader's survives; and between two cores both slot buffers lacked the memory
+barriers that keep each core's accesses in order. None lies in the published
+algorithms: the first and the third came from carrying a compare-and-swap over to a
+store-conditional tried once, a pitfall the literature knows, the second from the
+signal and the announced operation that ZottaOS added to Evéquoz's queue, the
+fourth from code written for one core.
 
 **References**
 
 1. C. Evéquoz, [*Non-Blocking Concurrent FIFO Queues with Single Word
    Synchronization Primitives*](https://doi.org/10.1109/ICPP.2008.82), 37th
    International Conference on Parallel Processing (ICPP), 2008, pp. 397–405.
-   The author worked at the HEIG-VD, where the kernel Escapement continues was
+   The author worked at the HEIG-VD, where the kernel that Escapement continues was
    developed.
 2. H. R. Simpson, [*Four-slot fully asynchronous communication
    mechanism*](https://doi.org/10.1049/ip-e.1990.0002), IEE Proceedings E, 137(1),
