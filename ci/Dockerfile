@@ -25,10 +25,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/opt/venv/bin:/usr/share/dotnet:$PATH
 
 # The toolchain as the runners had it (Ubuntu's gcc-arm-none-eabi, 14.2.rel1), the tools of
-# the jobs, and what .NET needs.
+# the jobs — cppcheck for tools/cppcheck.sh since the image's second tag —, and what .NET
+# needs.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-        gcc-arm-none-eabi make git curl ca-certificates xz-utils \
+        gcc-arm-none-eabi make git curl ca-certificates xz-utils cppcheck \
         python3 python3-venv libicu-dev \
  && rm -rf /var/lib/apt/lists/*
 

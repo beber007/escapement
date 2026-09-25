@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/beber007/escapement-ci:1
+  IMAGE: ghcr.io/beber007/escapement-ci:2
 
 jobs:
   image:
@@ -29,6 +29,7 @@ jobs:
         run: |
           docker run --rm "$IMAGE" sh -c '
             arm-none-eabi-gcc --version | head -1
+            cppcheck --version
             dotnet --list-runtimes
             ls /opt/renode-1.17.0/renode-test /opt/renode-1.16.1/renode-test
             ls /opt/rp2040/cores/initialize_peripherals.resc
