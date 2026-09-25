@@ -26,7 +26,11 @@ for instance in "$@"; do
     name=${instance%%:*}; rest=${instance#*:}
     make=$(echo "${rest%:*}" | tr , ' '); seed=${rest##*:}
     variables="--variable SEED:$seed --variable INTERVAL:$INTERVAL --variable READINGS:$READINGS"
-    podman run -d --replace --rm --name "soak-$name" -v "$ROOT":/src:ro -v "$OUT":/out \
+    # z: under SELinux (Fedora and its kin) a container may not write a directory it was
+    # not labelled for; elsewhere podman ignores it.
+    # Unbuffered, so that each reading reaches the log as it is made, not by the 8 KiB.
+    podman run -d --replace --rm --name "soak-$name" -e PYTHONUNBUFFERED=1 \
+        -v "$ROOT":/src:ro,z -v "$OUT":/out:z \
         "$IMAGE" bash -c "cp -r /src /w && cd /w && ln -s /opt/rp2040 emulation/renode/rp2040 &&
             make -s -C Escapement/CORTEX-Mx/RP2040/Examples/pico $make build/SoakPico.elf &&
             /opt/renode-1.16.1/renode-test $variables emulation/renode/soak_emulated.robot \
