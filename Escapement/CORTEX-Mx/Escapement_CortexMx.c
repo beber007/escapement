@@ -140,46 +140,50 @@ void _OSResetHandler(void)
      ** faults and priorities as they are after reset, in the Secure state (BFHFNMINS,
      ** PRIS). */
      AIRCR = 0x05FA0000 | (PRIGROUP << 8); // Set preemption priority and subpriority
+     /* TIMER_PRIORITY is a preemption level, which the ports shift into the upper bits of
+     ** a priority byte; SysTick's byte below holds the level PRIGROUP + 1 bits up. Under
+     ** DEBUG_MODE, the timer must come before SysTick's level: 0xFC >> 1 = 126, 0xF8 >> 2
+     ** = 62, and so on. */
      switch (PRIGROUP) {
         case 0:   // indicates 7 bits of preemption priority, 1 bit of subpriority
            SHPR = 0xFCFE0000;  /* SysTick = FC;  PendSV = FE = lowest priority group */
            #ifdef DEBUG_MODE   /* Other peripherals should occupy the first 126 priority */
-              if (TIMER_PRIORITY >= 0xFC)      /* levels */
+              if (TIMER_PRIORITY >= 126)      /* levels */
                  while (TRUE);
            #endif
            break;
         case 1:   // indicates 6 bits of preemption priority, 2 bits of subpriority
            SHPR = 0xF8FC0000;  /* Other peripherals should occupy the first 62 priority */
            #ifdef DEBUG_MODE   /* levels */
-              if (TIMER_PRIORITY >= 0xF8)
+              if (TIMER_PRIORITY >= 62)
                  while (TRUE);
            #endif
            break;
         case 2:   // indicates 5 bits of preemption priority, 3 bits of subpriority
            SHPR = 0xF0F80000;  /* Other peripherals should occupy the first 30 priority */
            #ifdef DEBUG_MODE   /* levels */
-              if (TIMER_PRIORITY >= 0xF0)
+              if (TIMER_PRIORITY >= 30)
                  while (TRUE);
            #endif
            break;
         case 3:   // indicates 4 bits of preemption priority, 4 bits of subpriority
            SHPR = 0xE0F00000;  /* Other peripherals should occupy the first 14 priority */
            #ifdef DEBUG_MODE   /* levels */
-              if (TIMER_PRIORITY >= 0xE0)
+              if (TIMER_PRIORITY >= 14)
                  while (TRUE);
            #endif
            break;
         case 4:   // indicates 3 bits of preemption priority, 5 bits of subpriority
            SHPR = 0xC0E00000;  /* Other peripherals should occupy the first 6 priority */
            #ifdef DEBUG_MODE   /* levels */
-              if (TIMER_PRIORITY >= 0xC0)
+              if (TIMER_PRIORITY >= 6)
                  while (TRUE);
            #endif
            break;
         case 5:   // indicates 2 bits of preemption priority, 6 bits of subpriority
            SHPR = 0x80C00000;  /* Other peripherals should occupy the first 2 priority */
            #ifdef DEBUG_MODE   /* levels */
-              if (TIMER_PRIORITY >= 0x80)
+              if (TIMER_PRIORITY >= 2)
                  while (TRUE);
            #endif
            break;
@@ -194,6 +198,10 @@ void _OSResetHandler(void)
      ** a signed int overflows, which the standard leaves undefined. */
      SHPR = ((UINT32)(LOWEST_PRIORITY_LEVEL - 1) << 30) |
             ((UINT32)(LOWEST_PRIORITY_LEVEL) << 22);
+     #ifdef DEBUG_MODE   /* The timer must come before SysTick, at LOWEST_PRIORITY_LEVEL - 1 */
+        if (TIMER_PRIORITY >= LOWEST_PRIORITY_LEVEL - 1)
+           while (TRUE);
+     #endif
   #endif
   /* Call the application's entry point */
   asm("BL main");
