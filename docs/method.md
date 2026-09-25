@@ -157,11 +157,9 @@ kernel hung under Renode, the host test segfaulted under deadline-monotonic
 scheduling. Interrupts are now masked from the enqueue of the suspending task to its
 leaving the ready queue, and the handler never sees such a task. Both have a host test
 that fails on the code before (`test/host/README.md`). **Left open** are races the host cannot reach and
-limits of the design: an
-optional instance still ready at its next arrival, which only an overload brings; under
-EDF, events left out of the soft kernel's test when no utilisation is declared; and
-indices of the wait-free queue that come back to the same value after 65,000 operations
-during one preemption. Four points once on that list are closed (2026-09-25). The counter
+limits of the design: under EDF, events left out of the soft kernel's test when no
+utilisation is declared; and indices of the wait-free queue that come back to the same value after 65,000 operations
+during one preemption. Five points once on that list are closed (2026-09-25). The counter
 wrapping while the timer handler runs, once it has found no overflow, is reached on the
 host by a hook in that window (`wrapinside`): the handler, reading a time from after the
 wrap with its arrivals not yet shifted, releases nothing, and serves them once it finds
@@ -179,7 +177,13 @@ before the wrap against a last update after it, and the slack, left for the task
 after an idle time, grew by the 2^30 of the shift at the next arrival. The time is now
 read inside the reservation; the host runs a task set with a task ending at the last
 tick before the wrap, the interrupt taken at each of its time reads and barriers
-(`timewrap`), and the kernel before misses a deadline there. And strict aliasing, which
+(`timewrap`), and the kernel before misses a deadline there. An optional instance still
+ready at its next arrival, never started, is reached on the host by tasks that take
+time, the mandatory instances busy across its period (`firmwait`): the kernel takes it
+out of the ready queue as it should, under both algorithms. One already started is
+still an overload the kernel stops on (`DEBUG_MODE`), by design: the schedulability
+test lets it start only if it ends in time, so only a task running past its declared
+WCET brings it, or work the test leaves out, such as the events above. And strict aliasing, which
 GCC does exploit here, is turned off (below).
 
 The execution tests exercise three or four tasks, the host test ten. Nothing here

@@ -1113,7 +1113,7 @@ static void TestSignalInside(void)
 **          aware kernel kept above its slowest speed */
 
 typedef enum { TIMED_BUSY, TIMED_EARLY, TIMED_SLACK, TIMED_EXPIRY, TIMED_RECLAIM,
-               TIMED_REUSE, TIMED_OVERRUN, TIMED_MINSPEED, TIMED_IDLE } TimedMode;
+               TIMED_REUSE, TIMED_OVERRUN, TIMED_MINSPEED, TIMED_IDLE, TIMED_FIRMWAIT } TimedMode;
 
 typedef struct TimedTask {
   INT32 WCET, Period, Deadline;
@@ -1123,6 +1123,7 @@ typedef struct TimedTask {
   INT32 Work;                 /* left to do by that instance, in 256ths of a tick */
   unsigned Misses, EarlyStarts;
   INT32 Slow;                 /* ticks run below the fastest speed */
+  UINT8 Ran[32];              /* firmwait: the instances that ran, from the first */
 } TimedTask;
 
 #define TIMED_TASKS 4
@@ -1195,6 +1196,13 @@ static void TimedTaskCode(void *argument)
   TimedTask *task = (TimedTask *)argument;
   if (NbEnds < MAX_ENDS)
      Ends[NbEnds++] = TimedNow();
+  if (TimedRun == TIMED_FIRMWAIT) {
+     /* Instances of an (m,k)-firm task may not run: the one ending is known from its
+     ** next arrival, which the kernel has already set. */
+     task->Instance = (unsigned)(_OSActiveTask->NextArrivalTimeLow / task->Period) - 1;
+     if (task->Instance < sizeof task->Ran)
+        task->Ran[task->Instance] += 1;
+  }
   if (TimedNow() > (INT32)task->Instance * task->Period + task->Deadline)
      task->Misses += 1;
   task->Instance += 1;
@@ -1229,6 +1237,39 @@ static void RunTimed(INT32 duration)
 }
 
 static void SetKernelHooks(void);
+
+#if defined(ESCAPEMENT_VERSION_SOFT)
+/* CountStillReady: Instances found still in the ready queue, not yet started, when their
+** task arrives again (firmwait), those of optional instances after the idle task under
+** EDF included. */
+static unsigned StillReady;
+static void CountStillReady(void)
+{
+  HostTCB *task = _OSQueueHead;
+  unsigned steps;
+  for (steps = 0; steps <= MAX_TASKS + 1 && (task = task->Next[0]) != NULL; steps += 1)
+     if (task != IdleTCB && (task->TaskState & 0x0B) == 0 &&   /* INIT, periodic */
+         task->NextArrivalTimeLow <= HostClockNow())
+        StillReady += 1;
+}
+
+/* WholeReadyQueue: The ready queue, and under EDF the optional instances after it, lead
+** to their end with no task twice. */
+static BOOL WholeReadyQueue(void)
+{
+  HostTCB *seen[MAX_TASKS + 2], *task = _OSQueueHead;
+  unsigned n = 0, i;
+  while ((task = task->Next[0]) != NULL) {
+     if (n == MAX_TASKS + 2)
+        return FALSE;
+     for (i = 0; i < n; i += 1)
+        if (seen[i] == task)
+           return FALSE;
+     seen[n++] = task;
+  }
+  return TRUE;
+}
+#endif
 
 /* TakeInterrupt: Takes the soft timer interrupt inside the kernel's code. A task found
 ** ending is gone, its context discarded; a task elected over the interrupted one runs
@@ -1330,8 +1371,17 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
         IdleTime += step;
         HostAdvanceBy(step);
      }
-     if (step == toEvent)
+     if (step == toEvent) {
+        #if defined(ESCAPEMENT_VERSION_SOFT)
+           if (TimedRun == TIMED_FIRMWAIT)
+              CountStillReady();
+        #endif
         _OSTimerInterruptHandler();
+        #if defined(ESCAPEMENT_VERSION_SOFT)
+           if (TimedRun == TIMED_FIRMWAIT && !WholeReadyQueue())
+              QueueBreaks += 1;
+        #endif
+     }
   }
 }
 
@@ -1790,6 +1840,66 @@ static void TestFirmEvents(void)
 ** of the first wraparounds, and RunAcross calls them only after it: the hard one first,
 ** while the other waits behind the sentinel at instances 2 and 4 of its (1,3) pattern. */
 #define FIRM_WRAP_PERIOD 536870812
+/* TestFirmWait: Tasks taking time, the mandatory instances keeping the processor busy
+** across a whole period of an optional one: the optional instance, never at the head of
+** the ready queue, is still there when its task arrives again, and the kernel must take
+** it out before it inserts the next. */
+static BOOL Mandatory(unsigned j, unsigned m, unsigned k)
+{
+  j %= k;
+  return j == (j * m + k - 1) / k * k / m;
+}
+
+static void TestFirmWait(void)
+{
+  INT32 duration = 24000;
+  unsigned j, missing = 0, optional = 0, twice = 0, misses;
+  char label[96];
+  TimedTask *first = &Timed[0], *second = &Timed[1];
+
+  TimedRun = TIMED_FIRMWAIT;
+  /* The first task runs 1800 ticks of each 2000, the second 100 of each 1000 with
+  ** instances 0 and 1 of each 3 mandatory: 96.7 % of the processor for the mandatory
+  ** instances. From 2000 the first task keeps the processor to 3800 or later, under EDF
+  ** as under deadline-monotonic scheduling, and the optional instance 2 of the second
+  ** never reaches the head before 3000. */
+  first->Period = first->Deadline = 2000;
+  first->WCET = 1800;
+  second->WCET = 100;
+  second->Period = second->Deadline = 1000;
+  NbTimed = 2;
+  first->Work = first->WCET * 256;
+  second->Work = second->WCET * 256;
+  OSCreateTask(TimedTaskCode, first->WCET, 0, first->Period, first->Deadline, 1, 1, 0, first);
+  OSCreateTask(TimedTaskCode, second->WCET, 0, second->Period, second->Deadline, 2, 3, 0, second);
+  StartKernel(NULL, NULL);
+  RunTimed(duration);
+
+  printf("\n%d ticks of simulated time, an optional instance waiting past its period\n\n",
+         duration);
+  for (j = 0; j < (unsigned)(duration / second->Period); j += 1) {
+     if (second->Ran[j] > 1)
+        twice += 1;
+     if (Mandatory(j, 2, 3) && second->Ran[j] == 0)
+        missing += 1;
+     if (!Mandatory(j, 2, 3) && second->Ran[j] == 0)
+        optional += 1;
+  }
+  misses = first->Misses + second->Misses;
+  snprintf(label, sizeof label, "  the first task: %u of %d instances", first->Instance,
+           duration / first->Period);
+  Check(label, first->Instance == (unsigned)(duration / first->Period));
+  snprintf(label, sizeof label, "  the second: every mandatory instance ran, %u missing", missing);
+  Check(label, missing == 0);
+  snprintf(label, sizeof label, "  optional instances found still ready at their arrival: %u",
+           StillReady);
+  Check(label, StillReady > 0 && optional >= StillReady);
+  Check("  no instance ran twice", twice == 0);
+  Check("  the ready queue stays whole", QueueBreaks == 0);
+  snprintf(label, sizeof label, "  no deadline missed: %u", misses);
+  Check(label, misses == 0);
+}
+
 static void TestFirmWrap(void)
 {
   long long duration = 3LL * 0x40000000 + 1000000;
@@ -1881,6 +1991,8 @@ int main(int argc, char *argv[])
         TestFirmLong();
      else if (argc > 1 && strcmp(argv[1], "firmevents") == 0)
         TestFirmEvents();
+     else if (argc > 1 && strcmp(argv[1], "firmwait") == 0)
+        TestFirmWait();
   #endif
   else
      TestTaskSet();
