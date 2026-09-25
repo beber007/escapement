@@ -140,8 +140,10 @@ while :; do
                     echo "$(date '+%Y-%m-%d %H:%M:%S') SECONDS BEHIND: $line" | tee -a "$LOG"
                     new=$((new + 1))
                 fi
+                # Modulo 2^32: the queue's count, some 4,000 a second on the Pico, wraps
+                # after 12.5 days, within a run of two weeks (2026-09-25).
                 for a in $activity; do
-                    if [ "$a" -le "$1" ]; then
+                    if [ $(((a - $1) & 0xFFFFFFFF)) -eq 0 ]; then
                         echo "$(date '+%Y-%m-%d %H:%M:%S') STOPPED: $line" | tee -a "$LOG"
                         new=$((new + 1))
                     fi
