@@ -69,6 +69,7 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(BUILD)/test_ipc_hard $(BUILD)/test_
 	   ./$(BUILD)/test_scheduler_$$b && ./$(BUILD)/test_scheduler_$$b create && \
 	   ./$(BUILD)/test_scheduler_$$b priority && \
 	   ./$(BUILD)/test_scheduler_$$b wrap && ./$(BUILD)/test_scheduler_$$b wrapsim && \
+	   ./$(BUILD)/test_scheduler_$$b wrapinside && \
 	   ./$(BUILD)/test_scheduler_$$b wrapevents && \
 	   ./$(BUILD)/test_scheduler_$$b events && ./$(BUILD)/test_scheduler_$$b lull && \
 	   ./$(BUILD)/test_scheduler_$$b suspend && ./$(BUILD)/test_scheduler_$$b signalinside && \

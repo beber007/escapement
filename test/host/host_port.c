@@ -45,13 +45,20 @@ void _OSStartTimer(void)
 
 INT32 _OSGetActualTime(void) { return Clock; }
 
+/* A test may set HostOverflowCheckHook to run once the kernel has found no overflow, in
+** the window between that test and its reading of the time: the counter may wrap there. */
+void (*HostOverflowCheckHook)(void) = NULL;
+
 BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
 {
   (void)shiftTimeLimit;
   if (OverflowPending) {
      OverflowPending = FALSE;
+     _OSOverflowInterruptFlag = FALSE;
      return TRUE;
   }
+  if (HostOverflowCheckHook)
+     HostOverflowCheckHook();
   return FALSE;
 }
 
@@ -81,6 +88,7 @@ void HostAdvanceBy(INT32 delta)
   if (Clock >= TIME_LIMIT) {
      Clock -= TIME_LIMIT;
      OverflowPending = TRUE;
+     _OSOverflowInterruptFlag = TRUE;   /* as the overflow interrupt of a target does */
      ArmedDeadline = -1;   /* armed before the shift, so it no longer means anything */
      HostClockWraps += 1;
   }

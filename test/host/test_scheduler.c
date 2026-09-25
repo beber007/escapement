@@ -15,6 +15,7 @@
 **   test_scheduler priority  an event-driven task created before tasks of shorter deadline
 **   test_scheduler wrap      long periods, the clock jumped from one event to the next
 **                            across three wraparounds
+**   test_scheduler wrapinside the same, the counter wrapping inside the timer handler
 **   test_scheduler wrapsim   the same, an instance ending just before a wraparound
 **   test_scheduler wrapevents the same, an event-driven task waiting across them
 **   test_scheduler lull      one event-driven task woken every 400 s, nothing in between
@@ -187,6 +188,7 @@ extern HostTCB *_OSActiveTask, *_OSQueueHead;
 extern BOOL _OSNoSaveContext;
 extern void _OSTimerInterruptHandler(void);
 extern void HostAdvanceBy(INT32 delta);
+extern void (*HostOverflowCheckHook)(void);
 extern INT32 HostTicksToNextEvent(void);
 extern unsigned HostClockWraps;
 extern unsigned HostSoftTimerRequests;
@@ -421,6 +423,7 @@ static void CheckSimQueue(void)
   #endif
 }
 
+static INT32 HookedTicks = 0;        /* moved by a hook inside the handler, see wrapinside */
 static void RunAcross(long long duration)
 {
   long long elapsed = 0;
@@ -433,6 +436,8 @@ static void RunAcross(long long duration)
      HostAdvanceBy(delta);
      elapsed += delta;
      _OSTimerInterruptHandler();
+     elapsed += HookedTicks;
+     HookedTicks = 0;
      CheckSimQueue();
      if (HostClockNow() + TicksToNextInterrupt() != 0x40000000)
         RunElected(NULL);
@@ -515,6 +520,47 @@ static void TestWrap(void)
   #else
      CheckSpeeds(TRUE);
   #endif
+}
+
+/* WrapInside: The counter wraps once the handler has found no overflow and before it
+** reads the time, as it can on a target: the handler entered for an arrival due shortly
+** before the wraparound reads a time from after it, while its arrivals are not shifted
+** yet. The overflow interrupt, of higher priority, has raised its flag meanwhile, which
+** the handler tests again before it returns. */
+#define WRAP_WINDOW 1000
+static unsigned WrapsInside = 0;
+static void WrapInside(void)
+{
+  INT32 now = HostClockNow();
+  if (now >= 0x40000000 - WRAP_WINDOW) {
+     HookedTicks += 0x40000000 - now + 50;
+     HostAdvanceBy(0x40000000 - now + 50);
+     WrapsInside += 1;
+  }
+}
+
+/* TestWrapInside: TestWrap's run, with a task of period 1000 whose last arrival before each
+** wraparound, 824 ticks short of it (2^30 modulo 1000), finds the counter wrapping inside
+** the handler. The arrival is then served late by that much, within its deadline. */
+static void TestWrapInside(void)
+{
+  long long duration = 3LL * 0x40000000 + 1000000;
+
+  CreateTask(1000);      CreateTask(1999993);   CreateTask(99999989);
+  CreateTask(700000001);
+
+  StartKernel(NULL, NULL);
+  HostOverflowCheckHook = WrapInside;
+  RunAcross(duration);
+  HostOverflowCheckHook = NULL;
+
+  printf("\n%u tasks, %lld ticks of simulated time, the counter wrapping inside the handler\n\n",
+         NbTasks, duration);
+  CheckActivations(duration);
+  Check("  the counter wrapped inside the handler at each wraparound", WrapsInside == 3);
+  Check("  the kernel clock wrapped three times", HostClockWraps == 3);
+  Check("  no deadline missed", LateArrivals == 0);
+  Check("  every deadline shifted with the clock", DeadlinesOutOfReach == 0);
 }
 
 /* TestWrapSim: A task of period 536870000 is released and ends 1824 ticks short of the
@@ -1532,6 +1578,8 @@ int main(int argc, char *argv[])
   alarm(10);
   if (argc > 1 && strcmp(argv[1], "wrap") == 0)
      TestWrap();
+  else if (argc > 1 && strcmp(argv[1], "wrapinside") == 0)
+     TestWrapInside();
   else if (argc > 1 && strcmp(argv[1], "priority") == 0)
      TestPriority();
   else if (argc > 1 && strcmp(argv[1], "create") == 0)

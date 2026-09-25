@@ -157,13 +157,18 @@ kernel hung under Renode, the host test segfaulted under deadline-monotonic
 scheduling. Interrupts are now masked from the enqueue of the suspending task to its
 leaving the ready queue, and the handler never sees such a task. Both have a host test
 that fails on the code before (`test/host/README.md`). **Left open** are races the host cannot reach and
-limits of the design: the counter wrapping while the timer handler runs; in the
-power-aware kernel, a task ending between two interrupts that leaves the next at its
-speed, and under DM_SLACK a time read before a wrap; an optional instance still ready
-at its next arrival, which only an overload brings; under EDF, events left out of the
-soft kernel's test when no utilisation is declared; indices of the wait-free queue that
-come back to the same value after 65,000 operations during one preemption; and strict
-aliasing between task blocks, which GCC was not seen to exploit.
+limits of the design: in the power-aware kernel, a task ending between two interrupts
+that leaves the next at its speed, and under DM_SLACK a time read before a wrap; an
+optional instance still ready at its next arrival, which only an overload brings; under
+EDF, events left out of the soft kernel's test when no utilisation is declared; and
+indices of the wait-free queue that come back to the same value after 65,000 operations
+during one preemption. Two points once on that list are closed (2026-09-25). The counter
+wrapping while the timer handler runs, once it has found no overflow, is reached on the
+host by a hook in that window (`wrapinside`): the handler, reading a time from after the
+wrap with its arrivals not yet shifted, releases nothing, and serves them once it finds
+the flag of the overflow raised meanwhile, which it tests again before it returns; the
+test fails with that test taken out. And strict aliasing, which GCC does exploit here,
+is turned off (below).
 
 The execution tests exercise three or four tasks, the host test ten. Nothing here
 establishes how the scheduler behaves with thirty. The 2³⁰ wrap of its clock, about
