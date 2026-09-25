@@ -14,7 +14,7 @@
 
 FROM ubuntu:26.04
 
-ARG RENODE_F4=1.17.0
+ARG RENODE_PORTABLE=1.17.0
 ARG RENODE_RP2040=1.16.1
 ARG RP2040_MODELS_COMMIT=5aca847c9f57ed96603e55d28e8ceeefa09e55f6
 
@@ -40,7 +40,7 @@ RUN curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
 
 # Renode twice: the portable package for the STM32F4 and RP2350 suites, the linux-dotnet
 # one for the RP2040 models, which are built against its assemblies (emulation/renode/RP2040.md).
-RUN for v in "$RENODE_F4 linux-portable" "$RENODE_RP2040 linux-dotnet"; do \
+RUN for v in "$RENODE_PORTABLE linux-portable" "$RENODE_RP2040 linux-dotnet"; do \
         set -- $v; \
         mkdir -p /opt/renode-$1; \
         curl -fsSL "https://github.com/renode/renode/releases/download/v$1/renode-$1.$2.tar.gz" \

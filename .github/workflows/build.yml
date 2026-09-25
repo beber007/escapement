@@ -174,13 +174,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Build the examples and their raw images
-        run: |
-          for example in ${{ matrix.build }}; do
-            dir="Escapement/CORTEX-Mx/STM32/Examples/$example"
-            # Only the examples that Renode runs have raw images to make.
-            if grep -q '^bin:' "$dir/Makefile"; then target=bin; else target=all; fi
-            make -C "$dir" $target ${{ matrix.make }}
-          done
+        run: make -C Escapement/CORTEX-Mx/STM32/Examples/${{ matrix.build }} bin ${{ matrix.make }}
 
       - name: Use Renode 1.17.0
         run: echo /opt/renode-1.17.0 >> "$GITHUB_PATH"
