@@ -15,12 +15,12 @@ switching core regulator and two cores with exclusive accesses. Its port was beg
 2026-09-24 for the cores; its DVFS driver waits for the RP2040 bench, and is written
 only if that bench shows DVFS beating race-to-sleep.
 
-Of the **STM32**, the F4 example stays, with no new example or port: its suites run on
-Renode's own platforms and on the Mac, and it was the first to run the Cortex-M3/M4
-path of the context switch, which the RP2350 port now takes too. Once a Pico 2 board
-runs that path, the F4 can be reconsidered. The **STM32L4** and **STM32U5** are set
-aside: the L4 would need a Renode platform of its own, and the U5 sleeps too well for
-DVFS to gain much (`power-aware.md`).
+Of the **STM32**, the **STM32U5** is the one kept: its port, begun on 2026-09-25 for
+the NUCLEO-U575ZI-Q (`stm32u5.md`), is written anew in the manner of the RP2350's, and
+the older STM32 ports, the F4 example among them, are meant to go once it runs on the
+board. The argument of `power-aware.md` stands: the U5 sleeps too well for DVFS to gain
+much there, so its power-aware kernel, if ever, comes after the verdict of the RP2040.
+The **STM32L4** is set aside.
 
 ## Open work, in order
 
@@ -50,12 +50,21 @@ DVFS to gain much (`power-aware.md`).
 4. **DVFS on the RP2350**, if the verdict of item 1 is for it: its regulator and its
    power manager differ from the RP2040's, and the driver is to be written from the
    pico-sdk headers.
-5. **What the audit of the inherited kernel left open** (`method.md`): races the host
+5. **The STM32U5 on the board.** On a NUCLEO-U575ZI-Q, the board alone can
+   say that the clocks are programmed right, which the Renode platform acknowledges
+   blindly; then the MSIS locked on the 32.768 kHz crystal for timings worth measuring,
+   and the board checks of the Pico brought over. The older STM32 ports then go.
+6. **What the audit of the inherited kernel left open** (`method.md`): races the host
    cannot reach — the counter wrapping inside the timer handler, two in the
    power-aware kernel — which want a model or a hook in the emulator, and the
    soft kernel's test of optional instances when no utilisation is declared.
 
 ## Done
+
+- **The STM32U5 port, under Renode (2026-09-25).** `Escapement/CORTEX-Mx/STM32U5`: the
+  hard and the soft kernel under both algorithms, five examples, a Renode platform of
+  our own (`escapement_u5.repl`) whose suite passes 6 tests of 6 under the four builds,
+  in the CI; not yet on a board (`stm32u5.md`).
 
 - **The kernel runs, and is run in CI.** The Makefiles repaired, every example built on
   every push, and executed under Renode as a regression test: the STM32F4 on Renode's

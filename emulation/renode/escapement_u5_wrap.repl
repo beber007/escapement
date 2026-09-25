@@ -1,0 +1,11 @@
+// Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+// LICENSE at the root of this repository.
+//
+// escapement_u5.repl with TIM2, the kernel clock, 1000 times faster, for TaskWrapU5 (see
+// escapement_u5.robot). The frequency is set here rather than at run time: the model's
+// compare channels take the timer's frequency when they are built, and would stay at
+// the old one.
+using "escapement_u5.repl"
+
+timer2:
+    frequency: 160000000000

@@ -1,0 +1,133 @@
+// Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+// LICENSE at the root of this repository.
+//
+// NUCLEO-U575ZI-Q (STM32U575) for Escapement: a platform of our own, since Renode models
+// no STM32U5 (docs/roadmap.md). Only what the examples of Escapement/CORTEX-Mx/STM32U5
+// touch: a Cortex-M33 with its NVIC, 4 bits of priority, 2 MB of flash, the 768 KB of
+// SRAM1 to SRAM3, TIM2 and TIM5 (the fixed timer model of the STM32F4 platform,
+// Escapement_STM32_Timer.cs), USART1 and ports A to C of GPIO, which Renode models for
+// the STM32L552, of the same family, with the outputs of BoardU5.h as LEDs, and the
+// blocks the clock set-up waits on. Addresses from RM0456 and cmsis-device-u5.
+//
+// Those blocks keep what is written and read the bits the code waits for as set: the
+// voltage range and the booster ready, PLL1 locked, the switch of the system clock
+// acknowledged. So this platform checks that the code runs and schedules, not that it
+// programs the clocks right: a wrong divider or a missing wait would pass here, and only
+// the board tells. The timers count at 160 MHz before their prescaler, the rate
+// OSInitializeSystemClocks sets.
+
+cpu: CPU.CortexM @ sysbus
+    cpuType: "cortex-m33"
+    nvic: nvic
+
+nvic: IRQControllers.NVIC @ sysbus 0xE000E000
+    priorityMask: 0xF0
+    systickFrequency: 160000000
+    IRQ -> cpu@0
+
+flash: Memory.MappedMemory @ sysbus 0x08000000
+    size: 0x200000
+
+sram: Memory.MappedMemory @ sysbus 0x20000000
+    size: 0xC0000
+
+timer2: Timers.Escapement_STM32_Timer @ sysbus 0x40000000
+    -> nvic@45
+    frequency: 160000000
+    initialLimit: 0xFFFFFFFF
+
+timer5: Timers.Escapement_STM32_Timer @ sysbus 0x40000C00
+    -> nvic@48
+    frequency: 160000000
+    initialLimit: 0xFFFFFFFF
+
+usart1: UART.STM32F7_USART @ sysbus 0x40013800
+    frequency: 160000000
+    IRQ -> nvic@61
+
+gpioPortA: GPIOPort.STM32_GPIOPort @ sysbus <0x42020000, +0x400>
+    modeResetValue: 0xABFFFFFF
+    outputSpeedResetValue: 0x0C000000
+    pullUpPullDownResetValue: 0x64000000
+    numberOfAFs: 16
+    5 -> flag3@0
+    6 -> probe@0
+
+gpioPortB: GPIOPort.STM32_GPIOPort @ sysbus <0x42020400, +0x400>
+    modeResetValue: 0xFFFFFEBF
+    outputSpeedResetValue: 0x000000C0
+    pullUpPullDownResetValue: 0x00000100
+    numberOfAFs: 16
+    7 -> flag2@0
+
+gpioPortC: GPIOPort.STM32_GPIOPort @ sysbus <0x42020800, +0x400>
+    modeResetValue: 0xFFFFFFFF
+    numberOfAFs: 16
+    7 -> flag1@0
+
+flag1: Miscellaneous.LED @ gpioPortC 7
+flag2: Miscellaneous.LED @ gpioPortB 7
+flag3: Miscellaneous.LED @ gpioPortA 5
+probe: Miscellaneous.LED @ gpioPortA 6
+
+// RCC: MSIS and PLL1 ready in CR, and SWS in CFGR1 the SW just written.
+rcc: Python.PythonPeripheral @ sysbus 0x46020C00
+    size: 0x400
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {0x00: 0x00000035}
+elif request.IsRead:
+    r = request.Offset
+    v = regs.get(r, 0)
+    if r == 0x00:
+        v |= (1 << 2) | (1 << 25)
+    elif r == 0x1C:
+        v = (v & ~0xC) | ((v & 3) << 2)
+    request.Value = v
+else:
+    regs[request.Offset] = request.Value & 0xFFFFFFFF
+'''
+
+// PWR: VOSR reads its voltage range and the booster ready.
+pwr: Python.PythonPeripheral @ sysbus 0x46020800
+    size: 0x400
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+elif request.IsRead:
+    r = request.Offset
+    v = regs.get(r, 0)
+    if r == 0x0C:
+        v |= (1 << 15) | (1 << 14)
+    request.Value = v
+else:
+    regs[request.Offset] = request.Value & 0xFFFFFFFF
+'''
+
+// FLASH and ICACHE registers: kept as written, which is all the wait states and the
+// enable of the cache need here.
+flashRegisters: Python.PythonPeripheral @ sysbus 0x40022000
+    size: 0x400
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+elif request.IsRead:
+    request.Value = regs.get(request.Offset, 0)
+else:
+    regs[request.Offset] = request.Value & 0xFFFFFFFF
+'''
+
+icache: Python.PythonPeripheral @ sysbus 0x40030400
+    size: 0x400
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+elif request.IsRead:
+    request.Value = regs.get(request.Offset, 0)
+else:
+    regs[request.Offset] = request.Value & 0xFFFFFFFF
+'''

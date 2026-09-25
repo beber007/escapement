@@ -41,6 +41,9 @@ jobs:
           - example: rp2350-pico2
             dir: Escapement/CORTEX-Mx/RP2350/Examples/pico2
             cpu: Cortex-M33
+          - example: stm32u5-nucleo
+            dir: Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q
+            cpu: Cortex-M33
     env:
       DIR: ${{ matrix.dir }}
 
@@ -259,6 +262,60 @@ jobs:
         if: always()
         with:
           name: renode-report-rp2350-${{ strategy.job-index }}
+          path: |
+            report.html
+            log.html
+            robot_output.xml
+          retention-days: 14
+
+  emulation-stm32u5:
+    # The STM32U5 port on a platform of our own (escapement_u5.repl), as for the RP2350:
+    # every kernel and algorithm the port builds, each under the same suite.
+    name: Execution under Renode (STM32U5, ${{ matrix.variant }})
+    runs-on: ubuntu-26.04
+    container:
+      image: ghcr.io/beber007/escapement-ci:2
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    timeout-minutes: 15
+    needs: examples
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: hard, EDF
+            make: ''
+          - variant: hard, deadline-monotonic
+            make: SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+          - variant: soft, EDF
+            make: KERNEL=SOFT
+          - variant: soft, deadline-monotonic
+            make: KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the examples
+        run: make -C Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q ${{ matrix.make }}
+
+      - name: Check the compiled order of the slot buffers and the task-level stores
+        run: python3 tools/check_order.py Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q/build/Escapement{Hard,Soft,HardPA}.o
+
+      - name: Show that the check fails without each barrier
+        if: strategy.job-index == 0
+        run: sh tools/check_order_mutants.sh Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q
+
+      - name: Use Renode 1.17.0
+        run: echo /opt/renode-1.17.0 >> "$GITHUB_PATH"
+
+      - name: Run the kernel
+        run: renode-test emulation/renode/escapement_u5.robot
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: renode-report-stm32u5-${{ strategy.job-index }}
           path: |
             report.html
             log.html

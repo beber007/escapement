@@ -35,6 +35,11 @@ make -C Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
 renode-test emulation/renode/escapement_pico2.robot
 
+# STM32U5 (NUCLEO-U575ZI-Q, Cortex-M33) — five examples, Renode only so far, on a platform
+# of our own as for the Pico 2 (docs/stm32u5.md); no KERNEL=PA
+make -C Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q
+renode-test emulation/renode/escapement_u5.robot
+
 # The scheduler on the host, every kernel and algorithm, under AddressSanitizer; the CI
 # also runs it at -O2 under the whole of UndefinedBehaviorSanitizer
 make -C test/host run
@@ -64,15 +69,17 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
 
 ## Before a commit
 
-- Host tests, the three models, the encoding check, the static analysis, and every Pico
-  and Pico 2 variant plus the F4 still build.
+- Host tests, the three models, the encoding check, the static analysis, and every Pico,
+  Pico 2 and STM32U5 variant plus the F4 still build.
 - A change meant to leave a build alone (comments, an option off by default) must leave
   its images byte for byte identical: compare `arm-none-eabi-objcopy -O binary` outputs
   against those of `main`.
 - The three kernels (`EscapementHard.c`, `EscapementSoft.c`, `EscapementHardPA.c`) share
   their FIFO queue and slot-buffer code: a fix to one goes to all three. Likewise the
   RP2040 and RP2350 ports share the logic of their timer, timer events, UART and core 1
-  launch, and their examples: a fix to one goes to both.
+  launch, and their examples: a fix to one goes to both. The STM32U5 port shares the
+  timer events, the UART and the examples of the RP2350, and the kernel timer of the
+  STM32 port: a fix there goes to it too.
 - A result stated in the docs is a measured one, with its date; one that did not
   reproduce is said so, not quietly replaced (`docs/method.md`).
 

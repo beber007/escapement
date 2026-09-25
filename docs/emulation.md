@@ -262,3 +262,25 @@ seed that sets the Filler's work and the delay of the timer events
 (`soak_emulated.robot`); the models run close to real time, 15 s of virtual time in
 20 s. It is how the soft kernel under deadline-monotonic scheduling was seen to hang
 there, on 2026-09-25, when an interrupt had joined the firmware (`method.md`).
+
+## A platform of our own for the STM32U5
+
+Renode models no STM32U5 either (checked 2026-09-25: no platform in 1.17.0, nor in the
+repositories of renode). It models the STM32L552, of the same family: the same
+Cortex-M33, and TIM2, TIM5, USART1 and the ports of GPIO at the same addresses.
+`emulation/renode/escapement_u5.repl` takes those models, with the 2 MB of flash and the
+768 KB of SRAM of the STM32U575 and the fixed timer model of the F4 platform
+(`Escapement_STM32_Timer.cs`), whose CC1G the event manager uses as the F4's does. The
+RCC and PWR of the U5 are other blocks at other addresses than the L5's: they are Python
+peripherals that keep what is written and read as set the bits the clock set-up waits
+for, the voltage range and the booster ready, PLL1 locked, the switch of the system clock
+acknowledged. The same bound as for the RP2350 follows: the suite says that the kernel
+runs and schedules on the timers, the USART and the GPIO of the chip, not that the
+clocks are programmed right.
+
+`escapement_u5.robot` runs the checks of `escapement_pico2.robot` that do not need a
+second core. For the 2^30 wrap, the timer has to be built 1000 times faster
+(`escapement_u5_wrap.repl`): set at run time, the frequency reaches the counter but not
+the compare channels of the model, which keep the rate they were built with, and the
+tasks are then never woken. Under the four builds of the port the suite passed 6 tests
+of 6 on 2026-09-25, the first build as written, with no change to the port.

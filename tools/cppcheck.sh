@@ -34,6 +34,8 @@ check() {   # check PORT_DIR EXAMPLE_DIR SOURCES...
 }
 check "$M/RP2040" "$M/RP2040/Examples/pico" "$M/RP2040/Examples/pico"/*.c
 check "$M/RP2350" "$M/RP2350/Examples/pico2" "$M/RP2350/Examples/pico2"/*.c
+check "$M/STM32U5" "$M/STM32U5/Examples/nucleo-u575zi-q" \
+    "$M/STM32U5/Examples/nucleo-u575zi-q"/*.c
 check "$M/STM32" "$M/STM32/Examples/stm32f4-discovery" \
     "$M/STM32/Examples/stm32f4-discovery/TaskLEDF4.c" \
     "$M/STM32/Examples/stm32f4-discovery/TaskWrapF4.c" \
