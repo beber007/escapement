@@ -104,6 +104,14 @@ fourslot() {
         END { exit !(reads > 100000 && bad == 0 && torn > 0) }'
 }
 
+# order <name>: tools/check_order.py on the kernel this machine's compiler built, which is
+# not the CI's: the order of the slot buffers and of the task-level stores holds under
+# both, or one of them breaks it.
+order() {
+    in_build "arm-none-eabi-gcc --version | head -1 &&
+              python3 $SEEN/src/tools/check_order.py \$(ls build/Escapement*.o | grep -v _)"
+}
+
 # cost <name>: the 1 ms round of TaskLEDPico, 10 s of it, and at most 5 us on average
 # (3.2 measured for the hard kernel on 2026-09-23, docs/rp2040.md). The rounds count from
 # the load to the reading, which takes the probe longer on some machines than on others:
@@ -162,8 +170,8 @@ status pending "running on the Pico"
 failed=""
 {
     echo "main at $SHA, $(date)"
-    for check in "fourslot hard" "fourslot pa" "cost hard" \
-                 "events hard" "events soft" "events pa" "dvfs pa"; do
+    for check in "order hard" "order soft" "order pa" "fourslot hard" "fourslot pa" \
+                 "cost hard" "events hard" "events soft" "events pa" "dvfs pa"; do
         set -- $check
         case $2 in
             hard) args="" ;;
@@ -172,6 +180,7 @@ failed=""
         esac
         echo "=== $check"
         case $1 in
+            order)    image=TaskLEDPico ;;
             fourslot) image=FourSlotCoresPico ;;
             cost)     image=TaskLEDPico ;;
             events)   image=TestTimerEventPico; args="$args TRACE=1" ;;
@@ -197,7 +206,7 @@ failed=""
 
 echo "$SHA" >"$DIR/last"
 if [ -z "$failed" ]; then
-    status success "4-slot across cores, round cost, timer events, DVFS"
+    status success "compiled order, 4-slot across cores, round cost, timer events, DVFS"
 else
     status failure "failed:$failed"
 fi

@@ -61,7 +61,7 @@ void OSLaunchCore1(void (*entry)(void), UINT32 *stackTop)
         /* Before each 0, drop what core 1 may have left in the FIFO. */
         while (SIO_FIFO_ST & SIO_FIFO_VLD)
            (void)SIO_FIFO_RD;
-        __asm volatile ("sev");
+        __asm volatile ("sev" ::: "memory");
      }
      Push(sequence[i]);
      i = Pop() == sequence[i] ? i + 1 : 0;
@@ -84,7 +84,7 @@ static void Push(UINT32 word)
 {
   while ((SIO_FIFO_ST & SIO_FIFO_RDY) == 0);
   SIO_FIFO_WR = word;
-  __asm volatile ("sev");
+  __asm volatile ("sev" ::: "memory");
 } /* end of Push */
 
 
@@ -92,6 +92,6 @@ static void Push(UINT32 word)
 static UINT32 Pop(void)
 {
   while ((SIO_FIFO_ST & SIO_FIFO_VLD) == 0)
-     __asm volatile ("wfe");
+     __asm volatile ("wfe" ::: "memory");
   return SIO_FIFO_RD;
 } /* end of Pop */

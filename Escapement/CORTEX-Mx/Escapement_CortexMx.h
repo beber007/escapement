@@ -103,10 +103,10 @@ void _OSIOHandler(void);
                          OSSetProcessorSpeed(OS_SLEEP_SPEED); \
                          if (OS_SLEEP_SPEED != OS_MAX_SPEED) \
                             _OSIdleAsleep = TRUE; \
-                         __asm("WFI"); \
+                         __asm volatile ("WFI" ::: "memory"); \
                       };
 #else
-   #define _OSSleep() while (TRUE) { __asm("WFI"); };
+   #define _OSSleep() while (TRUE) { __asm volatile ("WFI" ::: "memory"); };
 #endif
 
 /* _OSScheduleTask: Generates a PendSV exception, which will interrupt and proceed at the

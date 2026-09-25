@@ -391,7 +391,7 @@ void _OSIOHandler(void)
   peripheralIODescriptor->PeripheralInterruptHandler(peripheralIODescriptor);
   // Make all pending SC() fail
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
-     __asm("CLREX;"); 
+     __asm volatile ("CLREX" ::: "memory");
   #elif defined(CORTEX_M0)
      _OSLLReserveBit = FALSE;
   #endif

@@ -491,7 +491,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT16 int
   #endif
   #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
         /* For 32-bit counter version, set the autoreload timer value to (2^30 - 1) */
-        *(UINT32 *)(device->Base + OFFSET_AUTORELOAD) = SHIFT_TIME_LIMIT - 1;
+        *(volatile UINT32 *)(device->Base + OFFSET_AUTORELOAD) = SHIFT_TIME_LIMIT - 1;
      }
      else {
   #endif
@@ -537,7 +537,7 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT16 interruptIndex)
         /* 32-bit counter version */
         do {
            des.Version = device->Time; // Save current version number to detect current time shifting
-           des.Time = *(UINT32 *)(device->Base + OFFSET_COUNTER) + delay;
+           des.Time = *(volatile UINT32 *)(device->Base + OFFSET_COUNTER) + delay;
         } while (des.Version != device->Time);
      }
      else {
@@ -667,7 +667,7 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
               OSUINT32_LL((UINT32 *)(device->Base + OFFSET_COMPARATOR));
               if (des->GeneratedInterrupt) return;
            } while (!OSUINT32_SC((UINT32 *)(device->Base + OFFSET_COMPARATOR),des->Node->Time));
-           if (*(UINT32 *)(device->Base + OFFSET_COMPARATOR) <= *(UINT32 *)(device->Base + OFFSET_COUNTER))
+           if (*(volatile UINT32 *)(device->Base + OFFSET_COMPARATOR) <= *(volatile UINT32 *)(device->Base + OFFSET_COUNTER))
               do {
                  OSUINT16_LL((UINT16 *)(device->Base + OFFSET_EVENT_GENERATION));
                  if (des->GeneratedInterrupt) return;
@@ -840,7 +840,7 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
         #endif
         #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
               /* 32-bit counter version */
-              *(UINT32 *)(device->Base + OFFSET_COMPARATOR) = 0;
+              *(volatile UINT32 *)(device->Base + OFFSET_COMPARATOR) = 0;
            }
            else {
         #endif
@@ -859,17 +859,21 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
            if (device->Base == BASE_TIM2) {
         #endif
         #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
-              /* 32-bit counter version */
+              /* 32-bit counter version. The registers are read through volatile, as the
+              ** 16-bit version reads them: otherwise GCC at -O2 may reuse the counter it
+              ** read in the loop and the comparator it has just written, and take an event
+              ** whose time passed in between for one still to come, until the counter
+              ** wraps (2026-09-25). */
               /* Schedule events that now occur */
-              while ((eventNode = device->EventQueue) != NULL && eventNode->Time <= *(UINT32 *)(device->Base + OFFSET_COUNTER)) {
+              while ((eventNode = device->EventQueue) != NULL && eventNode->Time <= *(volatile UINT32 *)(device->Base + OFFSET_COUNTER)) {
                  OSScheduleSuspendedTask(eventNode->Event);
                  device->EventQueue = eventNode->Next;
                  ReleaseNode(device,eventNode);
               }
               /* Program the next timer comparator */
               if (eventNode != NULL) {
-                 *(UINT32 *)(device->Base + OFFSET_COMPARATOR) = eventNode->Time;
-                 if (*(UINT32 *)(device->Base + OFFSET_COMPARATOR) > *(UINT32 *)(device->Base + OFFSET_COUNTER))
+                 *(volatile UINT32 *)(device->Base + OFFSET_COMPARATOR) = eventNode->Time;
+                 if (*(volatile UINT32 *)(device->Base + OFFSET_COMPARATOR) > *(volatile UINT32 *)(device->Base + OFFSET_COUNTER))
                     break;
               }
               else

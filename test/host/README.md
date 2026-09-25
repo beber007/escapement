@@ -2,6 +2,7 @@
 
 ```sh
 make -C test/host run
+make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
 ```
 
 The three kernels are compiled as they ship; only the target layer is simulated
@@ -10,7 +11,9 @@ than an example carries, the 2^30 wrap of the kernel clock without waiting eight
 minutes, and the parts of the kernel no example runs. AddressSanitizer reports a read
 past a block, whatever the heap holds next to it. Signed overflow, a shift that leaves
 the type and division by zero are made errors too, so that they fail on every host: left
-alone, a division by zero traps on x86 and yields 0 on arm64.
+alone, a division by zero traps on x86 and yields 0 on arm64. The CI runs the tests a
+second time at -O2, the level of the firmware, under the whole of
+UndefinedBehaviorSanitizer: the optimiser takes more from undefined behaviour there.
 
 Nine builds: the hard and the soft kernel under EDF and DM, the power-aware kernel under
 EDF and DM with OTE, and under DRA, DR_OTE and DM_SLACK. Each runs `test_scheduler` in

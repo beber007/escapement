@@ -1,5 +1,6 @@
 # Artefacts de compilation
 build/
+build-*/
 *.o
 *.elf
 *.bin

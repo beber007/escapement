@@ -199,3 +199,21 @@ of the day before, it reports exactly the faults found by hand: `OSEndTask` on t
 and the M4, the promotion on all three; the mutants script shows each rule failing on a
 source whose order is turned around. A port audit found no other such sequence, one
 latent in the UART, now ordered as well.
+
+What else -O2 could take was checked the same day. The host tests pass at -O2 under the
+whole of UndefinedBehaviorSanitizer, with Clang on the Mac, and the CI now runs them so
+with GCC. Every inline assembly statement that must keep its place among memory
+accesses declares it (`CLREX`, the `WFI` of the idle task, the `SEV` and `WFE` of the
+launch of core 1): the 88 images of every build came out byte for byte the same, a
+guarantee rather than a fix. The board machine runs `tools/check_order.py` on what its
+own GCC 16.2 builds, the CI's being 14.2. Strict aliasing is used: built with
+`-fno-strict-aliasing`, all 88 images change, in functions of the kernels among others,
+which access the same memory as `TCB`, `ETCB` and the port's `MinimalTCB`. The one
+difference read, in `OSEndTask`, is a value reused instead of read again, correct either
+way; no fault has been traced to aliasing. Built with `-Wextra -Wnull-dereference -Warray-bounds=2`, every
+variant gave no warning of those the optimiser computes, but a comparison of signedness
+led to the timer events of the STM32 port: on its 32-bit timers the counter and the
+comparator were read through pointers that were not volatile, so that GCC could reuse
+the counter read in the loop and the comparator just written, and take an event whose
+time had passed for one to come, 71 minutes later. GCC 16.2 happened to read them again;
+the eleven accesses are volatile now, as the 16-bit path's already were.

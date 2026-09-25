@@ -20,8 +20,14 @@ CC ?= cc
 # one host and crash on the other: the sanitizer makes it an error on both. AddressSanitizer
 # catches a read past a block: the idle task, allocated smaller than a task, was read so,
 # and the result depended on whatever the heap held next to it.
-CFLAGS = -I. -I../../Escapement -Wall -O1 -g \
-         -fsanitize=address,integer-divide-by-zero,signed-integer-overflow,shift \
+# The CI also builds at -O2 under the whole of UndefinedBehaviorSanitizer, into its own
+# directory: the optimiser takes more from undefined behaviour at -O2, the level of the
+# firmware.
+#   make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
+OPT ?= -O1
+SANITIZE ?= address,integer-divide-by-zero,signed-integer-overflow,shift
+BUILD ?= build
+CFLAGS = -I. -I../../Escapement -Wall $(OPT) -g -fsanitize=$(SANITIZE) \
          -fno-sanitize-recover=all
 # What OSMalloc hands out is never freed, by design; Linux would report it as leaked.
 export ASAN_OPTIONS = detect_leaks=0
@@ -54,45 +60,45 @@ KERNEL_pa_dra     = $(PA)
 KERNEL_pa_drote   = $(PA)
 KERNEL_pa_dmslack = $(PA)
 
-$(shell mkdir -p build)
+$(shell mkdir -p $(BUILD))
 
-run: $(BUILDS:%=build/test_scheduler_%) build/test_ipc_hard build/test_ipc_soft build/test_ipc_pa
+run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(BUILD)/test_ipc_hard $(BUILD)/test_ipc_soft $(BUILD)/test_ipc_pa
 	@for b in $(BUILDS); do \
 	   echo; echo "=== $$b"; \
-	   ./build/test_scheduler_$$b && ./build/test_scheduler_$$b create && \
-	   ./build/test_scheduler_$$b priority && \
-	   ./build/test_scheduler_$$b wrap && ./build/test_scheduler_$$b wrapsim && \
-	   ./build/test_scheduler_$$b wrapevents && \
-	   ./build/test_scheduler_$$b events && ./build/test_scheduler_$$b lull && \
-	   ./build/test_scheduler_$$b suspend && ./build/test_scheduler_$$b signalinside && \
-	   ./build/test_scheduler_$$b busy && \
-	   ./build/test_scheduler_$$b early && ./build/test_scheduler_$$b slack && \
-	   ./build/test_scheduler_$$b expiry && ./build/test_scheduler_$$b reclaim && \
-	   ./build/test_scheduler_$$b reuse && ./build/test_scheduler_$$b overrun && \
-	   ./build/test_scheduler_$$b minspeed || exit 1; \
-	   case $$b in soft_*) ./build/test_scheduler_$$b firm && \
-	                      ./build/test_scheduler_$$b firmwrap && \
-	                      ./build/test_scheduler_$$b firmlong && \
-	                      ./build/test_scheduler_$$b firmevents || exit 1;; esac; \
+	   ./$(BUILD)/test_scheduler_$$b && ./$(BUILD)/test_scheduler_$$b create && \
+	   ./$(BUILD)/test_scheduler_$$b priority && \
+	   ./$(BUILD)/test_scheduler_$$b wrap && ./$(BUILD)/test_scheduler_$$b wrapsim && \
+	   ./$(BUILD)/test_scheduler_$$b wrapevents && \
+	   ./$(BUILD)/test_scheduler_$$b events && ./$(BUILD)/test_scheduler_$$b lull && \
+	   ./$(BUILD)/test_scheduler_$$b suspend && ./$(BUILD)/test_scheduler_$$b signalinside && \
+	   ./$(BUILD)/test_scheduler_$$b busy && \
+	   ./$(BUILD)/test_scheduler_$$b early && ./$(BUILD)/test_scheduler_$$b slack && \
+	   ./$(BUILD)/test_scheduler_$$b expiry && ./$(BUILD)/test_scheduler_$$b reclaim && \
+	   ./$(BUILD)/test_scheduler_$$b reuse && ./$(BUILD)/test_scheduler_$$b overrun && \
+	   ./$(BUILD)/test_scheduler_$$b minspeed || exit 1; \
+	   case $$b in soft_*) ./$(BUILD)/test_scheduler_$$b firm && \
+	                      ./$(BUILD)/test_scheduler_$$b firmwrap && \
+	                      ./$(BUILD)/test_scheduler_$$b firmlong && \
+	                      ./$(BUILD)/test_scheduler_$$b firmevents || exit 1;; esac; \
 	done
-	@echo; echo "=== hard"; ./build/test_ipc_hard
-	@echo; echo "=== soft"; ./build/test_ipc_soft
-	@echo; echo "=== pa"; ./build/test_ipc_pa
+	@echo; echo "=== hard"; ./$(BUILD)/test_ipc_hard
+	@echo; echo "=== soft"; ./$(BUILD)/test_ipc_soft
+	@echo; echo "=== pa"; ./$(BUILD)/test_ipc_pa
 
 .SECONDEXPANSION:
-build/test_scheduler_%: test_scheduler.c host_port.c $$(KERNEL_$$*) $(HEADERS)
+$(BUILD)/test_scheduler_%: test_scheduler.c host_port.c $$(KERNEL_$$*) $(HEADERS)
 	$(CC) $(CFLAGS) $(FLAGS_$*) -o $@ test_scheduler.c host_port.c $(KERNEL_$*)
 
-build/test_ipc_hard: test_ipc.c host_port.c $(HARD) $(COREQUEUE) $(HEADERS)
+$(BUILD)/test_ipc_hard: test_ipc.c host_port.c $(HARD) $(COREQUEUE) $(HEADERS)
 	$(CC) $(CFLAGS) -o $@ test_ipc.c host_port.c $(HARD) $(COREQUEUE)
 
-build/test_ipc_soft: test_ipc.c host_port.c $(SOFT) $(COREQUEUE) $(HEADERS)
+$(BUILD)/test_ipc_soft: test_ipc.c host_port.c $(SOFT) $(COREQUEUE) $(HEADERS)
 	$(CC) $(CFLAGS) -DHOST_KERNEL_SOFT -o $@ test_ipc.c host_port.c $(SOFT) $(COREQUEUE)
 
-build/test_ipc_pa: test_ipc.c host_port.c $(PA) $(COREQUEUE) $(HEADERS)
+$(BUILD)/test_ipc_pa: test_ipc.c host_port.c $(PA) $(COREQUEUE) $(HEADERS)
 	$(CC) $(CFLAGS) -DHOST_KERNEL_PA -o $@ test_ipc.c host_port.c $(PA) $(COREQUEUE)
 
 clean:
-	rm -rf build
+	rm -rf $(BUILD)
 
 .PHONY: run clean

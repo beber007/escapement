@@ -35,8 +35,10 @@ make -C Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
 renode-test emulation/renode/escapement_pico2.robot
 
-# The scheduler on the host, every kernel and algorithm, under AddressSanitizer
+# The scheduler on the host, every kernel and algorithm, under AddressSanitizer; the CI
+# also runs it at -O2 under the whole of UndefinedBehaviorSanitizer
 make -C test/host run
+make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
 
 # Exhaustive models of the lock-free mechanisms (run by the CI)
 python3 test/model/fourslot.py

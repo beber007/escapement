@@ -1722,16 +1722,16 @@ void _OSTimerSelectorHandler(struct TIMERSELECT *timerSelect)
   /* The first timer device bound the IRQ may also be bound to one of its specific inter-
   ** rupt sources (break, update or trigger-commutation). This is why we also need to mask
   ** the specific source of the IRQ. */
-  if (*(UINT32 *)(timerSelect->BaseRegister[0] + OFFSET_STATUS) &
-      *(UINT32 *)(timerSelect->BaseRegister[0] + OFFSET_ENABLE) &
+  if (*(volatile UINT32 *)(timerSelect->BaseRegister[0] + OFFSET_STATUS) &
+      *(volatile UINT32 *)(timerSelect->BaseRegister[0] + OFFSET_ENABLE) &
       timerSelect->FirstEntryMask) {  // Did the first timer device raise the interrupt?
      peripheralIODescriptor = timerSelect->TimerISRDescriptor[0]->isr;
      peripheralIODescriptor(timerSelect->TimerISRDescriptor[0]);
   }
   /* The second device bound to the IRQ is global to the device (i.e. the interrupt may
   ** be caused for any reason related to the device); no mask is therefore required. */
-  if (*(UINT32 *)(timerSelect->BaseRegister[1] + OFFSET_STATUS) &
-      *(UINT32 *)(timerSelect->BaseRegister[1] + OFFSET_ENABLE)) {
+  if (*(volatile UINT32 *)(timerSelect->BaseRegister[1] + OFFSET_STATUS) &
+      *(volatile UINT32 *)(timerSelect->BaseRegister[1] + OFFSET_ENABLE)) {
      peripheralIODescriptor = timerSelect->TimerISRDescriptor[1]->isr;
      peripheralIODescriptor(timerSelect->TimerISRDescriptor[1]);
   }

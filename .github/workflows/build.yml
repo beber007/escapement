@@ -108,11 +108,13 @@ jobs:
   host-scheduler:
     name: Kernel on the host
     runs-on: ubuntu-26.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Run the three kernels under every algorithm and policy
         run: make -C test/host run
+      - name: The same at -O2, under the whole of UndefinedBehaviorSanitizer
+        run: make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
       - name: Check the slot buffers and the FIFO queue over every interleaving
         run: |
           python3 test/model/fourslot.py
