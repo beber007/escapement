@@ -31,9 +31,10 @@
 
 #include "BoardF4.h"
 
-/* UART transmit FIFO buffer size definitions */
-#define UART_TRANSMIT_FIFO_NB_NODE    1
-#define UART_TRANSMIT_FIFO_NODE_SIZE  10
+/* Transmit queue: the echo sends one byte at a time, but a few buffers absorb a short
+** burst of input. */
+#define UART_TRANSMIT_FIFO_NB_NODE    8
+#define UART_TRANSMIT_FIFO_NODE_SIZE  1
 
 #define UART_VECTOR OS_IO_USART2
 
@@ -101,8 +102,9 @@ void InitializeUART2Hardware(void)
 ** received, and it simply copies the byte into the output queue of the UART. */
 void UARTUserReceiveInterruptHandler(UINT8 data)
 {
-  UINT8 *tmp;
-  tmp = (UINT8 *)OSGetFreeNodeUART(UART_VECTOR);
-  *tmp = data;
-  OSEnqueueUART(tmp,1,UART_VECTOR);
+  UINT8 *tmp = (UINT8 *)OSGetFreeNodeUART(UART_VECTOR);
+  if (tmp != NULL) {   // all buffers still being sent: the byte is dropped
+     *tmp = data;
+     OSEnqueueUART(tmp,1,UART_VECTOR);
+  }
 } /* end of UARTUserReceiveInterruptHandler */

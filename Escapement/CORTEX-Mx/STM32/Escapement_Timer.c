@@ -397,7 +397,7 @@ void _OSInitializeTimer(void)
      #if defined(CORTEX_M3) || defined(CORTEX_M4)
         *intPriorityLevel = tmpPriority << 4; // Only 4 MSB bits are used on STM32
      #elif defined(CORTEX_M0)
-        *intPriorityLevel = priority;
+        *intPriorityLevel = TIMER_PRIORITY;
      #endif
      /* Enable the IRQ channels */
      #if defined(CORTEX_M3) || defined(CORTEX_M4)
@@ -430,7 +430,7 @@ void _OSInitializeTimer(void)
      #if defined(CORTEX_M3) || defined(CORTEX_M4)
         *intPriorityLevel = tmpPriority << 4; // Only 4 MSB bits are used on STM32
      #elif defined(CORTEX_M0)
-        *intPriorityLevel = priority;
+        *intPriorityLevel = TIMER_PRIORITY;
      #endif
      /* Enable the IRQ channels */
      #if defined(CORTEX_M3) || defined(CORTEX_M4)

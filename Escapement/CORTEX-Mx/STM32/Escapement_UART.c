@@ -51,8 +51,8 @@
 #ifdef OS_IO_UART5
    #define UART5_BASE  0x40005000
 #endif
-#ifdef OS_IO_UART6
-   #define UART6_BASE  0x40011400
+#ifdef OS_IO_USART6
+   #define USART6_BASE 0x40011400
 #endif
 
 
@@ -124,11 +124,11 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
            descriptor->ControlReg1 = (volatile UINT16 *)(UART5_BASE + 0x0C);
            break;
         #endif
-        #ifdef OS_IO_UART6
-        case OS_IO_UART6:
-           descriptor->Status = (volatile UINT16 *)UART6_BASE;
-           descriptor->HardwareBuffer = (volatile UINT16 *)(UART6_BASE + 0x04);
-           descriptor->ControlReg1 = (volatile UINT16 *)(UART6_BASE + 0x0C);
+        #ifdef OS_IO_USART6
+        case OS_IO_USART6:
+           descriptor->Status = (volatile UINT16 *)USART6_BASE;
+           descriptor->HardwareBuffer = (volatile UINT16 *)(USART6_BASE + 0x04);
+           descriptor->ControlReg1 = (volatile UINT16 *)(USART6_BASE + 0x0C);
            break;
         #endif
         default: break;

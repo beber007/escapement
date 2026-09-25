@@ -23,17 +23,12 @@
 
 # Version identifier: August 2012
 
-FAMILLY = STM32F4xx
+FAMILY = STM32F4xx
 LINKERFILE = STM32F407VG_Flash.ld
-
-FAMILLY_LC = `echo $(FAMILLY) | tr A-Z a-z`
-
-DEF_HEADER_FILE = $(FAMILLY_LC).h
-CONF_HEADER_FILE = Escapement_$(FAMILLY_LC).h
 
 PATH_LIB_ST = ../../Libraries
 
-INCLUDE_LIB_ST = -I. -I${PATH_LIB_ST}/CMSIS/Device/${FAMILLY} -I${PATH_LIB_ST}/CMSIS/Core/Include -DSTM32F407xx -DUSER_VECT_TAB_ADDRESS -DHSE_VALUE=8000000
+INCLUDE_LIB_ST = -I. -I${PATH_LIB_ST}/CMSIS/Device/${FAMILY} -I${PATH_LIB_ST}/CMSIS/Core/Include -DSTM32F407xx -DUSER_VECT_TAB_ADDRESS -DHSE_VALUE=8000000
 
 # Bare-metal ARM toolchain. Overridable:
 #   make CROSS_COMPILE=/path/to/arm-none-eabi-
@@ -121,10 +116,6 @@ build/TestTimerEventF4.o : TestTimerEventF4.c
 build/TaskLEDF4.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDF4.o
 	${CC} -mcpu=${CPU} -Wl,--gc-sections -mthumb -nostdlib -o $@ ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskLEDF4.o -T${LINKERFILE} -lgcc
 build/TaskWrapF4.o : TaskWrapF4.c 
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/UARTSimpleEchoF4.o : UARTSimpleEchoF4.c 
-	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/TestTimerEventF4.o : TestTimerEventF4.c 
 	$(CC) $(CFLAGS) $(INCLUDE_LIB_ST) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskWrapF4.elf : ${OBJECTS_ESCAPEMENT} ${OBJECTS_LIB} build/TaskWrapF4.o

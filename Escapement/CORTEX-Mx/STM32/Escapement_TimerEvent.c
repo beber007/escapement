@@ -496,19 +496,19 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT16 int
      else {
   #endif
         /* For 16-bit counter version, set the autoreload timer value to (2^16 -1) */
-        *(UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF;
+        *(volatile UINT16 *)(device->Base + OFFSET_AUTORELOAD) = 0xFFFF;
   #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
      }
   #endif
   /* Set prescaler register */
-  *(UINT16 *)(device->Base + OFFSET_PRESCALER) = prescaler;
+  *(volatile UINT16 *)(device->Base + OFFSET_PRESCALER) = prescaler;
   /* Generate an update event to force reload of registers value */
-  *(UINT16 *)(device->Base + OFFSET_EVENT_GENERATION) = 1;
+  *(volatile UINT16 *)(device->Base + OFFSET_EVENT_GENERATION) = 1;
   /* Clear interrupts flags and enable interrupts */
-  *(UINT16 *)(device->Base + OFFSET_STATUS) = (UINT16)~3;
-  *(UINT16 *)(device->Base + OFFSET_INT_ENABLE) |= 3;
+  *(volatile UINT16 *)(device->Base + OFFSET_STATUS) = (UINT16)~3;
+  *(volatile UINT16 *)(device->Base + OFFSET_INT_ENABLE) |= 3;
   /* Start the timer counter */
-  *(UINT16 *)(device->Base + OFFSET_CONTROL1) |= 1;
+  *(volatile UINT16 *)(device->Base + OFFSET_CONTROL1) |= 1;
 } /* end of OSInitTimerEvent */
 
 
@@ -545,7 +545,7 @@ BOOL OSScheduleTimerEvent(void *event, UINT32 delay, UINT16 interruptIndex)
         /* 16-bit counter version */
         do {
            des.Version = device->Time; // Save current 16-bit MSB time to detect current time shifting
-           des.Time = *(UINT16 *)(device->Base + OFFSET_COUNTER) + delay + (des.Version << 16);
+           des.Time = *(volatile UINT16 *)(device->Base + OFFSET_COUNTER) + delay + (des.Version << 16);
         } while (des.Version != device->Time);
   #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
      }
@@ -680,7 +680,7 @@ void InsertQueueHelper(INSERTQUEUE_OP *des, TIMER_ISR_DATA *device, BOOL genInte
               OSUINT16_LL((UINT16 *)(device->Base + OFFSET_COMPARATOR));
               if (des->GeneratedInterrupt) return;
            } while (!OSUINT16_SC((UINT16 *)(device->Base + OFFSET_COMPARATOR),des->Node->Time));
-           if (*(UINT16 *)(device->Base + OFFSET_COMPARATOR) <= *(UINT16 *)(device->Base + OFFSET_COUNTER))
+           if (*(volatile UINT16 *)(device->Base + OFFSET_COMPARATOR) <= *(volatile UINT16 *)(device->Base + OFFSET_COUNTER))
               do {
                  OSUINT16_LL((UINT16 *)(device->Base + OFFSET_EVENT_GENERATION));
                  if (des->GeneratedInterrupt) return;
@@ -795,8 +795,8 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
   device->PendingQueueOperation = NULL;
   do {
      /* shifting of the temporal values. */
-     if (*(UINT16 *)(device->Base + OFFSET_STATUS) & 1) { // Is timer overflow interrupt?
-        *(UINT16 *)(device->Base + OFFSET_STATUS) = ~1;  // Clear interrupt flag
+     if (*(volatile UINT16 *)(device->Base + OFFSET_STATUS) & 1) { // Is timer overflow interrupt?
+        *(volatile UINT16 *)(device->Base + OFFSET_STATUS) = ~1;  // Clear interrupt flag
         #if defined(STM32L1XXXX) && defined(OS_IO_TIM5)
            if (device->Base == BASE_TIM5) {
         #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
@@ -845,12 +845,12 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
            else {
         #endif
               /* 16-bit counter version */
-              *(UINT16 *)(device->Base + OFFSET_COMPARATOR) = 0;
+              *(volatile UINT16 *)(device->Base + OFFSET_COMPARATOR) = 0;
         #if defined(STM32L1XXXX) && defined(OS_IO_TIM5) || defined(STM32F2XXXX) || defined(STM32F4XXXX) || defined(STM32F05XXX)
            }
         #endif
         /* Clear interrupt flag */
-        *(UINT16 *)(device->Base + OFFSET_STATUS) = ~2;
+        *(volatile UINT16 *)(device->Base + OFFSET_STATUS) = ~2;
         #if defined(STM32L1XXXX) && defined(OS_IO_TIM5)
            if (device->Base == BASE_TIM5) {
         #elif defined(STM32F2XXXX) || defined(STM32F4XXXX)
@@ -881,16 +881,16 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
               /* Schedule events that now occur */
               timeMSB = device->Time << 16;
               while ((eventNode = device->EventQueue) != NULL && eventNode->Time <=
-                                 (timeMSB | *(UINT16 *)(device->Base + OFFSET_COUNTER))) {
+                                 (timeMSB | *(volatile UINT16 *)(device->Base + OFFSET_COUNTER))) {
                  OSScheduleSuspendedTask(eventNode->Event);
                  device->EventQueue = eventNode->Next;
                  ReleaseNode(device,eventNode);
               }
               /* Program the next timer comparator */
               if (eventNode != NULL && (eventNode->Time & 0xFFFF0000) == timeMSB) {
-                 *(UINT16 *)(device->Base + OFFSET_COMPARATOR) = (UINT16)eventNode->Time;
-                 if (*(UINT16 *)(device->Base + OFFSET_COMPARATOR) >
-                                               *(UINT16 *)(device->Base + OFFSET_COUNTER))
+                 *(volatile UINT16 *)(device->Base + OFFSET_COMPARATOR) = (UINT16)eventNode->Time;
+                 if (*(volatile UINT16 *)(device->Base + OFFSET_COMPARATOR) >
+                                               *(volatile UINT16 *)(device->Base + OFFSET_COUNTER))
                     break;
               }
               else
@@ -899,6 +899,6 @@ void TimerIntHandler(TIMER_ISR_DATA *device)
            }
         #endif
      }
-  } while ((*(UINT16 *)(device->Base + OFFSET_STATUS) & 3) != 0);
+  } while ((*(volatile UINT16 *)(device->Base + OFFSET_STATUS) & 3) != 0);
 } /* end of TimerIntHandler */
 
