@@ -24,6 +24,11 @@ DVFS to gain much (`power-aware.md`).
 
 ## Open work, in order
 
+0. **Two weeks of endurance on a board** (`rp2040.md`, "The endurance test"): `SoakPico` on
+   the Pico W, freed from the board CI by the Pico and the Pico 2 ordered, from the week
+   of 2026-09-28 — a week under the hard kernel, a week under the power-aware one —, and
+   instances under Renode on another machine, each with its own build and seed.
+
 1. **The energy verdict on the RP2040.** Build the bench of `power-aware.md` — a plain
    Pico rather than a Pico W, powered and measured by a Power Profiler Kit II, chosen
    on 2026-09-24 over an INA226 — and answer whether DVFS beats race-to-sleep. The same

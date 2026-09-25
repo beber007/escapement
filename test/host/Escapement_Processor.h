@@ -35,11 +35,17 @@ extern int HostMallocFill;           /* byte OSMalloc fills blocks with, -1 for 
 /* A test may set HostSoftTimerHook to take the soft timer interrupt at once, inside the
 ** task that raised it, as the target does. */
 extern void (*HostSoftTimerHook)(void);
+/* Interrupts masked (HostMasked) hold it until they are unmasked, as on the target. */
+extern unsigned HostMasked, HostSoftTimerHeld;
+extern void (*HostUnmaskHook)(void);  /* takes an interrupt held while masked */
+void HostUnmask(void);
 #define _OSGenerateSoftTimerInterrupt() do { HostSoftTimerRequests += 1; \
-                                             if (HostSoftTimerHook) HostSoftTimerHook(); } while (0)
+                                             if (!HostSoftTimerHook) ; \
+                                             else if (HostMasked) HostSoftTimerHeld = 1; \
+                                             else HostSoftTimerHook(); } while (0)
 #define _OSClearSoftTimerInterrupt()    ((void)0)
-#define _OSEnableInterrupts()           ((void)0)
-#define _OSDisableInterrupts()          ((void)0)
+#define _OSEnableInterrupts()           HostUnmask()
+#define _OSDisableInterrupts()          (HostMasked = 1)
 #define _OSSleep()                      ((void)0)
 #define _OSMemoryBarrier()              do { __asm volatile ("" ::: "memory"); \
                                              if (HostBarrierHook) HostBarrierHook(); } while (0)

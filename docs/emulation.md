@@ -246,3 +246,19 @@ builds of the Pico 2, the helpers completing 7 to 22 operations of another task,
 under the seven builds of the Pico run in the CI's image (hard and soft under both
 algorithms, the power-aware kernel under OTE, DRA and DM_SLACK), 35 to 48. The hooks
 slow the test to 16 to 36 s.
+
+The endurance test's firmware (`SoakPico`, `SoakPico2`, `rp2040.md`) runs in both suites
+until it has counted two seconds: every part active, none in error, the pulse held to
+the seconds the firmware counted, since its start waits for core 1 to answer its launch,
+which under Renode takes a part of the run that varies with the host (from 0 to over
+1.5 s seen on the Pico 2). Under the RP2040 models core 1 cannot be launched, and the
+suite has the firmware skip the part between the cores. On the Pico 2 the test first
+stopped on the kernel's overload check in 1 to 4 runs of 6, only with core 1 running:
+not Renode's exclusives, as first thought, but a task wiped from the stack while still
+in the ready queue, the order of two stores in `OSEndTask` left to the compiler
+(`method.md`); core 1 only moved the interrupts onto the instruction between them. `tools/soak_emulated.sh` runs it for
+long, several instances side by side on a Linux machine, each with its own build and a
+seed that sets the Filler's work and the delay of the timer events
+(`soak_emulated.robot`); the models run close to real time, 15 s of virtual time in
+20 s. It is how the soft kernel under deadline-monotonic scheduling was seen to hang
+there, on 2026-09-25, when an interrupt had joined the firmware (`method.md`).

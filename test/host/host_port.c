@@ -113,6 +113,21 @@ void *OSMalloc(UINT16 size)
 
 void (*HostBarrierHook)(void) = NULL;
 void (*HostSoftTimerHook)(void) = NULL;
+unsigned HostMasked = 0, HostSoftTimerHeld = 0;
+
+/* HostUnmask: Interrupts unmasked; an interrupt held meanwhile is taken now, then the
+** soft timer interrupt it or the code masked may have raised. */
+void (*HostUnmaskHook)(void) = NULL;
+void HostUnmask(void)
+{
+  HostMasked = 0;
+  if (HostUnmaskHook)
+     HostUnmaskHook();
+  if (HostSoftTimerHeld && HostSoftTimerHook) {
+     HostSoftTimerHeld = 0;
+     HostSoftTimerHook();
+  }
+}
 
 /* Atomics. Single threaded and never preempted here, so a reservation holds — unless a
 ** test sets HostFailingSC to make that many store-conditionals fail, as an interrupt
@@ -121,12 +136,14 @@ unsigned HostFailingSC = 0;
 unsigned HostPassingSC = 0;      /* store-conditionals let through before those that fail */
 /* An LL reserves, its SC consumes the reservation. A test may set HostLLHook to run
 ** code between an LL and its SC, as an interrupt does; returning from it loses the
-** reservation, as the return from an interrupt does on the target, so the SC fails.
+** reservation, as the return from an interrupt does on the target, so the SC fails. A
+** hook that finds interrupts masked (HostMasked) holds its interrupt until they are
+** unmasked, where HostUnmaskHook takes it.
 ** The hook returns whether it ran anything. */
 BOOL (*HostLLHook)(void) = NULL;
 static BOOL Reserved = FALSE;
 #define LL(a) do { Reserved = TRUE; value = *(a); \
-                   if (HostLLHook && HostLLHook()) Reserved = FALSE;  \
+                   if (HostLLHook && HostLLHook()) Reserved = FALSE; \
                    return value; } while (0)
 #define SC(a, v) do { if (!Reserved) return FALSE; \
                       Reserved = FALSE; \

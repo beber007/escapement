@@ -64,7 +64,8 @@ run: $(BUILDS:%=build/test_scheduler_%) build/test_ipc_hard build/test_ipc_soft 
 	   ./build/test_scheduler_$$b wrap && ./build/test_scheduler_$$b wrapsim && \
 	   ./build/test_scheduler_$$b wrapevents && \
 	   ./build/test_scheduler_$$b events && ./build/test_scheduler_$$b lull && \
-	   ./build/test_scheduler_$$b suspend && ./build/test_scheduler_$$b busy && \
+	   ./build/test_scheduler_$$b suspend && ./build/test_scheduler_$$b signalinside && \
+	   ./build/test_scheduler_$$b busy && \
 	   ./build/test_scheduler_$$b early && ./build/test_scheduler_$$b slack && \
 	   ./build/test_scheduler_$$b expiry && ./build/test_scheduler_$$b reclaim && \
 	   ./build/test_scheduler_$$b reuse && ./build/test_scheduler_$$b overrun && \

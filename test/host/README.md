@@ -27,6 +27,7 @@ loops.
 | `wrapevents` | the same, an event-driven task signalling itself and waiting in the arrival queue beyond each wrap, where periodic tasks count turns of 2^30 apart |
 | `events` | event-driven tasks woken by periodic tasks, by themselves and by a buffer slot filling up |
 | `suspend` | an event-driven task ends exactly at its deadline with a signal pending, the soft timer interrupt taken at once inside `OSSuspendSynchronousTask`, the tasks it elects running on top of it |
+| `signalinside` | an interrupt at each of the LLs of `OSSuspendSynchronousTask` in turn signals the task suspending itself, or wakes a task of higher priority that preempts it and signals it; interrupts masked hold it until they are unmasked, as on the target |
 | `lull` | a task of 400 s wakes an event-driven task, with nothing in between: the reclaiming policies account for the aperiodic bandwidth over the whole interval at once, which overflowed 32 bits until 2026-09-25 |
 | `busy`, `early`, `slack` | tasks that take time, instances ending at or before their WCET or leaving time to others: the speed the power-aware kernel picks decides whether deadlines hold |
 | `expiry` | the time a task left unused runs out while the processor idles; the task set was found by searching random ones for a deadline that a kernel whose slack never runs out misses |
@@ -37,7 +38,7 @@ loops.
 | `firmwrap`, `firmlong` | optional instances across the wrap, and one of 2^23 ticks, whose schedulability test left 32 bits |
 | `firmevents` | (m,k)-firm tasks beside an event-driven task, whose workload the soft kernel computes under EDF; each task reads its place in its pattern (`OSGetTaskInstance`) |
 | `minspeed` | a light load with `OSSetMinimalProcessorSpeed`: the power-aware kernel never goes below it, which four of its five policies would otherwise do; two tasks released together with equal deadlines, which EDF* breaks by arrival and address |
-| `test_ipc` | each operation of the FIFO queue, and of the queue between the cores, interrupted at each of its LLs by another, which must complete it or move Tail or Head on for it; every creation of a queue or buffer refused, not crashing, when memory runs out at each of its allocations; the FIFO queue past the wrap of its indices and refusing a node when full, both slot buffers through their states and a reader coming in the middle of a write, at the writer's first barrier, over blocks filled with 0xA5 as SRAM is rather than zeros, the queue between the cores of the RP2350 (`Escapement_CoreQueue.c`) in order, full, empty and round its array, its SCs made to fail — the one that advances Tail or Head among them —, store-conditionals made to fail on purpose |
+| `test_ipc` | each operation of the FIFO queue, and of the queue between the cores, interrupted at each of its LLs by another, which must complete it or move Tail or Head on for it; every creation of a queue or buffer refused, not crashing, when memory runs out at each of its allocations; the FIFO queue past the wrap of its indices and refusing a node when full, both slot buffers through their states and a reader coming in the middle of a write, at the writer's first barrier or at its last with the slot before left unread, over blocks filled with 0xA5 as SRAM is rather than zeros, the queue between the cores of the RP2350 (`Escapement_CoreQueue.c`) in order, full, empty and round its array, its SCs made to fail — the one that advances Tail or Head among them —, store-conditionals made to fail on purpose |
 
 Under the power-aware kernel every run also checks the speeds asked for: always one of
 the operating points of the RP2040; where slowing down is possible, some below the
@@ -61,7 +62,9 @@ old code.
 
 The atomics of the host keep a reservation, as the target does: an LL sets it, its SC
 consumes it, and code a test runs between them (`HostLLHook`), as an interrupt would,
-makes the SC fail. `OSMalloc` can be given a budget of allocations (`HostMallocBudget`)
+makes the SC fail. `_OSDisableInterrupts` masks that code as it masks an interrupt: a
+hook that finds interrupts masked holds its interrupt until they are unmasked
+(`HostUnmaskHook`), and so is a soft timer interrupt raised meanwhile. `OSMalloc` can be given a budget of allocations (`HostMallocBudget`)
 and fill its blocks with a byte instead of zeros (`HostMallocFill`), as SRAM is.
 
 The audit of the inherited kernel (2026-09-25) added the runs `create` to `firmlong`
@@ -72,6 +75,14 @@ had read, and the new one was lost; an event-driven task ending at its deadline 
 inserted in the ready queue while still in it; an event-driven task waiting beyond a
 wrap sorted before periodic tasks due earlier; a DM_SLACK slack was given twice; a task
 past its WCET resumed at the slowest speed. The sanitizer now also checks shifts.
+
+Two of those fixes were wrong, which the endurance test found on the board and under
+Renode the same day (`docs/method.md`): the status of a slot buffer set after the slot
+let a reader take the same slot twice, and an event-driven task preempted while it
+suspended itself had the context of the task preempting it discarded. The reader at the
+writer's last barrier and `signalinside`, with a task of higher priority, fail on them;
+the first under every kernel, the second with a segmentation fault under
+deadline-monotonic scheduling.
 
 Faults were also planted in the kernels by hand, to see the test fail. When it was
 written (5018fdb, 2026-09-21), 14 of 15 faults planted in the hard kernel failed a

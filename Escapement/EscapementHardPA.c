@@ -1088,20 +1088,25 @@ BOOL _OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
 ** should suspend itself until the event is signaled by OSScheduleSuspendedTask(). */
 void OSSuspendSynchronousTask(void)
 {
-  FIFOQUEUE *eq = ((ETCB *)_OSActiveTask)->EventQueue;
+  ETCB *task = (ETCB *)_OSActiveTask;
+  FIFOQUEUE *eq = task->EventQueue;
+  BOOL signaled;
   #if POWER_MANAGEMENT == DM_SLACK
      DMSlackCalculateSlack(_OSActiveTask,OSGetProcessorSpeed(),_OSGetActualTime());
   #endif
-  /* Insert the task into the event queue as soon as possible so that a task signaling
-  ** an event will detect this task. When EnqueueEventTask() returns TRUE, there is a
-  ** pending event and the task is not appended to the queue. */
-  if (EnqueueEventTask(eq,(UINTPTR)_OSActiveTask)) {
-     /* Now we need to reschedule this task, i.e. we need to resort the ready queue with
-     ** new deadline or priority parameters. However because the needed information can
-     ** be updated concurrently by the timer interrupt handler, it is simpler to resche-
-     ** dule the task by the timer interrupt handler. */
-     EnqueueRescheduleQueue((ETCB *)_OSActiveTask);
-  }
+  /* Insert the task into the event queue so that a task signaling the event will de-
+  ** tect this task. When EnqueueEventTask() returns TRUE, there is a pending event and
+  ** the task is not appended to the queue: it is then rescheduled by the timer inter-
+  ** rupt handler, since the information it needs can be updated concurrently by that
+  ** handler. Interrupts are masked from here until the task has left the ready queue: a
+  ** signal in between, from an interrupt or from a task of higher priority preempting
+  ** this one, gave the handler a task not yet a zombie, still in the ready queue and
+  ** maybe deep in the stack, which the handler inserted in the ready queue again, or,
+  ** taking it for the task it had interrupted, whose context it discarded instead of
+  ** the right one (SoakPico, 2026-09-25). Masked, the task is a zombie out of the ready
+  ** queue by the time the handler sees it. */
+  _OSDisableInterrupts();
+  signaled = EnqueueEventTask(eq,(UINTPTR)task);
   #if POWER_MANAGEMENT != NONE
      /* In case we get interrupted without returning to this task, we need to complete
      ** the work that gets done in the power management section of this function for the
@@ -1120,6 +1125,9 @@ void OSSuspendSynchronousTask(void)
   /* Remove the task from the ready queue */
   _OSQueueHead->Next[READYQ] = _OSActiveTask->Next[READYQ];
   _OSActiveTask = _OSQueueHead->Next[READYQ];
+  if (signaled)
+     EnqueueRescheduleQueue(task);
+  _OSEnableInterrupts();
   #if POWER_MANAGEMENT == DM_SLACK
      /* Set the available slack for a lower priority task. */
      DMSlackUpdateSlack();
@@ -1221,28 +1229,15 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
 {
   BOOL wait;
   ETCB *etcb;
-  TCB *tcb;
   do {
      while ((etcb = (ETCB *)OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList)) != NULL) {
         if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb->Next[BLOCKQ])) {
-           /* A task not yet a zombie is the one this handler interrupted in OSSuspend-
-           ** SynchronousTask, after its request to be rescheduled: its work is done, and
-           ** leaving the ready queue is all it has left to do, which is done here as
-           ** FinalizeContextSwitchPreparation does it further on. It then never resumes.
-           ** Left in the ready queue, a task that ended at its deadline, or at the end of
-           ** its period, was due at once and would have been inserted a second time. */
-           if ((etcb->TaskState & STATE_ZOMBIE) == 0) {
-              for (tcb = _OSQueueHead; tcb->Next[READYQ] != (TCB *)etcb; tcb = tcb->Next[READYQ]);
-              tcb->Next[READYQ] = (TCB *)etcb->Next[READYQ];
-              etcb->TaskState |= STATE_ZOMBIE;
-              _OSNoSaveContext = TRUE;    // Don't save the context of this task
-              #if POWER_MANAGEMENT != NONE
-                 SetActiveTaskRemainingTime = TRUE;  // the task left the processor
-              #endif
-              #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
-                 DRASimUpdateElapseTime(currentTime);  // the time it used up
-              #endif
-           }
+           /* A task not yet a zombie has not left the ready queue: OSSuspendSynchronous-
+           ** Task asks for a task to be rescheduled only once it has, interrupts masked. */
+           #ifdef DEBUG_MODE
+              if ((etcb->TaskState & STATE_ZOMBIE) == 0)
+                 while (TRUE);
+           #endif
            #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
               /* Under EDF, the task that is to process the event cannot execute until its
               ** previous deadline has passed. */
@@ -2159,6 +2154,7 @@ void OSReleaseNodeFIFO(void *descriptor, void *node)
 typedef struct {      // Defines one slot that can be used with either slot schemes
   UINT8 *Data;        // buffer that holds a data
   UINT8 BufferItems;  // number of bytes currently used in the buffer
+  UINT32 Sequence;    // number of the slot among those written, from 1
 } BUFFER_DATA;
 
 typedef struct {              // 4-slotted buffer descriptor
@@ -2180,9 +2176,11 @@ typedef struct {              // 3-slotted buffer descriptor
 typedef struct {
   void *Buffer;               // 3- or 4-slot mechanism descriptor
   UINT8 BufferSize;           // number of bytes composing a full data item
-  UINT8 Status;               // one of {BUFFER_INIT,BUFFER_UNREAD,BUFFER_READ}
+  UINT8 Status;               // one of {BUFFER_INIT,BUFFER_UNREAD}
   UINT8 BufferSlotType;       // one of {OS_BUFFER_TYPE_3_SLOT,OS_BUFFER_TYPE_4_SLOT}
   void *EventQueue;           // optional event associated with the buffer
+  UINT32 Written;             // slots written so far, by the one writer
+  UINT32 LastRead;            // Sequence of the slot last read with OS_READ_ONLY_ONCE
 } BUFFER_DESCRIPTOR;
 
 /* Internal slot-buffer function prototypes */
@@ -2191,17 +2189,18 @@ static BUFFER_DATA *GetReadyBuffer4Slot(BUFFER_DESCRIPTOR *descriptor);
 
 
 /* 3 or 4 Slot-buffer states:
-** BUFFER_INIT indicates an unfilled and unread buffer. This is the initial state of the
-** buffer and its sole purpose is to distinguish an unfilled buffer from a valid read or
-** unread buffer. This is a transient state that can no longer be re-entered once exited.
-** BUFFER_UNREAD indicates that there is an available and unread data buffer. The state
-** of the buffer is set to BUFFER_READ only when the reader calls OSGetCopyBuffer() or
-** OSGetReferenceBuffer() with OS_READ_ONLY_ONCE.
-** BUFFER_READ indicates that the latest and most recent available data buffer has al-
-** ready been read. */
+** BUFFER_INIT indicates an unfilled buffer. This is the initial state of the buffer and
+** its sole purpose is to distinguish an unfilled buffer from one holding a slot to read.
+** It can no longer be re-entered once exited.
+** BUFFER_UNREAD indicates that a full slot has been handed over to the reader.
+** Whether that slot is new to a reader taking each slot once is told by its Sequence:
+** a status set apart from the slot cannot tell which slot it speaks of. Set before the
+** slot is handed over, a reader preempting the writer in between took the slot it had
+** read as new and the new one then counted as read; set after, it took the new slot
+** early, the status still saying unread from the slot before, and again once the
+** writer had said it unread (SoakPico, 2026-09-25). */
 #define BUFFER_INIT   0x1
 #define BUFFER_UNREAD 0x2
-#define BUFFER_READ   0x4
 
 
 /* OSInitBuffer: Creates a 3- or 4-slot buffer that can be used for I/Os and inter-task
@@ -2225,6 +2224,7 @@ void *OSInitBuffer(UINT8 bufferSize, UINT8 bufferSlotType, void *eventQueue)
       (descriptor = (BUFFER_DESCRIPTOR *)OSMalloc(sizeof(BUFFER_DESCRIPTOR))) == NULL)
      return NULL;
   descriptor->Status = BUFFER_INIT;
+  descriptor->Written = descriptor->LastRead = 0;
   descriptor->BufferSize = bufferSize;
   descriptor->BufferSlotType = bufferSlotType;
   descriptor->EventQueue = eventQueue;
@@ -2243,6 +2243,7 @@ void *OSInitBuffer(UINT8 bufferSize, UINT8 bufferSlotType, void *eventQueue)
         for (i = 0; i < 2; i++)  // Allocate the buffer of each slot
            for (bufferSize = 0; bufferSize < 2; bufferSize++) {
               buffer4->Slot[i][bufferSize].BufferItems = 0;
+              buffer4->Slot[i][bufferSize].Sequence = 0;
               if ((buffer4->Slot[i][bufferSize].Data = (UINT8 *)OSMalloc(descriptor->BufferSize)) == NULL)
                  return NULL;
            }
@@ -2256,6 +2257,7 @@ void *OSInitBuffer(UINT8 bufferSize, UINT8 bufferSlotType, void *eventQueue)
         buffer3->CurrentWriter = &buffer3->Slot[2];
         for (i = 0; i < 3; i++) {  // Allocate the buffer of each slot
            buffer3->Slot[i].BufferItems = 0;
+           buffer3->Slot[i].Sequence = 0;
            if ((buffer3->Slot[i].Data = (UINT8 *)OSMalloc(descriptor->BufferSize)) == NULL)
               return NULL;
         }
@@ -2288,8 +2290,9 @@ UINT8 OSWriteBuffer(void *descriptor, UINT8 *data, UINT8 size)
                                       element->BufferItems != descript->BufferSize; i++)
         element->Data[element->BufferItems++] = data[i]; // copy the byte
      if (element->BufferItems == descript->BufferSize) {
-        /* Hand over the full slot, then get a new one for the next time the writer is
-        ** invoked. */
+        /* Number the full slot, with its data; hand it over, then get a new one for the
+        ** next time the writer is invoked. */
+        element->Sequence = ++descript->Written;
         if (descript->BufferSlotType == OS_BUFFER_TYPE_4_SLOT) {
            BOOL wpair;
            BUFFER_4_SLOT *buf = (BUFFER_4_SLOT*)((BUFFER_DESCRIPTOR*)descriptor)->Buffer;
@@ -2330,10 +2333,8 @@ UINT8 OSWriteBuffer(void *descriptor, UINT8 *data, UINT8 size)
            buffer->CurrentWriter = &buffer->Slot[windex];
            buffer->CurrentWriter->BufferItems = 0;
         }
-        /* Only now indicate to the reader that a full buffer is ready for reading: said
-        ** before the slot is handed over, a reader preempting the writer in between would
-        ** take the slot it had read as unread, and the new one would then count as read.
-        ** On two cores, the slot must be seen handed over before the status. */
+        /* A full slot is there to read from now on; on two cores, it must be seen handed
+        ** over before this. */
         _OSMemoryBarrier();
         descript->Status = BUFFER_UNREAD;
         /* Unblock a task if there is an event associated with a full buffer */
@@ -2360,20 +2361,17 @@ UINT8 OSGetReferenceBuffer(void *descriptor, UINT8 readMode, UINT8 **data)
   BUFFER_DATA *buffer;
   /* Check that the buffer was created and that there is something to read. */
   if (descript != NULL && descript->Status != BUFFER_INIT) {
-     if (!readMode) { // take the unread slot, retrying if an interrupt made the SC fail
-        do
-           if (OSUINT8_LL(&descript->Status) != BUFFER_UNREAD)
-              goto fail;
-        while (!OSUINT8_SC(&descript->Status,BUFFER_READ));
-        /* With the writer on the other core: the slot chosen after the status that says
-        ** it is new, which the writer sets after handing the slot over. */
-        _OSMemoryBarrier();
-     }
      /* Get the slot holding the most recent written data. */
      if (descript->BufferSlotType == OS_BUFFER_TYPE_4_SLOT)
         buffer = GetReadyBuffer4Slot(descript);
      else
         buffer = GetReadyBuffer3Slot(descript);
+     /* The latest slot, if not the one last read once: see its Sequence. */
+     if (!readMode) {
+        if (buffer->Sequence == descript->LastRead)
+           goto fail;
+        descript->LastRead = buffer->Sequence;
+     }
      if (buffer->BufferItems > 0) {
         *data = buffer->Data;
         return buffer->BufferItems;
@@ -2400,19 +2398,15 @@ UINT8 OSGetCopyBuffer(void *descriptor, UINT8 readMode, UINT8 *data)
   BUFFER_DATA *buffer;
   /* Check that the buffer was created and that there is something to read. */
   if (descript != NULL && descript->Status != BUFFER_INIT) {
-     if (!readMode) { // take the unread slot, retrying if an interrupt made the SC fail
-        do
-           if (OSUINT8_LL(&descript->Status) != BUFFER_UNREAD)
-              goto fail;
-        while (!OSUINT8_SC(&descript->Status,BUFFER_READ));
-        /* With the writer on the other core: the slot chosen after the status that says
-        ** it is new, which the writer sets after handing the slot over. */
-        _OSMemoryBarrier();
-     }
      if (descript->BufferSlotType == OS_BUFFER_TYPE_4_SLOT)
         buffer = GetReadyBuffer4Slot(descript);
      else
         buffer = GetReadyBuffer3Slot(descript);
+     if (!readMode) {   // as OSGetReferenceBuffer
+        if (buffer->Sequence == descript->LastRead)
+           goto fail;
+        descript->LastRead = buffer->Sequence;
+     }
      for(i = 0; i < buffer->BufferItems; i++)
         data[i] = buffer->Data[i];
      return buffer->BufferItems;

@@ -21,6 +21,10 @@ tools/fourslot_cores.sh                       # FourSlotCoresPico: 4-slot buffer
 tools/board_ci.sh --force                     # board checks, run by a timer on the bench
 tools/timer_events.py <elf>                   # TestTimerEventPico (TRACE=1 + cost build) summed up
 tools/dvfs_bench.py <elf>                     # BenchDVFSPico: means of each change of speed
+tools/soak.sh 14d 1m                          # endurance test: SoakPico, read without stopping
+                                              # it, status board/soak (holds the board-ci lock)
+tools/soak_emulated.sh OUT 60 1440 hard::1 soft:KERNEL=SOFT:2   # instances under Renode
+tools/soak_emulated_status.sh OUT [SHA]       # their sum, status emulation/soak
 
 # STM32F4 examples — the Cortex-M3/M4 assembler path on Renode's own platform (the
 # RP2350 takes that path too, on ours)
@@ -42,7 +46,7 @@ python3 test/model/fifo_mp.py        # the queue between the cores, ~1 s
 
 # The compiled order of the slot buffers against the models (RP builds, run by the CI)
 tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement*.o
-tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2   # must fail 11/11
+tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2   # must fail 9/9
 
 sh tools/check_encoding.sh           # every tracked file must be valid UTF-8
 

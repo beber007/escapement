@@ -270,6 +270,40 @@ Tasks preempt one another inside the FIFO queue and a slot buffer
     Should Be Equal As Integers  ${registers}  0
     Should Be True            ${helped} > 0
 
+Every part of the endurance test runs without error
+    [Documentation]           SoakPico2, the firmware of the endurance test (tools/soak.sh),
+    ...                       until its heartbeat is past two seconds: its marker set, every
+    ...                       part active and none in error — the pulse on time, the queue
+    ...                       in order, the buffers never torn nor repeated, the timer events
+    ...                       on time, the heartbeat seeing every part move each second, the
+    ...                       interrupt of alarm 3 putting records, and the stacks and the
+    ...                       guard words intact.
+    [Timeout]                 10 minutes
+    Load Escapement           SoakPico2
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    # The kernel starts once core 1 has answered its launch, which under Renode takes a
+    # part of the run that varies with the host (from 0 to over 1.5 s seen): the run goes
+    # on by half seconds until the firmware has counted two, and the pulse is held to the
+    # seconds it counted, one per heartbeat from its start.
+    FOR  ${step}  IN RANGE  12
+        Execute Command       emulation RunFor "0.5"
+        ${seconds}=           Read Word  ${results + 4}
+        IF  ${seconds} >= 2  BREAK
+    END
+    ${marker}=                Read Word  ${results}
+    ${pulses}=                Read Word  ${results + 12}
+    Should Be Equal As Integers  ${marker}  0x534F414B
+    Should Be True            ${seconds} >= 2 and ${pulses} >= (${seconds} - 1) * 1000
+    FOR  ${part}  IN RANGE  8
+        ${activity}=          Read Word  ${results + 12 + 4 * ${part}}
+        ${errors}=            Read Word  ${results + 44 + 4 * ${part}}
+        Log To Console        part ${part}: ${activity} done, ${errors} errors
+        Should Be True        ${activity} > 0
+        Should Be Equal As Integers  ${errors}  0
+    END
+
 The queue of Evéquoz crosses between the two cores
     [Documentation]           FIFOCoresPico2 passes records from core 1 to a task on core 0
     ...                       through the queue between the cores (Escapement_CoreQueue.c),

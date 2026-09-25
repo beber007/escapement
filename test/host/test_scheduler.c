@@ -9,7 +9,7 @@
 ** board cannot give: task sets far larger than the three an example carries, and the
 ** 2^30 wraparound of the kernel clock, eighteen minutes away on hardware.
 **
-** Up to twenty-two runs, one per process since the kernel keeps its state in statics:
+** Up to twenty-three runs, one per process since the kernel keeps its state in statics:
 **   test_scheduler           ten tasks, the clock advanced one tick at a time
 **   test_scheduler create    what the kernel refuses to create
 **   test_scheduler priority  an event-driven task created before tasks of shorter deadline
@@ -22,6 +22,7 @@
 **                            and by a buffer slot filling up
 **   test_scheduler suspend   an event-driven task ending at its deadline, the soft timer
 **                            interrupt taken inside it
+**   test_scheduler signalinside an interrupt signaling an event-driven task as it suspends
 **   test_scheduler busy      tasks that take time, each instance its WCET
 **   test_scheduler early     the same, instances ending before their WCET
 **   test_scheduler slack     the same, one instance leaving time to others
@@ -335,8 +336,12 @@ static void RunElected(HostTCB *interrupted)
         lastKey = PriorityKey(task);
         started = TRUE;
      }
-     if (setjmp(TaskFrame) != 0)    /* the kernel ended the task in its place */
+     if (setjmp(TaskFrame) != 0) {  /* the kernel ended the task in its place */
+        HostLLHook = NULL;          /* hooks the task would have removed */
+        HostSoftTimerHook = NULL;
+        HostUnmaskHook = NULL;
         continue;
+     }
      task->TaskCodePtr(task->Argument);
      if (!ReadyQueueHolds()) {
         QueueBreaks += 1;
@@ -904,6 +909,104 @@ static void TestSuspend(void)
 }
 
 
+/* TestSignalInside: An interrupt signals an event-driven task while it suspends
+** itself, at each of the LLs of OSSuspendSynchronousTask in turn, one instance after
+** another; the soft timer interrupt it raises is taken at once. Every other time the
+** interrupt wakes instead an event-driven task of higher priority, which preempts the
+** first and signals it itself. A task signaled before it had left the ready queue was
+** inserted in it again, or had the context of another discarded in its place — that of
+** the task preempting it: SoakPico hung under the soft kernel (2026-09-25). OSSuspend-
+** SynchronousTask masks interrupts from its enqueue to its leaving the ready queue: an
+** interrupt that comes in between is taken after, and must still wake the task once. */
+static Signaler ToInside;
+static void *HelperEvent;
+static unsigned InsideRuns, HelperRuns, InsideDirect, InsideViaHelper, InsideAt, InsideCount;
+
+static void Interrupt(void)
+{
+  HostUnmaskHook = NULL;
+  if (InsideRuns % 2) {
+     InsideDirect += 1;
+     OSScheduleSuspendedTask(ToInside.Event);
+  }
+  else {
+     InsideViaHelper += 1;
+     OSScheduleSuspendedTask(HelperEvent);
+  }
+}
+
+static BOOL SignalInside(void)
+{
+  if (++InsideCount != InsideAt)
+     return FALSE;
+  HostLLHook = NULL;
+  if (HostMasked) {       // taken when interrupts are unmasked
+     HostUnmaskHook = Interrupt;
+     return FALSE;
+  }
+  Interrupt();
+  return TRUE;
+}
+
+static void InsideTask(void *argument)
+{
+  (void)argument;
+  InsideRuns += 1;
+  InsideCount = 0;
+  InsideAt = 1 + InsideRuns / 2 % 8;
+  HostLLHook = SignalInside;
+  HostSoftTimerHook = SoftTimerNow;
+  OSSuspendSynchronousTask();
+  HostLLHook = NULL;
+  HostSoftTimerHook = NULL;
+}
+
+/* HelperTask: Of higher priority, it signals the task it preempted. */
+static void HelperTask(void *argument)
+{
+  (void)argument;
+  HelperRuns += 1;
+  OSScheduleSuspendedTask(ToInside.Event);
+  OSSuspendSynchronousTask();
+}
+
+static void TestSignalInside(void)
+{
+  INT32 duration = 20000;
+  unsigned total;
+  char label[80];
+
+  ToInside.Event = OSCreateEventDescriptor();
+  HelperEvent = OSCreateEventDescriptor();
+  CREATE_TASK(SignalerTask, 100, &ToInside);
+  CreateTask(150);
+  CREATE_SYNCHRONOUS_TASK(InsideTask, 20, ToInside.Event, NULL);
+  CREATE_SYNCHRONOUS_TASK(HelperTask, 10, HelperEvent, NULL);
+
+  StartKernel(NULL, NULL);
+  RunFor(duration);
+  HostLLHook = NULL;
+  HostSoftTimerHook = NULL;
+  HostUnmaskHook = NULL;
+
+  printf("\n%d ticks of simulated time, an event-driven task signaled as it suspends\n\n",
+         duration);
+  CheckActivations(duration);
+  /* A signal sent while one is already pending does not add up (docs/api.md): where
+  ** the interrupt falls before the task masks interrupts, as under DM_SLACK, whose slack
+  ** takes LLs of its own first, two signals can make one run. */
+  total = ToInside.Runs + InsideDirect + HelperRuns;
+  snprintf(label, sizeof label, "  one run per signal: %u for %u + %u + %u", InsideRuns,
+           ToInside.Runs, InsideDirect, HelperRuns);
+  Check(label, InsideDirect > 0 && HelperRuns > 0 && InsideRuns <= total + 1 &&
+               InsideRuns + total / 50 + 1 >= total);
+  snprintf(label, sizeof label, "  the task of higher priority ran each time: %u for %u",
+           HelperRuns, InsideViaHelper);
+  Check(label, WithinOne(HelperRuns, InsideViaHelper));
+  Check("  the ready queue stays whole", QueueBreaks == 0);
+  Check("  no deadline missed", LateArrivals == 0);
+}
+
 /* TASKS THAT TAKE TIME ---------------------------------------------------------------- */
 /* Everywhere else a task ends the moment it is called, which says what the scheduler
 ** elects but not whether the speed it picks leaves each task the time it needs. Here each
@@ -1435,6 +1538,8 @@ int main(int argc, char *argv[])
      TestCreate();
   else if (argc > 1 && strcmp(argv[1], "suspend") == 0)
      TestSuspend();
+  else if (argc > 1 && strcmp(argv[1], "signalinside") == 0)
+     TestSignalInside();
   else if (argc > 1 && strcmp(argv[1], "wrapsim") == 0)
      TestWrapSim();
   else if (argc > 1 && strcmp(argv[1], "wrapevents") == 0)

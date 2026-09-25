@@ -213,6 +213,41 @@ Tasks preempt one another inside the FIFO queue and a slot buffer
     Should Be Equal As Integers  ${registers}  0
     Should Be True            ${helped} > 0
 
+Every part of the endurance test runs without error
+    [Documentation]           SoakPico, the firmware of the endurance test (tools/soak.sh),
+    ...                       for 2.5 s: its marker set, its heartbeat past two seconds, every
+    ...                       part active and none in error — the pulse on time, the queue
+    ...                       in order, the buffers never torn nor repeated, the timer events
+    ...                       on time, the heartbeat seeing every part move each second, the
+    ...                       interrupt of alarm 3 putting records, and the stacks and the
+    ...                       guard words intact.
+    [Timeout]                 10 minutes
+    Load Escapement           SoakPico
+    # Core 1 stays halted under the models, and cannot be launched: the firmware is told
+    # to skip the part between the cores, which the RP2350 suite and the board run.
+    ${flag}=                  Execute Command  sysbus GetSymbolAddress "SoakLaunchCore1"
+    Execute Command           sysbus WriteDoubleWord ${flag.strip()} 0
+
+    Execute Command           emulation RunFor "2.5"
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${marker}=                Read Counter  ${results}
+    ${seconds}=               Read Counter  ${results + 4}
+    ${pulses}=                Read Counter  ${results + 12}
+    Should Be Equal As Integers  ${marker}  0x534F414B
+    # The kernel starts once core 1 has answered its launch, which under Renode takes a
+    # part of the run that varies with the host (from 0 to 1.3 s seen): the pulse is
+    # held to the seconds the firmware counted, one per heartbeat from its start.
+    Should Be True            ${seconds} >= 2 and ${pulses} >= (${seconds} - 1) * 1000
+    FOR  ${part}  IN RANGE  8
+        ${activity}=          Read Counter  ${results + 12 + 4 * ${part}}
+        ${errors}=            Read Counter  ${results + 44 + 4 * ${part}}
+        Log To Console        part ${part}: ${activity} done, ${errors} errors
+        Should Be True        ${activity} > 0
+        Should Be Equal As Integers  ${errors}  0
+    END
+
 The power-aware kernel scales the frequency and the voltage
     [Documentation]           Under the power-aware kernel the tasks of TaskLEDPico, which
     ...                       declare their execution times, leave the core idle most of the

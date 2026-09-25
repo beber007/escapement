@@ -44,6 +44,7 @@ has to design around.
 | The host test of the soft kernel is deterministic: time is a variable, and nothing else varies | The same code, green on `main`, failing the next CI run with a signed overflow | The kernel read the period of the idle task, which it does not have, from whatever the heap held past its block. AddressSanitizer now reports it on every run |
 | The four Pico builds passing their suite meant the Cortex-M0 context switch was sound | The power-aware kernel on the Pico, which read and wrote past the end of the RAM from its timer handler — a warning in the Renode log, not a failed test | The context switch reduced the state of every starting task to its running bit with an `ANDS`, where the Cortex-M3 variant tests into another register. The idle task lost `TASKTYPE_BLOCKING`, and the power-aware kernel took it for a periodic task with work left, 44 bytes into a 20-byte block. The hard and soft kernels only consult that flag on the idle task to sort arrivals ahead of it, and then read a field it does not have, which happened to do no harm in the examples; no Pico example has an event-driven task, the other kind it would have hurt. The suite now fails on any access past the RAM |
 | The Cortex-M0 context switch saves what a task needs: R4-R7, as the ZottaOS port for it said, R8-R11 being out of reach of Thumb-1 code | `IPCPico` under Renode, failing under the soft kernel and deadline-monotonic scheduling once the two fixes the endurance test called for were both in, and passing as soon as anything observed it. A watchpoint set only past 35.98 ms caught the Filler writing a slot's number into a node of the FIFO queue (2026-09-25) | R8-R11 are preserved across calls as R4-R7 are, and GCC uses them in Thumb-1 code. A task that preempts another and ends is wiped from the stack with whatever it left in them: the Filler resumed inside `OSWriteBuffer` with the R8 of the task that had preempted it as the index of its latest slot, and its next slot pointed nine slots past the three. The fixes had only led GCC to keep a value in R8 across a point where a task can be preempted. The handler now saves R8-R11 through R4-R7; `IPCPico` checks them around a delay, with the tasks that preempt it leaving them changed, and fails on the old handler under the hard, the soft and the power-aware kernels |
+| `SoakPico2` stopping under Renode on the kernel's overload check, only with core 1 running, was Renode's exclusives, which the tests between the cores already replace by the RP2350's monitor — stated by the assistant, and the test changed to play that monitor | The soft kernel under deadline-monotonic scheduling stopping in 4 runs of 4 all the same, then watchpoints on the state of the task that missed its deadline, on `_OSNoSaveContext` and on `_OSActiveTask` (2026-09-25) | `OSEndTask` marks the task a zombie, then says its context is not to be saved; nothing kept GCC from storing the flag first, and it did for the Cortex-M33 of the Pico 2 and the M4 of the F4, under the hard and the soft kernels; for the M0+ it happened to keep the order. An interrupt in between found a running task that was no zombie, left it in the ready queue, and wiped its stack in the switch it made; the task, still running for the kernel, was later resumed with the context of the task it had preempted, the idle task here, and stopped the kernel at its next arrival. Core 1 only moved the interrupts onto that instruction. A compiler barrier now separates the two stores in all three kernels, the monitor is out of the test, and it passes without it: 6 runs of 6 alone under the hard kernel, and the suite twice under each of the four builds of the Pico 2 |
 | The 3-slot buffer is Chen and Burns' mechanism, with an LL/SC pair where they use compare-and-swap, and so as sound as theirs | An exhaustive model of the reader and the writer (`test/model/threeslot.py`), with the LL/SC pair emulated as on the Cortex-M0+ | A compare-and-swap fails only when the value changed; a store-conditional fails also when an interrupt merely came between it and its load-linked. The reader then left `Reading` at 3 and read slot 3 of three. The reader now tries again, and the host test makes store-conditionals fail on purpose to check it |
 | The 3-slot buffer, its reader retrying, is sound between two cores as it is on one | The model taken to two cores, each with its own reservation, which a store of the other core to `Reading` clears (2026-09-24) | The writer tried its store-conditional once. On one core that was harmless: the interrupt that makes it fail clears the reader's reservation too. Between two cores the reader's survives, its store-conditional hands it a `Latest` read before the writer published, and the writer, choosing the slot neither `Reading` nor the new `Latest`, writes the one being read. The writer now tries again, in all three kernels; the model also fails with monitors local to each core, which is why the RP2350 needs `ACTLR.EXTEXCLALL` |
 | The slot buffers need nothing more between two cores than on one: the 4-slot buffer carried 320,000 reads between the cores of the Pico with none torn, and the models of both held on two cores | The same models with each core free to perform its loads and stores out of program order, as Armv6-M and Armv8-M allow for Normal memory (2026-09-25) | Nothing in the kernels ordered a slot's bytes before its announcement, nor the reader's announcement before its copy. Each buffer needs four barriers, and the model catches the removal of any one: a read then mixes two records. The kernels now have them, a `DMB` on the RP2040 and the RP2350. That the board showed no torn read without them proves only that its cores did not reorder those accesses in that test; the architecture does not promise it |
@@ -140,7 +141,22 @@ twice; a task past its WCET slowed to the slowest speed; overflows in the soft k
 test of optional instances; and creations the kernel cannot count with, now refused.
 In the compiled code of the Cortex-M0+, three of the five emulated load-linked read the
 value before setting the reservation, so that an interrupt in between went unseen: a
-compiler barrier now keeps the order. **Left open** are races the host cannot reach and
+compiler barrier now keeps the order.
+
+Two of those fixes were wrong, and the endurance test (`SoakPico`, `tools/soak.sh`)
+showed it the same day, once an interrupt and phases of high load had joined it. A
+slot buffer's status, set after its slot rather than before, let a reader take the new
+slot early, the status still saying unread from the slot before, and again once the
+writer had said it unread: 37 slots read twice in 79 s on the board, none torn. No
+order of a status apart from the slot is right; each slot now carries its number, and a
+reader taking each slot once compares it with the last it took. And an event-driven task
+signaled while it suspended itself was assumed to be the task the timer handler had
+interrupted, which it finished in its place: preempted instead by a task of higher
+priority that signaled it, it had the context of that task discarded, and the soft
+kernel hung under Renode, the host test segfaulted under deadline-monotonic
+scheduling. Interrupts are now masked from the enqueue of the suspending task to its
+leaving the ready queue, and the handler never sees such a task. Both have a host test
+that fails on the code before (`test/host/README.md`). **Left open** are races the host cannot reach and
 limits of the design: the counter wrapping while the timer handler runs; in the
 power-aware kernel, a task ending between two interrupts that leaves the next at its
 speed, and under DM_SLACK a time read before a wrap; an optional instance still ready
@@ -159,9 +175,9 @@ line; its clocks are acknowledged blindly by the emulated platform (`emulation.m
 Between the cores, the models cover the order of accesses the architecture allows;
 that the compiled code keeps it, `tools/check_order.py` checks in the CI on every build
 of the Pico and the Pico 2, on every path through the buffers' functions, and
-`tools/check_order_mutants.sh` shows it failing without any one of the barriers — eleven
+`tools/check_order_mutants.sh` shows it failing without any one of the barriers — nine
 since the status of a buffer, which the models leave out, is set after its slot is
-handed over and read before a slot is chosen (2026-09-25). What
+handed over (2026-09-25). What
 the check cannot see is a reordering by the processor that the architecture does not
 allow — the models' premise — nor code the compiler might emit for another version or
 level of optimisation until it runs there. Without the barriers' memory clobber, GCC

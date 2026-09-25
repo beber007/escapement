@@ -364,6 +364,109 @@ static void TestFIFOPreempted(void)
 }
 
 
+/* TestFIFONested: Three operations on one queue, each interrupting the one before at
+** one of its LLs, as a task preempted by another that an interrupt preempts in turn:
+** every pair of places, every kind of each operation. The middle one may find, while it
+** helps the first, that the third has done that work already. The queue must hold what
+** one of the six orders of the three operations leaves, and each must return what that
+** order gives it. */
+#define NEST_NODES 3
+static void *NestQueue, *NestNode[4];
+static int NestKind[3], NestDone[3];
+static void *NestGot[3];
+static UINT16 NestSize[3];
+static unsigned NestAt[3], NestCount[3], NestLevel;
+
+static void NestOperation(int op);
+static BOOL NestInterrupt(void)
+{
+  int level = (int)NestLevel;
+  if (level >= 2 || ++NestCount[level] != NestAt[level])
+     return FALSE;
+  NestLevel += 1;
+  NestOperation(level + 1);
+  NestLevel -= 1;
+  return TRUE;
+}
+
+static void NestOperation(int op)
+{
+  if (NestKind[op])
+     NestDone[op] = OSEnqueueFIFO(NestQueue, NestNode[op], (UINT16)(50 + op));
+  else
+     NestGot[op] = OSDequeueFIFO(NestQueue, &NestSize[op]);
+}
+
+static void TestFIFONested(void)
+{
+  static const int orders[6][3] = {{0,1,2},{0,2,1},{1,0,2},{1,2,0},{2,0,1},{2,1,0}};
+  unsigned kinds, filled, a, b, i, cases = 0, bad = 0, reached;
+  char label[80];
+  printf("\nFIFO queue, three operations each interrupting the one before\n\n");
+  for (kinds = 0; kinds < 8; kinds += 1)
+     for (filled = 0; filled <= NEST_NODES; filled += 1)
+        for (a = 1; a < 40; a += 1)
+           for (b = 1, reached = 1; reached && b < 40; b += 1) {
+              int got[NEST_NODES + 4], n, o, ok = 0;
+              void *pool[NEST_NODES];
+              NestQueue = OSInitFIFOQueue(NEST_NODES, 8);
+              for (i = 0; i < NEST_NODES; i += 1)
+                 pool[i] = OSGetFreeNodeFIFO(NestQueue);
+              for (i = 0; i < filled; i += 1)
+                 OSEnqueueFIFO(NestQueue, pool[i], (UINT16)(10 + i));
+              for (i = 0; i < 3; i += 1) {
+                 NestKind[i] = (int)(kinds >> i) & 1;
+                 NestDone[i] = -1; NestGot[i] = NULL; NestSize[i] = 0; NestCount[i] = 0;
+                 NestNode[i] = OSGetFreeNodeFIFO(OSInitFIFOQueue(1, 8));
+              }
+              NestAt[0] = a; NestAt[1] = b; NestLevel = 0;
+              HostLLHook = NestInterrupt;
+              NestOperation(0);
+              HostLLHook = NULL;
+              if (NestCount[0] < a) { reached = 0; if (b == 1) a = 40; continue; }
+              reached = NestCount[1] >= b;
+              if (!reached)
+                 continue;
+              cases += 1;
+              for (n = 0; n < NEST_NODES + 3; n += 1) {
+                 UINT16 size;
+                 void *node = OSDequeueFIFO(NestQueue, &size);
+                 if (node == NULL) break;
+                 got[n] = size;
+              }
+              got[n] = -1;
+              for (o = 0; o < 6 && !ok; o += 1) {
+                 int q[NEST_NODES + 4], m = 0, j, good = 1;
+                 for (i = 0; i < filled; i += 1)
+                    q[m++] = 10 + (int)i;
+                 for (j = 0; j < 3; j += 1) {
+                    int op = orders[o][j];
+                    if (NestKind[op]) {
+                       int done = m < NEST_NODES;
+                       if (done) q[m++] = 50 + op;
+                       good = good && NestDone[op] == done;
+                    }
+                    else if (m > 0) {
+                       good = good && NestGot[op] != NULL && NestSize[op] == q[0];
+                       memmove(q, q + 1, (size_t)(m - 1) * sizeof q[0]);
+                       m -= 1;
+                    }
+                    else
+                       good = good && NestGot[op] == NULL;
+                 }
+                 for (i = 0; good && (int)i <= m; i += 1)
+                    good = got[i] == ((int)i < m ? q[i] : -1);
+                 ok = good;
+              }
+              if (!ok && ++bad <= 5)
+                 printf("  kinds %u, %u queued, at LL %u then %u: no order fits\n",
+                        kinds, filled, a, b);
+           }
+  snprintf(label, sizeof label, "  every nesting leaves one of the six orders: %u cases", cases);
+  Check(label, bad == 0 && cases > 0);
+}
+
+
 /* SLOT BUFFERS -------------------------------------------------------------------------- */
 #define SLOT 3
 
@@ -450,8 +553,11 @@ static void TestBuffer(UINT8 type, const char *name)
 ** written would find a length there. */
 static void *Race;
 static UINT8 RaceCopy[256], RaceGot;
+static unsigned RaceBarrier, RaceAt;
 static void ReaderInWindow(void)
 {
+  if (++RaceBarrier < RaceAt)
+     return;
   HostBarrierHook = NULL;
   RaceGot = OSGetCopyBuffer(Race, OS_READ_ONLY_ONCE, RaceCopy);
 }
@@ -465,6 +571,7 @@ static void TestPublication(UINT8 type, const char *name)
   HostMallocFill = 0xA5;
   Race = OSInitBuffer(SLOT, type, NULL);
   HostMallocFill = -1;
+  RaceBarrier = 0; RaceAt = 1;
   HostBarrierHook = ReaderInWindow;
   OSWriteBuffer(Race, a, SLOT);
   ok = RaceGot == 0 || (RaceGot == SLOT && memcmp(RaceCopy, a, SLOT) == 0);
@@ -474,6 +581,7 @@ static void TestPublication(UINT8 type, const char *name)
   Check("  and the slot is delivered", ok);
 
   OSGetCopyBuffer(Race, OS_READ_ONLY_ONCE, copy);
+  RaceBarrier = 0; RaceAt = 1;
   HostBarrierHook = ReaderInWindow;
   OSWriteBuffer(Race, b, SLOT);
   ok = RaceGot == 0 || (RaceGot == SLOT && memcmp(RaceCopy, b, SLOT) == 0);
@@ -482,6 +590,18 @@ static void TestPublication(UINT8 type, const char *name)
        (OSGetCopyBuffer(Race, OS_READ_ONLY_ONCE, copy) == SLOT && memcmp(copy, b, SLOT) == 0);
   Check("  and the new slot is delivered once", ok &&
         OSGetCopyBuffer(Race, OS_READ_ONLY_ONCE, copy) == 0);
+  /* The slot before is left unread; the reader comes at the writer's last barrier, the
+  ** new slot handed over and the buffer about to be said unread again. A status set
+  ** apart from the slot let it take the new slot there, and again once the writer had
+  ** marked it unread: SoakPico found the same record twice on the board (2026-09-25). */
+  OSWriteBuffer(Race, a, SLOT);
+  RaceBarrier = 0; RaceAt = 3;
+  RaceGot = 0;
+  HostBarrierHook = ReaderInWindow;
+  OSWriteBuffer(Race, b, SLOT);
+  ok = RaceGot == SLOT && memcmp(RaceCopy, b, SLOT) == 0 &&
+       OSGetCopyBuffer(Race, OS_READ_ONLY_ONCE, copy) == 0;
+  Check("  a slot taken as the writer ends is not taken again", ok);
   HostBarrierHook = NULL;
   Check("  a slot type that does not exist is refused", OSInitBuffer(SLOT, 2, NULL) == NULL);
 }
@@ -530,6 +650,7 @@ int main(void)
   alarm(10);
   TestFIFO();
   TestFIFOPreempted();
+  TestFIFONested();
   TestCoreQueue();
   TestCoreQueueInterleaved();
   TestBuffer(OS_BUFFER_TYPE_3_SLOT, "3-slot");
