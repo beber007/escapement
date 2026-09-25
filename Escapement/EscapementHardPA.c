@@ -37,14 +37,14 @@
 ** number in the table. */
 #if POWER_MANAGEMENT != NONE
    extern const UINT8 _OSSlowdownRatios[];
-   /* The work done in a time at a speed below the fastest: the time times its ratio over
-   ** 256, rounded down. Multiplied whole, the product overflowed past 2^31 / ratio ticks,
-   ** 21 s at 1 us for the 50 MHz ratio of the RP2040 (102): a ready queue whose tasks
-   ** declare long WCETs gives the reclaiming policies such times, and the host test ran
-   ** into it. Split, it cannot. */
-   #define Slowdown(time,speed) \
-      (((time) >> 8) * _OSSlowdownRatios[speed] + \
-       ((((time) & 0xFF) * _OSSlowdownRatios[speed]) >> 8))
+   /* ScaleBy256ths: A time times a ratio over 256, rounded down, as
+   ** ((time) * (ratio)) >> 8 but without its overflow: multiplied whole, the product
+   ** leaves 32 bits past 2^31 / ratio ticks, 21 s at 1 us for a ratio of 102. Split
+   ** into the time's upper bits and its last eight, it cannot. */
+   #define ScaleBy256ths(time,ratio) \
+      (((time) >> 8) * (ratio) + ((((time) & 0xFF) * (ratio)) >> 8))
+   /* The work done in a time at a speed below the fastest. */
+   #define Slowdown(time,speed) ScaleBy256ths(time,_OSSlowdownRatios[speed])
 #endif
 
 
@@ -591,16 +591,6 @@ void _OSTimerInterruptHandler(void)
   #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
      BOOL doSimUpdateElapseTime = TRUE;
   #endif
-  #ifdef NESTED_TIMER_INTERRUPT
-     /* At this point there can only be one current timer interrupt under way. */
-     #ifdef DEBUG_MODE
-        static UINT8 nesting = 0;
-        if (++nesting > 1) {
-           _OSDisableInterrupts();
-           while (TRUE); // Timer handler re-entered: it must not nest
-        }
-     #endif
-  #endif
   #if POWER_MANAGEMENT != NONE
      if (!ResetProcessorSpeed) { // Keep the first processor speed if not already saved
         SavedCurrentSpeed = OSGetProcessorSpeed(); // Save the current speed before modifying it
@@ -773,17 +763,6 @@ void _OSTimerInterruptHandler(void)
      }
      _OSClearSoftTimerInterrupt();
   } while (_OSOverflowInterruptFlag || _OSComparatorInterruptFlag || RescheduleSynchronousTaskList != NULL);
-  #ifdef NESTED_TIMER_INTERRUPT
-     /* If we get a timer interrupt, there's no point saving the context of the current ISR
-     ** since we will have to restart it anyways. */
-     _OSNoSaveContext = TRUE;
-     #ifdef DEBUG_MODE
-        --nesting;
-     #endif
-     _OSEnableSoftTimerInterrupt();
-     /* At this point another software timer can preempt and not save the current context as
-     ** this interrupt restarts from the beginning. */
-  #endif
   #if POWER_MANAGEMENT != NONE
      /* We may need to change the processor speed if a new task is scheduled. */
      arrival = _OSActiveTask;
@@ -1026,7 +1005,7 @@ BOOL _OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
                               UINT8 aperiodicUtilization, void *event, void *arg,
                               UINT8 frequencyIndex)
 {
-  if (!OSCreateSynchronousTask(task,wcet,workLoad,event,aperiodicUtilization,arg))
+  if (!OSCreateSynchronousTask(task,wcet,workLoad,aperiodicUtilization,event,arg))
      return FALSE;
   SynchronousTaskList->FrequencyIndex = frequencyIndex;
   return TRUE;
@@ -1209,6 +1188,11 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
               #else
                  etcb->NextArrivalTimeLow = currentTime + etcb->PeriodLow;
               #endif
+              #if SCHEDULER_REAL_TIME_MODE == EARLIEST_DEADLINE_FIRST_STAR
+                 /* Released now, as the timer handler sets it for the tasks it releases
+                 ** from the arrival queue: EDF* breaks ties between equal deadlines on it. */
+                 etcb->CurrentArrivalTimeLow = currentTime;
+              #endif
               ReadyQueueInsert((TCB *)etcb);
               #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
                  etcb->CompletionTime = etcb->WCET;
@@ -1343,9 +1327,7 @@ void DRASimUpdateElapseTime(INT32 newTime)
            completed = newTime - SynchronousTaskDeadlines;
         else
            completed = newTime - oldTime;
-        newExcess = completed * AperiodicUtilization;
-        newExcess >>= 8;
-        newExcess += oldExcess;
+        newExcess = ScaleBy256ths(completed,AperiodicUtilization) + oldExcess;
      }
      else
         newExcess = 0;

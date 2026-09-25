@@ -372,16 +372,6 @@ void _OSTimerInterruptHandler(void)
   TCB *arrival;
   extern volatile BOOL _OSOverflowInterruptFlag;
   extern volatile BOOL _OSComparatorInterruptFlag;
-  #ifdef NESTED_TIMER_INTERRUPT
-     /* At this point there can only be one current timer interrupt under way. */
-     #ifdef DEBUG_MODE
-        static UINT8 nesting = 0;
-        if (++nesting > 1) {
-           _OSDisableInterrupts();
-           while (TRUE); // Timer handler re-entered: it must not nest
-        }
-     #endif
-  #endif
   do {
      if (_OSTimerIsOverflow(ShiftTimeLimit)) {   // Has timer overflowed?
         /* To avoid overflow of the timer's time, a time shift is done on all temporal
@@ -476,17 +466,6 @@ void _OSTimerInterruptHandler(void)
      }
      _OSClearSoftTimerInterrupt();
   } while (_OSOverflowInterruptFlag || _OSComparatorInterruptFlag || RescheduleSynchronousTaskList != NULL);
-  #ifdef NESTED_TIMER_INTERRUPT
-     /* If we get a timer interrupt, there's no point saving the context of the current ISR
-     ** since we will have to restart it anyways. */
-     _OSNoSaveContext = TRUE;
-     #ifdef DEBUG_MODE
-        --nesting;
-     #endif
-     _OSEnableSoftTimerInterrupt();
-     /* At this point another software timer can preempt and not save the current context as
-     ** this interrupt restarts from the beginning. */
-  #endif
   /* Return to the task with highest priority or start a new instance. */
   _OSActiveTask = _OSQueueHead->Next[READYQ];
   _OSScheduleTask();

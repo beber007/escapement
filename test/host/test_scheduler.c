@@ -9,10 +9,11 @@
 ** board cannot give: task sets far larger than the three an example carries, and the
 ** 2^30 wraparound of the kernel clock, eighteen minutes away on hardware.
 **
-** Up to nine runs, one per process since the kernel keeps its state in statics:
+** Up to ten runs, one per process since the kernel keeps its state in statics:
 **   test_scheduler         ten tasks, the clock advanced one tick at a time
 **   test_scheduler wrap    long periods, the clock jumped from one event to the next
 **                          across three wraparounds
+**   test_scheduler lull    one event-driven task woken every 400 s, nothing in between
 **   test_scheduler events  event-driven tasks woken by periodic tasks, by themselves
 **                          and by a buffer slot filling up
 **   test_scheduler busy    tasks that take time, each instance its WCET
@@ -421,7 +422,7 @@ typedef struct Signaler {
 #define SELF_SIGNALS 5
 #define SLOT_SIZE    4
 
-static Signaler ToSignaled, ToShared;
+static Signaler ToSignaled, ToShared, ToLull;
 static void *BufferPort;
 static unsigned SignaledRuns, SelfRuns, SharedRuns[2], SharedOrderBreaks;
 static unsigned WriterRuns, ReaderRuns, ReaderMismatches;
@@ -562,6 +563,31 @@ static void TestEvents(void)
   /* The power-aware kernel only slows a task down when nothing can arrive before it ends
   ** (one task extension), and a waiting event-driven task can be woken at any time: with
   ** event-driven tasks in the set it keeps the fastest speed. */
+  CheckSpeeds(FALSE);
+}
+
+
+/* TestLull: A task of 400 s signals an event-driven task, and nothing else happens in
+** between: the time jumps from one event to the next, and the power-aware kernel's
+** reclaiming policies account for the aperiodic bandwidth over the whole interval at
+** once — 4e8 ticks times the utilisation, which does not fit in 32 bits. */
+static void TestLull(void)
+{
+  long long duration = 3LL * 400000000 + 1000;
+  char label[80];
+
+  ToLull.Event = OSCreateEventDescriptor();
+  CREATE_TASK(SignalerTask, 400000000, &ToLull);
+  CREATE_SYNCHRONOUS_TASK(SignaledTask, 20000, ToLull.Event, NULL);
+
+  StartKernel(NULL, NULL);
+  RunAcross(duration);
+
+  printf("\n%lld ticks of simulated time, one signal every 400 s\n\n", duration);
+  snprintf(label, sizeof label, "  one wake-up per signal: %u for %u", SignaledRuns, ToLull.Runs);
+  Check(label, ToLull.Runs == 4 && SignaledRuns + 1 >= ToLull.Runs &&
+               SignaledRuns <= ToLull.Runs);
+  Check("  no deadline missed", LateArrivals == 0);
   CheckSpeeds(FALSE);
 }
 
@@ -943,6 +969,8 @@ int main(int argc, char *argv[])
      TestWrap();
   else if (argc > 1 && strcmp(argv[1], "events") == 0)
      TestEvents();
+  else if (argc > 1 && strcmp(argv[1], "lull") == 0)
+     TestLull();
   else if (argc > 1 && strcmp(argv[1], "busy") == 0)
      TestTimed(TIMED_BUSY);
   else if (argc > 1 && strcmp(argv[1], "early") == 0)

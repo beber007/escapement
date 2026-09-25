@@ -512,8 +512,8 @@ BOOL IsTaskSchedulable(void)
         break;
      if (tcb->NextMandatoryArrivalTimeHigh <= deadlineHigh) {
         tmp = _OSActiveTask->NextDeadline - tcb->NextMandatoryArrivalTimeLow;
-        if (tcb->NextMandatoryArrivalTimeHigh)
-           tmp -= 0x3FFFFFFF;
+        if (tcb->NextMandatoryArrivalTimeHigh)   // the arrival is 2^30 + its low part
+           tmp -= ShiftTimeLimit;
         if (tmp > 0) { // Is its next mandatory instance released before the deadline?
            /* At this point, tmp is <= 0x3FFFFFFF */
            /* If tcb->PeriodHigh > 0, there can at most be one task instance that inter-
@@ -601,16 +601,6 @@ void _OSTimerInterruptHandler(void)
   UINT16 nextMandatoryInstance;
   extern volatile BOOL _OSOverflowInterruptFlag;
   extern volatile BOOL _OSComparatorInterruptFlag;
-  #ifdef NESTED_TIMER_INTERRUPT
-     /* At this point there can only be one current timer interrupt under way. */
-     #ifdef DEBUG_MODE
-        static UINT8 nesting = 0;
-        if (++nesting > 1) {
-           _OSDisableInterrupts();
-           while (TRUE); // Timer handler re-entered: it must not nest
-        }
-     #endif
-  #endif
   do {
      if (_OSTimerIsOverflow(ShiftTimeLimit)) {   // Has timer overflowed?
         /* To avoid overflow of the timer's time, a time shift is done on all temporal
@@ -779,17 +769,6 @@ void _OSTimerInterruptHandler(void)
      }
      _OSClearSoftTimerInterrupt();
   } while (_OSOverflowInterruptFlag || _OSComparatorInterruptFlag || RescheduleSynchronousTaskList != NULL);
-  #ifdef NESTED_TIMER_INTERRUPT
-     /* If we get a timer interrupt, there's no point saving the context of the current ISR
-     ** since we will have to restart it anyways. */
-     _OSNoSaveContext = TRUE;
-     #ifdef DEBUG_MODE
-        --nesting;
-     #endif
-     _OSEnableSoftTimerInterrupt();
-     /* At this point another software timer can preempt and not save the current context as
-     ** this interrupt restarts from the beginning. */
-  #endif
   /* Return to the task with highest priority or start a new instance. */
   ScheduleNextTask();
 } /* end of _OSTimerInterruptHandler */
