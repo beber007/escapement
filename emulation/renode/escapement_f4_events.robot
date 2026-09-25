@@ -33,7 +33,10 @@ Timer events wake the event-driven tasks
     ${flag1}=                 Create LED Tester  sysbus.gpioPortB.Flag1
     ${flag2}=                 Create LED Tester  sysbus.gpioPortB.Flag2
 
-    Start Emulation
+    # A virtual time run, not Start Emulation: the tester then starts at a set instant
+    # of the pattern, not at one the host's speed decides; on the GitHub runners, the
+    # first test of a suite once began mid-state and failed (2026-09-25).
+    Execute Command           emulation RunFor "0.05"
 
     Assert LED Is Blinking    testDuration=0.41  onDuration=0.0084  offDuration=0.0326  tolerance=0.02  testerId=${flag1}  pauseEmulation=true
     Assert LED Is Blinking    testDuration=0.41  onDuration=0.0168  offDuration=0.0652  tolerance=0.02  testerId=${flag2}  pauseEmulation=true
