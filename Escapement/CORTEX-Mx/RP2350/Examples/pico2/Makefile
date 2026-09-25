@@ -37,8 +37,11 @@ LINKERFILE = ../../RP2350_SRAM.ld
 
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
+# -fno-strict-aliasing: the kernel reads and writes the same blocks as TCB, ETCB and the
+# port's MinimalTCB, and GCC does use the rule it breaks: every image changes without it.
+# It costs 68 bytes and 0.1 us per round on the Pico, as the RP2040 Makefile says (docs/method.md, 2026-09-25).
 CFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wall -c -g -fdata-sections \
-         -ffunction-sections -ffreestanding -Werror=comment -O2 -MMD -MP
+         -ffunction-sections -ffreestanding -Werror=comment -O2 -fno-strict-aliasing -MMD -MP
 AFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wall -c -g -MMD -MP
 LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
 

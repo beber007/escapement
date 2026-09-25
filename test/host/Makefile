@@ -27,7 +27,8 @@ CC ?= cc
 OPT ?= -O1
 SANITIZE ?= address,integer-divide-by-zero,signed-integer-overflow,shift
 BUILD ?= build
-CFLAGS = -I. -I../../Escapement -Wall $(OPT) -g -fsanitize=$(SANITIZE) \
+# -fno-strict-aliasing as the firmware is built (the Makefiles of the examples).
+CFLAGS = -I. -I../../Escapement -Wall $(OPT) -fno-strict-aliasing -g -fsanitize=$(SANITIZE) \
          -fno-sanitize-recover=all
 # What OSMalloc hands out is never freed, by design; Linux would report it as leaked.
 export ASAN_OPTIONS = detect_leaks=0

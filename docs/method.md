@@ -210,7 +210,10 @@ own GCC 16.2 builds, the CI's being 14.2. Strict aliasing is used: built with
 `-fno-strict-aliasing`, all 88 images change, in functions of the kernels among others,
 which access the same memory as `TCB`, `ETCB` and the port's `MinimalTCB`. The one
 difference read, in `OSEndTask`, is a value reused instead of read again, correct either
-way; no fault has been traced to aliasing. Built with `-Wextra -Wnull-dereference -Warray-bounds=2`, every
+way; no fault has been traced to aliasing. Every firmware is now built with
+`-fno-strict-aliasing`, as insurance against what another version of GCC could draw
+from the rule the code breaks: on the board it cost 68 bytes and 3.4 to 3.5 µs per
+round on average, 11 to 12 µs at worst, over two runs of each. Built with `-Wextra -Wnull-dereference -Warray-bounds=2`, every
 variant gave no warning of those the optimiser computes, but a comparison of signedness
 led to the timer events of the STM32 port: on its 32-bit timers the counter and the
 comparator were read through pointers that were not volatile, so that GCC could reuse

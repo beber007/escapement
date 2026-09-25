@@ -28,7 +28,7 @@ analyze() {   # analyze CPU PORT_DIR EXAMPLE_DIR [KERNELS]
             echo "== $cpu, $kernel, $scheduler"
             for f in "$K/EscapementHard.c" "$K/EscapementSoft.c" "$K/EscapementHardPA.c" \
                      "$M"/*.c "$port"/*.c; do
-                $CC -mcpu="$cpu" -mthumb -mfloat-abi=soft -ffreestanding -O2 -fanalyzer \
+                $CC -mcpu="$cpu" -mthumb -mfloat-abi=soft -ffreestanding -O2 -fno-strict-aliasing -fanalyzer \
                     $version -DSCHEDULER_REAL_TIME_MODE=$scheduler \
                     -I"$example" -I"$port" -I"$M" -I"$K" -c "$f" -o /dev/null 2>>"$LOG"
             done
