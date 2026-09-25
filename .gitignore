@@ -11,8 +11,14 @@ build/
 # macOS
 .DS_Store
 
+# Fichiers d'éditeur (swap de vim, sauvegardes)
+*.swp
+*.swo
+*~
+
 # Artefacts de renode-test
 robot_output.xml
+results-*.robot.xml
 log.html
 report.html
 snapshots/
