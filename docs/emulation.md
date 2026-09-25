@@ -175,21 +175,21 @@ compiled for the Cortex-M33, carrying it.
 `escapement_pico2.robot` runs the checks of the RP2040 suite the examples allow — the 1
 ms probe, the three periodic tasks, the UART echo, the timer events, and the crossing of
 the 2^30 boundary of the kernel clock by `TaskWrapPico2`, the timer model raised to 1
-GHz as on the RP2040 — and the 4-slot buffer between the cores, on the hard and the soft
-kernel under both algorithms, in the CI and on a Mac: the platform needs no models to
-build, so Renode's portable package runs it as it is. On 2026-09-24 the six tests passed
-under the four builds, and failed where they should on code made faulty on purpose
-(below); on 2026-09-25 they passed again under the hard EDF build, with the memory
-barriers the slot buffers now take between cores. The faults: the UART enabled in the
-first word of the NVIC's registers, as the RP2040 driver does for its interrupts below
-32, failed the echo alone; the interrupt registers of the timer at their RP2040 offsets
-failed the three tests that depend on them; an ALARM1 that no longer signalled the wrap
-failed the wrap test alone; a 4-slot writer choosing the reader's pair failed the test
-between the cores alone.
+GHz as on the RP2040 — and the 4-slot buffer between the cores (the 3-slot one since
+2026-09-25, below), on the hard and the soft kernel under both algorithms, in the CI and
+on a Mac: the platform needs no models to build, so Renode's portable package runs it as
+it is. On 2026-09-24 the six tests passed under the four builds, and failed where they
+should on code made faulty on purpose (below); on 2026-09-25 they passed again under the
+hard EDF build, with the memory barriers the slot buffers now take between cores. The
+faults: the UART enabled in the first word of the NVIC's registers, as the RP2040 driver
+does for its interrupts below 32, failed the echo alone; the interrupt registers of the
+timer at their RP2040 offsets failed the three tests that depend on them; an ALARM1 that
+no longer signalled the wrap failed the wrap test alone; a 4-slot writer choosing the
+reader's pair failed the test between the cores alone.
 
-The 3-slot buffer between the cores (`ThreeSlotCoresPico2`) is not in the suite, and
-Renode is why. Its writer and reader hand a slot over with LDREXB/STREXB, and Renode's
-exclusives are not those of the RP2350 with ACTLR.EXTEXCLALL set. In Renode 1.17 a
+The 3-slot buffer between the cores (`ThreeSlotCoresPico2`) needed more. Its writer and
+reader hand a slot over with LDREXB/STREXB, and Renode's exclusives are not those of the
+RP2350 with ACTLR.EXTEXCLALL set. In Renode 1.17 a
 STREX succeeds while its own core's reservation stands and the location still holds
 what the LDREX read (`gen_store_exclusive` in tlib, `arch/arm/translate.c`, at the
 commit Renode 1.17.0 pins); a plain store by the other core leaves the reservation
@@ -201,4 +201,23 @@ being read, but not a writer that tries its SC once — nor would a real monitor
 as core 1 takes no interrupt between its LL and its SC. And where both cores touch a
 reserved location, Renode slowed down about a thousandfold or stalled: of three runs of
 the same image, one covered 150 ms in 40 s and two stalled within the first 50 ms, and
-the test stalled in the suite for over ten minutes. The demo waits for the board.
+the test stalled in the suite for over ten minutes.
+
+So the suite plays the monitor of the RP2350 itself (`rp2350_exclusive_monitor.py`,
+2026-09-25). It hooks the entry of `OSUINT8_LL` and `OSUINT8_SC` on both cores, does the
+access and returns, so that no LDREXB or STREXB runs: one reservation per core on a
+granule of 16 bytes, cleared by any write of the other core to it whatever the value,
+by an exception on its own core, and by its SC. Under it the demo covers 200 ms in about
+8 s and does not stall. On 2026-09-25, on the hard kernel: 6,368 reads, none torn or
+going backwards, the plain array torn 16 to 31 times, and some 1,060 of the reader's SCs
+failed because the writer had stored into the granule, which Renode's monitor never
+does. `The 3-slot buffer crosses between the two cores` now runs under the four builds.
+A writer that may take the slot being read fails it (24 and 27 reads torn), and a
+reader that tries its SC once stalls it. What it does not catch are the races that
+need the other core between an LL and its SC: monitors local to each core, and a
+writer that tries its SC once while one SC in three of core 1 fails for no reason, both
+held for 200 ms without a torn read, although some 6,000 writes of the other core fell
+inside a reservation. Renode runs each core for a slice of time and seldom switches
+inside those few instructions, even with a slice of 0.1 us; the model
+(`test/model/threeslot.py`) covers every interleaving, and the board will be the
+third witness.

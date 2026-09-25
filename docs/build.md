@@ -39,9 +39,8 @@ newlib is needed.
 > kernels, the DVFS driver and the timer events, and the 4-slot buffer between the
 > cores; the wrap of the kernel clock has been seen under emulation alone, and the
 > core below its specified voltage only by the regulator bench. The Pico 2 port has
-> run under Renode only. Every example runs under Renode in CI but four:
-> `FourSlotCoresPico`, which only the board runs, the two benches of the Pico, and
-> `ThreeSlotCoresPico2` (`emulation.md`).
+> run under Renode only. Every example runs under Renode in CI but three:
+> `FourSlotCoresPico`, which only the board runs, and the two benches of the Pico.
 
 On the Pico, `make KERNEL=SOFT`, `make KERNEL=PA` and `make SCHEDULER=...` build
 the other kernels and algorithms; see `architecture.md`.

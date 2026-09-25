@@ -15,6 +15,7 @@ Resource                      ${RENODEKEYWORDS}
 
 *** Variables ***
 ${EXAMPLE}                    ${CURDIR}/../../Escapement/CORTEX-Mx/RP2350/Examples/pico2
+${MONITOR}                    p = r'${CURDIR}'; import sys; p in sys.path or sys.path.insert(0, p); import rp2350_exclusive_monitor as m
 
 *** Keywords ***
 Load Escapement
@@ -30,6 +31,27 @@ Load Escapement
     Execute Command           sysbus LoadELF @${EXAMPLE}/build/${binary}.elf
     Execute Command           sysbus.cpu0 PC 0x20000000
     Execute Command           sysbus.cpu1 IsHalted true
+
+Play The Exclusive Monitor Of The RP2350
+    [Documentation]           Hooks the entry of OSUINT8_LL and OSUINT8_SC on both cores, and
+    ...                       the start of their exceptions, to rp2350_exclusive_monitor.py,
+    ...                       which plays the global monitor of the chip with EXTEXCLALL set
+    ...                       instead of Renode's.
+    ${ll}=                    Execute Command  sysbus GetSymbolAddress "OSUINT8_LL"
+    ${sc}=                    Execute Command  sysbus GetSymbolAddress "OSUINT8_SC"
+    Execute Command           python "${MONITOR}; m.setup('global', 0)"
+    FOR  ${cpu}  IN  cpu0  cpu1
+        Execute Command       sysbus.${cpu} AddHook ${ll.strip()} "${MONITOR}; m.ll(self)"
+        Execute Command       sysbus.${cpu} AddHook ${sc.strip()} "${MONITOR}; m.sc(self)"
+        Execute Command       sysbus.${cpu} AddHookAtInterruptBegin "${MONITOR}; m.exception(self)"
+    END
+
+Monitor Count
+    [Documentation]           One of the counts rp2350_exclusive_monitor.py keeps.
+    [Arguments]               ${key}
+    ${value}=                 Execute Command  python "${MONITOR}; print(m.get('${key}', 0))"
+    ${value}=                 Convert To Integer  ${value.strip()}
+    RETURN                    ${value}
 
 Read Word
     [Documentation]           One 32-bit word of the emulated memory, as an integer.
@@ -158,3 +180,37 @@ The 4-slot buffer crosses between the two cores
     Should Be Equal As Integers  ${torn}  0
     Should Be Equal As Integers  ${backwards}  0
     Should Be True            ${plain_torn} > 0
+
+The 3-slot buffer crosses between the two cores
+    [Documentation]           ThreeSlotCoresPico2 is FourSlotCoresPico2 with the 3-slot buffer,
+    ...                       whose writer and reader hand a slot over with an LL/SC pair.
+    ...                       Renode's own exclusives compare values and stall when both cores
+    ...                       touch a reserved location, so the test plays the monitor of the
+    ...                       RP2350 instead. No read may mix two records or go backwards, the
+    ...                       plain array must tear, and the reader's SC must have failed
+    ...                       through the writer's stores, which only that monitor does. A
+    ...                       writer that may take the slot being read fails the test, and a
+    ...                       reader that tries its SC once stalls it; the races that need the
+    ...                       other core between an LL and its SC are the model's
+    ...                       (test/model/threeslot.py): Renode seldom switches cores there.
+    [Timeout]                 3 minutes
+    Load Escapement           ThreeSlotCoresPico2
+    Play The Exclusive Monitor Of The RP2350
+
+    Execute Command           emulation RunFor "0.2"
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${written}=               Read Word  ${results}
+    ${reads}=                 Read Word  ${results + 4}
+    ${torn}=                  Read Word  ${results + 8}
+    ${backwards}=             Read Word  ${results + 12}
+    ${plain_torn}=            Read Word  ${results + 24}
+    ${reader_failed}=         Monitor Count  sc0.failed
+    ${cleared}=               Monitor Count  cleared.write0
+    Should Be True            ${written} > 1000
+    Should Be True            ${reads} > 5000
+    Should Be Equal As Integers  ${torn}  0
+    Should Be Equal As Integers  ${backwards}  0
+    Should Be True            ${plain_torn} > 0
+    Should Be True            ${reader_failed} > 0 and ${cleared} > 0

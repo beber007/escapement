@@ -74,8 +74,8 @@ announced operation of the queue both rely on preemptions nesting, which two cor
 not give, so between the cores only the slot buffers work. The 4-slot buffer works on
 both chips, and was measured on the Pico (`rp2040.md`). On the RP2350 the 3-slot buffer
 should work too: its model holds provided the exclusive monitors see both cores —
-`ACTLR.EXTEXCLALL`, which the port sets on each — and `ThreeSlotCoresPico2` waits for a
-board to show it. Code on
+`ACTLR.EXTEXCLALL`, which the port sets on each — and `ThreeSlotCoresPico2` holds
+under Renode with that monitor played (`emulation.md`), until a board shows it. Code on
 core 1 may not signal an event: `OSScheduleSuspendedTask` would pend the timer interrupt
 of core 1, where no kernel runs. The queue across the cores is in the roadmap.
 
@@ -98,8 +98,8 @@ of core 1, where no kernel runs. The queue across the cores is in the roadmap.
   clocks at 150 MHz, TIMER0 with its tick from the TICKS block, 52 interrupts, the pads
   released from their isolation, the UART, the timer events and the launch of core 1.
   The hard and the soft kernel build six examples under `pico2/` in the CI — the five of
-  the Pico and `ThreeSlotCoresPico2` — and five of them run under Renode on a platform
-  of our own (`emulation.md`), the 2^30 wrap of the kernel clock and the 4-slot buffer
+  the Pico and `ThreeSlotCoresPico2` — and all six run under Renode on a platform of
+  our own (`emulation.md`), the 2^30 wrap of the kernel clock and both slot buffers
   between the two cores included, which shows that they schedule, not that the clocks
   are programmed right. The power-aware kernel is not ported, and no board has run the
   port yet.

@@ -20,10 +20,9 @@
 ** and so does a reader that tries its SC once. The barriers that the model of two weakly
 ** ordered cores asks for stand in the kernel (_OSMemoryBarrier, a DMB on this port).
 **
-** Under Renode (1.17), whose SC compares the value its LL read instead of watching the
-** other core's stores, the model says the same. But there the run slows down a
-** thousandfold or stalls (docs/emulation.md), so the demo is not in
-** escapement_pico2.robot.
+** Renode (1.17) compares values in its SC instead of watching the other core's stores,
+** and stalls here; escapement_pico2.robot plays the monitor of the RP2350 in its place
+** (rp2350_exclusive_monitor.py, docs/emulation.md).
 **
 ** The counts sit in Results, laid out as in FourSlotCoresPico2.c, to be read over SWD
 ** on the board, with an OpenOCD that knows the RP2350.
