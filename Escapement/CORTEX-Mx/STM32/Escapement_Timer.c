@@ -348,6 +348,9 @@ void _OSInitializeTimer(void)
   #endif
   UINT8 *intPriorityLevel;
   CLK_ENABLE |= CLK_ENABLE_BIT;            // Enable the clock for timer
+  /* The clock reaches the timer a few bus cycles after its enable bit: a read of the
+  ** register holds the core until the write is done (ES0182 rev 19, 2.2.13, STM32F4). */
+  (void)CLK_ENABLE;
   #ifdef ESCAPEMENT_TIMER_32
      TIM_AUTORELOAD = 0x3FFFFFFF;          // Set the autoreload value (2^30 - 1)
   #elif defined(ESCAPEMENT_TIMER_16)

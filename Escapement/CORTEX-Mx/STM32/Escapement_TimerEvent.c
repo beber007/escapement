@@ -480,7 +480,9 @@ void OSInitTimerEvent(UINT8 nbNode, UINT16 prescaler, UINT8 priority, UINT16 int
      }
   #endif
   /*** Initialize hardware timer ***/
-  *device->ClkEnable |= device->ClkEnableBit; // Enable timer clock
+  *(volatile UINT32 *)device->ClkEnable |= device->ClkEnableBit; // Enable timer clock
+  (void)*(volatile UINT32 *)device->ClkEnable;  // clock on before the timer is written,
+                                                // as in Escapement_Timer.c (ES0182 2.2.13)
   /* Initialize autoreload timer register */
   #if defined(STM32L1XXXX) && defined(OS_IO_TIM5)
      if (interruptIndex == OS_IO_TIM5) {

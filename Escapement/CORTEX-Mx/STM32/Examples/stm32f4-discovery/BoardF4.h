@@ -36,6 +36,7 @@ static inline void BoardInitClock(void)
   if (RCC->CR & RCC_CR_HSERDY) {
      /* Regulator in scale 1 mode, required up to 168 MHz */
      RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+     (void)RCC->APB1ENR;  // the clock reaches PWR a few cycles later (ES0182 rev 19, 2.2.13)
      PWR->CR |= PWR_CR_VOS;
      RCC->CFGR |= RCC_CFGR_HPRE_DIV1 | RCC_CFGR_PPRE2_DIV4 | RCC_CFGR_PPRE1_DIV4;
      RCC->PLLCFGR = 8 | (336 << RCC_PLLCFGR_PLLN_Pos) | (((2 >> 1) - 1) << RCC_PLLCFGR_PLLP_Pos) |
@@ -79,6 +80,7 @@ static inline void BoardKeepDebugInSleep(void)
 static inline void BoardEnablePort(GPIO_TypeDef *port)
 {
   RCC->AHB1ENR |= 1u << (((UINT32)port - GPIOA_BASE) / 0x400);
+  (void)RCC->AHB1ENR;     // the port clocked before it is written (ES0182 rev 19, 2.2.13)
 }
 
 /* BoardInitOutputs: Makes the given pins push-pull outputs at the highest speed, without

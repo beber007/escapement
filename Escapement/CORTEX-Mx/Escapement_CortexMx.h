@@ -117,6 +117,12 @@ void _OSIOHandler(void);
                             __asm volatile ("WFI" ::: "memory"); \
                          } \
                       };
+#elif defined(STM32F4XXXX)
+   /* With the debugger kept through sleep (DBG_SLEEP, BoardF4.h), wait states on the flash
+   ** and its prefetch off, the STM32F407 may run instructions after a WFI at an address
+   ** that ends in 4, which it should not have reached: three NOPs follow it (ES0182 rev 19,
+   ** 2.2.5). The prefetch, the other way out, does not work on revision A (2.2.1). */
+   #define _OSSleep() while (TRUE) { __asm volatile ("WFI\n NOP\n NOP\n NOP" ::: "memory"); };
 #else
    #define _OSSleep() while (TRUE) { __asm volatile ("WFI" ::: "memory"); };
 #endif

@@ -69,6 +69,7 @@ void InitializeUART2Hardware(void)
   /* Enable USART2 and GPIOA clocks */
   BoardEnablePort(GPIOA);
   RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
+  (void)RCC->APB1ENR;     // the USART clocked before it is written (ES0182 rev 19, 2.2.13)
   /* Connect PA2 to USART2_Tx and PA3 to USART2_Rx */
   GPIOA->AFR[0] = (GPIOA->AFR[0] & ~(0xFFu << 8)) | (0x77u << 8);
   /* PA2 and PA3 in alternate function mode, push-pull, 50 MHz, pull-up */
