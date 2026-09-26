@@ -21,6 +21,12 @@
 #   BOARD_CI_REPO    owner/name on GitHub (beber007/escapement)
 #   BOARD_CI_TOKEN   file holding a token allowed to write commit statuses, nothing else
 #                    (~/.config/escapement-board-ci/token); without it, nothing is posted
+#   BOARD_CI_IMAGES  where the images come from: build (the default) builds them here,
+#                    with the toolchain of the machine; ci takes those the CI built for
+#                    the commit (tools/board_images.sh, artifact board-images), and needs
+#                    no compiler: the token must then also read Actions. The compiled
+#                    order, which the bench checked under a second compiler, is then the
+#                    CI's to check (build.yml).
 set -eu
 STARTED_AS=$(cksum <"$0")   # before the checkout below can replace this very file
 
@@ -31,6 +37,7 @@ BUILD=${BOARD_CI_BUILD-${containers:+esc}}
 PROBE=${BOARD_CI_PROBE-${containers:+hw}}
 REPO=${BOARD_CI_REPO:-beber007/escapement}
 TOKEN=${BOARD_CI_TOKEN:-$HOME/.config/escapement-board-ci/token}
+IMAGES=${BOARD_CI_IMAGES:-build}
 DIR=$WORK/board-ci
 SRC=$DIR/src
 PICO=Escapement/CORTEX-Mx/RP2040/Examples/pico
@@ -85,6 +92,27 @@ in_build() {
 in_probe() {
     if [ -n "$PROBE" ]; then podman exec "$PROBE" sh -c "cd $SEEN/src && $1"
     else (cd "$SRC" && sh -c "$1"); fi
+}
+
+api() {   # path: a GET on the repository's API
+    curl --silent --show-error --fail -H "Authorization: Bearer $(cat "$TOKEN")" \
+        -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/$1"
+}
+
+# ci_images: the images the CI built for $SHA into $DIR/fw. Returns 1 while its run is
+# not over, which the next run of this script waits for, 2 if there are none.
+ci_images() {
+    run=$(api "actions/workflows/build.yml/runs?head_sha=$SHA&event=push" |
+          jq -r '.workflow_runs[0] | "\(.status) \(.id)"') || return 2
+    set -- $run
+    [ "$1" = completed ] || return 1
+    url=$(api "actions/runs/$2/artifacts" |
+          jq -r '.artifacts[] | select(.name == "board-images") | .archive_download_url') ||
+        return 2
+    [ -n "$url" ] || return 2
+    rm -rf "$DIR/fw" "$DIR/fw.zip" && mkdir -p "$DIR/fw"
+    curl --silent --show-error --fail --location -H "Authorization: Bearer $(cat "$TOKEN")" \
+        --output "$DIR/fw.zip" "$url" && unzip -q -o "$DIR/fw.zip" -d "$DIR/fw" || return 2
 }
 
 # build <name> <image> <make arguments>: one image into $DIR/fw/<name>.
@@ -166,19 +194,35 @@ dvfs() {
             exit !(ok && rows == 8) }'
 }
 
+checks="fourslot_hard fourslot_pa cost_hard events_hard events_soft events_pa dvfs_pa"
+if [ "$IMAGES" = ci ]; then
+    [ -r "$TOKEN" ] || { echo "BOARD_CI_IMAGES=ci needs $TOKEN"; exit 1; }
+    got=0
+    ci_images || got=$?
+    if [ $got -eq 1 ]; then
+        echo "the CI has not finished with $SHA"; exit 0
+    elif [ $got -ne 0 ]; then
+        echo "$SHA" >"$DIR/last"
+        status error "no images from the CI for this commit"
+        exit 1
+    fi
+else
+    checks="order_hard order_soft order_pa $checks"
+fi
+
 status pending "running on the Pico"
 failed=""
 {
-    echo "main at $SHA, $(date)"
-    for check in "order hard" "order soft" "order pa" "fourslot hard" "fourslot pa" \
-                 "cost hard" "events hard" "events soft" "events pa" "dvfs pa"; do
-        set -- $check
+    echo "main at $SHA, $(date), images: $IMAGES"
+    [ "$IMAGES" = build ] || cat "$DIR/fw/compiler" 2>/dev/null || true
+    for check in $checks; do
+        set -- $(echo "$check" | tr _ ' ')
         case $2 in
             hard) args="" ;;
             soft) args="KERNEL=SOFT" ;;
             pa)   args="KERNEL=PA" ;;
         esac
-        echo "=== $check"
+        echo "=== $1 $2"
         case $1 in
             order)    image=TaskLEDPico ;;
             fourslot) image=FourSlotCoresPico ;;
@@ -194,7 +238,8 @@ failed=""
                 "$config" >"$config.new" && mv "$config.new" "$config"
         fi
         name=$1_$2
-        if build "$name" "$image" "$args" >/dev/null 2>&1 && "$1" "$name"; then
+        if { [ "$IMAGES" = ci ] || build "$name" "$image" "$args" >/dev/null 2>&1; } &&
+           "$1" "$name"; then
             echo "ok"
         else
             echo "FAILED"

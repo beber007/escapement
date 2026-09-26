@@ -20,7 +20,7 @@
 set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${1:?output directory}; INTERVAL=${2:?interval}; READINGS=${3:?readings}; shift 3
-IMAGE=${SOAK_IMAGE:-ghcr.io/beber007/escapement-ci:2}
+IMAGE=${SOAK_IMAGE:-ghcr.io/beber007/escapement-ci:3}
 mkdir -p "$OUT"
 for instance in "$@"; do
     name=${instance%%:*}; rest=${instance#*:}

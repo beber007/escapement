@@ -24,7 +24,7 @@ jobs:
     name: ${{ matrix.example }} (${{ matrix.cpu }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:2
+      image: ghcr.io/beber007/escapement-ci:3
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -81,6 +81,79 @@ jobs:
           path: ${{ env.DIR }}/build/*.elf
           retention-days: 14
 
+  board-images:
+    # The images the board bench runs its checks on (tools/board_ci.sh, BOARD_CI_IMAGES=
+    # ci), built here so that the bench needs no compiler, with the same GCC as the
+    # examples above.
+    name: Images for the board
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    container:
+      image: ghcr.io/beber007/escapement-ci:3
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: sh tools/board_images.sh board-images
+      - uses: actions/upload-artifact@v7
+        with:
+          name: board-images
+          path: board-images
+          retention-days: 30
+
+  second-compiler:
+    # The compiled order of the slot buffers and of the task-level stores under the other
+    # toolchain of the image, Ubuntu's GCC 14.2, that of the stable distributions: GCC
+    # moves stores differently from one version to the next, and the board bench, which
+    # checked a second one, now takes the CI's images. Every variant of each port, and the
+    # mutants that show the check can fail.
+    name: Compiled order under GCC 14.2
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/beber007/escapement-ci:3
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      CROSS_COMPILE: /usr/bin/arm-none-eabi-
+    steps:
+      - uses: actions/checkout@v7
+      - name: The compiler
+        run: ${CROSS_COMPILE}gcc --version | head -1
+      - name: Every variant of the Pico, the Pico 2, the STM32U5 and the F4
+        run: |
+          check() {   # directory, options of check_order.py, then the make arguments
+            dir=$1 opt=$2; shift 2
+            make -s -C "$dir" clean
+            make -s -C "$dir" "$@" >/dev/null
+            python3 tools/check_order.py $opt $(ls "$dir"/build/Escapement*.o | grep -v _)
+          }
+          P=Escapement/CORTEX-Mx/RP2040/Examples/pico
+          for v in "" SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING KERNEL=SOFT \
+                   "KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING" KERNEL=PA \
+                   "KERNEL=PA SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING" "KERNEL=PA POWER=DRA" \
+                   "KERNEL=PA POWER=DR_OTE" "KERNEL=PA POWER=DM_SLACK"; do
+            check $P "" $v
+          done
+          for dir in Escapement/CORTEX-Mx/RP2350/Examples/pico2 \
+                     Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q; do
+            for v in "" SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING KERNEL=SOFT \
+                     "KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING"; do
+              check $dir "" $v
+            done
+          done
+          for v in "" SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING KERNEL=SOFT; do
+            check Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery --tasks bin $v
+          done
+      - name: Show that the check fails without each barrier
+        run: |
+          for dir in Escapement/CORTEX-Mx/RP2040/Examples/pico Escapement/CORTEX-Mx/RP2350/Examples/pico2 \
+                     Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q; do
+            sh tools/check_order_mutants.sh "$dir"
+          done
+
   encoding:
     name: Tracked files are UTF-8
     runs-on: ubuntu-26.04
@@ -96,7 +169,7 @@ jobs:
     name: Static analysis
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:2
+      image: ghcr.io/beber007/escapement-ci:3
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -129,7 +202,7 @@ jobs:
     name: Execution under Renode (STM32F407VG)
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:2
+      image: ghcr.io/beber007/escapement-ci:3
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -175,7 +248,7 @@ jobs:
     name: Variant under Renode (${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:2
+      image: ghcr.io/beber007/escapement-ci:3
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -220,7 +293,7 @@ jobs:
     name: Execution under Renode (RP2350, ${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:2
+      image: ghcr.io/beber007/escapement-ci:3
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -274,7 +347,7 @@ jobs:
     name: Execution under Renode (STM32U5, ${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:2
+      image: ghcr.io/beber007/escapement-ci:3
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -328,7 +401,7 @@ jobs:
     name: Execution under Renode (RP2040, ${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:2
+      image: ghcr.io/beber007/escapement-ci:3
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
