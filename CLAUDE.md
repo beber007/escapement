@@ -127,6 +127,7 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
 - OpenOCD's cmsis-dap driver asks every Raspberry Pi USB device for its strings, and the
   Pico's own USB, once a flash firmware has enumerated it, may not answer: 3.3 s lost
   per connection, which failed the cost check. The tools select the Debug Probe by its
-  ids, `cmsis_dap_vid_pid 0x2e8a 0x000c`; do the same in a command typed by hand.
+  ids and serial, `tools/probe.sh` (`PROBE=probe2`, probe1 by default): the bench has
+  three; pass `-c "$(tools/probe.sh)"` in a command typed by hand.
 - Emulation proves scheduling and register sequences, not energy; the board and an
   instrument decide.

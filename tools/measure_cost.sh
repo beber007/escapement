@@ -9,7 +9,8 @@
 #
 #   tools/measure_cost.sh [seconds [elf]]
 #
-# Needs OpenOCD and a CMSIS-DAP probe (the Raspberry Pi Debug Probe).
+# Needs OpenOCD and a CMSIS-DAP probe (the Raspberry Pi Debug Probe); PROBE=name picks
+# one of the bench's (tools/probe.sh).
 #
 # Two points make this trickier than it looks:
 #
@@ -24,12 +25,9 @@
 #    several commands are grouped into a single script.
 set -eu
 
-# The Debug Probe by its USB ids: OpenOCD otherwise asks every Raspberry Pi device for its
-# strings, the Pico's own USB too, which a firmware in flash may leave unanswering: 3.3 s
-# per connection, which failed the cost check's count of rounds (2026-09-25).
-PROBE='cmsis_dap_vid_pid 0x2e8a 0x000c'
-
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+# The Debug Probe, $PROBE of the bench's table (tools/probe.sh).
+ADAPTER=$(sh "$ROOT/tools/probe.sh")
 RUN_SECONDS=${1:-10}
 ELF=${2:-$ROOT/Escapement/CORTEX-Mx/RP2040/Examples/pico/build/TaskLEDPico.elf}
 
@@ -45,7 +43,7 @@ addr() { arm-none-eabi-nm "$ELF" | awk -v s="$1" '$3 == s { print "0x"$1 }'; }
 }
 
 # 1. load, let the kernel initialise, free the timer from the debugger, let go
-openocd -f interface/cmsis-dap.cfg -c "$PROBE" -c 'adapter speed 5000' -f target/rp2040.cfg \
+openocd -f interface/cmsis-dap.cfg -c "$ADAPTER" -c 'adapter speed 5000' -f target/rp2040.cfg \
     -c init -c 'reset halt' -c "load_image $ELF" -c 'resume 0x20000000' \
     -c exit >/dev/null 2>&1
 
@@ -55,7 +53,7 @@ sleep "$RUN_SECONDS"
 # 3. come back and read the counters
 # One mdw per symbol: the linker is free to lay the counters out in any order,
 # and it does reorder them from one optimisation level to the next.
-raw=$(openocd -f interface/cmsis-dap.cfg -c "$PROBE" -c 'adapter speed 5000' -f target/rp2040.cfg \
+raw=$(openocd -f interface/cmsis-dap.cfg -c "$ADAPTER" -c 'adapter speed 5000' -f target/rp2040.cfg \
     -c init -c halt \
     -c "mdw $(addr _OSCostMax)" -c "mdw $(addr _OSCostSum)" -c "mdw $(addr _OSCostCount)" \
     -c shutdown 2>&1 | sed -n 's/^0x[0-9a-f]*: //p')

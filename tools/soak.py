@@ -4,7 +4,7 @@
 """The endurance test on a board: load its firmware, let it run, read its counts at every
 interval without stopping it, for as long as asked.
 
-    tools/soak.py pico DURATION INTERVAL [ELF]      SoakPico, through the Debug Probe
+    tools/soak.py pico DURATION INTERVAL [ELF]      SoakPico, through the Debug Probe $PROBE
     tools/soak.py uno-q DURATION INTERVAL [ELF]     SoakU5, on the board's own Linux
 
 DURATION and INTERVAL take a suffix s, m, h or d; a DURATION of 0 runs until stopped.
@@ -84,16 +84,16 @@ class Pico:
     parts = ["pulse", "queue", "buffer", "events", "cores", "heartbeat", "interrupt",
              "memory"]
     elf = os.path.join(ROOT, "Escapement/CORTEX-Mx/RP2040/Examples/pico/build/SoakPico.elf")
-    # The Debug Probe by its USB ids: OpenOCD otherwise asks every Raspberry Pi device for
-    # its strings, the Pico's own USB too, which a firmware in flash may leave unanswering:
-    # 3.3 s per connection, which failed the cost check's count of rounds (2026-09-25).
-    probe = "cmsis_dap_vid_pid 0x2e8a 0x000c"
     watchdog_reason = 0x40058008       # WATCHDOG_REASON, RP2040 datasheet
     words = 88
 
     def __init__(self, elf):
         self.elf = elf
         self.results = symbol(elf, "Results")
+        # The Debug Probe, $PROBE of the bench's table (tools/probe.sh).
+        self.probe = subprocess.run(["sh", os.path.join(ROOT, "tools/probe.sh")],
+                                    stdout=subprocess.PIPE, text=True,
+                                    check=True).stdout.strip()
         lock = os.environ.get("BOARD_CI_LOCK",
                               os.path.expanduser("~/escapement-rp2040/board-ci/lock"))
         os.makedirs(os.path.dirname(lock), exist_ok=True)

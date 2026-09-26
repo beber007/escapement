@@ -18,6 +18,7 @@
 #   BOARD_CI_MOUNT   where they mount it (/work)
 #   BOARD_CI_BUILD   container with the ARM toolchain (esc on Linux, none on macOS)
 #   BOARD_CI_PROBE   container with OpenOCD and the probe (hw on Linux, none on macOS)
+#   PROBE            the Debug Probe the checks use, probe1 by default (tools/probe.sh)
 #   BOARD_CI_REPO    owner/name on GitHub (beber007/escapement)
 #   BOARD_CI_TOKEN   file holding a token allowed to write commit statuses, nothing else
 #                    (~/.config/escapement-board-ci/token); without it, nothing is posted
@@ -34,7 +35,7 @@ if [ "$(uname)" = Darwin ]; then containers=""; else containers=yes; fi
 WORK=${BOARD_CI_WORK:-$HOME/escapement-rp2040}
 MOUNT=${BOARD_CI_MOUNT:-/work}
 BUILD=${BOARD_CI_BUILD-${containers:+esc}}
-PROBE=${BOARD_CI_PROBE-${containers:+hw}}
+PROBER=${BOARD_CI_PROBE-${containers:+hw}}
 REPO=${BOARD_CI_REPO:-beber007/escapement}
 TOKEN=${BOARD_CI_TOKEN:-$HOME/.config/escapement-board-ci/token}
 IMAGES=${BOARD_CI_IMAGES:-build}
@@ -84,13 +85,13 @@ status() {   # state description
 
 # in_build and in_probe run a command in the example's directory and at the root of the
 # checkout, in the container when there is one; SEEN is $DIR as the command sees it.
-if [ -n "$BUILD$PROBE" ]; then SEEN=$MOUNT/board-ci; else SEEN=$DIR; fi
+if [ -n "$BUILD$PROBER" ]; then SEEN=$MOUNT/board-ci; else SEEN=$DIR; fi
 in_build() {
     if [ -n "$BUILD" ]; then podman exec "$BUILD" sh -c "cd $SEEN/src/$PICO && $1"
     else (cd "$SRC/$PICO" && sh -c "$1"); fi
 }
 in_probe() {
-    if [ -n "$PROBE" ]; then podman exec "$PROBE" sh -c "cd $SEEN/src && $1"
+    if [ -n "$PROBER" ]; then podman exec "$PROBER" sh -c "cd $SEEN/src && $1"
     else (cd "$SRC" && sh -c "$1"); fi
 }
 

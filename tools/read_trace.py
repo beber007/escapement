@@ -16,11 +16,13 @@ from one start to the next, and the time from a start to its end. With --csv, it
 prints the raw events, times counted from the first one kept (tools/dvfs_figure.py
 draws them).
 
-Needs OpenOCD and a CMSIS-DAP probe (the Raspberry Pi Debug Probe), and the
-arm-none-eabi binutils for the addresses of the symbols.
+Needs OpenOCD and a CMSIS-DAP probe (the Raspberry Pi Debug Probe; PROBE=name picks one
+of the bench's, tools/probe.sh), and the arm-none-eabi binutils for the addresses of the
+symbols.
 """
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -43,9 +45,15 @@ def symbols(elf):
     return table
 
 
+def adapter():
+    """The OpenOCD command that picks the Debug Probe, $PROBE of the bench's table."""
+    probe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "probe.sh")
+    return subprocess.run(["sh", probe], stdout=subprocess.PIPE, text=True,
+                          check=True).stdout.strip()
+
+
 def openocd(commands):
-    # The Debug Probe by its USB ids, as tools/measure_cost.sh says why.
-    args = ["openocd", "-f", "interface/cmsis-dap.cfg", "-c", "cmsis_dap_vid_pid 0x2e8a 0x000c",
+    args = ["openocd", "-f", "interface/cmsis-dap.cfg", "-c", adapter(),
             "-c", "adapter speed 5000",
             "-f", "target/rp2040.cfg", "-c", "init"]
     for c in commands:

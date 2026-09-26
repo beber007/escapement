@@ -112,3 +112,15 @@ run waits for the CI of the commit to finish, and the next one tries again until
 has. The first run there, on 2026-09-26, passed every check: 322,880 reads of the
 4-slot buffer across the cores, none torn; 3.5 us a round; the timer events within
 3 us of their period; 8.8 us from 12 to 125 MHz.
+
+The hub carries three Debug Probes, named after their USB serials in
+`~/.config/escapement-probes`, one `name serial` per line. Every tool that drives one
+takes `PROBE=name` (or a serial as is), probe1 by default, the one wired to the Pico:
+OpenOCD, left to itself, takes the first probe it finds (`tools/probe.sh`). A probe's
+serial, once it is plugged in:
+
+```sh
+for d in /sys/bus/usb/devices/*; do
+    [ "$(cat $d/idProduct 2>/dev/null)" = 000c ] && echo "$(basename $d) $(cat $d/serial)"
+done
+```

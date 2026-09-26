@@ -7,7 +7,8 @@
 #
 #   tools/fourslot_cores.sh [seconds [elf]]
 #
-# Needs OpenOCD and a CMSIS-DAP probe (the Raspberry Pi Debug Probe).
+# Needs OpenOCD and a CMSIS-DAP probe (the Raspberry Pi Debug Probe); PROBE=name picks
+# one of the bench's (tools/probe.sh).
 #
 # OpenOCD is told to handle core 0 only (USE_CORE 0): by default it halts both cores and
 # resumes core 0 alone, and a core 1 left halted by the debugger is no core 1 at all —
@@ -16,12 +17,9 @@
 # Cortex-M lets the probe read memory without halting it.
 set -eu
 
-# The Debug Probe by its USB ids: OpenOCD otherwise asks every Raspberry Pi device for its
-# strings, the Pico's own USB too, which a firmware in flash may leave unanswering: 3.3 s
-# per connection, which failed the cost check's count of rounds (2026-09-25).
-PROBE='cmsis_dap_vid_pid 0x2e8a 0x000c'
-
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+# The Debug Probe, $PROBE of the bench's table (tools/probe.sh).
+ADAPTER=$(sh "$ROOT/tools/probe.sh")
 RUN_SECONDS=${1:-10}
 ELF=${2:-$ROOT/Escapement/CORTEX-Mx/RP2040/Examples/pico/build/FourSlotCoresPico.elf}
 
@@ -30,7 +28,7 @@ RESULTS=$(arm-none-eabi-nm "$ELF" | awk '$3 == "Results" { print "0x"$1 }')
 [ -n "$RESULTS" ] || { echo "$ELF is not FourSlotCoresPico" >&2; exit 1; }
 
 ocd() {
-    openocd -f interface/cmsis-dap.cfg -c "$PROBE" -c 'adapter speed 5000' -c 'set USE_CORE 0' \
+    openocd -f interface/cmsis-dap.cfg -c "$ADAPTER" -c 'adapter speed 5000' -c 'set USE_CORE 0' \
         -f target/rp2040.cfg -c init "$@" -c exit 2>&1
 }
 
