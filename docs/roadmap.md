@@ -85,8 +85,9 @@ The **STM32L4** is set aside.
   the timer events, the cost of a scheduling round, the periods on a frequency counter,
   the regulator's response, the 4-slot buffer between the cores; watched through a
   trace rather than a halted core (`rp2040.md`).
-- **Checks on the board on every change of `main`**, pulled by a machine at home
-  rather than pushed to a self-hosted runner (`tools/board_ci.md`).
+- **Checks on the board on every change of `main`**, pulled by the bench rather than
+  pushed to a self-hosted runner, on the images the CI builds; the bench is an Arduino
+  UNO Q since 2026-09-26 (`tools/board_ci.md`).
 - **The RP2350 port**: the generic layer taken to ARMv8-M, both cores running under
   Renode, `ACTLR.EXTEXCLALL` set, and memory barriers between the cores
   (`architecture.md`), whose compiled order the CI checks against the models

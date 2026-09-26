@@ -143,8 +143,8 @@ order() {
 # cost <name>: the 1 ms round of TaskLEDPico, 10 s of it, and at most 5 us on average
 # (3.2 measured for the hard kernel on 2026-09-23, docs/rp2040.md). The rounds count from
 # the load to the reading, which takes the probe longer on some machines than on others:
-# 10,067 on a Linux machine, 10,135 and 10,255 on a Mac mini. The upper bound only catches
-# a kernel that runs its round too often.
+# 10,067 on a Linux machine, 10,135 and 10,255 on a Mac mini, 10,116 on an Arduino UNO Q.
+# The upper bound only catches a kernel that runs its round too often.
 cost() {
     out=$(in_probe "sh tools/measure_cost.sh 10 $SEEN/fw/$1/TaskLEDPico.elf")
     echo "$out"
