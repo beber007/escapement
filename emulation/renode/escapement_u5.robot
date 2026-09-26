@@ -11,6 +11,10 @@ Suite Setup                   Setup
 Suite Teardown                Teardown
 Test Setup                    Reset Emulation
 Test Teardown                 Test Teardown
+# The longest test takes under 30 s on the CI's runners (2026-09-26): an emulator that
+# stops answering, as Renode once did there in a first test, fails in 2 minutes rather
+# than holding the job until its own timeout.
+Test Timeout                  2 minutes
 Resource                      ${RENODEKEYWORDS}
 
 *** Variables ***
