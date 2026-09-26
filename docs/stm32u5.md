@@ -16,7 +16,7 @@ into the repository.
 
 | Part | File | What it does |
 |---|---|---|
-| Clocks | `Escapement_Processor.c` | the MSIS of reset, 4 MHz, locked on the LSE, to 160 MHz through PLL1: voltage range 1 with the EPOD booster, 4 wait states on the flash, a first step through an AHB prescaler of 2, the instruction cache on |
+| Clocks | `Escapement_Processor.c` | the 16 MHz crystal of the board, the HSE, to 160 MHz through PLL1 (the MSIS of reset, locked on the LSE, if it does not start): voltage range 1 with the EPOD booster, 4 wait states on the flash, a first step through an AHB prescaler of 2, the instruction cache on |
 | Kernel timer | `Escapement_Timer.c` | TIM2, 32 bits, counting microseconds and wrapping at 2^30, its compare channel 1 on the next arrival: the 32-bit path of the STM32 port |
 | Timer events | `Escapement_TimerEvent.c` | TIM5, 32 bits, free, its compare channel 1 on the next event: the logic of the RP2350 port, an event already due forced through CC1G |
 | UART | `Escapement_UART.c` | USART1 on PB6 and PB7, D1 and D0 of the connector, and LPUART1 on PG7 and PG8, to the board's Linux (`/dev/ttyHS1`), 115200 baud: the driver of the RP2350 port, with no priming, the transmit interrupt of these UARTs reflecting a state; the bytes lost to an overrun are counted |
@@ -94,14 +94,26 @@ acknowledges every clock request without
 checking it, so that a wrong divider or a missing wait would pass; only the board can
 say that the clock set-up is right, which it has done for the steps above.
 
-The accuracy of the clock was measured against Linux's own, kept by NTP, from the seconds
-`SoakU5` reports and the times `tools/soak.py` receives them. With the MSIS running free,
-the kernel counted 0.48 % too many seconds: +4,800 ppm over 2,564 s on 2026-09-26, and
-+4,300 to +4,800 ppm over four shorter runs that day. Locked since on the 32.768 kHz
-crystal of the board (MSIPLLEN), as Arduino's firmware has it, it counted 1,140 s in
-1,140 s the same day, every part of the test without error: within 1 s, about 900 ppm,
-which is all whole seconds over 19 minutes can tell. The long endurance run will say
-closer.
+The accuracy of the clock was measured against Linux's own, kept by NTP. At first from
+the seconds `SoakU5` reports and the times `tools/soak.py` receives them: with the MSIS
+running free, the kernel counted 0.48 % too many seconds, +4,800 ppm over 2,564 s on
+2026-09-26, and +4,300 to +4,800 ppm over four shorter runs that day. Locked then on the
+32.768 kHz crystal of the board (MSIPLLEN), as Arduino's firmware has it, it counted
+1,140 s in 1,140 s the same day, which is all whole seconds over 19 minutes can tell, and
+4,579 s in 4,583 over the next hour and a quarter: some 800 ppm slow.
+
+`tools/unoq_drift.py` says it closer, timing on Linux the arrival of each report, one at
+the start of each second of the kernel's: the MSIS locked, a second of the kernel's
+lasted 653 ppm too long (2026-09-26, 100 s, standard error 2 ppm). The datasheet says
+why: in PLL mode the MSI runs at a whole multiple of 32,768 Hz, 3.998 MHz in range 4
+(DS13086 rev. 10, table 83), 576 ppm short of 4 MHz, the rest the LSE's own error; and
+no whole prescaler makes a microsecond of it. PLL1 now takes the 16 MHz crystal of the
+board, the HSE, which divides into one exactly: the same evening the second lasted
+0.1 ppm too little over 300 s, and 22.5 ppm too long over 600 s. The two disagree by more
+than their standard errors (2.4 and 0.4 ppm) say: the reference moved, Linux's clock
+pulling in an offset of 35 ms from NTP meanwhile. Within some 25 ppm, then, which is as
+close as that reference tells, and what a crystal gives. The MSIS stays PLL1's input
+should the HSE not start.
 
 ## Errata
 

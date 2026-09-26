@@ -87,7 +87,7 @@ flag2: Miscellaneous.LED @ gpioPortH 15
 flag3: Miscellaneous.LED @ gpioPortB 13
 probe: Miscellaneous.LED @ gpioPortB 14
 
-// RCC: MSIS and PLL1 ready in CR, SWS in CFGR1 the SW just written, and the LSE and its
+// RCC: MSIS, HSE and PLL1 ready in CR, SWS in CFGR1 the SW just written, and the LSE and its
 // propagation ready in BDCR.
 rcc: Python.PythonPeripheral @ sysbus 0x46020C00
     size: 0x400
@@ -99,7 +99,7 @@ elif request.IsRead:
     r = request.Offset
     v = regs.get(r, 0)
     if r == 0x00:
-        v |= (1 << 2) | (1 << 25)
+        v |= (1 << 2) | (1 << 17) | (1 << 25)
     elif r == 0x1C:
         v = (v & ~0xC) | ((v & 3) << 2)
     elif r == 0xF0:

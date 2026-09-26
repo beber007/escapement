@@ -7,20 +7,25 @@
 ** STMicroelectronics, cmsis-device-u5, stm32u575xx.h).
 **
 ** Reset leaves the core on the MSIS at 4 MHz, in voltage range 4. The system clock goes
-** to 160 MHz, the maximum of the chip, from PLL1 fed by the MSIS: 4 MHz x 80 = 320 MHz at
+** to 160 MHz, the maximum of the chip, from PLL1 fed by the 16 MHz crystal of the UNO Q,
+** the HSE (the board's device tree in Arduino's Zephyr): divided by 4, x 80 = 320 MHz at
 ** the VCO, divided by 2. That needs voltage range 1 with the EPOD booster, whose clock is
-** the input of PLL1 and must be selected before the booster is enabled, then 4 wait
-** states on the flash, and a first step through an AHB prescaler of 2, which ST's
-** library takes above 80 MHz to soften the jump in current. The instruction cache hides
-** the wait states.
+** the input of PLL1, between 4 and 16 MHz, and must be selected before the booster is
+** enabled, then 4 wait states on the flash, and a first step through an AHB prescaler of
+** 2, which ST's library takes above 80 MHz to soften the jump in current. The
+** instruction cache hides the wait states.
 **
-** Left to run free, the MSIS is only within about 1 % of its frequency: on the UNO Q the
-** kernel's second was 0.48 % too short against Linux's clock, kept by NTP
-** (2026-09-26). It is therefore locked on the 32.768 kHz crystal of the board, the LSE
-** (MSIPLLEN, MSI PLL mode), as Arduino's Zephyr does (msi-pll-mode in the board's device
-** tree; the sequence of its clock_stm32_ll_u5.c). The LSE lives in the backup domain,
-** which a reset leaves running: Arduino's firmware has most often started it already.
-** Otherwise a crystal takes some time to start; should it not start, the MSIS runs free.
+** The MSIS will not do for the kernel's microsecond. Left to run free it is only within
+** about 1 % of its frequency: on the UNO Q the kernel's second was 0.48 % too short
+** against Linux's clock, kept by NTP. Locked on the 32.768 kHz crystal, the LSE (MSIPLLEN,
+** MSI PLL mode, as Arduino's Zephyr has it), it runs at a whole multiple of 32,768 Hz,
+** 122 of them in range 4, 3.998 MHz (DS13086 rev. 10, table 83): the second then lasted
+** 653 ppm too long (2026-09-26), and no whole prescaler makes a microsecond of it. The
+** HSE divides into one exactly. Should it not start, PLL1 takes the MSIS as before,
+** locked on the LSE if that runs; each crystal is waited for a bounded time.
+**
+** The LSE lives in the backup domain, which a reset leaves running: Arduino's firmware
+** has most often started it already.
 **
 ** Errata of the chip (ES0499, rev. 12, June 2026; the UNO Q's is revision U): the LSE may
 ** not start or may stop at the two lowest drives (2.2.3, 2.2.16), hence the medium-high
@@ -62,6 +67,8 @@
 #define NVIC_ISER(irq)       ((volatile UINT32 *)0xE000E100)[(irq) >> 5]
 #define NVIC_BIT(irq)        (1u << ((irq) & 0x1F))
 
+#define RCC_CR_HSEON         (1u << 16)
+#define RCC_CR_HSERDY        (1u << 17)
 #define RCC_CR_PLL1ON        (1u << 24)
 #define RCC_CR_PLL1RDY       (1u << 25)
 #define RCC_CFGR1_SW_PLL1    3u
@@ -74,6 +81,7 @@
 /* PLL1CFGR: source MSIS, input range 4 to 8 MHz, M = 1, booster prescaler 1, output R
 ** enabled. */
 #define PLL1SRC_MSIS         (1u << 0)
+#define PLL1SRC_HSE          (3u << 0)
 #define PLL1RGE_4_8MHZ       (0u << 2)
 #define PLL1M(m)             (((m) - 1u) << 8)
 #define PLL1MBOOST_DIV1      (0u << 12)
@@ -94,8 +102,10 @@
 #define PWR_DBPR             *((volatile UINT32 *)(PWR_BASE + 0x28))
 #define PWR_DBPR_DBP         (1u << 0)
 
-/* Some seconds at 4 MHz, a few cycles a turn, for the LSE to start. */
+/* Some seconds at 4 MHz, a few cycles a turn, for the LSE to start; the HSE takes 2 ms
+** (DS13086, table 80), given ten times as long. */
 #define LSE_START_TURNS      2000000u
+#define HSE_START_TURNS      20000u
 
 #define FLASH_ACR            *((volatile UINT32 *)(0x40022000 + 0x00))
 #define FLASH_ACR_LATENCY_MASK 0xFu
@@ -173,11 +183,20 @@ void OSInitializeSystemClocks(void)
   *((volatile UINT32 *)0xE000ED08) = (UINT32)CortexMxVectorTable;   // SCB->VTOR
   RCC_AHB3ENR |= RCC_AHB3ENR_PWREN;
   (void)RCC_AHB3ENR;                       // the enable takes effect before PWR is written
-  /* The MSIS locked before PLL1 multiplies it. */
+  /* The MSIS locked, should PLL1 have to take it; then the HSE. */
   LockMSIS();
-  /* The input of PLL1, which is also the booster's clock, before the booster. */
-  RCC_PLL1CFGR = (RCC_PLL1CFGR & ~PLL1CFGR_FIELDS) |
-                 PLL1SRC_MSIS | PLL1RGE_4_8MHZ | PLL1M(1) | PLL1MBOOST_DIV1 | PLL1REN;
+  RCC_CR |= RCC_CR_HSEON;
+  for (i = 0; (RCC_CR & RCC_CR_HSERDY) == 0 && i < HSE_START_TURNS; i += 1);
+  /* The input of PLL1, which is also the booster's clock, before the booster: the HSE
+  ** divided by 4, or the MSIS as it is, 4 MHz either way. */
+  if ((RCC_CR & RCC_CR_HSERDY) != 0)
+     RCC_PLL1CFGR = (RCC_PLL1CFGR & ~PLL1CFGR_FIELDS) |
+                    PLL1SRC_HSE | PLL1RGE_4_8MHZ | PLL1M(4) | PLL1MBOOST_DIV1 | PLL1REN;
+  else {
+     RCC_CR &= ~RCC_CR_HSEON;
+     RCC_PLL1CFGR = (RCC_PLL1CFGR & ~PLL1CFGR_FIELDS) |
+                    PLL1SRC_MSIS | PLL1RGE_4_8MHZ | PLL1M(1) | PLL1MBOOST_DIV1 | PLL1REN;
+  }
   /* Range 1 and the booster, then wait for both. */
   PWR_VOSR = (PWR_VOSR & ~(3u << 16)) | PWR_VOSR_VOS_RANGE1 | PWR_VOSR_BOOSTEN;
   while ((PWR_VOSR & (PWR_VOSR_VOSRDY | PWR_VOSR_BOOSTRDY)) !=
