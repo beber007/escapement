@@ -151,7 +151,7 @@
 #define OS_IO_MDF1_FLT5              122
 #define OS_IO_CORDIC                 123
 #define OS_IO_FMAC                   124
-#define OS_IO_LSECSSD                125
+#define OS_IO_LSECSSD                125   /* and MSI_PLL_UNLOCK (EXTI line 23) */
 
 #define OS_IO_NB_ENTRIES     126
 

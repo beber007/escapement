@@ -26,9 +26,10 @@
 ** not start or may stop at the two lowest drives (2.2.3, 2.2.16), hence the medium-high
 ** one. And the MSI may leave its PLL mode on a failure of the LSE it wrongly detects,
 ** more likely cold and at a low core voltage (2.2.27): the MSIS then runs free again.
-** ST's workaround, turning the PLL mode off and on again from the interrupt that reports
-** it, is not taken: which interrupt that is, the headers of the chip do not say. The
-** endurance test would show it, its seconds drifting off Linux's.
+** ST's workaround is taken: the unlock raises line 23 of the EXTI, shared with the CSS
+** of the LSE, which the port does not enable, and interrupt 125 (RM0456 rev. 7, tables
+** 118, 186 and 189; not on revision X), whose handler turns the PLL mode off and on
+** again and counts it; the lock is back within about 1 ms, says the erratum.
 **
 ** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
@@ -52,6 +53,14 @@
 #define RCC_BDCR_LSEDRV_MEDHIGH (2u << 3) /* as Zephyr; the lower drives fail */
 #define RCC_BDCR_LSESYSEN    (1u << 7)
 #define RCC_BDCR_LSESYSRDY   (1u << 11)
+
+#define EXTI_BASE            0x46022000
+#define EXTI_RTSR1           *((volatile UINT32 *)(EXTI_BASE + 0x00))
+#define EXTI_RPR1            *((volatile UINT32 *)(EXTI_BASE + 0x0C))
+#define EXTI_IMR1            *((volatile UINT32 *)(EXTI_BASE + 0x80))
+#define EXTI_MSI_PLL_UNLOCK  (1u << 23)   /* LSECSS or MSI_PLL_UNLOCK */
+#define NVIC_ISER(irq)       ((volatile UINT32 *)0xE000E100)[(irq) >> 5]
+#define NVIC_BIT(irq)        (1u << ((irq) & 0x1F))
 
 #define RCC_CR_PLL1ON        (1u << 24)
 #define RCC_CR_PLL1RDY       (1u << 25)
@@ -97,6 +106,32 @@
 #define ICACHE_CR_EN         (1u << 0)
 
 
+typedef struct UNLOCK_ISR_DATA {
+  void (*UnlockHandler)(struct UNLOCK_ISR_DATA *);
+} UNLOCK_ISR_DATA;
+
+static UNLOCK_ISR_DATA UnlockDescriptor;
+static volatile UINT32 MSIRelocks;
+
+
+/* UnlockHandler: The MSI left its PLL mode (erratum 2.2.27): the mode off and on again. */
+static void UnlockHandler(UNLOCK_ISR_DATA *descriptor)
+{
+  (void)descriptor;
+  EXTI_RPR1 = EXTI_MSI_PLL_UNLOCK;
+  RCC_CR &= ~RCC_CR_MSIPLLEN;
+  RCC_CR |= RCC_CR_MSIPLLEN;
+  MSIRelocks += 1;
+} /* end of UnlockHandler */
+
+
+/* OSGetMSIRelocks: The times UnlockHandler locked the MSIS again. */
+UINT32 OSGetMSIRelocks(void)
+{
+  return MSIRelocks;
+} /* end of OSGetMSIRelocks */
+
+
 /* LockMSIS: the LSE started if it is not, then the MSIS locked on it. Returns with the
 ** MSIS left as it was if the LSE does not start. */
 static void LockMSIS(void)
@@ -117,6 +152,12 @@ static void LockMSIS(void)
      /* MSIPLLSEL is written while MSIPLLEN is 0, as a reset leaves it. */
      RCC_CR |= RCC_CR_MSIPLLSEL;
      RCC_CR |= RCC_CR_MSIPLLEN;
+     /* An unlock to interrupt 125, on its rising edge. */
+     UnlockDescriptor.UnlockHandler = UnlockHandler;
+     OSSetISRDescriptor(OS_IO_LSECSSD,&UnlockDescriptor);
+     EXTI_RTSR1 |= EXTI_MSI_PLL_UNLOCK;
+     EXTI_IMR1 |= EXTI_MSI_PLL_UNLOCK;
+     NVIC_ISER(OS_IO_LSECSSD) = NVIC_BIT(OS_IO_LSECSSD);
   }
   PWR_DBPR &= ~PWR_DBPR_DBP;
 } /* end of LockMSIS */

@@ -111,10 +111,12 @@ touches the port, and only the accuracy of its clock:
 
 - **2.2.27, spurious MSI PLL unlock**: the MSI may leave its PLL mode on a failure of the
   LSE it detects wrongly, more likely cold and at a low core voltage; the MSIS then runs
-  free again, 0.48 % fast on this board. ST's workaround turns the PLL mode off and on
-  again from the interrupt that reports it; neither the CMSIS headers of the U575/585
-  nor Zephyr's name that interrupt, and it waits for RM0456 to say which it is. Until
-  then the endurance test would show an unlock, its seconds drifting off Linux's.
+  free again, 0.48 % fast on this board. ST's workaround is taken: the unlock raises
+  line 23 of the EXTI and interrupt 125 (RM0456 rev. 7; neither the CMSIS headers of the
+  U575/585 nor Zephyr name them), whose handler turns the PLL mode off and on again and
+  counts it, `SoakU5` reporting the count. On 2026-09-26 line 23 raised by software on
+  the board, the core halted, was handled: counted once, the pending flag cleared, the
+  PLL mode on again. The halt itself cost the link a byte, as a halt alone did after.
 
 The port already stands clear of the others that come near it:
 

@@ -44,7 +44,9 @@
 ** parts, the bytes received on the link, its errors and overruns, the worst lateness of
 ** the pulse and of the timer events, the stack never used, the work of the long task in
 ** its phase, the byte the link expects next, from which a script started anew goes on
-** counting, and the causes of reset the board met before this run.
+** counting, and the causes of reset the board met before this run, with, in its low bits,
+** the times the MSIS was locked again on the LSE (OSGetMSIRelocks) — one number for both,
+** a line of the UART holding 255 bytes at most.
 **
 ** Results, in words from its start, laid out as SoakPico's and SoakPico2's, which the
 ** Renode suite reads; tools/soak.py reads the reports of the link (docs/stm32u5.md):
@@ -54,7 +56,7 @@
 **   24-55 lateness of the pulse by 10 us, the last for 310 us or more   56-87 the same
 **   for the timer events   88-90 bytes received on the link, its errors and overruns
 **   91 the byte it expects next   92 the flags of reset of RCC_CSR, bits 25 to 31, as
-**   this run found them.
+**   this run found them   93 the times the MSIS was locked again.
 ** The counts only grow: a probe reading them twice and finding them smaller, or the
 ** marker gone, has seen the board restart. The independent watchdog restarts it within
 ** 3 s of the heartbeat stopping, which is how a kernel that hangs shows; the image being
@@ -102,7 +104,7 @@ volatile struct {
   UINT32 PulseLateMax, EventLateMax, Stack0Free, Stack1Free, Load;
   UINT32 PulseLate[BINS], EventLate[BINS];
   UINT32 LinkBytes, LinkErrors, LinkOverruns, LinkNext;
-  UINT32 Resets;
+  UINT32 Resets, MSIRelocks;
 } Results;
 
 typedef struct {
@@ -454,6 +456,7 @@ static void HeartbeatTask(void *argument)
      draw = draw * 1103515245u + 12345u;
      Results.Load = FillTime + (draw >> 16) % (FILL_HIGH - FillTime + 1);
   }
+  Results.MSIRelocks = OSGetMSIRelocks();
   Results.Activity[HEARTBEAT] += 1;
   Report();
   OSEndTask();
@@ -509,7 +512,7 @@ static void Report(void)
   p = PutHex(p,Results.Stack0Free);
   p = PutHex(p,Results.Load);
   p = PutHex(p,Results.LinkNext);
-  p = PutHex(p,Results.Resets);
+  p = PutHex(p,Results.Resets | (Results.MSIRelocks & 0xFFFFFF));
   p[-1] = '\n';
   OSEnqueueUART(line,(UINT8)(p - line),OS_IO_LPUART1);
 } /* end of Report */

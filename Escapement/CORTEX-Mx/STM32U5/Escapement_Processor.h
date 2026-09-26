@@ -53,4 +53,8 @@
 ** clock. */
 void OSInitializeSystemClocks(void);
 
+/* OSGetMSIRelocks: Returns the times the MSIS, having left its lock on the LSE, was locked
+** again (erratum 2.2.27 of the chip, Escapement_Processor.c). */
+UINT32 OSGetMSIRelocks(void);
+
 #endif /* ESCAPEMENT_PROCESSOR_H */

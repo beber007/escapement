@@ -145,7 +145,8 @@ class UnoQ:
     seconds, wraps, the activity and the errors of the eight parts, the bytes of the link,
     its errors and overruns, the lateness of the pulse and of the timer events, the stack
     never used, the work of the long task in its phase, the byte the link expects next,
-    and the flags of reset the run found in RCC_CSR."""
+    and the flags of reset the run found in RCC_CSR, with in bits 0 to 23 the times the
+    MSIS was locked again on the LSE (erratum 2.2.27 of the chip)."""
     name, context = "SoakU5", "board/soak-u5"
     parts = ["pulse", "queue", "buffer", "events", "buffer4", "heartbeat", "interrupt",
              "memory"]
@@ -241,7 +242,8 @@ class UnoQ:
                 self.value = None
                 termios.tcflush(self.fd, termios.TCOFLUSH)
             return {"marker": 0, "seconds": 0}
-        resets = f", reset {self.resets(r[26])}" if len(r) > 26 else ""
+        resets = (f", reset {self.resets(r[26])}, MSI locked again {r[26] & 0xFFFFFF}"
+                  if len(r) > 26 else "")
         return {"marker": MARKER, "seconds": r[0], "wraps": r[1], "activity": r[2:10],
                 "errors": r[10:18], "late": (r[21], r[22]), "stack": (r[23],),
                 "load": r[24], "bins": None,
