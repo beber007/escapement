@@ -167,11 +167,9 @@ class UnoQ:
         self.pending, self.last, self.sent, self.value = b"", None, 0, None
 
     def load(self):
-        """As tools/unoq_load.sh: the timers frozen while the debugger halts the core."""
-        subprocess.run(["./bin/openocd", "-s", "/opt/openocd", "-f", "openocd_gpiod.cfg",
-                        "-c", "reset_config srst_only srst_push_pull; init; reset halt; "
-                        f"mww 0xE0044008 0xb; load_image {self.elf}; resume 0x20000000; "
-                        "shutdown"], cwd="/opt/openocd", capture_output=True, check=False)
+        """Through tools/unoq_load.sh, beside this script, run on the board."""
+        loader = os.path.join(os.path.dirname(os.path.abspath(__file__)), "unoq_load.sh")
+        subprocess.run(["sh", loader, self.elf], capture_output=True, check=False)
         self.last = None
 
     def start(self):

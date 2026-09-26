@@ -11,8 +11,10 @@
 #   tools/unoq_load.sh ELF [HOST]       an image of Examples/uno-q (docs/stm32u5.md)
 #   tools/unoq_load.sh --reset [HOST]   back to Arduino's firmware
 #
-# HOST is where to ssh to, arduino@MyUno.local by default (UNOQ_HOST); the user there must
-# be in the group gpiod, which it is on the board as shipped.
+# Run on the board itself, where /opt/openocd is, it loads at once; elsewhere it sends the
+# image to HOST over SSH and loads it there, HOST being arduino@MyUno.local by default
+# (UNOQ_HOST). The user on the board must be in the group gpiod, which it is as shipped.
+# The one place the U5 is loaded: tools/soak.py calls it to load the endurance test again.
 set -eu
 
 if [ "${1:-}" = --reset ]; then
@@ -28,13 +30,20 @@ else
     # kernel stops on its overload check. The bit of the independent watchdog in that
     # register reads back 0 on the UNO Q: the watchdog runs on, and a halt must stay well
     # under its period, 3 s in SoakU5.
-    COMMANDS="init; reset halt; mww 0xE0044008 0xb; load_image /tmp/escapement.elf; \
+    COMMANDS="init; reset halt; mww 0xE0044008 0xb; load_image IMAGE; \
 resume 0x20000000; shutdown"
 fi
-HOST=${2:-${UNOQ_HOST:-arduino@MyUno.local}}
-
-[ -z "$ELF" ] || scp -q "$ELF" "$HOST:/tmp/escapement.elf"
 # The board's OpenOCD, with the configuration Arduino's own scripts use (arduino-flash.sh).
-ssh "$HOST" "cd /opt/openocd && ./bin/openocd -s /opt/openocd -f openocd_gpiod.cfg \
-    -c 'reset_config srst_only srst_push_pull; $COMMANDS'" 2>&1 |
-    grep -E "^(Error|Warn)|downloaded|bytes" || true
+OCD="cd /opt/openocd && ./bin/openocd -s /opt/openocd -f openocd_gpiod.cfg -c"
+report() { grep -E "^(Error|Warn)|downloaded|bytes" || true; }
+
+if [ -x /opt/openocd/bin/openocd ] && [ -z "${2:-}" ]; then
+    image=$(cd "$(dirname "${ELF:-.}")" && pwd)/$(basename "${ELF:-.}")
+    sh -c "$OCD 'reset_config srst_only srst_push_pull; $(echo "$COMMANDS" |
+        sed "s|IMAGE|$image|")'" 2>&1 | report
+else
+    HOST=${2:-${UNOQ_HOST:-arduino@MyUno.local}}
+    [ -z "$ELF" ] || scp -q "$ELF" "$HOST:/tmp/escapement.elf"
+    ssh "$HOST" "$OCD 'reset_config srst_only srst_push_pull; $(echo "$COMMANDS" |
+        sed "s|IMAGE|/tmp/escapement.elf|")'" 2>&1 | report
+fi
