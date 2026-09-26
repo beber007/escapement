@@ -63,6 +63,25 @@ The **STM32L4** is set aside.
    less current at light load; the UNO Q's U585 has no SMPS, and DVFS would add some 10 %
    at most.
 
+   The plan for Stop 2, read from RM0456 rev. 7 and ES0499 on 2026-09-26. LPTIM1 cannot
+   be the kernel's clock: 16 bits, wrapping every 2 s on the LSE in steps of 30.5 µs, its
+   counter read twice to be trusted, and a new compare waited for (CMPOK) after a latency
+   RM0456 does not quantify for it (§58.4). TIM2 stays the kernel's clock while running.
+   The idle task, finding the next event far enough off, arms LPTIM1 on the LSE to wake it
+   early and enters Stop 2; LPTIM1 wakes the chip from it (table 599). Stop 2 turns the
+   HSE off and leaves the chip in range 4: waking takes the HSE's 2 ms, up to 47 µs for
+   range 1, 50 µs for the booster and 25 to 50 µs for PLL1, so Stop 2 pays only for waits
+   of some milliseconds, and TIM2 is then moved on by the time LPTIM1 counted, the idle
+   task finishing the wait in Sleep. No Stop 2 while a timer event is pending, TIM5
+   stopping with it — taken from the definition of Stop, not read for TIM5 itself — nor
+   while a UART must receive: LPUART1 runs on PCLK3, so SoakU5, fed by Linux, would
+   hardly ever enter it, and another example must show the gain. Errata: never clear
+   LPTIM1's ENABLE, reset it through the RCC instead (2.17.1); writing DIER clears the
+   flag it enables (2.17.3); a HardFault may follow a wake-up by LPTIM1, of the SRD
+   domain, when debugging with DBG_STOP (2.2.19). Renode's STM32L0_LpTimer has the same
+   first registers and may serve. The gain, some 5.3 against 1.4 mA at a tenth busy, is
+   the datasheet's; the PPK2 is to measure it.
+
 ## Done
 
 - **The STM32U5 port, under Renode (2026-09-25).** `Escapement/CORTEX-Mx/STM32U5`: the
