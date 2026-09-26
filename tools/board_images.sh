@@ -2,9 +2,9 @@
 # Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
 # LICENSE at the root of this repository.
 #
-# Build the images the board checks run (tools/board_ci.sh) into OUT/<check>_<kernel>/:
-# by the CI, which hands them to the bench as an artifact, so that the bench needs no
-# compiler, or by the bench itself.
+# Build the images the board checks run (tools/board_ci.sh), the Pico's and the UNO Q's
+# STM32U5's, into OUT/<check>_<kernel>/: by the CI, which hands them to the bench as an
+# artifact, so that the bench needs no compiler, or by the bench itself.
 #
 #   tools/board_images.sh OUT
 #
@@ -44,4 +44,12 @@ image events   soft TestTimerEventPico "KERNEL=SOFT TRACE=1" counters
 image events   pa   TestTimerEventPico "KERNEL=PA TRACE=1" counters
 image dvfs     pa   BenchDVFSPico "KERNEL=PA" plain
 make -s -C "$PICO" clean >/dev/null
+# The STM32U5 of the UNO Q: its endurance test, which tools/unoq_check.sh runs.
+U5=Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
+make -s -C "$U5" clean >/dev/null
+make -s -C "$U5" build/SoakU5.elf >/dev/null
+mkdir -p "$OUT/soak_u5"
+cp "$U5/build/SoakU5.elf" "$OUT/soak_u5/"
+make -s -C "$U5" clean >/dev/null
+echo "soak_u5: SoakU5"
 "${CROSS_COMPILE:-arm-none-eabi-}gcc" --version | head -1 >"$OUT/compiler"

@@ -55,9 +55,10 @@ The **STM32L4** is set aside.
    pico-sdk headers.
 5. **The STM32U5 on the board.** On the Arduino UNO Q since 2026-09-26, from SRAM: the
    clock set-up runs, and 22 s of the endurance test passed; since 2026-09-26 the clock
-   comes from the board's 16 MHz crystal, within some 25 ppm of NTP (`stm32u5.md`). Left:
-   the board checks of the Pico brought over, run by the UNO Q's own Linux, and a long
-   endurance run. The older STM32 ports then go. For energy (`power-aware.md`, read from
+   comes from the board's 16 MHz crystal, within some 25 ppm of NTP (`stm32u5.md`). A board check of each commit
+   runs on the UNO Q's own Linux since 2026-09-26 (`tools/unoq_check.sh`, status
+   `board/u5`): the endurance test for two minutes and the clock within 300 ppm, the long
+   endurance run then carried on to the commit. The older STM32 ports can go. For energy (`power-aware.md`, read from
    the datasheet on 2026-09-26): a time base on LPTIM1 and the 32.768 kHz crystal, which
    runs through Stop 2, and an idle task in Stop 2 rather than Sleep, some four times
    less current at light load; the UNO Q's U585 has no SMPS, and DVFS would add some 10 %

@@ -28,6 +28,10 @@
 #                    no compiler: the token must then also read Actions. The compiled
 #                    order, which the bench checked under a second compiler, is then the
 #                    CI's to check (build.yml).
+#   BOARD_CI_U5      1 on the Arduino UNO Q: after the Pico, the STM32U5 of the board is
+#                    checked too (tools/unoq_check.sh), on the CI's image, and posted as
+#                    the status "board/u5"; the endurance run it holds goes on with the
+#                    commit if it passes.
 set -eu
 STARTED_AS=$(cksum <"$0")   # before the checkout below can replace this very file
 
@@ -75,9 +79,10 @@ if [ "${BOARD_CI_RESTARTED:-}" != yes ] &&
 fi
 LOG=$DIR/logs/$(date +%Y%m%d-%H%M%S)-$(echo "$SHA" | cut -c1-7).log
 
-status() {   # state description
+status() {   # state description [context, board/pico by default]
     [ -r "$TOKEN" ] || return 0
-    jq -n --arg s "$1" --arg d "$2" '{state: $s, context: "board/pico", description: $d}' |
+    jq -n --arg s "$1" --arg d "$2" --arg c "${3:-board/pico}" \
+        '{state: $s, context: $c, description: $d}' |
     curl --silent --show-error --fail --output /dev/null -X POST \
         -H "Authorization: Bearer $(cat "$TOKEN")" -H "Accept: application/vnd.github+json" \
         --data @- "https://api.github.com/repos/$REPO/statuses/$SHA" || true
@@ -251,6 +256,21 @@ failed=""
     done
 } >"$LOG" 2>&1
 
+# The STM32U5 of the UNO Q, on the CI's image of its endurance test.
+u5=""
+if [ "${BOARD_CI_U5:-}" = 1 ] && [ -f "$DIR/fw/soak_u5/SoakU5.elf" ]; then
+    status pending "running on the UNO Q's STM32U5" board/u5
+    if (cd "$SRC" && sh tools/unoq_check.sh "$DIR/fw/soak_u5/SoakU5.elf" "$SHA") \
+            >>"$LOG" 2>&1; then
+        u5=success
+        status success "endurance test for 2 min, clock within 300 ppm; the long run goes on" \
+            board/u5
+    else
+        u5=failure
+        status failure "the endurance test or the clock failed; see the bench's log" board/u5
+    fi
+fi
+
 echo "$SHA" >"$DIR/last"
 if [ -n "$failed" ]; then
     status failure "failed:$failed"
@@ -260,4 +280,4 @@ else
     status success "compiled order, 4-slot across cores, round cost, timer events, DVFS"
 fi
 cat "$LOG"
-[ -z "$failed" ]
+[ -z "$failed" ] && [ "$u5" != failure ]

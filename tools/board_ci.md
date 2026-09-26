@@ -113,6 +113,13 @@ has. The first run there, on 2026-09-26, passed every check: 322,880 reads of th
 4-slot buffer across the cores, none torn; 3.5 us a round; the timer events within
 3 us of their period; 8.8 us from 12 to 125 MHz.
 
+The board's own STM32U5 is checked too with `BOARD_CI_U5=1` in that same line
+(`tools/unoq_check.sh`): the CI's image of its endurance test run for two minutes, every
+part without error, then its clock against Linux's, within 300 ppm over five minutes, as
+the status `board/u5`. The long endurance run (`tools/soak.py uno-q`, the user service
+`escapement-soak-u5`) is stopped for it, and started again on the commit if it passed, on
+the image it had otherwise.
+
 The hub carries three Debug Probes, named after their USB serials in
 `~/.config/escapement-probes`, one `name serial` per line. Every tool that drives one
 takes `PROBE=name` (or a serial as is), probe1 by default, the one wired to the Pico:
