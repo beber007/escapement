@@ -80,7 +80,12 @@ static analysis finds nothing. The CI runs all of it.
 
 `tools/soak.py` runs the endurance test of the Pico and of the UNO Q alike: the same
 checks, the counts read over SWD on the one and from the reports of LPUART1 on the other.
-It does not read the U5's cause of reset, which RCC_CSR holds.
+`SoakU5` reports the causes of reset its run found in RCC_CSR, whose flags stay set
+across resets until cleared, and clears them: each run finds the resets since the one
+before it. On 2026-09-26 a halt of 4.5 s, past the watchdog's 3 s, restarted the board;
+the image loaded again reported `pin+IWDG`, the watchdog and the reset of the load, and
+the link went on without an error, the script now waiting for the new image's first
+report before it sends again.
 
 What that does not verify: the watchdog of the endurance test is started and reloaded,
 and did not restart the emulated board in 3.5 s, but whether Renode's model would

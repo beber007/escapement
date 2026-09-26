@@ -43,8 +43,8 @@
 ** hexadecimal: SOAK, the seconds run, the wraps, the activity and the errors of the eight
 ** parts, the bytes received on the link, its errors and overruns, the worst lateness of
 ** the pulse and of the timer events, the stack never used, the work of the long task in
-** its phase, and the byte
-** the link expects next, from which a script started anew goes on counting.
+** its phase, the byte the link expects next, from which a script started anew goes on
+** counting, and the causes of reset the board met before this run.
 **
 ** Results, in words from its start, laid out as SoakPico's and SoakPico2's, which the
 ** Renode suite reads; tools/soak.py reads the reports of the link (docs/stm32u5.md):
@@ -53,7 +53,8 @@
 **   in us   21 bytes of the stack never used   22 0, no second core   23 work of the long task in its phase, in us
 **   24-55 lateness of the pulse by 10 us, the last for 310 us or more   56-87 the same
 **   for the timer events   88-90 bytes received on the link, its errors and overruns
-**   91 the byte it expects next.
+**   91 the byte it expects next   92 the flags of reset of RCC_CSR, bits 25 to 31, as
+**   this run found them.
 ** The counts only grow: a probe reading them twice and finding them smaller, or the
 ** marker gone, has seen the board restart. The independent watchdog restarts it within
 ** 3 s of the heartbeat stopping, which is how a kernel that hangs shows; the image being
@@ -62,6 +63,11 @@
 ** does not make the tasks late; the watchdog runs on, and a halt of more than 3 s
 ** restarts the board. The debugger reads zeros while the core sleeps: a reading halts it.
 ** tools/soak.py uno-q reads the reports of the link instead.
+** The flags of reset in RCC_CSR stay set until cleared, across resets, and neither
+** Arduino's firmware nor the loader clears them: this run reads them, then clears them,
+** so that each run finds the resets since the one before it — the independent
+** watchdog's among them, which restarted the board into Arduino's firmware, and the
+** reset of the load that followed (RM0456, RCC_CSR).
 ** Platform version: STM32U585 (Arduino UNO Q).
 */
 
@@ -75,13 +81,16 @@
 #define NODES       8
 #define WORDS       8
 #define BINS        32
-#define REPORT_SIZE 240                /* SOAK and 26 numbers of 8 digits at most, spaced */
+#define REPORT_SIZE 248                /* SOAK and 27 numbers of 8 digits at most, spaced */
 #define FILL_TIME   1000               /* per instance of the Filler, without a seed */
 #define FILL_HIGH   6000               /* the most a phase of load gives it */
 #define EVENT_DELAY 1000               /* of the timer events, without a seed */
 #define STACK_FILL  0x5AC05AC0u        /* what unused stack holds */
 #define GUARD       0x6A7D6A7Du
 #define GUARDS      5
+#define RCC_CSR     *((volatile UINT32 *)0x46020CF4)
+#define RCC_CSR_RMVF       (1u << 23)
+#define RCC_CSR_RESETS     0xFE000000u  /* OBL, pin, BOR, software, IWDG, WWDG, low power */
 #define EVENT_TIMER_INDEX OS_IO_TIM5
 #define ISR_TIMER_INDEX   OS_IO_TIM3
 
@@ -93,6 +102,7 @@ volatile struct {
   UINT32 PulseLateMax, EventLateMax, Stack0Free, Stack1Free, Load;
   UINT32 PulseLate[BINS], EventLate[BINS];
   UINT32 LinkBytes, LinkErrors, LinkOverruns, LinkNext;
+  UINT32 Resets;
 } Results;
 
 typedef struct {
@@ -184,6 +194,8 @@ int main(void)
   PaintStack();
   OSInitializeSystemClocks();
   Results.Marker = MARKER;
+  Results.Resets = RCC_CSR & RCC_CSR_RESETS;
+  RCC_CSR |= RCC_CSR_RMVF;
   if (SoakSeed != 0xFFFFFFFF) {
      FillTime = 500 + SoakSeed % 1001;
      EventDelay = 500 + SoakSeed / 1001 % 1001;
@@ -497,6 +509,7 @@ static void Report(void)
   p = PutHex(p,Results.Stack0Free);
   p = PutHex(p,Results.Load);
   p = PutHex(p,Results.LinkNext);
+  p = PutHex(p,Results.Resets);
   p[-1] = '\n';
   OSEnqueueUART(line,(UINT8)(p - line),OS_IO_LPUART1);
 } /* end of Report */

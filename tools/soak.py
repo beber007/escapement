@@ -141,11 +141,11 @@ class Pico:
 
 
 class UnoQ:
-    """SoakU5 on LPUART1: a report a second, SOAK and 26 hexadecimal numbers (SoakU5.c):
+    """SoakU5 on LPUART1: a report a second, SOAK and 27 hexadecimal numbers (SoakU5.c):
     seconds, wraps, the activity and the errors of the eight parts, the bytes of the link,
     its errors and overruns, the lateness of the pulse and of the timer events, the stack
-    never used, the work of the long task in its phase, and the byte the link expects
-    next."""
+    never used, the work of the long task in its phase, the byte the link expects next,
+    and the flags of reset the run found in RCC_CSR."""
     name, context = "SoakU5", "board/soak-u5"
     parts = ["pulse", "queue", "buffer", "events", "buffer4", "heartbeat", "interrupt",
              "memory"]
@@ -168,6 +168,7 @@ class UnoQ:
         termios.tcsetattr(self.fd, termios.TCSANOW, attrs)
         termios.tcflush(self.fd, termios.TCIOFLUSH)
         self.pending, self.last, self.sent, self.value = b"", None, 0, None
+        self.lock = threading.Lock()   # self.value, between the link and a restart
 
     def load(self):
         """Through tools/unoq_load.sh, beside this script, run on the board."""
@@ -187,15 +188,17 @@ class UnoQ:
         the MCU expects: a script started anew makes no error of the link."""
         while True:
             time.sleep(random.uniform(0.001, 0.1))
-            if self.value is None:
-                continue
-            burst = bytes((self.value + i) & 0xFF for i in range(random.randint(1, 64)))
-            try:
-                n = os.write(self.fd, burst)
-            except BlockingIOError:
-                n = 0          # the driver's buffer full: the count goes on from here
-            self.value = (self.value + n) & 0xFF
-            self.sent += n
+            with self.lock:
+                if self.value is None:
+                    continue
+                burst = bytes((self.value + i) & 0xFF
+                              for i in range(random.randint(1, 64)))
+                try:
+                    n = os.write(self.fd, burst)
+                except BlockingIOError:
+                    n = 0      # the driver's buffer full: the count goes on from here
+                self.value = (self.value + n) & 0xFF
+                self.sent += n
 
     def report(self, wait):
         """The newest report within wait seconds, or None."""
@@ -216,25 +219,42 @@ class UnoQ:
             while b"\n" in self.pending:
                 line, self.pending = self.pending.split(b"\n", 1)
                 words = line.decode(errors="replace").split()
-                if len(words) == 27 and words[0] == "SOAK":   # SOAK and 26 numbers
+                # SOAK and 27 numbers; 26 before the causes of reset (cf6d83e and older)
+                if len(words) in (27, 28) and words[0] == "SOAK":
                     try:
                         newest = [int(w, 16) for w in words[1:]]
                     except ValueError:
                         pass
             self.pending = self.pending[-4096:]   # what is no report never piles up
             if newest is not None and self.value is None:
-                self.value = newest[25]
+                with self.lock:
+                    self.value = newest[25]
 
     def read(self):
         r = self.report(self.silent)
         if r is None:
-            # No report for 10 s: the board restarted, into Arduino's firmware.
+            # No report for 10 s: the board restarted, into Arduino's firmware. The link
+            # waits for the first report of the image loaded next, which expects 0, the
+            # old count still waiting in the driver dropped (a restart, 2026-09-26, made
+            # the new image count an error of the link).
+            with self.lock:
+                self.value = None
+                termios.tcflush(self.fd, termios.TCOFLUSH)
             return {"marker": 0, "seconds": 0}
+        resets = f", reset {self.resets(r[26])}" if len(r) > 26 else ""
         return {"marker": MARKER, "seconds": r[0], "wraps": r[1], "activity": r[2:10],
                 "errors": r[10:18], "late": (r[21], r[22]), "stack": (r[23],),
                 "load": r[24], "bins": None,
                 "extra": f", link {r[18]} bytes of {self.sent} sent, {r[19]} errors, "
-                         f"{r[20]} overruns", "link": r[18:21]}
+                         f"{r[20]} overruns{resets}", "link": r[18:21]}
+
+    @staticmethod
+    def resets(flags):
+        """The flags of reset of RCC_CSR the run found (RM0456), by name. A load resets
+        the pin; a first start after power adds BOR; the independent watchdog, IWDG."""
+        names = [(25, "OBL"), (26, "pin"), (27, "BOR"), (28, "software"), (29, "IWDG"),
+                 (30, "WWDG"), (31, "low-power")]
+        return "+".join(n for b, n in names if flags >> b & 1) or "none"
 
 
 class Status:
