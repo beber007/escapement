@@ -9,8 +9,12 @@ stays free between runs for work by hand, which must not overlap one. The logs s
 the machine, under `~/escapement-rp2040/board-ci/logs`.
 
 The machine needs `git`, `jq` and `curl`; the probe side, OpenOCD and `python3`; the
-build side, the ARM toolchain. The variables `BOARD_CI_*` at the head of the script
-change the working directory, the containers, the repository and the token file.
+build side, the ARM toolchain — unless it takes the images the CI builds for each commit
+(`BOARD_CI_IMAGES=ci`, below), which then needs `unzip` and `arm-none-eabi-nm` only,
+and a token that also reads Actions: GitHub serves artifacts to a signed-in client
+only. The compiled order is then checked by the CI, under two compilers (`build.yml`).
+The variables `BOARD_CI_*` at the head of the script change the working directory, the
+containers, the repository, the token file and where the images come from.
 
 ## On Linux
 
@@ -78,3 +82,29 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/li.hurst.escapement-boar
 ```
 
 A launch agent runs while its user is logged in, as on a Mac left on for the purpose.
+
+## On an Arduino UNO Q
+
+The bench since 2026-09-26: Debian on the board's Qualcomm processor, the probe and the
+Pico behind a powered USB-C hub on its only port, which it drives as a host. It has no
+GCC 16, so it takes the CI's images, and runs under systemd as on Linux, without
+containers:
+
+```sh
+sudo apt install openocd binutils-arm-none-eabi jq unzip
+# the probe and the RP2040/RP2350 in BOOTSEL for the group plugdev, OpenOCD without sudo
+sudo tee /etc/udev/rules.d/60-escapement-probes.rules <<'EOF'
+ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000c", MODE="0660", GROUP="plugdev"
+ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0003", MODE="0660", GROUP="plugdev"
+ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000f", MODE="0660", GROUP="plugdev"
+EOF
+sudo usermod -aG plugdev "$USER" && sudo udevadm control --reload
+git clone https://github.com/beber007/escapement.git ~/escapement-rp2040/board-ci/src
+# a fine-grained token for this repository alone: "Commit statuses: read and write"
+# and "Actions: read-only"; cat it in, then Ctrl-D
+mkdir -p ~/.config/escapement-board-ci && (umask 077 && cat > ~/.config/escapement-board-ci/token)
+```
+
+Then the service and the timer of the Linux section, with one line more in the
+service, under `[Service]`: `Environment=BOARD_CI_IMAGES=ci`. A run waits for the CI of
+the commit to finish, and the next one tries again until it has.

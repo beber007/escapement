@@ -153,6 +153,24 @@ jobs:
                      Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q; do
             sh tools/check_order_mutants.sh "$dir"
           done
+      # Run as well as built: the CI's other compiler once made the kernel HardFault where
+      # the developer's ran it (docs/method.md). The Pico 2 suite, which needs no models of
+      # its own, on the images of this compiler.
+      - name: Build the Pico 2 examples
+        run: make -s -C Escapement/CORTEX-Mx/RP2350/Examples/pico2 clean all
+      - name: Use Renode 1.17.0
+        run: echo /opt/renode-1.17.0 >> "$GITHUB_PATH"
+      - name: Run the kernel
+        run: renode-test emulation/renode/escapement_pico2.robot
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: renode-report-gcc14
+          path: |
+            report.html
+            log.html
+            robot_output.xml
+          retention-days: 14
 
   encoding:
     name: Tracked files are UTF-8

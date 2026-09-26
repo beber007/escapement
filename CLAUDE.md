@@ -18,7 +18,9 @@ make KERNEL=PA SLEEP_SPEED=0                  # idle task sleeps at 12 MHz (defa
 make TRACE=1                                  # scheduling trace in RAM (tools/read_trace.py)
 make KERNEL=PA bench                          # BenchDVFSPico, BenchVregPico: board timings
 tools/fourslot_cores.sh                       # FourSlotCoresPico: 4-slot buffer across cores
-tools/board_ci.sh --force                     # board checks, run by a timer on the bench
+tools/board_ci.sh --force                     # board checks, run by a timer on the bench;
+                                              # BOARD_CI_IMAGES=ci takes the CI's images
+tools/board_images.sh OUT                     # the images those checks run (the CI builds them)
 tools/timer_events.py <elf>                   # TestTimerEventPico (TRACE=1 + cost build) summed up
 tools/dvfs_bench.py <elf>                     # BenchDVFSPico: means of each change of speed
 tools/soak.sh 14d 1m                          # endurance test: SoakPico, read without stopping

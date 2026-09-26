@@ -12,7 +12,7 @@ claim confirms it.
 
 | Level | Means | Catches |
 |---|---|---|
-| Compilation | GitHub Actions on every push, with a toolchain other than the developer's | code that does not build, and anything the local compiler forgives that the one in CI does not |
+| Compilation | GitHub Actions on every push, with the developer's GCC 16.2 and, for every variant, the compiled order and the Pico 2 suite, the GCC 14.2 of the stable distributions (since 2026-09-26; 14.2 alone before) | code that does not build, and anything one compiler forgives that the other does not |
 | The scheduler alone | the kernel built for the host, with time as a variable, in CI | a kernel that does not run the algorithm it claims, the 2^30 wrap of its clock, which the board reaches only after eighteen minutes, and the parts of the kernel no example exercises: event-driven tasks, FIFO queue, slot buffers |
 | Every interleaving | small models of the slot buffers and of the FIFO queue, explored exhaustively in CI (`test/model`) | what no test that runs one path at a time can reach: an interrupt at the one instruction where it matters |
 | Replayable execution | Renode, replayed by `renode-test` in CI | a kernel that builds but does not schedule |
@@ -236,8 +236,10 @@ whole of UndefinedBehaviorSanitizer, with Clang on the Mac, and the CI now runs 
 with GCC. Every inline assembly statement that must keep its place among memory
 accesses declares it (`CLREX`, the `WFI` of the idle task, the `SEV` and `WFE` of the
 launch of core 1): the 88 images of every build came out byte for byte the same, a
-guarantee rather than a fix. The board machine runs `tools/check_order.py` on what its
-own GCC 16.2 builds, the CI's being 14.2. Strict aliasing is used: built with
+guarantee rather than a fix. The board machine ran `tools/check_order.py` on what its
+own GCC 16.2 built, the CI's being 14.2; since 2026-09-26 the CI builds with 16.2 and
+checks the order of every variant under 14.2 as well, and the bench, now an Arduino
+UNO Q with no GCC 16, runs the CI's images. Strict aliasing is used: built with
 `-fno-strict-aliasing`, all 88 images change, in functions of the kernels among others,
 which access the same memory as `TCB`, `ETCB` and the port's `MinimalTCB`. The one
 difference read, in `OSEndTask`, is a value reused instead of read again, correct either

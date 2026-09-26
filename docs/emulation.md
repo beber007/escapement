@@ -10,7 +10,9 @@ renode emulation/renode/escapement_f4.resc
 ```
 
 The jobs that build and emulate run in an image of our own, `ci/Dockerfile`,
-which holds the ARM toolchain, both versions of Renode and the RP2040 models, pinned:
+which holds two ARM toolchains — GCC 16.2 from Homebrew, which every job uses, and
+Ubuntu's 14.2, which one job builds and checks with (since its third tag, 2026-09-26) —,
+both versions of Renode and the RP2040 models, pinned:
 they install nothing, and the apt mirrors of the runners, which once took 19 minutes
 over the toolchain alone, stay out of the way. `.github/workflows/ci-image.yml` builds
 it, by hand, under a tag both workflows name.
