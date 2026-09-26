@@ -33,7 +33,7 @@
 **                 interrupt, one that is not the one after the last is an error, and
 **                 so is a byte lost to an overrun. Linux may send nothing, so the
 **                 heartbeat does not count it among the parts that must move; the
-**                 script on the Linux side does (tools/soak_unoq.py).
+**                 script on the Linux side does (tools/soak.py).
 **
 ** The long task works 500 to 1500 us of each 10 ms, then for 20 s of every minute 6 ms:
 ** the load goes from about a fifth of the processor to three quarters and back.
@@ -45,7 +45,7 @@
 ** the link expects next, from which a script started anew goes on counting.
 **
 ** Results, in words from its start, laid out as SoakPico's and SoakPico2's, which the
-** Renode suite reads; tools/soak.sh drives a Pico only for now (docs/stm32u5.md):
+** Renode suite reads; tools/soak.py reads the reports of the link (docs/stm32u5.md):
 **    0 marker   1 seconds run   2 wraps crossed   3-10 activity of the parts
 **   11-18 errors of the parts   19 worst lateness of the pulse   20 of the timer events,
 **   in us   21 bytes of the stack never used   22 0, no second core   23 load phase
@@ -59,7 +59,7 @@
 ** freezes the timers while a debugger halts the core, so that a halt to read the counts
 ** does not make the tasks late; the watchdog runs on, and a halt of more than 3 s
 ** restarts the board. The debugger reads zeros while the core sleeps: a reading halts it.
-** tools/soak_unoq.py reads the reports of the link instead.
+** tools/soak.py uno-q reads the reports of the link instead.
 ** Platform version: STM32U585 (Arduino UNO Q).
 */
 

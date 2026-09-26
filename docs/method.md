@@ -143,7 +143,7 @@ In the compiled code of the Cortex-M0+, three of the five emulated load-linked r
 value before setting the reservation, so that an interrupt in between went unseen: a
 compiler barrier now keeps the order.
 
-Two of those fixes were wrong, and the endurance test (`SoakPico`, `tools/soak.sh`)
+Two of those fixes were wrong, and the endurance test (`SoakPico`, `tools/soak.py`)
 showed it the same day, once an interrupt and phases of high load had joined it. A
 slot buffer's status, set after its slot rather than before, let a reader take the new
 slot early, the status still saying unread from the slot before, and again once the

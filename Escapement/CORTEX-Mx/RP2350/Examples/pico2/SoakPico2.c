@@ -3,7 +3,7 @@
 ** Distributed under the terms of LICENSE at the root of this repository.
 */
 /* File SoakPico2.c: Everything the kernel offers, running at once for as long as the
-** board stays on, each part checking itself: the endurance test (tools/soak.sh),
+** board stays on, each part checking itself: the endurance test (tools/soak.py),
 ** SoakPico.c with the registers of the RP2350.
 **
 **   0  Pulse      a task of period 1 ms measures how late it starts on the kernel's
@@ -30,7 +30,7 @@
 ** The long task works 500 to 1500 us of each 10 ms, then for 20 s of every minute 6 ms:
 ** the load goes from about a fifth of the processor to three quarters and back.
 **
-** Results, in words from its start, which tools/soak.sh and the Renode suites read:
+** Results, in words from its start, which tools/soak.py and the Renode suites read:
 **    0 marker   1 seconds run   2 wraps crossed   3-10 activity of the parts
 **   11-18 errors of the parts   19 worst lateness of the pulse   20 of the timer events,
 **   in us   21 bytes of core 0's stack never used   22 of core 1's   23 load phase

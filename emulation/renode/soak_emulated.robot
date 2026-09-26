@@ -2,7 +2,7 @@
 # LICENSE at the root of this repository.
 #
 # The endurance test under Renode: SoakPico on the RP2040 models, for a long run of
-# virtual time, read at every interval as tools/soak.sh reads the board. Several run side
+# virtual time, read at every interval as tools/soak.py reads the board. Several run side
 # by side, each with its own build and seed (tools/soak_emulated.sh); the seed sets the
 # time the Filler works and the delay of the timer events (SoakPico.c). Core 1 cannot be
 # launched under the models, so the part between the cores is left out, as in

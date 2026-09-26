@@ -275,7 +275,7 @@ Tasks preempt one another inside the FIFO queue and a slot buffer
     Should Be True            ${helped} > 0
 
 Every part of the endurance test runs without error
-    [Documentation]           SoakPico2, the firmware of the endurance test (tools/soak.sh),
+    [Documentation]           SoakPico2, the firmware of the endurance test (tools/soak.py),
     ...                       until its heartbeat is past two seconds: its marker set, every
     ...                       part active and none in error — the pulse on time, the queue
     ...                       in order, the buffers never torn nor repeated, the timer events

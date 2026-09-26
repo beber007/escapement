@@ -23,7 +23,7 @@ tools/board_ci.sh --force                     # board checks, run by a timer on 
 tools/board_images.sh OUT                     # the images those checks run (the CI builds them)
 tools/timer_events.py <elf>                   # TestTimerEventPico (TRACE=1 + cost build) summed up
 tools/dvfs_bench.py <elf>                     # BenchDVFSPico: means of each change of speed
-tools/soak.sh 14d 1m                          # endurance test: SoakPico, read without stopping
+tools/soak.py pico 14d 1m                     # endurance test: SoakPico, read without stopping
                                               # it, status board/soak (holds the board-ci lock)
 tools/soak_emulated.sh OUT 60 1440 hard::1 soft:KERNEL=SOFT:2   # instances under Renode
 tools/soak_emulated_status.sh OUT [SHA]       # their sum, status emulation/soak
@@ -44,8 +44,8 @@ make -C Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
 renode-test emulation/renode/escapement_u5.robot
 tools/unoq_load.sh build/SoakU5.elf           # load and start on the board, over SSH
 tools/unoq_load.sh --reset                    # back to Arduino's firmware
-tools/soak_unoq.py SoakU5.elf 60              # on the board: the U5 endurance test, read
-                                              # on LPUART1 (service escapement-soak-u5)
+tools/soak.py uno-q 0 1m SoakU5.elf           # on the UNO Q: SoakU5, read on LPUART1, until
+                                              # stopped (service escapement-soak-u5)
 
 # The scheduler on the host, every kernel and algorithm, under AddressSanitizer; the CI
 # also runs it at -O2 under the whole of UndefinedBehaviorSanitizer

@@ -46,7 +46,7 @@ the core sleeps in the idle task the debugger reads zeros, in SRAM as in the
 peripherals: a reading halts it first.
 
 The endurance test does without the debugger once it runs: `SoakU5` sends its counts to
-Linux on LPUART1 every second, and `tools/soak_unoq.py`, run on the board's Linux as a
+Linux on LPUART1 every second, and `tools/soak.py uno-q`, run on the board's Linux as a
 service, reads them there and logs them at every interval. The other way, it sends the
 MCU a count of bytes in bursts of random length at random times, interrupts that Linux
 adds at moments of its own, each byte checked against the one before; a byte lost or
@@ -78,9 +78,9 @@ undefined one; every interrupt of the chip now reaches it. The compiled order
 of the slot buffers and of the task-level stores holds (`tools/check_order.py`), and the
 static analysis finds nothing. The CI runs all of it.
 
-`tools/soak.sh`, which runs the endurance test on the Pico for weeks, does not drive the
-U5 yet: it drives a probe of its own and reads the RP2040's cause of reset, where the U5
-takes the board's OpenOCD over SSH, as `tools/unoq_load.sh` does, and RCC_CSR.
+`tools/soak.py` runs the endurance test of the Pico and of the UNO Q alike: the same
+checks, the counts read over SWD on the one and from the reports of LPUART1 on the other.
+It does not read the U5's cause of reset, which RCC_CSR holds.
 
 What that does not verify: the watchdog of the endurance test is started and reloaded,
 and did not restart the emulated board in 3.5 s, but whether Renode's model would

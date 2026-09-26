@@ -6,7 +6,7 @@
 # whether it failed, and for all of them the virtual time run; with a token, posts it as
 # the commit status "emulation/soak" of SHA.
 #
-#   tools/soak_emulated_status.sh OUT [SHA]     BOARD_CI_TOKEN, BOARD_CI_REPO as soak.sh
+#   tools/soak_emulated_status.sh OUT [SHA]     BOARD_CI_TOKEN, BOARD_CI_REPO as soak.py
 set -eu
 OUT=${1:?output directory}
 SHA=${2:-}
