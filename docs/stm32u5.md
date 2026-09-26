@@ -126,3 +126,7 @@ The port already stands clear of the others that come near it:
 | 2.22.3: LPUART transmitter jitter with a kernel clock 3 to 4 times the baud rate | 160 MHz for 115,200 baud |
 | 2.2.2, 2.2.5, 2.2.11, 2.2.19, 2.2.22: exits from and entries to Stop and Standby | the port uses neither |
 | TIM break and ocref, IWDG in Stop, USART DMA and smartcard, MPU faults | not used |
+
+The core is a Cortex-M33 r0p4 (CPUID 0x410FD214). Arm's own errata notice for it
+(SDEN-756493, v9.0) leaves only 1080541 open in that revision, the same as ES0499's 2.1.1,
+on the MPU (`architecture.md`).

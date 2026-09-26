@@ -107,6 +107,12 @@ hardware spinlocks of the SIO offered no alternative, being unreliable on that c
   layer takes it down the Cortex-M3/M4 path — the same registers to save, the same
   frame with the floating-point unit left off, `LDREX`/`STREX`/`CLREX` — under
   `CORTEX_M33`. Built without the floating-point unit (`-mcpu=cortex-m33+nofp`).
+  The errata of the core itself were read on 2026-09-26: Arm's notice (SDEN-756493,
+  v9.0, April 2018) leaves only 1080541 open in r0p4, the STM32U585's core, on the
+  MPU the port does not use; the errata of the context switch, 851802, 937163 and
+  1015127 among them, are fixed by r0p4. The RP2350's core is r1p0, which that version
+  of the notice predates and the current one, not publicly served, would cover; the
+  RP2350 datasheet lists no erratum of it.
 - **Raspberry Pi RP2350** (Pico 2) — Cortex-M33, port under
   `Escapement/CORTEX-Mx/RP2350/`, transposed from the RP2040 port on 2026-09-24: the
   clocks at 150 MHz, TIMER0 with its tick from the TICKS block, 52 interrupts, the pads
