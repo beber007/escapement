@@ -220,7 +220,13 @@ static void TestFIFO(void)
   Check("  and still holds its nodes, in order, and nothing else",
         ok && OSDequeueFIFO(queue, &size) == NULL);
 
-  /* Enough rounds for the head and tail indices to wrap around their 16-bit range. */
+  /* The indices started 50,000 below the value they wrap at, the queue being empty, so
+  ** that the rounds take them across it: 2^32 operations would take too long. The first
+  ** fields of the queue's descriptor, as the kernels lay them out (FIFOQUEUE). */
+  {
+     struct { void *Q, *PendingOp; UINT32 Head, Tail, MaxIndex; } *fifo = queue;
+     fifo->Head = fifo->Tail = fifo->MaxIndex - 50000;
+  }
   ok = 1;
   for (round = 0; round < 40000; round += 1) {
      n = 1 + round % NODES;
@@ -643,6 +649,60 @@ static void Timeout(int signal)
   _exit(1);
 }
 
+/* TestFIFOIndexWrap: A dequeue preempted at each of its LLs in turn, while the operations
+** that preempt it complete it, then run enqueue and dequeue in pairs until Head has gone
+** round the 16 bits indices once had: an operation resumed after that many took Head for
+** the value it had read and moved it again, one place past Tail, and the queue lost what
+** was enqueued next. Indices of 32 bits come round only after 2^32 operations. */
+#define WRAP_PAIRS 65531          /* for 4 nodes, 16 bits: GetFIFOArrayMaxIndex(4) - 1 */
+static void *WrapQueue;
+static unsigned WrapAt, WrapCount;
+
+static BOOL RoundTheIndices(void)
+{
+  unsigned i;
+  UINT16 size;
+  if (++WrapCount != WrapAt)
+     return FALSE;
+  HostLLHook = NULL;
+  for (i = 0; i < WRAP_PAIRS; i += 1) {
+     void *node = OSGetFreeNodeFIFO(WrapQueue);
+     OSEnqueueFIFO(WrapQueue, node, 7);
+     OSReleaseNodeFIFO(WrapQueue, OSDequeueFIFO(WrapQueue, &size));
+  }
+  return TRUE;
+}
+
+static void TestFIFOIndexWrap(void)
+{
+  unsigned at, reached, cases = 0, bad = 0;
+  char label[96];
+  printf("\nFIFO queue, a dequeue preempted while its indices go round\n\n");
+  for (at = 1, reached = 1; reached; at += 1) {
+     UINT16 size = 0;
+     void *first, *got, *next;
+     WrapQueue = OSInitFIFOQueue(NODES, NODE_SIZE);
+     first = OSGetFreeNodeFIFO(WrapQueue);
+     OSEnqueueFIFO(WrapQueue, first, 1);
+     WrapAt = at; WrapCount = 0;
+     HostLLHook = RoundTheIndices;
+     got = OSDequeueFIFO(WrapQueue, &size);
+     HostLLHook = NULL;
+     if (!(reached = WrapCount >= at))
+        break;
+     cases += 1;
+     OSReleaseNodeFIFO(WrapQueue, got);
+     next = OSGetFreeNodeFIFO(WrapQueue);
+     OSEnqueueFIFO(WrapQueue, next, 2);
+     if (got != first || OSDequeueFIFO(WrapQueue, &size) != next || size != 2 ||
+         OSDequeueFIFO(WrapQueue, &size) != NULL)
+        bad += 1;
+  }
+  snprintf(label, sizeof label, "  the queue keeps what it is given, preempted at each of %u LLs",
+           cases);
+  Check(label, bad == 0 && cases > 0);
+}
+
 int main(void)
 {
   setvbuf(stdout, NULL, _IOLBF, 0);   /* keep what was printed if the kernel crashes */
@@ -651,6 +711,7 @@ int main(void)
   TestFIFO();
   TestFIFOPreempted();
   TestFIFONested();
+  TestFIFOIndexWrap();
   TestCoreQueue();
   TestCoreQueueInterleaved();
   TestBuffer(OS_BUFFER_TYPE_3_SLOT, "3-slot");

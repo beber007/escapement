@@ -950,30 +950,30 @@ void OptionalReadyQueueInsert(TCB *newNode)
 typedef struct FIFOQUEUE {
   UINTPTR *Q;              // Array of queued items
   void *PendingOp;         // Posted operation for the queue (dequeue or enqueue op.)
-  UINT16 Head, Tail;       // Current head and tail indices
-  UINT16 MaxIndex;         // Value of Head or Tail at wrap-around
+  UINT32 Head, Tail;       // Current head and tail indices
+  UINT32 MaxIndex;         // Value of Head or Tail at wrap-around
   UINT8 QueueLength;       // Circular array queue size
 } FIFOQUEUE;
 
 typedef struct DEQUEUE_DESCRIPTOR {
   UINTPTR SlotPropose, SlotReturn;
-  UINT16 HeadPropose, Head;
+  UINT32 HeadPropose, Head;
   volatile BOOL Done;
 } DEQUEUE_DESCRIPTOR;
 
 typedef struct ENQUEUE_DESCRIPTOR {
   UINTPTR SlotPropose, SlotReturn;
   UINTPTR Item;
-  UINT16 TailPropose, Tail;
+  UINT32 TailPropose, Tail;
   volatile BOOL Done;
 } ENQUEUE_DESCRIPTOR;
 
-static UINT16 GetFIFOArrayMaxIndex(UINT16 queueSize);
+static UINT32 GetFIFOArrayMaxIndex(UINT16 queueSize);
 static UINTPTR FIFODequeue(FIFOQUEUE *queue, UINTPTR signal);
 static void FIFODequeueHelper(FIFOQUEUE *queue, UINTPTR signal, DEQUEUE_DESCRIPTOR *des);
 static BOOL FIFOEnqueue(FIFOQUEUE *queue, UINTPTR signal, UINTPTR item);
 static void FIFOEnqueueHelper(FIFOQUEUE *queue, ENQUEUE_DESCRIPTOR *des);
-static void IncrementFifoQueueIndex(UINT16 *index, UINT16 oldValue, UINT16 moduloBase);
+static void IncrementFifoQueueIndex(UINT32 *index, UINT32 oldValue, UINT32 moduloBase);
 
 
 /* The FIFO queue of suspended tasks associated with an event may also contain a special
@@ -1348,12 +1348,16 @@ BOOL OSStartMultitasking(void (*f)(void *), void *arg)
 
 
 /* GetFIFOArrayMaxIndex: Returns the value at which Head and Tail wrap around: the smallest
-** multiple of the array size S not below 0xFFFF - S. Being a multiple of S keeps index % S
-** continuous across the wrap, and 0xFFFF itself is never reached: it marks an index not
-** yet read in the operation descriptors (FIFODequeue, FIFOEnqueue). */
-UINT16 GetFIFOArrayMaxIndex(UINT16 queueSize)
+** multiple of the array size S not below 0xFFFFFFFF - S. Being a multiple of S keeps
+** index % S continuous across the wrap, and 0xFFFFFFFF itself is never reached: it marks
+** an index not yet read in the operation descriptors (FIFODequeue, FIFOEnqueue). The
+** indices have 32 bits: an operation completed by the one preempting it may still move
+** an index it read before, if that index has come back to the same value meanwhile.
+** With 16 bits, 65,000 operations during one preemption brought it back, and the queue
+** lost an item (test/host, test_ipc, 2026-09-25); with 32, it takes 2^32. */
+UINT32 GetFIFOArrayMaxIndex(UINT16 queueSize)
 {
-  UINT16 tmp, maxIndex = 0xFFFF - queueSize;
+  UINT32 tmp, maxIndex = 0xFFFFFFFFu - queueSize;
   if ((tmp = maxIndex % queueSize) != 0)
      maxIndex += queueSize - tmp;
   return maxIndex;
@@ -1375,7 +1379,7 @@ UINTPTR FIFODequeue(FIFOQUEUE *queue, UINTPTR signal)
   if (queue == NULL || queue->Q == NULL) // Test if fifo is initialized
      return NULL;
   /* Initialize the fields of the descriptor to uninitialized markers. */
-  des.HeadPropose = des.Head = 0xFFFF;
+  des.HeadPropose = des.Head = 0xFFFFFFFFu;
   /* The descriptor points to itself: cppcheck takes the address of a structure whose
   ** other fields are set on the lines around for a read of them. */
   // cppcheck-suppress uninitvar
@@ -1418,9 +1422,9 @@ void FIFODequeueHelper(FIFOQUEUE *queue, UINTPTR signal, DEQUEUE_DESCRIPTOR *des
 {
   UINT16 h;
   UINTPTR slot;
-  if (des->HeadPropose == 0xFFFF)
+  if (des->HeadPropose == 0xFFFFFFFFu)
      des->HeadPropose = queue->Head;
-  if (des->Head == 0xFFFF)
+  if (des->Head == 0xFFFFFFFFu)
      des->Head = des->HeadPropose;
   h = des->Head % queue->QueueLength;
   if (des->SlotPropose == (UINTPTR)des)
@@ -1477,7 +1481,7 @@ BOOL FIFOEnqueue(FIFOQUEUE *queue, UINTPTR signal, UINTPTR item)
   ENQUEUE_DESCRIPTOR des;
   void *op;
   /* Initialize all fields with uninitialized markers and insert the item to enqueue. */
-  des.TailPropose = des.Tail = 0xFFFF;
+  des.TailPropose = des.Tail = 0xFFFFFFFFu;
   /* The descriptor points to itself: cppcheck takes the address of a structure whose
   ** other fields are set on the lines around for a read of them. */
   // cppcheck-suppress uninitvar
@@ -1511,9 +1515,9 @@ void FIFOEnqueueHelper(FIFOQUEUE *queue, ENQUEUE_DESCRIPTOR *des)
 {
   UINT16 t;
   UINTPTR slot;
-  if (des->TailPropose == 0xFFFF)
+  if (des->TailPropose == 0xFFFFFFFFu)
      des->TailPropose = queue->Tail;
-  if (des->Tail == 0xFFFF)
+  if (des->Tail == 0xFFFFFFFFu)
      des->Tail = des->TailPropose;
   t = des->Tail % queue->QueueLength;
   if (des->SlotPropose == (UINTPTR)des)
@@ -1554,16 +1558,16 @@ void FIFOEnqueueHelper(FIFOQUEUE *queue, ENQUEUE_DESCRIPTOR *des)
 /* IncrementFifoQueueIndex: Increments an index (Head or Tail) of a circular array-based
 ** FIFO queue.
 ** Parameters:
-**   (1) (UINT16 *) address of the index to increment;
-**   (2) (UINT16) current value of the index;
-**   (3) (UINT16) value whereby the index wraps-around. */
-void IncrementFifoQueueIndex(UINT16 *index, UINT16 oldValue, UINT16 moduloBase)
+**   (1) (UINT32 *) address of the index to increment;
+**   (2) (UINT32) current value of the index;
+**   (3) (UINT32) value whereby the index wraps-around. */
+void IncrementFifoQueueIndex(UINT32 *index, UINT32 oldValue, UINT32 moduloBase)
 {
-  UINT16 tmp = oldValue + 1;
+  UINT32 tmp = oldValue + 1;
   if (tmp == moduloBase)
      tmp = 0;
-  while (OSUINT16_LL(index) == oldValue)
-     if (OSUINT16_SC(index,tmp))
+  while (OSUINT32_LL(index) == oldValue)
+     if (OSUINT32_SC(index,tmp))
         break;
 } /* end of IncrementFifoQueueIndex */
 
@@ -1584,8 +1588,8 @@ typedef struct NODE {      // User nodes stored into the FIFO queue
 typedef struct BUFFER_DESCRIPTOR_FIFO {
   NODE **Q;                // Array of queued items
   void *PendingOp;         // Posted operation for the queue (dequeue or enqueue op.)
-  UINT16 Head, Tail;       // Current head and tail indices
-  UINT16 MaxIndex;         // Value of Head or Tail at wrap-around
+  UINT32 Head, Tail;       // Current head and tail indices
+  UINT32 MaxIndex;         // Value of Head or Tail at wrap-around
   UINT8 QueueLength;       // Circular array queue size
   FIFOQUEUE *FreeList;     // List of free blocks
 } BUFFER_DESCRIPTOR_FIFO;

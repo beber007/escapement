@@ -156,9 +156,9 @@ priority that signaled it, it had the context of that task discarded, and the so
 kernel hung under Renode, the host test segfaulted under deadline-monotonic
 scheduling. Interrupts are now masked from the enqueue of the suspending task to its
 leaving the ready queue, and the handler never sees such a task. Both have a host test
-that fails on the code before (`test/host/README.md`). **Left open** are races the host cannot reach and
-limits of the design: indices of the wait-free queue that come back to the same value after 65,000 operations
-during one preemption. Six points once on that list are closed (2026-09-25). The counter
+that fails on the code before (`test/host/README.md`). The races the audit left open,
+and the limits of the design it listed, seven of them, are closed (2026-09-25 and 26),
+each reached on the host but strict aliasing, which is turned off. The counter
 wrapping while the timer handler runs, once it has found no overflow, is reached on the
 host by a hook in that window (`wrapinside`): the handler, reading a time from after the
 wrap with its arrivals not yet shifted, releases nothing, and serves them once it finds
@@ -186,7 +186,14 @@ WCET brings it, or work the test leaves out. Under EDF the test left out the eve
 driven tasks when no share of the processor was declared for them, although each
 declared its WCET and workload: an optional instance started, an event delayed it, and
 the kernel stopped on that guard at its next arrival (`firmeventwait`). It now reserves
-at least the share each event-driven task takes, its WCET over its workload. And strict aliasing, which
+at least the share each event-driven task takes, its WCET over its workload. And the
+indices of the wait-free queue had 16 bits: an operation completed by the one
+preempting it could still move an index it had read, once 65,000 operations during
+that preemption had brought the index back to the same value, and the queue lost an
+item. The host reaches it by running those operations inside an LL of a dequeue
+(`test_ipc`); with 32 bits, as the queue between the cores already had, it takes 2^32
+(2026-09-26). The FIFO example, whose preemptions no longer fell inside the queue's
+operations under Renode once the code had lengthened, now varies the length of its loop. And strict aliasing, which
 GCC does exploit here, is turned off (below).
 
 The execution tests exercise three or four tasks, the host test ten. Nothing here

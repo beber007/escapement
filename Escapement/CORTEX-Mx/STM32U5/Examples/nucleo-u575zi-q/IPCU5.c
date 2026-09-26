@@ -104,6 +104,7 @@ static void FillerTask(void *argument)
 {
   static SLOT written = {0, ~0u};
   INT32 start = _OSGetActualTime();
+  UINT32 spin;
   (void)argument;
   while (_OSGetActualTime() - start < FILL_TIME) {
      if (!Put(0))
@@ -113,6 +114,12 @@ static void FillerTask(void *argument)
      written.Complement = ~written.Counter;
      OSWriteBuffer(Slots,(UINT8 *)&written,sizeof written);
      Results.Registers += CheckHighRegisters(written.Counter);
+     /* A pause of varying length, so that the Poker's arrivals fall anywhere in the loop:
+     ** in a loop of fixed length they fall at the same few points, and a change to the
+     ** kernel's queue that lengthened it left none inside a queue operation under Renode,
+     ** where time is exact (2026-09-26). */
+     for (spin = written.Counter * 2654435761u >> 23; spin > 0; spin -= 1)
+        __asm volatile ("");
   }
   OSEndTask();
 } /* end of FillerTask */
