@@ -46,6 +46,7 @@
 #define TIM_CCR1             *((volatile UINT32 *)(TIM2_BASE + 0x34))
 
 #define TIM_CR1_CEN          (1u << 0)
+#define TIM_CR1_URS          (1u << 2)
 #define UPDATE_INT_BIT       (1u << 0)   /* UIF, UIE, UG */
 #define COMPARATOR_INT_BIT   (1u << 1)   /* CC1IF, CC1IE, CC1G */
 
@@ -110,11 +111,16 @@ void _OSInitializeTimer(void)
 {
   RCC_APB1ENR1 |= RCC_APB1ENR1_TIM2EN;
   (void)RCC_APB1ENR1;                    // the clock runs before the timer is written
-  TIM_CR1 = 0;
+  /* The update event that loads the prescaler must not raise UIF: the timer sets it a
+  ** few of its cycles after the write, past a clear that follows it at once, and the
+  ** overflow it stood for then reached the kernel before the timer had started, which
+  ** stopped on its overload check (the UNO Q, 2026-09-26; Renode sets it at once). With
+  ** URS only a wrap of the counter raises it (RM0456, TIMx_CR1 and TIMx_SR). */
+  TIM_CR1 = TIM_CR1_URS;
   TIM_ARR = 0x3FFFFFFF;                  // wraps at 2^30
   TIM_PSC = TIMER_PRESCALER;
   TIM_EGR = UPDATE_INT_BIT;              // load the prescaler
-  TIM_SR = 0;                            // clear what the update event left
+  TIM_SR = 0;
   TIM_DIER = UPDATE_INT_BIT | COMPARATOR_INT_BIT;
   /* Priority in the 4 most significant bits of the byte of the interrupt. */
   NVIC_IPR[OS_IO_TIM2] = (UINT8)(TIMER_PRIORITY << 4);
