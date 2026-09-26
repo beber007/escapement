@@ -16,7 +16,7 @@ into the repository.
 
 | Part | File | What it does |
 |---|---|---|
-| Clocks | `Escapement_Processor.c` | the MSIS of reset, 4 MHz, to 160 MHz through PLL1: voltage range 1 with the EPOD booster, 4 wait states on the flash, a first step through an AHB prescaler of 2, the instruction cache on |
+| Clocks | `Escapement_Processor.c` | the MSIS of reset, 4 MHz, locked on the LSE, to 160 MHz through PLL1: voltage range 1 with the EPOD booster, 4 wait states on the flash, a first step through an AHB prescaler of 2, the instruction cache on |
 | Kernel timer | `Escapement_Timer.c` | TIM2, 32 bits, counting microseconds and wrapping at 2^30, its compare channel 1 on the next arrival: the 32-bit path of the STM32 port |
 | Timer events | `Escapement_TimerEvent.c` | TIM5, 32 bits, free, its compare channel 1 on the next event: the logic of the RP2350 port, an event already due forced through CC1G |
 | UART | `Escapement_UART.c` | USART1 on PB6 and PB7, D1 and D0 of the connector, and LPUART1 on PG7 and PG8, to the board's Linux (`/dev/ttyHS1`), 115200 baud: the driver of the RP2350 port, with no priming, the transmit interrupt of these UARTs reflecting a state; the bytes lost to an overrun are counted |
@@ -87,7 +87,13 @@ and did not restart the emulated board in 3.5 s, but whether Renode's model woul
 restart it at the end of 3 s without reload was not checked. And the platform
 acknowledges every clock request without
 checking it, so that a wrong divider or a missing wait would pass; only the board can
-say that the clock set-up is right, which it has done for the steps above, not for the
-accuracy of the result. The MSIS runs free, within about 1 % of its frequency; locked on
-the 32.768 kHz crystal of the board (MSIPLLEN), as Arduino's firmware has it, it would be
-far closer, which timings measured on the board will want (`roadmap.md`).
+say that the clock set-up is right, which it has done for the steps above.
+
+The accuracy of the clock was measured against Linux's own, kept by NTP, from the seconds
+`SoakU5` reports and the times `tools/soak.py` receives them. With the MSIS running free,
+the kernel counted 0.48 % too many seconds: +4,800 ppm over 2,564 s on 2026-09-26, and
++4,300 to +4,800 ppm over four shorter runs that day. Locked since on the 32.768 kHz
+crystal of the board (MSIPLLEN), as Arduino's firmware has it, it counted 1,140 s in
+1,140 s the same day, every part of the test without error: within 1 s, about 900 ppm,
+which is all whole seconds over 19 minutes can tell. The long endurance run will say
+closer.

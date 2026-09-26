@@ -14,9 +14,13 @@
 ** library takes above 80 MHz to soften the jump in current. The instruction cache hides
 ** the wait states.
 **
-** The MSIS runs free here, within about 1 % of its frequency; locked on the 32.768 kHz
-** crystal of the board (MSIPLLEN) it would be far closer, which the board's timings will
-** want and which has yet to be measured.
+** Left to run free, the MSIS is only within about 1 % of its frequency: on the UNO Q the
+** kernel's second was 0.48 % too short against Linux's clock, kept by NTP
+** (2026-09-26). It is therefore locked on the 32.768 kHz crystal of the board, the LSE
+** (MSIPLLEN, MSI PLL mode), as Arduino's Zephyr does (msi-pll-mode in the board's device
+** tree; the sequence of its clock_stm32_ll_u5.c). The LSE lives in the backup domain,
+** which a reset leaves running: Arduino's firmware has most often started it already.
+** Otherwise a crystal takes some time to start; should it not start, the MSIS runs free.
 **
 ** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
@@ -30,6 +34,16 @@
 #define RCC_PLL1CFGR         *((volatile UINT32 *)(RCC_BASE + 0x28))
 #define RCC_PLL1DIVR         *((volatile UINT32 *)(RCC_BASE + 0x34))
 #define RCC_AHB3ENR          *((volatile UINT32 *)(RCC_BASE + 0x94))
+#define RCC_BDCR             *((volatile UINT32 *)(RCC_BASE + 0xF0))
+
+#define RCC_CR_MSIPLLEN      (1u << 3)
+#define RCC_CR_MSIPLLSEL     (1u << 6)    /* the PLL mode applies to the MSIS, not the MSIK */
+#define RCC_BDCR_LSEON       (1u << 0)
+#define RCC_BDCR_LSERDY      (1u << 1)
+#define RCC_BDCR_LSEDRV_MASK (3u << 3)
+#define RCC_BDCR_LSEDRV_MEDHIGH (2u << 3) /* the drive Zephyr gives the board's crystal */
+#define RCC_BDCR_LSESYSEN    (1u << 7)
+#define RCC_BDCR_LSESYSRDY   (1u << 11)
 
 #define RCC_CR_PLL1ON        (1u << 24)
 #define RCC_CR_PLL1RDY       (1u << 25)
@@ -60,6 +74,11 @@
 #define PWR_VOSR_BOOSTEN     (1u << 18)
 #define PWR_VOSR_VOSRDY      (1u << 15)
 #define PWR_VOSR_BOOSTRDY    (1u << 14)
+#define PWR_DBPR             *((volatile UINT32 *)(PWR_BASE + 0x28))
+#define PWR_DBPR_DBP         (1u << 0)
+
+/* Some seconds at 4 MHz, a few cycles a turn, for the LSE to start. */
+#define LSE_START_TURNS      2000000u
 
 #define FLASH_ACR            *((volatile UINT32 *)(0x40022000 + 0x00))
 #define FLASH_ACR_LATENCY_MASK 0xFu
@@ -68,6 +87,31 @@
 
 #define ICACHE_CR            *((volatile UINT32 *)(0x40030400 + 0x00))
 #define ICACHE_CR_EN         (1u << 0)
+
+
+/* LockMSIS: the LSE started if it is not, then the MSIS locked on it. Returns with the
+** MSIS left as it was if the LSE does not start. */
+static void LockMSIS(void)
+{
+  UINT32 turns;
+  PWR_DBPR |= PWR_DBPR_DBP;                 // the backup domain, RCC_BDCR, may be written
+  while ((PWR_DBPR & PWR_DBPR_DBP) == 0);
+  if ((RCC_BDCR & RCC_BDCR_LSERDY) == 0) {
+     /* The drive before the oscillator starts, as Zephyr sets it. */
+     RCC_BDCR = (RCC_BDCR & ~RCC_BDCR_LSEDRV_MASK) | RCC_BDCR_LSEDRV_MEDHIGH;
+     RCC_BDCR |= RCC_BDCR_LSEON;
+  }
+  for (turns = 0; (RCC_BDCR & RCC_BDCR_LSERDY) == 0 && turns < LSE_START_TURNS; turns += 1);
+  if ((RCC_BDCR & RCC_BDCR_LSERDY) != 0) {
+     /* The LSE to the clocks beyond the RTC, the MSI among them. */
+     RCC_BDCR |= RCC_BDCR_LSESYSEN;
+     while ((RCC_BDCR & RCC_BDCR_LSESYSRDY) == 0);
+     /* MSIPLLSEL is written while MSIPLLEN is 0, as a reset leaves it. */
+     RCC_CR |= RCC_CR_MSIPLLSEL;
+     RCC_CR |= RCC_CR_MSIPLLEN;
+  }
+  PWR_DBPR &= ~PWR_DBPR_DBP;
+} /* end of LockMSIS */
 
 
 void OSInitializeSystemClocks(void)
@@ -80,6 +124,8 @@ void OSInitializeSystemClocks(void)
   *((volatile UINT32 *)0xE000ED08) = (UINT32)CortexMxVectorTable;   // SCB->VTOR
   RCC_AHB3ENR |= RCC_AHB3ENR_PWREN;
   (void)RCC_AHB3ENR;                       // the enable takes effect before PWR is written
+  /* The MSIS locked before PLL1 multiplies it. */
+  LockMSIS();
   /* The input of PLL1, which is also the booster's clock, before the booster. */
   RCC_PLL1CFGR = (RCC_PLL1CFGR & ~PLL1CFGR_FIELDS) |
                  PLL1SRC_MSIS | PLL1RGE_4_8MHZ | PLL1M(1) | PLL1MBOOST_DIV1 | PLL1REN;

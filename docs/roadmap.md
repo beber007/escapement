@@ -52,9 +52,9 @@ The **STM32L4** is set aside.
    power manager differ from the RP2040's, and the driver is to be written from the
    pico-sdk headers.
 5. **The STM32U5 on the board.** On the Arduino UNO Q since 2026-09-26, from SRAM: the
-   clock set-up runs, and 22 s of the endurance test passed. Left: the MSIS locked on the
-   32.768 kHz crystal for timings worth measuring, the board checks of the Pico brought
-   over, run by the UNO Q's own Linux, and a long endurance run. The older STM32 ports
+   clock set-up runs, and 22 s of the endurance test passed; the MSIS is locked on the
+   32.768 kHz crystal since 2026-09-26 (`stm32u5.md`). Left: the board checks of the Pico
+   brought over, run by the UNO Q's own Linux, and a long endurance run. The older STM32 ports
    then go.
 
 ## Done

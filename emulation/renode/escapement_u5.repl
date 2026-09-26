@@ -13,7 +13,7 @@
 //
 // Those blocks keep what is written and read the bits the code waits for as set: the
 // voltage range and the booster ready, PLL1 locked, the switch of the system clock
-// acknowledged. So this platform checks that the code runs and schedules, not that it
+// acknowledged, the LSE started. So this platform checks that the code runs and schedules, not that it
 // programs the clocks right: a wrong divider or a missing wait would pass here, and only
 // the board tells. The timers count at 160 MHz before their prescaler, the rate
 // OSInitializeSystemClocks sets.
@@ -87,7 +87,8 @@ flag2: Miscellaneous.LED @ gpioPortH 15
 flag3: Miscellaneous.LED @ gpioPortB 13
 probe: Miscellaneous.LED @ gpioPortB 14
 
-// RCC: MSIS and PLL1 ready in CR, and SWS in CFGR1 the SW just written.
+// RCC: MSIS and PLL1 ready in CR, SWS in CFGR1 the SW just written, and the LSE and its
+// propagation ready in BDCR.
 rcc: Python.PythonPeripheral @ sysbus 0x46020C00
     size: 0x400
     initable: true
@@ -101,6 +102,8 @@ elif request.IsRead:
         v |= (1 << 2) | (1 << 25)
     elif r == 0x1C:
         v = (v & ~0xC) | ((v & 3) << 2)
+    elif r == 0xF0:
+        v |= (1 << 1) | (1 << 11)
     request.Value = v
 else:
     regs[request.Offset] = request.Value & 0xFFFFFFFF
