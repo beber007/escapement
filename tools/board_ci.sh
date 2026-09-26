@@ -250,10 +250,12 @@ failed=""
 } >"$LOG" 2>&1
 
 echo "$SHA" >"$DIR/last"
-if [ -z "$failed" ]; then
-    status success "compiled order, 4-slot across cores, round cost, timer events, DVFS"
-else
+if [ -n "$failed" ]; then
     status failure "failed:$failed"
+elif [ "$IMAGES" = ci ]; then
+    status success "4-slot across cores, round cost, timer events, DVFS, on the CI's images"
+else
+    status success "compiled order, 4-slot across cores, round cost, timer events, DVFS"
 fi
 cat "$LOG"
 [ -z "$failed" ]
