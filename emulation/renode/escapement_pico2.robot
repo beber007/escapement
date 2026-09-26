@@ -309,15 +309,17 @@ Every part of the endurance test runs without error
     END
 
 The queue of Evéquoz crosses between the two cores
-    [Documentation]           FIFOCoresPico2 passes records from core 1 to a task on core 0
-    ...                       through the queue between the cores (Escapement_CoreQueue.c),
-    ...                       their nodes going back through a second one, with the exclusive
-    ...                       monitor of the RP2350 played. Every record must arrive once, in
-    ...                       order and whole. Renode runs each core for a slice of 1 us here,
-    ...                       and some SCs of each core must have failed through the other's
-    ...                       stores: at its usual slice the two cores never overlap in the
-    ...                       queue. Each queue has one producer and one consumer; the races
-    ...                       of two of either are the model's (test/model/fifo_mp.py).
+    [Documentation]           FIFOCoresPico2 runs the queue between the cores
+    ...                       (Escapement_CoreQueue.c) with each core a producer and a
+    ...                       consumer of the same two queues, as its model has them
+    ...                       (test/model/fifo_mp.py), with the exclusive monitor of the
+    ...                       RP2350 played. Each producer writes 500 records; once they are
+    ...                       all taken, the two consumers must have taken each record of
+    ...                       each producer once, whole, and in its producer's order, and
+    ...                       each consumer records of both producers. Renode runs each core
+    ...                       for a slice of 1 us here, and some SCs of each core must have
+    ...                       failed through the other's stores: at its usual slice the two
+    ...                       cores never overlap in the queue.
     [Timeout]                 3 minutes
     Load Escapement           FIFOCoresPico2
     Play The Exclusive Monitor Of The RP2350
@@ -327,14 +329,36 @@ The queue of Evéquoz crosses between the two cores
 
     ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
     ${results}=               Convert To Integer  ${results.strip()}
-    ${written}=               Read Word  ${results}
-    ${taken}=                 Read Word  ${results + 4}
-    ${torn}=                  Read Word  ${results + 8}
-    ${out_of_order}=          Read Word  ${results + 12}
+    FOR  ${producer}  IN RANGE  2
+        ${address}=           Evaluate  ${results} + 4 * ${producer}
+        ${written}=           Read Word  ${address}
+        Should Be Equal As Integers  ${written}  500
+        ${taken}=             Set Variable  ${0}
+        ${sum}=               Set Variable  ${0}
+        ${squares}=           Set Variable  ${0}
+        FOR  ${consumer}  IN RANGE  2
+            ${base}=          Evaluate  ${results} + 8 + 32 * ${consumer}
+            ${at}=            Evaluate  ${base} + 4 * ${producer}
+            ${t}=             Read Word  ${at}
+            ${s}=             Read Word  ${at + 8}
+            ${q}=             Read Word  ${at + 16}
+            Should Be True    ${t} > 0
+            ${taken}=         Evaluate  ${taken} + ${t}
+            ${sum}=           Evaluate  ${sum} + ${s}
+            ${squares}=       Evaluate  ${squares} + ${q}
+        END
+        Log To Console        producer ${producer}: ${written} written, ${taken} taken
+        Should Be Equal As Integers  ${taken}  500
+        Should Be Equal As Integers  ${sum}  125250
+        Should Be Equal As Integers  ${squares}  41791750
+    END
+    FOR  ${consumer}  IN RANGE  2
+        ${base}=              Evaluate  ${results} + 8 + 32 * ${consumer}
+        ${torn}=              Read Word  ${base + 24}
+        ${out_of_order}=      Read Word  ${base + 28}
+        Should Be Equal As Integers  ${torn}  0
+        Should Be Equal As Integers  ${out_of_order}  0
+    END
     ${cleared0}=              Monitor Count  cleared.write0
     ${cleared1}=              Monitor Count  cleared.write1
-    Should Be True            ${taken} > 1000
-    Should Be True            ${written} - ${taken} <= 32
-    Should Be Equal As Integers  ${torn}  0
-    Should Be Equal As Integers  ${out_of_order}  0
     Should Be True            ${cleared0} > 0 and ${cleared1} > 0

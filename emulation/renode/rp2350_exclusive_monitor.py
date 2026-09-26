@@ -20,6 +20,11 @@
 # a granule installs write hooks on it that call write(). The state is kept in the
 # AppDomain, which the hooks of both cores share.
 #
+# The hooks of the two cores can run at the same time: with a slice of 1 us, two SCs on
+# one granule both found their reservation and both wrote, and FIFOCoresPico2, each core
+# enqueuing and dequeuing, took a node twice (2026-09-26); its model says the queue does
+# not. ll() and sc() therefore run under one lock, as the global monitor serialises them.
+#
 # Two settings, for the checks that must fail: MONITOR = "local" lets the other core's
 # writes leave the reservation, as monitors local to each core do without EXTEXCLALL; and
 # SPURIOUS = n makes every n-th SC of core 1 fail for no reason, as an interrupt between
@@ -45,6 +50,7 @@ def count(key):
 
 
 def setup(monitor="global", spurious=0):
+    put("lock", System.Object())
     put("monitor", monitor)
     put("every", spurious)
 
@@ -64,6 +70,18 @@ def ret(cpu, value):
     cpu.PC = cpu.LR
 
 
+def locked(f):
+    def run(*args):
+        lock = get("lock")
+        System.Threading.Monitor.Enter(lock)
+        try:
+            return f(*args)
+        finally:
+            System.Threading.Monitor.Exit(lock)
+    return run
+
+
+@locked
 def ll(cpu, size=1):
     """OSUINT8_LL (size 1) or OSUINT32_LL (size 4)."""
     k, address = core(cpu), register(cpu, 0)
@@ -74,6 +92,7 @@ def ll(cpu, size=1):
     ret(cpu, cpu.Bus.ReadByte(address) if size == 1 else cpu.Bus.ReadDoubleWord(address))
 
 
+@locked
 def sc(cpu, size=1):
     """OSUINT8_SC (size 1) or OSUINT32_SC (size 4)."""
     k, address = core(cpu), register(cpu, 0)

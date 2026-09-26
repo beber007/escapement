@@ -226,15 +226,22 @@ core fell inside a reservation. Renode runs each core for a slice of time and se
 switches inside those few instructions; the model (`test/model/threeslot.py`) covers
 every interleaving, and the board will be the third witness.
 
-The queue between the cores (`Escapement_CoreQueue.c`) runs the same way:
-`FIFOCoresPico2` passes records from core 1 to a task on core 0 through one such queue
-and gives their nodes back through another. At Renode's usual slice the two cores never
-overlap in a queue — core 0 takes its records in a burst, core 1 refills the nodes in
-its own turn — and the monitor clears no reservation. With a slice of 1 us they do: on
-2026-09-25, over 50 ms, 1,600 records taken in order, none torn, and 366 SCs failed
-because the other core had written in the granule. `The queue of Evéquoz crosses between
-the two cores` sets that slice and asks for such failures on both cores. Each queue has
-one producer and one consumer there; two of either are the model's (`fifo_mp.py`).
+The queue between the cores (`Escapement_CoreQueue.c`) runs the same way. In
+`FIFOCoresPico2` each core is a producer and a consumer of the same two queues, as the
+model has them (`fifo_mp.py`): each writes records into free nodes and appends them to
+one queue, and takes records from it, whoever wrote them, giving their nodes back
+through the other. At Renode's usual slice the two cores never overlap in a queue and
+the monitor clears no reservation; `The queue of Evéquoz crosses between the two cores`
+sets a slice of 1 us, at which they do, and asks for SCs failed through the other core's
+stores on both. On 2026-09-25, with one producer and one consumer per queue, 1,600
+records came through in 50 ms, in order, none torn, 366 SCs failed so.
+
+Two of each, on 2026-09-26, first took some records twice: 1,004 taken of 1,000 written,
+at that slice only. The played monitor was at fault, not the queue: the hooks of the two
+cores can run at once, and two SCs on one granule both found their reservation and both
+wrote. Under a lock, as the chip's global monitor serialises them, each of the 500
+records of each producer is taken once, whole, in its producer's order, under the four
+builds; the counts and the sums of the counters and of their squares say so.
 
 On one core, `IPCPico2` and `IPCPico` make tasks preempt one another inside the FIFO
 queue and a 3-slot buffer: a task of period 5 ms fills the queue and writes the buffer

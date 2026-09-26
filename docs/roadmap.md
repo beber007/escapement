@@ -47,8 +47,9 @@ The **STM32L4** is set aside.
 3. **What is left to verify between the cores.** The queue between the cores
    (`Escapement_CoreQueue.c`) puts a DMB between any two of its accesses to different
    words, which lets its model take each core's accesses in program order; a model of
-   weakly ordered cores, as the slot buffers have, would keep only those it needs. Its
-   demo has one producer and one consumer per queue, where the model has two of each.
+   weakly ordered cores, as the slot buffers have, would keep only those it needs.
+   `FIFOCoresPico2` makes each core a producer and a consumer of the same queues since
+   2026-09-26, as the model does.
 4. **DVFS on the RP2350**, if the verdict of item 1 is for it: its regulator and its
    power manager differ from the RP2040's, and the driver is to be written from the
    pico-sdk headers.
