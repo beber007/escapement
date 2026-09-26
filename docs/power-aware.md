@@ -169,8 +169,27 @@ sleeping.
 | **RP2350** | The sequel to the RP2040 on a board as cheap, the Pico 2, and the way to take what is learnt on it further: the same PLL scheme, so the clock half of the DVFS driver should largely carry over, and 150 MHz. Its core regulator is a **switching** one, to be driven anew, which removes the caveat of the linear regulator of the RP2040 above. Its Cortex-M33 is ARMv8-M, which the generic layer now covers (2026-09-24), and the port exists, without the DVFS driver yet (`architecture.md`). | Sleep is better than on the RP2040 — a power manager with switchable domains and SRAM retention — so the argument of poor sleep weakens; how much, only a measurement will say. XIP from QSPI flash as on the RP2040. **No Renode model exists** (checked 2026-09-22): Renode itself models neither the RP2040 nor the RP2350, and the RP2350 branch of the RP2040 models stopped at its first commits, in 2024. Renode does emulate the Cortex-M33, so a minimal platform was written for it (`emulation.md`). |
 | **Cortex-M7 (STM32H7…)** | The largest gain in absolute watts: at 400–550 MHz switching finally dominates the budget, so V² applies to the majority share. Typical workloads — audio, SDR, motor control — are **continuous**, hence impossible to put to sleep. | Core not covered by the generic layer, which has the M0, M3, M4 and M33. |
 | **STM32L4** | The cheapest STM32 port: a Cortex-M4, which the generic layer already covers, with wider voltage scaling than the L1. | Renode ships no L4 platform, so the emulation level of verification would have to be built along with the port. |
-| **STM32U5** | Four voltage ranges, a 40 nm process, less leakage than anything else here. | Its Stop 2 mode reaches about a µA, so race-to-sleep dominates even more than on the L1 — the gain is probably **smaller**, not larger. |
+| **STM32U5** | Four voltage ranges, a 40 nm process, less leakage than anything else here. | Its Stop 2 mode reaches some µA, so race-to-sleep dominates even more than on the L1 — the gain is probably **smaller**, not larger. On the UNO Q's STM32U585 it is smaller still: see below. |
 | ESP32, Ambiq Apollo | — | To rule out: the ESP32 already has vendor DFS (`esp_pm`) with automatic idling; on Ambiq parts the voltage is managed internally, with no lever for the user. |
+
+**The STM32U585 of the UNO Q, read on 2026-09-26** (RM0456 rev. 7, datasheet DS13086
+rev. 10; figures typical, at 25 °C and 3 V, none measured). Its package is a BGA without
+the SMPS (PKG = 00111, read on the board), so the core runs on the LDO, which dissipates
+what the core voltage saves: 84 µA/MHz in run at 160 MHz in range 1, 73 at 24 MHz in
+range 4 (table 38), some 13 % between them. PLL1 runs at 160 MHz in range 1 only, at
+55 MHz at most in range 3, not at all in range 4 (table 87), and its output divider is
+written with the PLL stopped: a lower speed means the 16 MHz crystal alone, or PLL1
+locked again, 25 to 50 µs. Raising the range waits 12 to 21 µs a step for VOSRDY on the
+LDO (table 76), and up to 50 µs for the EPOD booster above 55 MHz. The kernel's timer,
+TIM2, counts on the APB clock, which a change of speed changes.
+
+Idle, the difference is far larger: the idle task's WFI leaves the chip in Sleep, 4.35 mA
+at 160 MHz (table 45), where Stop 2 keeping all of SRAM, which the images run from, takes
+20.5 µA (table 56). At a tenth of the processor busy at 160 MHz, that is some 5.3 mA
+against 1.4 mA. Stop 2 stops TIM2, but LPTIM1 on the 32.768 kHz crystal counts through it
+(RCC_CCIPR3), in steps of 30.5 µs. So for the U5 the order is: an LPTIM time base and an
+idle task in Stop 2, some four times less current by the datasheet; DVFS after, if at
+all, some 10 % more on this board, and only once the PPK2 has measured the first.
 
 Cost of a port, measured on 2026-09-20, before the Cortex-M33 joined the generic layer:
 
