@@ -48,9 +48,9 @@
 ** their rates from. */
 #define OS_SYSTEM_CLOCK_HZ 160000000u
 
-/* Takes the system clock from the 4 MHz MSIS left by reset to 160 MHz through PLL1. To be
-** called first, before the timer and before any peripheral whose rate depends on the
-** clock. */
+/* Takes the system clock to 160 MHz through PLL1, fed by the board's 16 MHz crystal, or
+** by the MSIS left by reset should the crystal not start. To be called first, before the
+** timer and before any peripheral whose rate depends on the clock. */
 void OSInitializeSystemClocks(void);
 
 /* OSGetMSIRelocks: Returns the times the MSIS, having left its lock on the LSE, was locked

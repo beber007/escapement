@@ -303,3 +303,6 @@ There is no `free` and no C library: the code is built freestanding.
 - **The Pico 2** takes the same calls, under `RP2350/Examples/pico2`, its core
   at 150 MHz. The power-aware kernel is not ported to it, and no board has run
   the port yet: only Renode has (`emulation.md`).
+- **The Arduino UNO Q's STM32U585** takes them too, under `STM32U5/Examples/uno-q`, its
+  core at 160 MHz, the images loaded into SRAM over the board's own SWD by
+  `tools/unoq_load.sh`; the power-aware kernel is not ported to it (`stm32u5.md`).

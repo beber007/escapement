@@ -119,11 +119,13 @@ should the HSE not start.
 
 The errata sheet of the chip, ES0499 (rev. 12, June 2026), was read against the port on
 2026-09-26. The UNO Q's STM32U585 is revision U (DBGMCU_IDCODE 0x30076482). One erratum
-touches the port, and only the accuracy of its clock:
+touches the port, and only the accuracy of its clock, and that only should the HSE not
+start:
 
 - **2.2.27, spurious MSI PLL unlock**: the MSI may leave its PLL mode on a failure of the
   LSE it detects wrongly, more likely cold and at a low core voltage; the MSIS then runs
-  free again, 0.48 % fast on this board. ST's workaround is taken: the unlock raises
+  free again, 0.48 % fast on this board, which the kernel's clock follows only when PLL1
+  had to take the MSIS. ST's workaround is taken: the unlock raises
   line 23 of the EXTI and interrupt 125 (RM0456 rev. 7; neither the CMSIS headers of the
   U575/585 nor Zephyr name them), whose handler turns the PLL mode off and on again and
   counts it, `SoakU5` reporting the count. On 2026-09-26 line 23 raised by software on

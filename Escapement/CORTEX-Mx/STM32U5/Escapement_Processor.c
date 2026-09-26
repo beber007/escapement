@@ -30,7 +30,8 @@
 ** Errata of the chip (ES0499, rev. 12, June 2026; the UNO Q's is revision U): the LSE may
 ** not start or may stop at the two lowest drives (2.2.3, 2.2.16), hence the medium-high
 ** one. And the MSI may leave its PLL mode on a failure of the LSE it wrongly detects,
-** more likely cold and at a low core voltage (2.2.27): the MSIS then runs free again.
+** more likely cold and at a low core voltage (2.2.27): the MSIS then runs free again,
+** which reaches the kernel's clock only when PLL1 had to take it, the HSE not starting.
 ** ST's workaround is taken: the unlock raises line 23 of the EXTI, shared with the CSS
 ** of the LSE, which the port does not enable, and interrupt 125 (RM0456 rev. 7, tables
 ** 118, 186 and 189; not on revision X), whose handler turns the PLL mode off and on
