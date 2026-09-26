@@ -9,8 +9,12 @@
 # .github/workflows/ci-image.yml and pulled from ghcr.io, which the mirrors do not serve.
 #
 # Every version is pinned here; changing one is a commit, a new tag of the image in both
-# workflows, and a run of ci-image.yml by hand. The toolchain is Ubuntu's package, as the
-# runners had it: 15:14.2.rel1-1 when the first image was built, on 2026-09-24.
+# workflows, and a run of ci-image.yml by hand. Two toolchains since the third tag
+# (2026-09-26): GCC 16.2 from Homebrew, the one the Mac and the board bench build with,
+# first on the PATH, which every job uses unless it asks for the other; and Ubuntu's
+# package, 15:14.2.rel1-1 when the first image was built on 2026-09-24, the toolchain of
+# the stable distributions, which one job builds with to check the compiled order under
+# a second compiler.
 
 FROM ubuntu:26.04
 
@@ -53,6 +57,25 @@ RUN git clone --quiet https://github.com/matgla/Renode_RP2040.git /opt/rp2040 \
  && git -C /opt/rp2040 checkout --quiet "$RP2040_MODELS_COMMIT" \
  && dotnet build /opt/rp2040/emulation/Peripherals.csproj -c Release \
         -p:RenodePath=/opt/renode-$RENODE_RP2040/bin
+
+# GCC 16.2 as the Mac and the bench have it: no standalone build of GCC 16 exists for
+# Linux (Arm's and xPack's stop at 15.2), and Homebrew publishes this one for x86_64
+# Linux. Homebrew wants a user of its own and its default prefix, where its bottles need
+# no relocation. Its version is checked by ci-image.yml, as Homebrew takes the current one.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential file procps sudo \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd -m -s /bin/bash linuxbrew \
+ && mkdir -p /home/linuxbrew/.linuxbrew \
+ && git clone --quiet --depth 1 https://github.com/Homebrew/brew /home/linuxbrew/.linuxbrew/Homebrew \
+ && mkdir -p /home/linuxbrew/.linuxbrew/bin \
+ && ln -s ../Homebrew/bin/brew /home/linuxbrew/.linuxbrew/bin/brew \
+ && chown -R linuxbrew: /home/linuxbrew/.linuxbrew \
+ && su linuxbrew -c 'HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_AUTO_UPDATE=1 \
+        /home/linuxbrew/.linuxbrew/bin/brew install --quiet arm-none-eabi-gcc arm-none-eabi-binutils' \
+ && su linuxbrew -c '/home/linuxbrew/.linuxbrew/bin/brew cleanup --prune=all' \
+ && rm -rf /home/linuxbrew/.cache
+ENV PATH=/home/linuxbrew/.linuxbrew/bin:$PATH
 
 # What renode-test needs, apart from the system's Python.
 RUN python3 -m venv /opt/venv \

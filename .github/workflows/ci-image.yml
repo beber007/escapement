@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/beber007/escapement-ci:2
+  IMAGE: ghcr.io/beber007/escapement-ci:3
 
 jobs:
   image:
@@ -28,7 +28,13 @@ jobs:
       - name: Check it has what the jobs use
         run: |
           docker run --rm "$IMAGE" sh -c '
+            set -e
             arm-none-eabi-gcc --version | head -1
+            arm-none-eabi-gcc --version | head -1 | grep -q " 16\.2\."
+            /usr/bin/arm-none-eabi-gcc --version | head -1
+            /usr/bin/arm-none-eabi-gcc --version | head -1 | grep -q " 14\.2\."
+            printf "int main(void){return 0;}" > /tmp/t.c
+            arm-none-eabi-gcc -mcpu=cortex-m0plus -mthumb -nostdlib -c /tmp/t.c -o /tmp/t.o
             cppcheck --version
             dotnet --list-runtimes
             ls /opt/renode-1.17.0/renode-test /opt/renode-1.16.1/renode-test
