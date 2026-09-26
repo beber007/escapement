@@ -53,7 +53,7 @@
 
 
 /* The Cortex-M33 of the STM32U575 implements 4 bits of interrupt priority, 16 levels
-** (RM0456, NVIC). PRIGROUP 3 gives all 4 to preemption, as on the STM32F4; the
+** (RM0456, NVIC). PRIGROUP 3 gives all 4 to preemption; the
 ** generic layer then puts SysTick, the software timer interrupt that schedules the tasks,
 ** at level 14 and PendSV, the context switch, at 15, the lowest. */
 #define PRIGROUP  (UINT32)3

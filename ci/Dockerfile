@@ -43,7 +43,7 @@ RUN curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
  && bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet \
  && rm /tmp/dotnet-install.sh
 
-# Renode twice: the portable package for the STM32F4 and RP2350 suites, the linux-dotnet
+# Renode twice: the portable package for the RP2350 and STM32U5 suites, the linux-dotnet
 # one for the RP2040 models, which are built against its assemblies (emulation/renode/RP2040.md).
 RUN for v in "$RENODE_PORTABLE linux-portable" "$RENODE_RP2040 linux-dotnet"; do \
         set -- $v; \

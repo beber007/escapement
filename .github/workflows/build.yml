@@ -32,9 +32,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - example: stm32f4-discovery
-            dir: Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
-            cpu: Cortex-M4
           - example: rp2040-pico
             dir: Escapement/CORTEX-Mx/RP2040/Examples/pico
             cpu: Cortex-M0+
@@ -122,7 +119,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: The compiler
         run: ${CROSS_COMPILE}gcc --version | head -1
-      - name: Every variant of the Pico, the Pico 2, the STM32U5 and the F4
+      - name: Every variant of the Pico, the Pico 2 and the STM32U5
         run: |
           check() {   # directory, options of check_order.py, then the make arguments
             dir=$1 opt=$2; shift 2
@@ -143,9 +140,6 @@ jobs:
                      "KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING"; do
               check $dir "" $v
             done
-          done
-          for v in "" SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING KERNEL=SOFT; do
-            check Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery --tasks bin $v
           done
       - name: Show that the check fails without each barrier
         run: |
@@ -228,92 +222,6 @@ jobs:
           python3 test/model/threeslot.py
           python3 test/model/fifo.py
           python3 test/model/fifo_mp.py
-
-  emulation:
-    name: Execution under Renode (STM32F407VG)
-    runs-on: ubuntu-26.04
-    container:
-      image: ghcr.io/beber007/escapement-ci:3
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    timeout-minutes: 15
-    env:
-      DIR: Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Build the examples and their raw images
-        run: |
-          make -C "${{ env.DIR }}" bin
-
-      - name: Check the compiled order of the task-level stores
-        run: python3 tools/check_order.py --tasks "${{ env.DIR }}"/build/Escapement{Hard,Soft}.o
-
-      - name: Use Renode 1.17.0
-        run: echo /opt/renode-1.17.0 >> "$GITHUB_PATH"
-
-      - name: Run the kernel
-        run: >-
-          renode-test
-          emulation/renode/escapement_f4.robot
-          emulation/renode/escapement_f4_wrap.robot
-          emulation/renode/escapement_f4_events.robot
-
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: renode-report
-          path: |
-            report.html
-            log.html
-            robot_output.xml
-          retention-days: 14
-
-  variants:
-    # The STM32F4 examples ship with the hard kernel under EDF, which the emulation job
-    # runs. The soft kernel and deadline-monotonic scheduling run here, from the same
-    # sources; the RP2040 and RP2350 jobs below carry their own variants.
-    name: Variant under Renode (${{ matrix.variant }})
-    runs-on: ubuntu-26.04
-    container:
-      image: ghcr.io/beber007/escapement-ci:3
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - variant: hard, deadline-monotonic
-            make: SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
-            build: stm32f4-discovery
-            suites: escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
-          - variant: soft, EDF
-            make: KERNEL=SOFT
-            build: stm32f4-discovery
-            suites: escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
-          - variant: soft, deadline-monotonic
-            make: KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
-            build: stm32f4-discovery
-            suites: escapement_f4.robot escapement_f4_wrap.robot escapement_f4_events.robot
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Build the examples and their raw images
-        run: make -C Escapement/CORTEX-Mx/STM32/Examples/${{ matrix.build }} bin ${{ matrix.make }}
-
-      - name: Check the compiled order of the task-level stores
-        run: python3 tools/check_order.py --tasks Escapement/CORTEX-Mx/STM32/Examples/${{ matrix.build }}/build/Escapement{Hard,Soft}.o
-
-      - name: Use Renode 1.17.0
-        run: echo /opt/renode-1.17.0 >> "$GITHUB_PATH"
-
-      - name: Run the kernel
-        run: renode-test $(for suite in ${{ matrix.suites }}; do echo "emulation/renode/$suite"; done)
 
   emulation-rp2350:
     # The RP2350 port on a platform of our own (escapement_pico2.repl), which Renode's

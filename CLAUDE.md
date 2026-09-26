@@ -28,10 +28,6 @@ tools/soak.py pico 14d 1m                     # endurance test: SoakPico, read w
 tools/soak_emulated.sh OUT 60 1440 hard::1 soft:KERNEL=SOFT:2   # instances under Renode
 tools/soak_emulated_status.sh OUT [SHA]       # their sum, status emulation/soak
 
-# STM32F4 examples — the Cortex-M3/M4 assembler path on Renode's own platform (the
-# RP2350 takes that path too, on ours)
-make -C Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
-
 # Pico 2 (RP2350, Cortex-M33) — eight examples; no KERNEL=PA yet. Its Renode suite runs
 # on a platform of our own, on the Mac too (Renode 1.17 portable, robotframework 6.1 venv)
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
@@ -61,9 +57,8 @@ python3 test/model/fifo.py           # ~35 s
 python3 test/model/fifo_mp.py        # the queue between the cores, ~1 s
 
 # The compiled order of the slot buffers against the models, and of the task-level
-# stores the timer interrupt relies on (run by the CI; --tasks alone for the F4)
+# stores the timer interrupt relies on (run by the CI)
 tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement*.o
-tools/check_order.py --tasks Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery/build/Escapement*.o
 tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2   # every one caught
 
 sh tools/check_encoding.sh           # every tracked file must be valid UTF-8
@@ -79,7 +74,7 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
 ## Before a commit
 
 - Host tests, the three models, the encoding check, the static analysis, and every Pico,
-  Pico 2 and STM32U5 variant plus the F4 still build.
+  Pico 2 and STM32U5 variant still build.
 - A change meant to leave a build alone (comments, an option off by default) must leave
   its images byte for byte identical: compare `arm-none-eabi-objcopy -O binary` outputs
   against those of `main`.
@@ -87,8 +82,7 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
   their FIFO queue and slot-buffer code: a fix to one goes to all three. Likewise the
   RP2040 and RP2350 ports share the logic of their timer, timer events, UART and core 1
   launch, and their examples: a fix to one goes to both. The STM32U5 port shares the
-  timer events, the UART and the examples of the RP2350, and the kernel timer of the
-  STM32 port: a fix there goes to it too.
+  timer events, the UART and the examples of the RP2350: a fix there goes to it too.
 - A result stated in the docs is a measured one, with its date; one that did not
   reproduce is said so, not quietly replaced (`docs/method.md`).
 

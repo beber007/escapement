@@ -47,9 +47,9 @@ the values stored from the constants moved or or-ed into a register.
 
     tools/check_order.py [--tasks] build/EscapementHard.o [...]
 
---tasks checks the task-level stores only: the Cortex-M4 of the STM32F4 has one core and
-no barrier in its buffers. An object without a kernel, one the build did not select, is
-skipped; at least one must hold one.
+--tasks checks the task-level stores only, for a port of one core whose buffers carry no
+barrier, as the STM32F4's did until its removal on 2026-09-26. An object without a
+kernel, one the build did not select, is skipped; at least one must hold one.
 """
 import re
 import subprocess

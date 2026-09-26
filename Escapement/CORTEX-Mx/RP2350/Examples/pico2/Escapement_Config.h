@@ -62,7 +62,7 @@
 
 
 /* The Cortex-M33 of the RP2350 implements 4 bits of interrupt priority, 16 levels (pico-
-** sdk, hardware/irq.h). PRIGROUP 3 gives all 4 to preemption, as on the STM32F4; the
+** sdk, hardware/irq.h). PRIGROUP 3 gives all 4 to preemption; the
 ** generic layer then puts SysTick, the software timer interrupt that schedules the tasks,
 ** at level 14 and PendSV, the context switch, at 15, the lowest. */
 #define PRIGROUP  (UINT32)3

@@ -7,14 +7,11 @@
 # A file in another encoding breaks grep silently: the tool stops at the first invalid
 # byte and reports nothing, so a search for a definition that is right there comes back
 # empty. It cost two wrong conclusions in one day.
-#
-# The vendor libraries under Libraries/ are left alone: they are third-party files,
-# kept in the encoding their vendor ships them in.
 set -eu
 
 cd "$(dirname "$0")/.."
 # Files git knows to be binary are skipped: .gitattributes says which.
-bad=$(git ls-files | grep -v 'Libraries/' | while read -r f; do
+bad=$(git ls-files | while read -r f; do
     git check-attr binary -- "$f" | grep -q 'binary: set' && continue
     python3 - "$f" <<'PY' || echo "$f"
 import io, sys

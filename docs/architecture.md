@@ -95,14 +95,13 @@ hardware spinlocks of the SIO offered no alternative, being unreliable on that c
 
 ## Supported targets
 
-- **ARM Cortex-M0 / M3 / M4** — port under `Escapement/CORTEX-Mx/`. The ST libraries are
-  bundled for the STM32F4 only, the one family the examples use. Support for the F0, F1
-  and F2 families was removed on 2026-09-20: those examples were only ever compiled, and
-  this is a demonstration of what the kernel does, not a catalogue of the parts it could
-  run on. The L1 followed on 2026-09-22, with its DVFS driver: the Pico had come to run
-  every test it ran, and the F4 is kept for the Cortex-M3/M4 path of the context switch,
-  which it alone executed until the RP2350 port took that path too. The port still
-  carries branches for the families removed; none is built.
+- **ARM Cortex-M0 / M3 / M4** — the generic layer under `Escapement/CORTEX-Mx/`, whose
+  Cortex-M3/M4 path the Cortex-M33 takes. The STM32 ports it served went one after the
+  other: the F0, F1 and F2 on 2026-09-20, their examples only ever compiled, this being a
+  demonstration of what the kernel does rather than a catalogue of the parts it could run
+  on; the L1 on 2026-09-22, with its DVFS driver, once the Pico ran every test it ran; and
+  the F4 on 2026-09-26, kept until then for the Cortex-M3/M4 path, which the RP2350 and
+  the STM32U5 now take, the latter checked on its board at each commit.
 - **ARM Cortex-M33** (ARMv8-M Mainline), toward the RP2350 of the Pico 2: the generic
   layer takes it down the Cortex-M3/M4 path — the same registers to save, the same
   frame with the floating-point unit left off, `LDREX`/`STREX`/`CLREX` — under
@@ -149,8 +148,8 @@ Escapement/
   EscapementSoft.{c,h}      (m,k)-firm real-time kernel
   Escapement_Modes.h        names of the scheduling algorithms
   EscapementHardPA.{c,h}    power-aware hard real-time kernel
-  CORTEX-Mx/                ARM port: generic Cortex-M layer, STM32, RP2040, RP2350
-  CORTEX-Mx/STM32/Examples/ the STM32F4-Discovery example
+  CORTEX-Mx/                ARM port: generic Cortex-M layer, RP2040, RP2350, STM32U5
+  CORTEX-Mx/STM32U5/Examples/ the Arduino UNO Q examples
   CORTEX-Mx/RP2040/Examples/ the Raspberry Pi Pico examples
   CORTEX-Mx/RP2350/Examples/ the Raspberry Pi Pico 2 examples
 test/host/                  the three kernels built for the host

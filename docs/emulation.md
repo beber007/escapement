@@ -1,13 +1,18 @@
 # Emulation
 
-The kernel **runs** on an STM32F407VG emulated by [Renode](https://renode.io):
+The kernel runs under [Renode](https://renode.io) on the three chips it targets, each
+with its suite, replayed in the CI on every push under every kernel and algorithm the
+port builds:
 
 ```sh
-cd Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery && make bin && cd -
-renode emulation/renode/escapement_f4.resc
-(monitor) sysbus LogPeripheralAccess sysbus.gpioPortB true
-(monitor) emulation RunFor "1"
+make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
+renode-test emulation/renode/escapement_pico2.robot
+make -C Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
+renode-test emulation/renode/escapement_u5.robot
 ```
+
+The RP2040's suite needs models of its own, built against Renode's assemblies, which the
+portable package for macOS does not expose: `emulation/renode/RP2040.md`.
 
 The jobs that build and emulate run in an image of our own, `ci/Dockerfile`,
 which holds two ARM toolchains — GCC 16.2 from Homebrew, which every job uses, and
@@ -17,24 +22,17 @@ they install nothing, and the apt mirrors of the runners, which once took 19 min
 over the toolchain alone, stay out of the way. `.github/workflows/ci-image.yml` builds
 it, by hand, under a tag both workflows name.
 
-Three Robot suites replay such runs on every push, in the `emulation` job of the CI
-(the RP2040 has its own job and suite, run on every kernel and algorithm, see
-`emulation/renode/RP2040.md`), and the
-`variants` job runs them again on the soft kernel and under deadline-monotonic
-scheduling, built with `make KERNEL=SOFT` and `make SCHEDULER=...`:
+## The STM32F4, the first target
 
-```sh
-pip install robotframework==6.1 robotframework-retryfailed psutil pyyaml
-renode-test emulation/renode/escapement_f4.robot emulation/renode/escapement_f4_wrap.robot \
-            emulation/renode/escapement_f4_events.robot
-```
-
-| Test | What it proves |
-|---|---|
-| The three periodic tasks are scheduled | each of the three tasks raises **and** lowers its output within its time window |
-| The UART echo answers | the kernel also schedules interrupt-driven processing |
-| Scheduling survives the 2^30 wrap | the kernel keeps scheduling across the wraparound of its clock |
-| Timer events wake the event-driven tasks | a timer-event handler on TIM14 wakes event-driven tasks on time: PB13 high 8.40 ms out of every 41.00 ms, PB14 16.80 ms out of every 82.00 ms, within 2 % |
+The first execution of the kernel since the project was taken over was on an
+STM32F407VG emulated by Renode's own platform, on 2026-09-20: `TaskLEDF4`, three tasks of
+100, 200 and 600 ticks, toggled their outputs 1220, 610 and 204 times in an emulated
+second, ratios of 5.98, 2.99 and 1.00 against 6, 3 and 1. Its suites checked the three
+periodic tasks, the UART echo, timer events on TIM14 and the crossing of the 2^30
+boundary under every kernel, and drew the chronogram the README showed. The F4 was kept
+for the Cortex-M3/M4 path of the context switch after the other STM32 families went;
+once the RP2350 and the STM32U5 took that path, and the U5 ran on its board with a check
+of each commit, it was removed on 2026-09-26. The history keeps it.
 
 ## Crossing the 2^30 boundary
 
@@ -42,62 +40,18 @@ The kernel counts time modulo 2^30 and shifts every temporal variable back when 
 counter wraps. At the usual tick rate that happens once every eighteen minutes, which is
 why the path had never been executed once in the life of this code.
 
-Reaching it in a test takes a platform of its own: `escapement_f4_wrap.repl` clocks TIM2
-82,000 times faster; the kernel still programs its prescaler of 81, so its counter ticks at
-10 GHz and reaches the boundary after 107 ms. `TaskWrapF4.c` scales its periods by the
-same factor, so the kernel carries the load it would have on hardware, with a counter that
-happens to run fast.
-
-Traced with `tools/trace_gpio.sh` on 2026-09-20, when the platform ran the counter at 1
-GHz and the boundary came at 1.07 s, over 1.3 s: 2,167 pulses, which is exactly the
-1,300 + 650 + 217 activations the three periods of 1, 2 and 6 ms called for, and 377 of
-them fall after the boundary. Nothing is lost in the crossing. The clock was made ten
-times faster the same day: at 1 GHz the test was starving a CI runner.
-
-Neutralising the time shift in `_OSTimerIsOverflow` makes the test fail, and restoring
-it makes it pass again.
-
-## The first run
-
-`TaskLEDF4` creates three periodic tasks of 100, 200 and 600 ticks, each
-toggling one output of GPIOB. Over one emulated second:
-
-| Output | Period | Toggles | Measured ratio | Theoretical ratio |
-|---|---:|---:|---:|---:|
-| PB13 | 100 | 1220 | 5.98 | 6.00 |
-| PB14 | 200 | 610 | 2.99 | 3.00 |
-| PB15 | 600 | 204 | 1.00 | 1.00 |
-
-Deadline-driven scheduling honours the declared periods. This was the first
-verified execution of the kernel since the project was taken over.
-
-## The chronogram
-
-The figure in the README is drawn from a trace, not by hand. The example drives
-its outputs through the BSRR register of the STM32, one 32-bit write per edge: the pin
-in the low half raises it, in the high half lowers it. A Renode watchpoint on that
-register reports each write with the elapsed virtual time, which gives an exact
-transition list.
-
-```sh
-cd Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery && make bin && cd -
-tools/trace_gpio.sh > docs/data/f4-gpio-trace.csv
-tools/chronogram.py docs/data/f4-gpio-trace.csv docs/images/f4-schedule.svg
-```
-
-The trace is kept in `docs/data/`, so the figure can be redrawn without running
-the emulator at all. Note what the figure cannot show: the tasks of this example
-execute for 0 to 26 us against periods of 820 us and more, so they never overlap
-— there is no preemption to be seen here, only the regularity of the periods.
-
-The trace was taken again on 2026-09-25. The first, of 2026-09-20, gave 0 to 29 us;
-from 2026-09-21 the example wrote the 32-bit BSRR, which the script, still watching
-16-bit writes at 0x18 and 0x1A, no longer saw: it captured nothing until it was
-fixed.
+Reaching it in a test takes a timer that runs faster than on the board, which the suite
+sets on the Pico and the Pico 2 and `escapement_u5_wrap.repl` on the U5, and an example,
+`TaskWrap*`, that scales its periods by
+the same factor, so that the kernel carries the load it would have on hardware, with a
+counter that happens to run fast. On the F4, traced on 2026-09-20 over 1.3 s with the
+boundary at 1.07 s: 2,167 pulses, exactly the 1,300 + 650 + 217 activations its three
+periods called for, 377 of them after the boundary. Neutralising the time shift in
+`_OSTimerIsOverflow` made the test fail, and restoring it made it pass again.
 
 ## The Renode timer model had to be fixed
 
-Without a fix, the kernel deadlocked on its own overload guard. The cause was
+On the F4, without a fix, the kernel deadlocked on its own overload guard. The cause was
 in `Timers.STM32_Timer`, in the `EventGeneration` register:
 
 ```csharp
@@ -126,15 +80,11 @@ Minimal reproducer, outside of any kernel:
 `emulation/renode/Escapement_STM32_Timer.cs` is a copy of the original model
 (MIT, Antmicro) with two fixes: the `UG` callback is guarded by a test on the
 value written, and `CC1G` through `CC4G` are implemented. Renode compiles this
-plugin on the fly, so there is nothing to rebuild. The CPU platform is derived
-in `stm32f4_escapement_cpu.repl` — since Renode does not allow a node to be
-redeclared, the file has to be copied to change the type of TIM2.
-
-TIM14, which the timer events of the F4 use, runs on the fixed copy too: its driver
-also forces a compare event through `CC1G`, a path this example happens not to take.
-Both fixes stay in this copy, which the CI
-loads: no test waits on a release of Renode
-that carries them, and proposing them upstream, once planned, was dropped (2026-09-24).
+plugin on the fly, so there is nothing to rebuild. The F4's platform was derived from
+Renode's to change the type of TIM2 and TIM14; the STM32U5's, our own, takes the copy for
+TIM2, TIM3 and TIM5. Both fixes stay in this copy, which the CI loads: no test waits on a
+release of Renode that carries them, and proposing them upstream, once planned, was
+dropped (2026-09-24).
 
 QEMU was tried first (`-machine netduinoplus2`): the kernel starts but its
 timer is never woken, and it takes two exceptions in 60 seconds.
@@ -168,9 +118,9 @@ the part of the bootrom in the launch, as the pico-sdk describes it: it announce
 with a 0, echoes each word, and on 0, 0, 1, vector table, stack pointer, entry point,
 starts core 1 there. `FourSlotCoresPico2` then runs as on the board: bare code on core 1
 writing into the 4-slot buffer and a plain array, a task on core 0 reading both. Renode
-runs the two cores by turns rather than at once, finely enough for the plain array to
-tear — 629 reads out of 6,368 in 200 ms on 2026-09-24 — while no read of the buffer was
-torn or went backwards. That the interleavings are all covered is the model's to say
+runs the two cores in slices of time, finely enough for the plain array to tear — 629
+reads out of 6,368 in 200 ms on 2026-09-24 — while no read of the buffer was torn or went
+backwards. That the interleavings are all covered is the model's to say
 (`test/model/fourslot.py`, two cores); what the emulation adds is the kernel's code, as
 compiled for the Cortex-M33, carrying it.
 

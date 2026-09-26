@@ -17,9 +17,8 @@ only if that bench shows DVFS beating race-to-sleep.
 
 Of the **STM32**, the **STM32U5** is the one kept: its port, begun on 2026-09-25 for
 the STM32U585 of the Arduino UNO Q (`stm32u5.md`), is written anew in the manner of the
-RP2350's, and
-the older STM32 ports, the F4 example among them, are meant to go once it runs on the
-board. The argument of `power-aware.md` stands: the U5 sleeps too well for DVFS to gain
+RP2350's; the older STM32 ports, the F4 example last, went on 2026-09-26, once it ran on
+its board with a check of each commit. The argument of `power-aware.md` stands: the U5 sleeps too well for DVFS to gain
 much there, so its power-aware kernel, if ever, comes after the verdict of the RP2040.
 The **STM32L4** is set aside.
 
@@ -55,10 +54,11 @@ The **STM32L4** is set aside.
    pico-sdk headers.
 5. **The STM32U5 on the board.** On the Arduino UNO Q since 2026-09-26, from SRAM: the
    clock set-up runs, and 22 s of the endurance test passed; since 2026-09-26 the clock
-   comes from the board's 16 MHz crystal, within some 25 ppm of NTP (`stm32u5.md`). A board check of each commit
-   runs on the UNO Q's own Linux since 2026-09-26 (`tools/unoq_check.sh`, status
-   `board/u5`): the endurance test for two minutes and the clock within 300 ppm, the long
-   endurance run then carried on to the commit. The older STM32 ports can go. For energy (`power-aware.md`, read from
+   comes from the board's 16 MHz crystal, within some 25 ppm of NTP (`stm32u5.md`). A
+   board check of each commit runs on the UNO Q's own Linux since 2026-09-26
+   (`tools/unoq_check.sh`, status `board/u5`): the endurance test for two minutes and the
+   clock within 300 ppm, the long endurance run then carried on to the commit. The F4,
+   the last older STM32 port, went the same day. For energy (`power-aware.md`, read from
    the datasheet on 2026-09-26): a time base on LPTIM1 and the 32.768 kHz crystal, which
    runs through Stop 2, and an idle task in Stop 2 rather than Sleep, some four times
    less current at light load; the UNO Q's U585 has no SMPS, and DVFS would add some 10 %
@@ -93,7 +93,7 @@ The **STM32L4** is set aside.
 
 - **The kernel runs, and is run in CI.** The Makefiles repaired, every example built on
   every push, and executed under Renode as a regression test: the STM32F4 on Renode's
-  platform with two fixes to its timer model, the RP2040 on the models of
+  platform with two fixes to its timer model (until its removal on 2026-09-26), the RP2040 on the models of
   matgla/Renode_RP2040 with a fixed timer, the RP2350 on a platform of our
   own (`emulation.md`, `emulation/renode/RP2040.md`).
 - **Every kernel and algorithm.** EDF, which the examples claimed and none ran until the

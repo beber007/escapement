@@ -11,7 +11,6 @@
   <img src="https://img.shields.io/badge/RP2040-Cortex--M0%2B-c51a4a?logo=raspberrypi&logoColor=white" alt="RP2040">
   <img src="https://img.shields.io/badge/RP2350-Cortex--M33-c51a4a?logo=raspberrypi&logoColor=white" alt="RP2350">
   <img src="https://img.shields.io/badge/STM32U5-Cortex--M33-03234b?logo=stmicroelectronics&logoColor=white" alt="STM32U5">
-  <img src="https://img.shields.io/badge/STM32F4-Cortex--M4-03234b?logo=stmicroelectronics&logoColor=white" alt="STM32F4">
   <img src="https://img.shields.io/badge/emulated-Renode-2f6f9f" alt="Renode">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-permissive-3fb950" alt="licence"></a>
 </p>
@@ -56,10 +55,10 @@ test says the scheduler decided what it was supposed to decide.
 
 | Level | Means | What it establishes |
 |---|---|---|
-| Compilation | GitHub Actions, with a toolchain other than the developer's | the examples of the Pico, the Pico 2, the STM32U5 and the STM32F4, on every push |
+| Compilation | GitHub Actions, with a toolchain other than the developer's | the examples of the Pico, the Pico 2 and the STM32U5, on every push |
 | The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for — 87 to 90 % of the lines of each kernel |
 | Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access, both slot buffers on two cores too, each core free to reorder its accesses as the architecture allows, and the queue of Evéquoz between the cores of the RP2350: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
-| Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the STM32F4, the RP2040, the RP2350 and the STM32U5; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after, and on the RP2350 both slot buffers between its two cores — all as regression tests |
+| Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the RP2040, the RP2350 and the STM32U5; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after, and on the RP2350 both slot buffers between its two cores — all as regression tests |
 | Internal state on hardware | OpenOCD and SWD on a Pico; the reports of an STM32U5 to the Linux of its Arduino UNO Q | a trace of the scheduling read without stopping a core: deadlines armed ahead of the counter, timer events delivered on the microsecond, the clock changed by the power-aware kernel; cost counters read back from SRAM; on the U5, an endurance test run for hours with every part checked each second, its causes of reset, and its clock measured against Linux's within some 25 ppm |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
 
@@ -71,12 +70,6 @@ Each level has caught what the ones before it passed: the host test found the ke
 scheduling deadline-monotonic while this page said EDF, and the models four defects of
 the lock-free mechanisms that every test had let through. Those stories are in
 [`docs/method.md`](docs/method.md).
-
-![Chronogram of three periodic tasks scheduled by Escapement](docs/images/f4-schedule.svg)
-
-Every edge above was captured under emulation, with the virtual timestamps of the
-emulator, and the figure is regenerated from that data by a script in `tools/`
-— see [`docs/emulation.md`](docs/emulation.md).
 
 ## Watch it run
 
@@ -90,8 +83,8 @@ The whole kernel under emulation, without any hardware, using
 [Renode](https://renode.io):
 
 ```sh
-cd Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery && make bin && cd -
-renode emulation/renode/escapement_f4.resc
+make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
+renode-test emulation/renode/escapement_pico2.robot
 ```
 
 On a Raspberry Pi Pico, loaded into SRAM over SWD — no BOOTSEL button involved:

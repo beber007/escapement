@@ -6,15 +6,13 @@
 # with its examples, and the host test. Each port is checked with its own include paths,
 # which give the kernels the target's types and macros; cppcheck then explores the
 # configurations of the #if it meets (hard, soft or power-aware kernel, EDF or
-# deadline-monotonic scheduling, Cortex-M0+ or M3/M4/M33).
+# deadline-monotonic scheduling, Cortex-M0+ or M33).
 #
 # The level is warning, portability and performance: what may be a defect. At the style
 # level cppcheck reports mostly pointers that could be const, and a few false positives
 # (fields set by chained assignments taken for uninitialised); it is left out so that
 # this check says something when it fails. A finding that is known not to be a defect is
 # suppressed where it stands, with a comment saying why (// cppcheck-suppress).
-#
-# The vendor libraries under STM32/Libraries are not ours and are not checked.
 #
 #   sh tools/cppcheck.sh
 set -eu
@@ -36,11 +34,6 @@ check "$M/RP2040" "$M/RP2040/Examples/pico" "$M/RP2040/Examples/pico"/*.c
 check "$M/RP2350" "$M/RP2350/Examples/pico2" "$M/RP2350/Examples/pico2"/*.c
 check "$M/STM32U5" "$M/STM32U5/Examples/uno-q" \
     "$M/STM32U5/Examples/uno-q"/*.c
-check "$M/STM32" "$M/STM32/Examples/stm32f4-discovery" \
-    "$M/STM32/Examples/stm32f4-discovery/TaskLEDF4.c" \
-    "$M/STM32/Examples/stm32f4-discovery/TaskWrapF4.c" \
-    "$M/STM32/Examples/stm32f4-discovery/TestTimerEventF4.c" \
-    "$M/STM32/Examples/stm32f4-discovery/UARTSimpleEchoF4.c"
 echo "== host test"
 cppcheck --quiet --error-exitcode=1 --inline-suppr --std=c99 \
     --enable=warning,portability,performance \

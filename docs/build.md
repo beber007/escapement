@@ -10,15 +10,14 @@ sudo apt install gcc-arm-none-eabi     # Debian / Ubuntu
 Each example is built from its own directory:
 
 ```sh
-cd Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
+cd Escapement/CORTEX-Mx/RP2040/Examples/pico
 make
 ```
 
-The CI builds all four on every push:
+The CI builds all three on every push:
 
 | Example | Core | MCU | Tasks | `text` / `data` / `bss` |
 |---|---|---|---|---|
-| `stm32f4-discovery` | Cortex-M4 | STM32F407VG | 3 | 3,924 / 484 / 116 |
 | `RP2040/Examples/pico` | Cortex-M0+ | RP2040 | 4 | 5,164 / 8 / 240 |
 | `RP2350/Examples/pico2` | Cortex-M33 | RP2350 | 4 | 4,288 / 8 / 344 |
 | `STM32U5/Examples/uno-q` | Cortex-M33 | STM32U585 | 4 | 5,596 / 8 / 640 |
@@ -48,7 +47,6 @@ newlib is needed.
 On the Pico, `make KERNEL=SOFT`, `make KERNEL=PA` and `make SCHEDULER=...` build
 the other kernels and algorithms; see `architecture.md`.
 
-Flashing is done through OpenOCD (`openocd.cfg` is provided under
-`Escapement/CORTEX-Mx/STM32/Examples/`). The Pico's images are loaded into SRAM over SWD
+Flashing is done through OpenOCD. The Pico's images are loaded into SRAM over SWD
 (`rp2040.md`); the STM32U5's too, by `tools/unoq_load.sh` and the OpenOCD of the UNO Q,
 which drives the MCU's SWD from its Linux processor (`stm32u5.md`).

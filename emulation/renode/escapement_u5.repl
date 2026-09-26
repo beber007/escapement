@@ -3,13 +3,13 @@
 //
 // The STM32U585 of the Arduino UNO Q for Escapement: a platform of our own, since Renode
 // models no STM32U5 (docs/roadmap.md). Only what the examples of Escapement/CORTEX-Mx/
-// STM32U5 touch: a Cortex-M33 with its NVIC, 4 bits of priority, 2 MB of flash, the
-// 768 KB of SRAM1 to SRAM3 the images run from, TIM2, TIM3 and TIM5 (the fixed timer model
-// of the STM32F4 platform, Escapement_STM32_Timer.cs), and the independent watchdog,
-// USART1, LPUART1 and ports B, G and H of GPIO, which Renode models for the STM32L552, of
-// the same family, with the outputs of BoardU5.h as LEDs, those on port H lit when low as
-// on the board; and the blocks the clock set-up waits on. Addresses from RM0456 and
-// cmsis-device-u5.
+// STM32U5 touch: a Cortex-M33 with its NVIC, 4 bits of priority, 2 MB of flash, the 768
+// KB of SRAM1 to SRAM3 the images run from, TIM2, TIM3 and TIM5 (the fixed timer model of
+// the STM32F4 platform, since removed, Escapement_STM32_Timer.cs), and the independent
+// watchdog, USART1, LPUART1 and ports B, G and H of GPIO, which Renode models for the
+// STM32L552, of the same family, with the outputs of BoardU5.h as LEDs, those on port H
+// lit when low as on the board; and the blocks the clock set-up waits on. Addresses from
+// RM0456 and cmsis-device-u5.
 //
 // Those blocks keep what is written and read the bits the code waits for as set: the
 // voltage range and the booster ready, PLL1 locked, the switch of the system clock
