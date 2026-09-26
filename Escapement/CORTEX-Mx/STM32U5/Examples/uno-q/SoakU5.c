@@ -35,20 +35,22 @@
 **                 heartbeat does not count it among the parts that must move; the
 **                 script on the Linux side does (tools/soak.py).
 **
-** The long task works 500 to 1500 us of each 10 ms, then for 20 s of every minute 6 ms:
-** the load goes from about a fifth of the processor to three quarters and back.
+** The load comes in phases of 5 to 60 s, drawn at random, each with a work of its own for
+** the long task, from its own 500 to 1500 us of each 10 ms to 6 ms, drawn at random too:
+** the processor from about a fifth loaded to three quarters, in steps of no set length.
 **
 ** Once a second the heartbeat sends the counts to Linux on LPUART1, a line of text in
 ** hexadecimal: SOAK, the seconds run, the wraps, the activity and the errors of the eight
 ** parts, the bytes received on the link, its errors and overruns, the worst lateness of
-** the pulse and of the timer events, the stack never used, the load phase, and the byte
+** the pulse and of the timer events, the stack never used, the work of the long task in
+** its phase, and the byte
 ** the link expects next, from which a script started anew goes on counting.
 **
 ** Results, in words from its start, laid out as SoakPico's and SoakPico2's, which the
 ** Renode suite reads; tools/soak.py reads the reports of the link (docs/stm32u5.md):
 **    0 marker   1 seconds run   2 wraps crossed   3-10 activity of the parts
 **   11-18 errors of the parts   19 worst lateness of the pulse   20 of the timer events,
-**   in us   21 bytes of the stack never used   22 0, no second core   23 load phase
+**   in us   21 bytes of the stack never used   22 0, no second core   23 work of the long task in its phase, in us
 **   24-55 lateness of the pulse by 10 us, the last for 310 us or more   56-87 the same
 **   for the timer events   88-90 bytes received on the link, its errors and overruns
 **   91 the byte it expects next.
@@ -75,7 +77,7 @@
 #define BINS        32
 #define REPORT_SIZE 240                /* SOAK and 26 numbers of 8 digits at most, spaced */
 #define FILL_TIME   1000               /* per instance of the Filler, without a seed */
-#define FILL_HIGH   6000               /* in the phases of high load */
+#define FILL_HIGH   6000               /* the most a phase of load gives it */
 #define EVENT_DELAY 1000               /* of the timer events, without a seed */
 #define STACK_FILL  0x5AC05AC0u        /* what unused stack holds */
 #define GUARD       0x6A7D6A7Du
@@ -88,7 +90,7 @@ enum { PULSE, QUEUE, BUFFER, EVENTS, BUFFER4, HEARTBEAT, INTERRUPT, MEMORY };
 volatile struct {
   UINT32 Marker, Seconds, Wraps;
   UINT32 Activity[PARTS], Errors[PARTS];
-  UINT32 PulseLateMax, EventLateMax, Stack0Free, Stack1Free, HighLoad;
+  UINT32 PulseLateMax, EventLateMax, Stack0Free, Stack1Free, Load;
   UINT32 PulseLate[BINS], EventLate[BINS];
   UINT32 LinkBytes, LinkErrors, LinkOverruns, LinkNext;
 } Results;
@@ -186,6 +188,7 @@ int main(void)
      FillTime = 500 + SoakSeed % 1001;
      EventDelay = 500 + SoakSeed / 1001 % 1001;
   }
+  Results.Load = FillTime;
   /* Each structure between two guard words, the heap growing down from them. */
   Guard[0] = NewGuard();
   Queue = OSInitFIFOQueue(NODES,sizeof(RECORD));
@@ -276,7 +279,7 @@ static void FillerTask(void *argument)
 {
   static SLOT written = {0, ~0u};
   INT32 start = _OSGetActualTime();
-  UINT32 work = Results.HighLoad ? FILL_HIGH : FillTime;
+  UINT32 work = Results.Load;
   (void)argument;
   while ((UINT32)(_OSGetActualTime() - start) < work) {
      Put(0);
@@ -402,7 +405,7 @@ static void HeartbeatTask(void *argument)
 {
   extern UINT32 _ebss;
   extern void *_OSStackBasePointer;
-  static UINT32 seen[PARTS];
+  static UINT32 seen[PARTS], phaseEnd = 0, draw;
   UINT32 i;
   (void)argument;
   if (Results.Seconds == 0) {       // started, then set: its prescaler and reload
@@ -428,7 +431,17 @@ static void HeartbeatTask(void *argument)
         Results.Errors[MEMORY] += 1;
   Results.Activity[MEMORY] += 1;
   Results.Seconds += 1;
-  Results.HighLoad = Results.Seconds % 60 >= 40;
+  /* A new phase at a random time, of a random load: 5 to 60 s long, the long task working
+  ** from its own time to FILL_HIGH of each 10 ms. The draws start from the clock, or
+  ** from the seed an emulator gives, so that two runs go through other phases. */
+  if (Results.Seconds >= phaseEnd) {
+     if (phaseEnd == 0)
+        draw = SoakSeed != 0xFFFFFFFF ? SoakSeed : RAW_US;
+     draw = draw * 1103515245u + 12345u;
+     phaseEnd = Results.Seconds + 5 + (draw >> 16) % 56;
+     draw = draw * 1103515245u + 12345u;
+     Results.Load = FillTime + (draw >> 16) % (FILL_HIGH - FillTime + 1);
+  }
   Results.Activity[HEARTBEAT] += 1;
   Report();
   OSEndTask();
@@ -482,7 +495,7 @@ static void Report(void)
   p = PutHex(p,Results.PulseLateMax);
   p = PutHex(p,Results.EventLateMax);
   p = PutHex(p,Results.Stack0Free);
-  p = PutHex(p,Results.HighLoad);
+  p = PutHex(p,Results.Load);
   p = PutHex(p,Results.LinkNext);
   p[-1] = '\n';
   OSEnqueueUART(line,(UINT8)(p - line),OS_IO_LPUART1);

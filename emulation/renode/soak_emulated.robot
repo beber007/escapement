@@ -73,7 +73,7 @@ SoakPico runs without error
         ${event}=             Read Counter  ${results + 80}
         ${stack}=             Read Counter  ${results + 84}
         ${high}=              Read Counter  ${results + 92}
-        Log To Console        ${line}, late max ${pulse}/${event} us, stack free ${stack}, high load ${high}
+        Log To Console        ${line}, late max ${pulse}/${event} us, stack free ${stack}, load ${high} us
         Should Be Equal As Integers  ${marker}  0x534F414B
         Should Be True        ${seconds} - ${seconds_before} >= ${INTERVAL} - 1
         @{before}=            Copy List  ${now}

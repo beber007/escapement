@@ -26,13 +26,14 @@
 **                 checks the guard words around the structures allocated: less than
 **                 512 bytes free, or a guard overwritten, is an error.
 **
-** The long task works 500 to 1500 us of each 10 ms, then for 20 s of every minute 6 ms:
-** the load goes from about a fifth of the processor to three quarters and back.
+** The load comes in phases of 5 to 60 s, drawn at random, each with a work of its own for
+** the long task, from its own 500 to 1500 us of each 10 ms to 6 ms, drawn at random too:
+** the processor from about a fifth loaded to three quarters, in steps of no set length.
 **
 ** Results, in words from its start, which tools/soak.py and the Renode suites read:
 **    0 marker   1 seconds run   2 wraps crossed   3-10 activity of the parts
 **   11-18 errors of the parts   19 worst lateness of the pulse   20 of the timer events,
-**   in us   21 bytes of core 0's stack never used   22 of core 1's   23 load phase
+**   in us   21 bytes of core 0's stack never used   22 of core 1's   23 work of the long task in its phase, in us
 **   24-55 lateness of the pulse by 10 us, the last for 310 us or more   56-87 the same
 **   for the timer events.
 ** The counts only grow: a probe reading them twice and finding them smaller, or the
@@ -52,7 +53,7 @@
 #define WORDS       8
 #define BINS        32
 #define FILL_TIME   1000               /* per instance of the Filler, without a seed */
-#define FILL_HIGH   6000               /* in the phases of high load */
+#define FILL_HIGH   6000               /* the most a phase of load gives it */
 #define EVENT_DELAY 1000               /* of the timer events, without a seed */
 #define STACK_FILL  0x5AC05AC0u        /* what unused stack holds */
 #define GUARD       0x6A7D6A7Du
@@ -65,7 +66,7 @@ enum { PULSE, QUEUE, BUFFER, EVENTS, CORES, HEARTBEAT, INTERRUPT, MEMORY };
 volatile struct {
   UINT32 Marker, Seconds, Wraps;
   UINT32 Activity[PARTS], Errors[PARTS];
-  UINT32 PulseLateMax, EventLateMax, Stack0Free, Stack1Free, HighLoad;
+  UINT32 PulseLateMax, EventLateMax, Stack0Free, Stack1Free, Load;
   UINT32 PulseLate[BINS], EventLate[BINS];
 } Results;
 
@@ -170,6 +171,7 @@ int main(void)
      FillTime = 500 + SoakSeed % 1001;
      EventDelay = 500 + SoakSeed / 1001 % 1001;
   }
+  Results.Load = FillTime;
   /* Each structure between two guard words, the heap growing down from them. */
   Guard[0] = NewGuard();
   Queue = OSInitFIFOQueue(NODES,sizeof(RECORD));
@@ -256,7 +258,7 @@ static void FillerTask(void *argument)
 {
   static SLOT written = {0, ~0u};
   INT32 start = _OSGetActualTime();
-  UINT32 work = Results.HighLoad ? FILL_HIGH : FillTime;
+  UINT32 work = Results.Load;
   (void)argument;
   while ((UINT32)(_OSGetActualTime() - start) < work) {
      Put(0);
@@ -390,7 +392,7 @@ static void HeartbeatTask(void *argument)
 {
   extern UINT32 _ebss;
   extern void *_OSStackBasePointer;
-  static UINT32 seen[PARTS];
+  static UINT32 seen[PARTS], phaseEnd = 0, draw;
   UINT32 i;
   (void)argument;
   WATCHDOG_LOAD = WATCHDOG_TICKS;   // loaded before it is enabled: at 0, it fires at once
@@ -414,7 +416,17 @@ static void HeartbeatTask(void *argument)
         Results.Errors[MEMORY] += 1;
   Results.Activity[MEMORY] += 1;
   Results.Seconds += 1;
-  Results.HighLoad = Results.Seconds % 60 >= 40;
+  /* A new phase at a random time, of a random load: 5 to 60 s long, the long task working
+  ** from its own time to FILL_HIGH of each 10 ms. The draws start from the clock, or
+  ** from the seed an emulator gives, so that two runs go through other phases. */
+  if (Results.Seconds >= phaseEnd) {
+     if (phaseEnd == 0)
+        draw = SoakSeed != 0xFFFFFFFF ? SoakSeed : TIMER_TIMERAWL;
+     draw = draw * 1103515245u + 12345u;
+     phaseEnd = Results.Seconds + 5 + (draw >> 16) % 56;
+     draw = draw * 1103515245u + 12345u;
+     Results.Load = FillTime + (draw >> 16) % (FILL_HIGH - FillTime + 1);
+  }
   Results.Activity[HEARTBEAT] += 1;
   OSEndTask();
 } /* end of HeartbeatTask */

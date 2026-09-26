@@ -19,7 +19,8 @@ link). Arduino's Bridge, which holds /dev/ttyHS1, is stopped meanwhile.
 Each reading appends a line to the log (BOARD_SOAK_LOG, soak-<board>-<date>.log in the
 current directory by default): the seconds run by the firmware, the wraps of the kernel
 clock crossed, the activity and the errors of each part, the worst lateness of the pulse
-and of the timer events, the stack left unused, the load phase; on a Pico the reason of
+and of the timer events, the stack left unused, the work of the long task in the phase
+of load drawn at random; on a Pico the reason of
 the last reset the watchdog block records, and every hour the lateness by bins of 10 us;
 on the UNO Q the bytes of the link, its errors and overruns.
 
@@ -76,7 +77,8 @@ def symbol(elf, name):
 
 class Pico:
     """SoakPico over SWD. Results, in words (SoakPico.c): 0 marker, 1 seconds, 2 wraps,
-    3-10 activity, 11-18 errors, 19-20 lateness, 21-22 stack of each core, 23 load phase,
+    3-10 activity, 11-18 errors, 19-20 lateness, 21-22 stack of each core, 23 the work of
+    the long task in its phase,
     24-55 and 56-87 the lateness by bins of 10 us."""
     name, context = "SoakPico", "board/soak"
     parts = ["pulse", "queue", "buffer", "events", "cores", "heartbeat", "interrupt",
@@ -134,7 +136,7 @@ class Pico:
             return None
         return {"marker": w[0], "seconds": w[1], "wraps": w[2], "activity": w[3:11],
                 "errors": w[11:19], "late": (w[19], w[20]), "stack": (w[21], w[22]),
-                "high": w[23], "bins": (w[24:56], w[56:88]),
+                "load": w[23], "bins": (w[24:56], w[56:88]),
                 "extra": f", reset {reason[0]:#010x}" if reason else "", "link": None}
 
 
@@ -142,7 +144,8 @@ class UnoQ:
     """SoakU5 on LPUART1: a report a second, SOAK and 26 hexadecimal numbers (SoakU5.c):
     seconds, wraps, the activity and the errors of the eight parts, the bytes of the link,
     its errors and overruns, the lateness of the pulse and of the timer events, the stack
-    never used, the load phase, and the byte the link expects next."""
+    never used, the work of the long task in its phase, and the byte the link expects
+    next."""
     name, context = "SoakU5", "board/soak-u5"
     parts = ["pulse", "queue", "buffer", "events", "buffer4", "heartbeat", "interrupt",
              "memory"]
@@ -229,7 +232,7 @@ class UnoQ:
             return {"marker": 0, "seconds": 0}
         return {"marker": MARKER, "seconds": r[0], "wraps": r[1], "activity": r[2:10],
                 "errors": r[10:18], "late": (r[21], r[22]), "stack": (r[23],),
-                "high": r[24], "bins": None,
+                "load": r[24], "bins": None,
                 "extra": f", link {r[18]} bytes of {self.sent} sent, {r[19]} errors, "
                          f"{r[20]} overruns", "link": r[18:21]}
 
@@ -309,7 +312,7 @@ def main():
                 line += f", {part} {a}/{e}"
             line += f", late max {r['late'][0]}/{r['late'][1]} us, stack free " + \
                 "/".join(str(s) for s in r["stack"]) + \
-                f", load {'high' if r['high'] else 'low'}{r['extra']}"
+                f", load {r['load']} us{r['extra']}"
             found = sum(r["errors"]) + (r["link"][1] if r["link"] else 0)
             write(line)
             if found:
