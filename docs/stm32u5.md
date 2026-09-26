@@ -97,3 +97,27 @@ crystal of the board (MSIPLLEN), as Arduino's firmware has it, it counted 1,140 
 1,140 s the same day, every part of the test without error: within 1 s, about 900 ppm,
 which is all whole seconds over 19 minutes can tell. The long endurance run will say
 closer.
+
+## Errata
+
+The errata sheet of the chip, ES0499 (rev. 12, June 2026), was read against the port on
+2026-09-26. The UNO Q's STM32U585 is revision U (DBGMCU_IDCODE 0x30076482). One erratum
+touches the port, and only the accuracy of its clock:
+
+- **2.2.27, spurious MSI PLL unlock**: the MSI may leave its PLL mode on a failure of the
+  LSE it detects wrongly, more likely cold and at a low core voltage; the MSIS then runs
+  free again, 0.48 % fast on this board. ST's workaround turns the PLL mode off and on
+  again from the interrupt that reports it; neither the CMSIS headers of the U575/585
+  nor Zephyr's name that interrupt, and it waits for RM0456 to say which it is. Until
+  then the endurance test would show an unlock, its seconds drifting off Linux's.
+
+The port already stands clear of the others that come near it:
+
+| Erratum | Why the port is clear |
+|---|---|
+| 2.2.3, 2.2.16: LSE unusable at the low and medium-low drives | it sets medium-high, as Zephyr |
+| 2.2.26: hang on entering Stop or Standby with the flash prefetching at 4 wait states | the idle task only sleeps (WFI, SLEEPDEEP never set), and the images run from SRAM |
+| 2.2.1: PC13 toggling disturbs the LSE | neither the port nor Arduino's device tree uses PC13 |
+| 2.22.3: LPUART transmitter jitter with a kernel clock 3 to 4 times the baud rate | 160 MHz for 115,200 baud |
+| 2.2.2, 2.2.5, 2.2.11, 2.2.19, 2.2.22: exits from and entries to Stop and Standby | the port uses neither |
+| TIM break and ocref, IWDG in Stop, USART DMA and smartcard, MPU faults | not used |

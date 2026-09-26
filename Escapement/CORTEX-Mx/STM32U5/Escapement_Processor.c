@@ -22,6 +22,14 @@
 ** which a reset leaves running: Arduino's firmware has most often started it already.
 ** Otherwise a crystal takes some time to start; should it not start, the MSIS runs free.
 **
+** Errata of the chip (ES0499, rev. 12, June 2026; the UNO Q's is revision U): the LSE may
+** not start or may stop at the two lowest drives (2.2.3, 2.2.16), hence the medium-high
+** one. And the MSI may leave its PLL mode on a failure of the LSE it wrongly detects,
+** more likely cold and at a low core voltage (2.2.27): the MSIS then runs free again.
+** ST's workaround, turning the PLL mode off and on again from the interrupt that reports
+** it, is not taken: which interrupt that is, the headers of the chip do not say. The
+** endurance test would show it, its seconds drifting off Linux's.
+**
 ** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 
@@ -41,7 +49,7 @@
 #define RCC_BDCR_LSEON       (1u << 0)
 #define RCC_BDCR_LSERDY      (1u << 1)
 #define RCC_BDCR_LSEDRV_MASK (3u << 3)
-#define RCC_BDCR_LSEDRV_MEDHIGH (2u << 3) /* the drive Zephyr gives the board's crystal */
+#define RCC_BDCR_LSEDRV_MEDHIGH (2u << 3) /* as Zephyr; the lower drives fail */
 #define RCC_BDCR_LSESYSEN    (1u << 7)
 #define RCC_BDCR_LSESYSRDY   (1u << 11)
 
