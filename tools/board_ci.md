@@ -124,3 +124,19 @@ for d in /sys/bus/usb/devices/*; do
     [ "$(cat $d/idProduct 2>/dev/null)" = 000c ] && echo "$(basename $d) $(cat $d/serial)"
 done
 ```
+
+Debian's OpenOCD, 0.12, knows the RP2040 but not the RP2350 of the Pico 2, and no
+release does yet. Raspberry Pi's fork does; built on the board on 2026-09-26 (branch
+`rpi-common`, acff23f), apart from the OpenOCD the checks use and from Arduino's in
+`/opt/openocd`, it reads the Pico's CHIP_ID through probe1 as Debian's does:
+
+```sh
+sudo apt install build-essential git autoconf automake libtool texinfo pkg-config \
+    libusb-1.0-0-dev libhidapi-dev libjim-dev
+git clone --depth 1 --branch rpi-common --recurse-submodules --shallow-submodules \
+    https://github.com/raspberrypi/openocd.git ~/src/openocd-rpi
+cd ~/src/openocd-rpi && ./bootstrap && ./configure --prefix=$HOME/opt/openocd-rpi \
+    --enable-cmsis-dap-v2 --enable-cmsis-dap --disable-werror && make -j2 && make install
+~/opt/openocd-rpi/bin/openocd -f interface/cmsis-dap.cfg -c "$(tools/probe.sh)" \
+    -f target/rp2350.cfg -c init -c exit      # with a Pico 2 on the probe
+```

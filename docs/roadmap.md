@@ -38,8 +38,9 @@ The **STM32L4** is set aside.
    anything over OTE, how long the regulator really takes to settle, and whether the
    core undervolted still computes right, checked by a computation whose result is
    verified.
-2. **The Pico 2 on the board.** It needs a Pico 2 and an OpenOCD that knows the RP2350,
-   which Homebrew's 0.12 does not. The board alone can say that the clocks are
+2. **The Pico 2 on the board.** It needs a Pico 2, and an OpenOCD that knows the
+   RP2350, which neither Homebrew's 0.12 nor Debian's does: Raspberry Pi's fork, built
+   on the UNO Q on 2026-09-26 (`tools/board_ci.md`), waits for the board. The board alone can say that the clocks are
    programmed right, which the Renode platform acknowledges blindly; then the six
    examples, `ThreeSlotCoresPico2` first, and litmus tests of the order in which each
    core sees the other's accesses.
