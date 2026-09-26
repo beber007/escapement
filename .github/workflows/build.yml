@@ -41,8 +41,8 @@ jobs:
           - example: rp2350-pico2
             dir: Escapement/CORTEX-Mx/RP2350/Examples/pico2
             cpu: Cortex-M33
-          - example: stm32u5-nucleo
-            dir: Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q
+          - example: stm32u5-uno-q
+            dir: Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
             cpu: Cortex-M33
     env:
       DIR: ${{ matrix.dir }}
@@ -138,7 +138,7 @@ jobs:
             check $P "" $v
           done
           for dir in Escapement/CORTEX-Mx/RP2350/Examples/pico2 \
-                     Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q; do
+                     Escapement/CORTEX-Mx/STM32U5/Examples/uno-q; do
             for v in "" SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING KERNEL=SOFT \
                      "KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING"; do
               check $dir "" $v
@@ -150,7 +150,7 @@ jobs:
       - name: Show that the check fails without each barrier
         run: |
           for dir in Escapement/CORTEX-Mx/RP2040/Examples/pico Escapement/CORTEX-Mx/RP2350/Examples/pico2 \
-                     Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q; do
+                     Escapement/CORTEX-Mx/STM32U5/Examples/uno-q; do
             sh tools/check_order_mutants.sh "$dir"
           done
       # Run as well as built: the CI's other compiler once made the kernel HardFault where
@@ -388,14 +388,14 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Build the examples
-        run: make -C Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q ${{ matrix.make }}
+        run: make -C Escapement/CORTEX-Mx/STM32U5/Examples/uno-q ${{ matrix.make }}
 
       - name: Check the compiled order of the slot buffers and the task-level stores
-        run: python3 tools/check_order.py Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q/build/Escapement{Hard,Soft,HardPA}.o
+        run: python3 tools/check_order.py Escapement/CORTEX-Mx/STM32U5/Examples/uno-q/build/Escapement{Hard,Soft,HardPA}.o
 
       - name: Show that the check fails without each barrier
         if: strategy.job-index == 0
-        run: sh tools/check_order_mutants.sh Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q
+        run: sh tools/check_order_mutants.sh Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
 
       - name: Use Renode 1.17.0
         run: echo /opt/renode-1.17.0 >> "$GITHUB_PATH"

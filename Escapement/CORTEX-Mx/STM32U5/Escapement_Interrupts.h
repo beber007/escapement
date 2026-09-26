@@ -25,7 +25,7 @@
 ** OSSetISRDescriptor and OSGetISRDescriptor. They are the IRQ numbers of the chip (RM0456,
 ** the reference manual of the STM32U5, table of the NVIC; STMicroelectronics,
 ** cmsis-device-u5, stm32u575xx.h), the numbers left out being reserved.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 
 #ifndef ESCAPEMENT_INTERRUPTS_H

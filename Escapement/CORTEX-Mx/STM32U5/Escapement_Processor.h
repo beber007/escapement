@@ -25,7 +25,7 @@
 ** microseconds through a prescaler set for the system clock this file chooses, so the
 ** clock is set once, first, and not changed afterwards. The power-aware kernel is not
 ** ported yet: its DVFS driver would need the voltage ranges and the SMPS of this chip.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 
 #ifndef ESCAPEMENT_PROCESSOR_H

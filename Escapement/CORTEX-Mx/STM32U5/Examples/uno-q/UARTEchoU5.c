@@ -21,64 +21,49 @@
 ** Modifications Copyright (c) 2026 Bertrand Hurst, distributed under the same terms;
 ** see LICENSE and NOTICE at the root of this repository.
 */
-/* STM32U575_Flash.ld: Memory layout of the STM32U575 examples, run from flash. With
-** TrustZone off, the default of the chip, the core boots at the start of the flash,
-** 0x08000000, where the vector table goes; SRAM1, SRAM2 and SRAM3, 192, 64 and 512 KB,
-** follow one another from 0x20000000 (RM0456, memory map).
+/* File UARTEchoU5.c: Sends back every byte received on USART1, from a handler called in
+** interrupt context. Transposition of UARTEchoPico2.c to the Arduino UNO Q.
+**
+** USART1 comes out on PB6 (TX) and PB7 (RX), D1 and D0 of the connector: a USB serial
+** adapter at 3.3 V on them, 115200 baud, 8N1.
+**
+** Platform version: STM32U585 (Arduino UNO Q).
 */
-ENTRY(_OSResetHandler)
 
-MEMORY
+#include "Escapement.h"
+#include "Escapement_UART.h"
+
+/* Transmit queue: the echo sends one byte at a time, but a few buffers absorb a short
+** burst of input. */
+#define UART_TRANSMIT_FIFO_NB_NODE   8
+#define UART_TRANSMIT_FIFO_NODE_SIZE 1
+
+#define UART_VECTOR OS_IO_USART1
+
+static void UARTUserReceiveInterruptHandler(UINT8 data);
+
+
+int main(void)
 {
-    FLASH (rx) : ORIGIN = 0x08000000, LENGTH = 2048K
-    SRAM (rwx) : ORIGIN = 0x20000000, LENGTH = 768K
-}
+  /* 160 MHz, which the baud rate is computed from. */
+  OSInitializeSystemClocks();
+  /* Initialize the UART driver and its hardware. */
+  if (!OSInitUART(UART_TRANSMIT_FIFO_NB_NODE,UART_TRANSMIT_FIFO_NODE_SIZE,
+                  UARTUserReceiveInterruptHandler,UART_VECTOR))
+     while (TRUE);
+  /* No periodic task here: everything happens on reception. The kernel runs its idle task,
+  ** which sleeps until an interrupt arrives. */
+  return OSStartMultitasking(NULL,NULL);
+} /* end of main */
 
-_OSEndRAM = ORIGIN(SRAM) + LENGTH(SRAM); /* End of the RAM: top of the stack and of the heap
-                                            of OSMalloc (Escapement_CortexMx.c). */
 
-SECTIONS
+/* UARTUserReceiveInterruptHandler: Called for each byte received; queues it straight back
+** for transmission. */
+static void UARTUserReceiveInterruptHandler(UINT8 data)
 {
-    .text :
-    {
-        KEEP(*(.isr_vector_general))  /* Cortex-M vector table */
-        KEEP(*(.isr_vector_specific)) /* STM32U5 specific vector table */
-        *(.text*)
-        *(.rodata*)
-        _etext = .;
-    } > FLASH
-
-    .data : AT (ADDR(.text) + SIZEOF(.text))
-    {
-        _data = .;
-        *(vtable)
-        *(.data*)
-        _edata = .;
-    } > SRAM
-
-
-    /* Load address of .data: where its initial values sit in flash, just past .text,
-    ** from which _OSResetHandler copies them into SRAM. Taking it from LOADADDR rather
-    ** than from _etext keeps it exact whatever padding the linker inserts at the end of
-    ** .text. */
-    _sidata = LOADADDR(.data);
-    .eh_frame :
-    {
-        KEEP (*(.eh_frame))
-    } > SRAM
-
-    .ARM.exidx :
-    {
-        *(.ARM.exidx* .gnu.linkonce.armexidx.*)
-    } > SRAM
-    
-    .bss :
-    {
-        _bss = .;
-        *(.bss*)
-        *(COMMON)
-        _ebss = .;
-        . = ALIGN(4);
-        _heap = .;
-    } > SRAM
-}
+  UINT8 *tmp = (UINT8 *)OSGetFreeNodeUART(UART_VECTOR);
+  if (tmp != NULL) {
+     *tmp = data;
+     OSEnqueueUART(tmp,1,UART_VECTOR);
+  }
+} /* end of UARTUserReceiveInterruptHandler */

@@ -29,7 +29,7 @@
 ** OSInitializeSystemClocks, and wraps at 2^30, where the kernel shifts its times: the
 ** update interrupt marks the wrap, the comparator of channel 1 the next arrival. Both
 ** mark their cause and defer the work to the software timer interrupt, of lower priority.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 
 #include "Escapement.h"

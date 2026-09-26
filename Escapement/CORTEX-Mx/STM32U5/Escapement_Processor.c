@@ -18,7 +18,7 @@
 ** crystal of the board (MSIPLLEN) it would be far closer, which the board's timings will
 ** want and which has yet to be measured.
 **
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 
 #include "Escapement.h"
@@ -73,6 +73,11 @@
 void OSInitializeSystemClocks(void)
 {
   volatile UINT32 i;
+  /* The image runs from SRAM (STM32U5_SRAM.ld): the core took its stack and first
+  ** instruction from the loader, and the vector table must be named before the first
+  ** interrupt, VTOR pointing at the flash after reset. */
+  extern void (* const CortexMxVectorTable[])(void);
+  *((volatile UINT32 *)0xE000ED08) = (UINT32)CortexMxVectorTable;   // SCB->VTOR
   RCC_AHB3ENR |= RCC_AHB3ENR_PWREN;
   (void)RCC_AHB3ENR;                       // the enable takes effect before PWR is written
   /* The input of PLL1, which is also the booster's clock, before the booster. */

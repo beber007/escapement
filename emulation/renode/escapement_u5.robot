@@ -4,7 +4,7 @@
 # The STM32U5 port on a platform of our own (escapement_u5.repl), the checks of
 # escapement_pico2.robot that its examples allow. The platform acknowledges every clock
 # switch without checking it: these tests say that the kernel runs and schedules on a
-# Cortex-M33 with the timers, the USART and the GPIO of the STM32U575, not that the clocks
+# Cortex-M33 with the timers, the USART and the GPIO of the STM32U585, not that the clocks
 # are programmed right, which only the board can say.
 *** Settings ***
 Suite Setup                   Setup
@@ -18,21 +18,22 @@ Test Timeout                  2 minutes
 Resource                      ${RENODEKEYWORDS}
 
 *** Variables ***
-${EXAMPLE}                    ${CURDIR}/../../Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575zi-q
+${EXAMPLE}                    ${CURDIR}/../../Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
 
 *** Keywords ***
 Load Escapement
-    [Documentation]           Loads a firmware into the flash, as a debugger does on the board,
-    ...                       and starts it as the chip does with TrustZone off: the core takes
-    ...                       its stack pointer and first instruction from the vector table at
-    ...                       the start of the flash, 0x08000000.
+    [Documentation]           Loads a firmware into SRAM, as tools/unoq_load.sh does on the board,
+    ...                       and starts it at its reset handler with the stack pointer of its
+    ...                       vector table, which is what the entry code at the head of the
+    ...                       image does there (Escapement_RamEntry.S).
     [Arguments]               ${binary}  ${platform}=escapement_u5.repl
-    Execute Command           mach create "nucleo_u575zi_q"
+    Execute Command           mach create "uno_q"
     Execute Command           path add @${CURDIR}
     Execute Command           include @${CURDIR}/Escapement_STM32_Timer.cs
     Execute Command           machine LoadPlatformDescription @${CURDIR}/${platform}
     Execute Command           sysbus LoadELF @${EXAMPLE}/build/${binary}.elf
-    Execute Command           sysbus.cpu VectorTableOffset 0x08000000
+    ${table}=                 Execute Command  sysbus GetSymbolAddress "CortexMxVectorTable"
+    Execute Command           sysbus.cpu VectorTableOffset ${table.strip()}
 
 Read Word
     [Documentation]           One 32-bit word of the emulated memory, as an integer.
@@ -43,11 +44,11 @@ Read Word
 
 *** Test Cases ***
 The probe task runs every millisecond
-    [Documentation]           TaskLEDU5 toggles PA6 from a task of period 1000 ticks of the
+    [Documentation]           TaskLEDU5 toggles D12, PB14, from a task of period 1000 ticks of the
     ...                       1 us timer: a 500 Hz square wave, 1 ms high, 1 ms low.
     Load Escapement           TaskLEDU5
 
-    ${probe}=                 Create LED Tester  sysbus.gpioPortA.probe
+    ${probe}=                 Create LED Tester  sysbus.gpioPortB.probe
 
     # A virtual time run, not Start Emulation: the tester then starts at a set instant
     # of the pattern, not at one the host's speed decides (escapement_pico2.robot).
@@ -57,13 +58,13 @@ The probe task runs every millisecond
 
 The three periodic tasks are scheduled
     [Documentation]           The three other tasks, of periods 10, 20 and 60 ms, each raise
-    ...                       their output on PC7 (LD1), PB7 (LD2) and PA5, and lower it
+    ...                       their output on LED3, LED4 and D13, and put it out
     ...                       before ending.
     Load Escapement           TaskLEDU5
 
-    ${flag1}=                 Create LED Tester  sysbus.gpioPortC.flag1  defaultTimeout=0.25
-    ${flag2}=                 Create LED Tester  sysbus.gpioPortB.flag2  defaultTimeout=0.25
-    ${flag3}=                 Create LED Tester  sysbus.gpioPortA.flag3  defaultTimeout=0.25
+    ${flag1}=                 Create LED Tester  sysbus.gpioPortH.flag1  defaultTimeout=0.25
+    ${flag2}=                 Create LED Tester  sysbus.gpioPortH.flag2  defaultTimeout=0.25
+    ${flag3}=                 Create LED Tester  sysbus.gpioPortB.flag3  defaultTimeout=0.25
 
     Start Emulation
 
@@ -88,13 +89,13 @@ The UART echo answers
     Wait For Prompt On Uart   escapement  testerId=${uart}
 
 Timer events wake the event-driven tasks
-    [Documentation]           TestTimerEventU5: LD1 high 1 ms every 5 ms and LD2 high 2 ms every
+    [Documentation]           TestTimerEventU5: LED3 on 1 ms every 5 ms and LED4 on 2 ms every
     ...                       10 ms, the kernel's TIM2 timing the periods, the event manager on
     ...                       TIM5 the high times.
     Load Escapement           TestTimerEventU5
 
-    ${flag1}=                 Create LED Tester  sysbus.gpioPortC.flag1
-    ${flag2}=                 Create LED Tester  sysbus.gpioPortB.flag2
+    ${flag1}=                 Create LED Tester  sysbus.gpioPortH.flag1
+    ${flag2}=                 Create LED Tester  sysbus.gpioPortH.flag2
 
     Execute Command           emulation RunFor "0.02"
 
@@ -112,10 +113,10 @@ Scheduling survives the 2^30 wrap of the kernel clock
     ...                       every 50 ms, must keep its period within 2 %.
     Load Escapement           TaskWrapU5  escapement_u5_wrap.repl
 
-    ${flag1}=                 Create LED Tester  sysbus.gpioPortC.flag1  defaultTimeout=1
-    ${flag2}=                 Create LED Tester  sysbus.gpioPortB.flag2  defaultTimeout=1
-    ${flag3}=                 Create LED Tester  sysbus.gpioPortA.flag3  defaultTimeout=1
-    ${probe}=                 Create LED Tester  sysbus.gpioPortA.probe
+    ${flag1}=                 Create LED Tester  sysbus.gpioPortH.flag1  defaultTimeout=1
+    ${flag2}=                 Create LED Tester  sysbus.gpioPortH.flag2  defaultTimeout=1
+    ${flag3}=                 Create LED Tester  sysbus.gpioPortB.flag3  defaultTimeout=1
+    ${probe}=                 Create LED Tester  sysbus.gpioPortB.probe
 
     Start Emulation
 

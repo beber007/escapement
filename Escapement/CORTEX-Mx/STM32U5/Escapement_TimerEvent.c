@@ -33,7 +33,7 @@
 ** never on a time already past: such an event is handed to the handler by generating the
 ** compare event of the channel (CC1G). The queue is guarded by masking interrupts for the
 ** length of a walk through at most nbNode nodes.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 
 #include "Escapement.h"

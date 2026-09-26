@@ -16,7 +16,8 @@ switching core regulator and two cores with exclusive accesses. Its port was beg
 only if that bench shows DVFS beating race-to-sleep.
 
 Of the **STM32**, the **STM32U5** is the one kept: its port, begun on 2026-09-25 for
-the NUCLEO-U575ZI-Q (`stm32u5.md`), is written anew in the manner of the RP2350's, and
+the STM32U585 of the Arduino UNO Q (`stm32u5.md`), is written anew in the manner of the
+RP2350's, and
 the older STM32 ports, the F4 example among them, are meant to go once it runs on the
 board. The argument of `power-aware.md` stands: the U5 sleeps too well for DVFS to gain
 much there, so its power-aware kernel, if ever, comes after the verdict of the RP2040.
@@ -50,14 +51,11 @@ The **STM32L4** is set aside.
 4. **DVFS on the RP2350**, if the verdict of item 1 is for it: its regulator and its
    power manager differ from the RP2040's, and the driver is to be written from the
    pico-sdk headers.
-5. **The STM32U5 on the board.** On a NUCLEO-U575ZI-Q, the board alone can
-   say that the clocks are programmed right, which the Renode platform acknowledges
-   blindly; then the MSIS locked on the 32.768 kHz crystal for timings worth measuring,
-   and the board checks of the Pico brought over. The older STM32 ports then go.
-6. **What the audit of the inherited kernel left open** (`method.md`): races the host
-   cannot reach — the counter wrapping inside the timer handler, two in the
-   power-aware kernel — which want a model or a hook in the emulator, and the
-   soft kernel's test of optional instances when no utilisation is declared.
+5. **The STM32U5 on the board.** On the Arduino UNO Q since 2026-09-26, from SRAM: the
+   clock set-up runs, and 22 s of the endurance test passed. Left: the MSIS locked on the
+   32.768 kHz crystal for timings worth measuring, the board checks of the Pico brought
+   over, run by the UNO Q's own Linux, and a long endurance run. The older STM32 ports
+   then go.
 
 ## Done
 

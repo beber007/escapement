@@ -22,7 +22,7 @@
 ** see LICENSE and NOTICE at the root of this repository.
 */
 /* File Escapement_Timer.h: Hardware abstract timer layer for the STM32U575.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 
 #ifndef ESCAPEMENT_TIMER_H

@@ -22,7 +22,7 @@
 ** see LICENSE and NOTICE at the root of this repository.
 */
 /* File Escapement_UART.h: User interface of the UART driver.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 
 #ifndef ESCAPEMENT_UART_H

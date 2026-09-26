@@ -21,8 +21,9 @@
 ## Modifications Copyright (c) 2026 Bertrand Hurst, distributed under the same terms;
 ## see LICENSE and NOTICE at the root of this repository.
 
-# The NUCLEO-U575ZI-Q (STM32U575, Cortex-M33), run from flash; the examples of the Pico 2
-# transposed. Built for a Cortex-M33 without its floating-point unit, so that the
+# The Arduino UNO Q (STM32U585, Cortex-M33): the examples of the Pico 2 transposed, run
+# from SRAM, loaded by tools/unoq_load.sh; the flash holds Arduino's firmware, which the
+# images leave in place. Built for a Cortex-M33 without its floating-point unit, so that the
 # compiler can never use it: the generic layer saves the context of a Cortex-M33 as that
 # of a Cortex-M4 without one (Escapement_CortexMx_a.S).
 
@@ -33,7 +34,7 @@ CC = $(CROSS_COMPILE)gcc
 OBJCOPY = $(CROSS_COMPILE)objcopy
 
 CPU = cortex-m33+nofp
-LINKERFILE = ../../STM32U575_Flash.ld
+LINKERFILE = ../../STM32U5_SRAM.ld
 
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
@@ -87,7 +88,8 @@ COMMON = build/Escapement_CortexMx.o \
           build/Escapement_Processor.o \
           build/EscapementHard.o \
           build/EscapementSoft.o \
-          build/EscapementHardPA.o
+          build/EscapementHardPA.o \
+          build/Escapement_RamEntry.o
 
 build/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
@@ -95,6 +97,8 @@ build/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/Escapement_Atomic.o : ../../../Escapement_Atomic.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
+	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/Escapement_%.o : ../../Escapement_%.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementHard.o : ../../../../EscapementHard.c

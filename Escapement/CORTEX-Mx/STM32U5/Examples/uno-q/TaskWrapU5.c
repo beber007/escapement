@@ -21,7 +21,7 @@
 ** Modifications Copyright (c) 2026 Bertrand Hurst, distributed under the same terms;
 ** see LICENSE and NOTICE at the root of this repository.
 */
-/* File TaskWrapU5.c: TaskWrapPico2.c on the NUCLEO-U575ZI-Q, the same tasks and periods:
+/* File TaskWrapU5.c: TaskWrapPico2.c on the Arduino UNO Q, the same tasks and periods:
 ** periodic tasks whose only purpose is to cross the 2^30 boundary of the kernel clock
 ** while they run.
 **
@@ -34,7 +34,7 @@
 **
 ** The outputs are those of TaskLEDU5: three tasks of 100, 200 and 600 ms, and a probe
 ** toggled every 50 ms, whose period is timed after the boundary.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q).
 */
 
 #include "Escapement.h"

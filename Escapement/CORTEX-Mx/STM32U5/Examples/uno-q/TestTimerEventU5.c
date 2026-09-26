@@ -25,10 +25,10 @@
 ** TestTimerEventPico2.c: two periodic tasks each raise an output and schedule an event on
 ** TIM5, which wakes an event-driven task that lowers it.
 **
-** LD1 (PC7) goes high every 5 ms for 1 ms, LD2 (PB7) every 10 ms for 2 ms. The period of
+** LED3 (PH11) lights every 5 ms for 1 ms, LED4 (PH15) every 10 ms for 2 ms. The period of
 ** each output is the kernel's timer at work, its high time the event manager's, and both
 ** show that each event-driven task ran when it was woken.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q).
 */
 
 #include "Escapement.h"
@@ -74,7 +74,7 @@ int main(void)
 
 
 
-/* SetLed1Task: Raises LD1 and has it lowered 1000 us later. */
+/* SetLed1Task: Lights LED3 and has it put out 1000 us later. */
 static void SetLed1Task(void *argument)
 {
   SetPin(FLAG1_PIN);
@@ -93,7 +93,7 @@ static void ClearLed1Task(void *argument)
 } /* end of ClearLed1Task */
 
 
-/* SetLed2Task: Raises LD2 and has it lowered 2000 us later. */
+/* SetLed2Task: Lights LED4 and has it put out 2000 us later. */
 static void SetLed2Task(void *argument)
 {
   SetPin(FLAG2_PIN);

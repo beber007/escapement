@@ -21,7 +21,7 @@
 ** changed as it ends, which a context switch must not hand to the task it resumes: the
 ** Filler checks them around a delay (CheckHighRegisters). The counts sit in Results, which the
 ** Renode suite reads (escapement_u5.robot) and SWD reads on the board.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q).
 */
 
 #include "Escapement.h"

@@ -26,12 +26,13 @@
 ** supplied by the application, from interrupt context. Transmission goes through a queue
 ** of buffers served by the interrupt, so that a task never waits on the port.
 **
-** USART1 goes out on PA9 (TX) and PA10 (RX), alternate function 7, which the NUCLEO-
-** U575ZI-Q routes to the virtual serial port of its ST-LINK. Its FIFO is left off: the
+** USART1 goes out on PB6 (TX) and PB7 (RX), alternate function 7, D1 and D0 of the
+** connector of the Arduino UNO Q (datasheet ABX00162/ABX00173, 9.6 JDIGITAL). Its FIFO is
+** left off: the
 ** transmit interrupt then reflects a state, the transmit register empty, and fires as
 ** soon as it is enabled while there is room, so that enabling it is all a new buffer
 ** needs, where the PL011 of the RP2350 had to be primed.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q).
 */
 
 #include "Escapement.h"
@@ -55,17 +56,17 @@
 #define ISR_TXE              (1u << 7)
 #define ICR_ORECF            (1u << 3)
 
-#define GPIOA_BASE           0x42020000
-#define GPIOA_MODER          *((volatile UINT32 *)(GPIOA_BASE + 0x00))
-#define GPIOA_AFRH           *((volatile UINT32 *)(GPIOA_BASE + 0x24))
-#define TX_PIN               9
-#define RX_PIN               10
+#define GPIOB_BASE           0x42020400
+#define GPIOB_MODER          *((volatile UINT32 *)(GPIOB_BASE + 0x00))
+#define GPIOB_AFRL           *((volatile UINT32 *)(GPIOB_BASE + 0x20))
+#define TX_PIN               6
+#define RX_PIN               7
 #define MODE_AF              2u
 #define AF_USART1            7u
 
 #define RCC_AHB2ENR1         *((volatile UINT32 *)(0x46020C00 + 0x8C))
 #define RCC_APB2ENR          *((volatile UINT32 *)(0x46020C00 + 0xA4))
-#define RCC_AHB2ENR1_GPIOAEN (1u << 0)
+#define RCC_AHB2ENR1_GPIOBEN (1u << 1)
 #define RCC_APB2ENR_USART1EN (1u << 14)
 
 /* One bit per interrupt, 32 to a word. */
@@ -115,13 +116,13 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
   descriptor->CurrentBuffer = NULL;
   descriptor->CurrentBufferIndex = 0;
   descriptor->Base = USART1_BASE;
-  RCC_AHB2ENR1 |= RCC_AHB2ENR1_GPIOAEN;
+  RCC_AHB2ENR1 |= RCC_AHB2ENR1_GPIOBEN;
   RCC_APB2ENR |= RCC_APB2ENR_USART1EN;
   (void)RCC_APB2ENR;                   // the clocks run before the blocks are written
-  /* PA9 and PA10 to alternate function 7. */
-  GPIOA_AFRH = (GPIOA_AFRH & ~(0xFu << 4 * (TX_PIN - 8) | 0xFu << 4 * (RX_PIN - 8))) |
-               AF_USART1 << 4 * (TX_PIN - 8) | AF_USART1 << 4 * (RX_PIN - 8);
-  GPIOA_MODER = (GPIOA_MODER & ~(3u << 2 * TX_PIN | 3u << 2 * RX_PIN)) |
+  /* PB6 and PB7 to alternate function 7. */
+  GPIOB_AFRL = (GPIOB_AFRL & ~(0xFu << 4 * TX_PIN | 0xFu << 4 * RX_PIN)) |
+               AF_USART1 << 4 * TX_PIN | AF_USART1 << 4 * RX_PIN;
+  GPIOB_MODER = (GPIOB_MODER & ~(3u << 2 * TX_PIN | 3u << 2 * RX_PIN)) |
                 MODE_AF << 2 * TX_PIN | MODE_AF << 2 * RX_PIN;
   /* 8 bits, no parity, one stop bit, oversampling by 16: the divisor is the clock over
   ** the baud rate, rounded. */

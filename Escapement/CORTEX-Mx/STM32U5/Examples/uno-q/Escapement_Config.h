@@ -21,8 +21,8 @@
 ** Modifications Copyright (c) 2026 Bertrand Hurst, distributed under the same terms;
 ** see LICENSE and NOTICE at the root of this repository.
 */
-/* File Escapement_Config.h: Escapement configuration for a NUCLEO-U575ZI-Q.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+/* File Escapement_Config.h: Escapement configuration for the Arduino UNO Q.
+** Platform version: STM32U585 (Arduino UNO Q).
 */
 
 #ifndef ESCAPEMENT_CONFIG_H_

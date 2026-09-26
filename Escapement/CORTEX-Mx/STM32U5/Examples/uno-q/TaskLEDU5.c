@@ -22,9 +22,9 @@
 ** see LICENSE and NOTICE at the root of this repository.
 */
 /* File TaskLEDU5.c: Three periodic tasks that each toggle an output while they run,
-** and a 1 ms probe. TaskLEDPico2.c on the NUCLEO-U575ZI-Q: the same tasks and periods,
-** the outputs of BoardU5.h, the first two tasks on the green and blue LEDs of the board.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** and a 1 ms probe. TaskLEDPico2.c on the Arduino UNO Q: the same tasks and periods,
+** the outputs of BoardU5.h, the first two tasks on the green of LED3 and the blue of LED4.
+** Platform version: STM32U585 (Arduino UNO Q).
 */
 
 #include "Escapement.h"

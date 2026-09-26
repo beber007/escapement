@@ -41,9 +41,11 @@
 ** The counts only grow: a probe reading them twice and finding them smaller, or the
 ** marker gone, has seen the board restart. The independent watchdog restarts it within
 ** 3 s of the heartbeat stopping, which is how a kernel that hangs shows; the image being
-** in flash, it starts again. The watchdog runs on while a debugger halts the core
-** (DBGMCU does not freeze it here): a halt of more than 3 s restarts the board.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** in SRAM, the board comes back to Arduino's firmware in its flash, and the marker is
+** gone. tools/unoq_load.sh freezes the watchdog and the timers while a debugger halts
+** the core, so that a halt to read the counts neither restarts the board nor makes the
+** tasks late.
+** Platform version: STM32U585 (Arduino UNO Q).
 */
 
 #include "Escapement.h"
@@ -89,8 +91,8 @@ typedef struct {
 
 /* Set by an emulator running several instances, for each its own conditions: from it,
 ** the Filler works 500 to 1500 us per instance and the timer events come 500 to 1500 us
-** after they are scheduled. Unset on the board. The image runs from flash, where .data
-** is copied from at startup: an emulator writes it into the flash image. */
+** after they are scheduled. Unset on the board. The image runs from SRAM, .data in place:
+** an emulator writes it into the image once loaded. */
 volatile UINT32 SoakSeed = 0xFFFFFFFF;
 static UINT32 FillTime = FILL_TIME, EventDelay = EVENT_DELAY;
 

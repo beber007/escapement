@@ -1,13 +1,14 @@
 // Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
 // LICENSE at the root of this repository.
 //
-// NUCLEO-U575ZI-Q (STM32U575) for Escapement: a platform of our own, since Renode models
-// no STM32U5 (docs/roadmap.md). Only what the examples of Escapement/CORTEX-Mx/STM32U5
-// touch: a Cortex-M33 with its NVIC, 4 bits of priority, 2 MB of flash, the 768 KB of
-// SRAM1 to SRAM3, TIM2, TIM3 and TIM5 (the fixed timer model of the STM32F4 platform,
-// Escapement_STM32_Timer.cs), and the independent watchdog, USART1 and ports A to C of
-// GPIO, which Renode models for the STM32L552, of the same family, with the outputs of
-// BoardU5.h as LEDs; and the blocks the clock set-up waits on. Addresses from RM0456 and
+// The STM32U585 of the Arduino UNO Q for Escapement: a platform of our own, since Renode
+// models no STM32U5 (docs/roadmap.md). Only what the examples of Escapement/CORTEX-Mx/
+// STM32U5 touch: a Cortex-M33 with its NVIC, 4 bits of priority, 2 MB of flash, the
+// 768 KB of SRAM1 to SRAM3 the images run from, TIM2, TIM3 and TIM5 (the fixed timer model
+// of the STM32F4 platform, Escapement_STM32_Timer.cs), and the independent watchdog,
+// USART1 and ports B and H of GPIO, which Renode models for the STM32L552, of the same
+// family, with the outputs of BoardU5.h as LEDs, those on port H lit when low as on the
+// board; and the blocks the clock set-up waits on. Addresses from RM0456 and
 // cmsis-device-u5.
 //
 // Those blocks keep what is written and read the bits the code waits for as set: the
@@ -54,30 +55,26 @@ usart1: UART.STM32F7_USART @ sysbus 0x40013800
     frequency: 160000000
     IRQ -> nvic@61
 
-gpioPortA: GPIOPort.STM32_GPIOPort @ sysbus <0x42020000, +0x400>
-    modeResetValue: 0xABFFFFFF
-    outputSpeedResetValue: 0x0C000000
-    pullUpPullDownResetValue: 0x64000000
-    numberOfAFs: 16
-    5 -> flag3@0
-    6 -> probe@0
-
 gpioPortB: GPIOPort.STM32_GPIOPort @ sysbus <0x42020400, +0x400>
     modeResetValue: 0xFFFFFEBF
     outputSpeedResetValue: 0x000000C0
     pullUpPullDownResetValue: 0x00000100
     numberOfAFs: 16
-    7 -> flag2@0
+    13 -> flag3@0
+    14 -> probe@0
 
-gpioPortC: GPIOPort.STM32_GPIOPort @ sysbus <0x42020800, +0x400>
+gpioPortH: GPIOPort.STM32_GPIOPort @ sysbus <0x42021C00, +0x400>
     modeResetValue: 0xFFFFFFFF
     numberOfAFs: 16
-    7 -> flag1@0
+    11 -> flag1@0
+    15 -> flag2@0
 
-flag1: Miscellaneous.LED @ gpioPortC 7
-flag2: Miscellaneous.LED @ gpioPortB 7
-flag3: Miscellaneous.LED @ gpioPortA 5
-probe: Miscellaneous.LED @ gpioPortA 6
+flag1: Miscellaneous.LED @ gpioPortH 11
+    invert: true
+flag2: Miscellaneous.LED @ gpioPortH 15
+    invert: true
+flag3: Miscellaneous.LED @ gpioPortB 13
+probe: Miscellaneous.LED @ gpioPortB 14
 
 // RCC: MSIS and PLL1 ready in CR, and SWS in CFGR1 the SW just written.
 rcc: Python.PythonPeripheral @ sysbus 0x46020C00

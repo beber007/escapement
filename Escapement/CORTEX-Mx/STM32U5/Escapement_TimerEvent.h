@@ -24,7 +24,7 @@
 /* File Escapement_TimerEvent.h: Turns TIM5 of the STM32U575 into a manager that wakes
 ** event-driven tasks after a delay. Same entry points as on the other ports; the delays
 ** count microseconds.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 
 #ifndef _TIMEREVENT_

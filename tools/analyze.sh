@@ -37,7 +37,7 @@ analyze() {   # analyze CPU PORT_DIR EXAMPLE_DIR [KERNELS]
 }
 analyze cortex-m0plus "$M/RP2040" "$M/RP2040/Examples/pico"
 analyze cortex-m33+nofp "$M/RP2350" "$M/RP2350/Examples/pico2" "HARD SOFT"
-analyze cortex-m33+nofp "$M/STM32U5" "$M/STM32U5/Examples/nucleo-u575zi-q" "HARD SOFT"
+analyze cortex-m33+nofp "$M/STM32U5" "$M/STM32U5/Examples/uno-q" "HARD SOFT"
 analyze cortex-m4 "$M/STM32" "$M/STM32/Examples/stm32f4-discovery" "HARD SOFT"
 if grep -q "warning:" "$LOG"; then
     cat "$LOG"

@@ -27,7 +27,7 @@
 ** which reads the exception number and dispatches through the second table,
 ** _OSTabDevice. Transposed from the RP2350 port: 126 interrupts, numbered as in
 ** Escapement_Interrupts.h.
-** Platform version: STM32U575 (NUCLEO-U575ZI-Q).
+** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 
 #include "Escapement.h"
