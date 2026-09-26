@@ -55,7 +55,7 @@ test says the scheduler decided what it was supposed to decide.
 
 | Level | Means | What it establishes |
 |---|---|---|
-| Compilation | GitHub Actions, with a toolchain other than the developer's | the examples of the Pico, the Pico 2 and the STM32U5, on every push |
+| Compilation | GitHub Actions, with the developer's GCC and a second one, 14.2 | the examples of the Pico, the Pico 2 and the STM32U5, on every push |
 | The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for — 87 to 90 % of the lines of each kernel |
 | Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access, both slot buffers on two cores too, each core free to reorder its accesses as the architecture allows, and the queue of Evéquoz between the cores of the RP2350: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
 | Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the RP2040, the RP2350 and the STM32U5; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after, and on the RP2350 both slot buffers between its two cores — all as regression tests |
@@ -95,15 +95,22 @@ openocd -f interface/cmsis-dap.cfg -c 'adapter speed 5000' -f target/rp2040.cfg 
         -c 'init; reset halt; load_image build/TaskLEDPico.elf; resume 0x20000000; exit'
 ```
 
+On the STM32U585 of an Arduino UNO Q, loaded into SRAM by the board's own Linux over
+SSH, which leaves Arduino's firmware in the flash:
+
+```sh
+make -C Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
+tools/unoq_load.sh Escapement/CORTEX-Mx/STM32U5/Examples/uno-q/build/TaskLEDU5.elf
+```
+
 ## Design
 
 ### Scheduling
 
 **EDF without a tick.** FreeRTOS, for one, schedules at fixed priorities, paced by a
-periodic tick. Here tasks declare a period and a deadline,
-the scheduler elects the one whose deadline is nearest, and the hardware
-interrupts the processor at that moment only. DM scheduling is available too,
-selected in the configuration of an application.
+periodic tick. Here tasks declare a period and a deadline, the scheduler elects the one
+whose deadline is nearest, and the hardware interrupts the processor at that moment
+only. DM scheduling is available too, selected in the configuration of an application.
 
 **Overload that degrades by design.** A second kernel schedules (m,k)-firm tasks:
 out of every k instances of a task, m are guaranteed, and the others run only if a
@@ -120,14 +127,14 @@ Whether that lever actually saves energy is examined in
 
 **A time base independent of the core, on the RP2040.** Its counter is fed by a
 one-microsecond tick derived from the reference clock: changing the processor
-frequency does not move the time base of the kernel, which makes this chip a
-good target for the power-aware variant.
+frequency does not move the time base of the kernel, which the power-aware variant
+needs.
 
 ### Concurrency without locks
 
 **A kernel that takes no lock.** None of the three kernels masks interrupts to protect
 its queues: they are updated with load-linked / store-conditional pairs, `LDREX`/`STREX`
-on the Cortex-M3, M4 and M33. The Cortex-M0+ has no such instructions; there the
+on the Cortex-M33. The Cortex-M0+ has no such instructions; there the
 reservation is a flag that every context switch and every interrupt clears on its way
 out, and only the store-conditional runs with interrupts masked, for a few instructions.
 No task ever waits for another, so no priority inversion can arise inside the kernel.
@@ -215,6 +222,8 @@ wrongly suspected when the defect was in the firmware. The full account is in
 | [`docs/emulation.md`](docs/emulation.md) | Renode, tests replayed in CI, fixes to the timer model |
 | [`docs/power-aware.md`](docs/power-aware.md) | DVFS, energy analysis, choosing a target |
 | [`docs/rp2040.md`](docs/rp2040.md) | Raspberry Pi Pico port and hardware measurements |
+| [`docs/stm32u5.md`](docs/stm32u5.md) | STM32U5 port on the Arduino UNO Q: clock, errata, endurance test |
+| [`tools/board_ci.md`](tools/board_ci.md) | the bench: the checks run on the boards at each commit |
 | [`emulation/renode/RP2040.md`](emulation/renode/RP2040.md) | emulating the Pico under Renode |
 | [`docs/method.md`](docs/method.md) | verifying AI-assisted development |
 | [`test/host`](test/host) | the scheduler built for the machine it runs on |
