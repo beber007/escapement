@@ -88,10 +88,12 @@ class Link(threading.Thread):
 
 
 def reports(fd):
-    """Each report of SoakU5 as a list of numbers, or None after SILENT s without one."""
+    """Each report of SoakU5 as a list of numbers, or None after SILENT s without one: the
+    time runs from the last valid report, whatever else comes in, so that Arduino's
+    firmware, running after a restart, cannot keep the test from being loaded again."""
     pending = b""
+    deadline = time.monotonic() + SILENT
     while True:
-        deadline = time.monotonic() + SILENT
         while b"\n" not in pending:
             left = deadline - time.monotonic()
             if left <= 0:
@@ -103,13 +105,17 @@ def reports(fd):
                     pending += os.read(fd, 512)
                 except BlockingIOError:
                     pass
+            if len(pending) > 4096:
+                pending = pending[-512:]      # what is no report never piles up
         line, pending = pending.split(b"\n", 1)
         words = line.decode(errors="replace").split()
         if len(words) == 27 and words[0] == "SOAK":   # the word SOAK and 26 numbers
             try:
-                yield [int(w, 16) for w in words[1:]]
+                report = [int(w, 16) for w in words[1:]]
             except ValueError:
-                pass
+                continue
+            deadline = time.monotonic() + SILENT
+            yield report
 
 
 def main():
