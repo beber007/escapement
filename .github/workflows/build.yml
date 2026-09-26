@@ -172,6 +172,19 @@ jobs:
             robot_output.xml
           retention-days: 14
 
+  tools:
+    # The scripts of the bench and the models otherwise run only on the bench or by hand:
+    # a slip in one shows here, not once it is on the board. shellcheck at its warnings,
+    # its notes being mostly the word splitting the scripts want.
+    name: Scripts of the tools and the models
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Python
+        run: python3 -m py_compile tools/*.py test/model/*.py emulation/renode/*.py
+      - name: Shell
+        run: shellcheck --version | sed -n 2p && shellcheck -S warning tools/*.sh
+
   encoding:
     name: Tracked files are UTF-8
     runs-on: ubuntu-26.04
@@ -225,7 +238,6 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 15
-    needs: examples
     env:
       DIR: Escapement/CORTEX-Mx/STM32/Examples/stm32f4-discovery
 
@@ -271,7 +283,6 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 15
-    needs: examples
     strategy:
       fail-fast: false
       matrix:
@@ -316,7 +327,6 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 15
-    needs: examples
     strategy:
       fail-fast: false
       matrix:
@@ -370,7 +380,6 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 15
-    needs: examples
     strategy:
       fail-fast: false
       matrix:
@@ -424,7 +433,6 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 20
-    needs: examples
     strategy:
       fail-fast: false
       matrix:

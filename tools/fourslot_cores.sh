@@ -34,6 +34,7 @@ ocd() {
 
 ocd -c 'reset halt' -c "load_image $ELF" -c 'resume 0x20000000' >/dev/null
 sleep "$RUN_SECONDS"
+# shellcheck disable=SC2046  # the words read are the fields wanted
 set -- $(ocd -c "mdw $RESULTS 10" | sed -n 's/^0x[0-9a-f]*: //p')
 [ $# -ge 10 ] || { echo "Results not read back" >&2; exit 1; }
 

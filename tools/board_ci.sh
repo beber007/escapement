@@ -217,6 +217,7 @@ failed=""
     echo "main at $SHA, $(date), images: $IMAGES"
     [ "$IMAGES" = build ] || cat "$DIR/fw/compiler" 2>/dev/null || true
     for check in $checks; do
+        # shellcheck disable=SC2046  # its words are the fields wanted
         set -- $(echo "$check" | tr _ ' ')
         case $2 in
             hard) args="" ;;
