@@ -107,8 +107,8 @@ Scheduling survives the 2^30 wrap of the kernel clock
     ...                       variable back when its counter wraps, which TIM2 does at 2^30.
     ...                       As in escapement_pico2.robot, the timer runs 1000 times faster
     ...                       (escapement_u5_wrap.repl) and TaskWrapU5 scales its periods to
-    ...                       match, which puts the
-    ...                       boundary at 1.07 s of emulated time for an unchanged load.
+    ...                       match, which puts the boundary at 1.07 s of emulated time for
+    ...                       an unchanged load.
     ...                       Every task must still run afterwards, and the probe, toggled
     ...                       every 50 ms, must keep its period within 2 %.
     Load Escapement           TaskWrapU5  escapement_u5_wrap.repl

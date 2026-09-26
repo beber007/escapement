@@ -24,7 +24,7 @@
 /* File Escapement_Timer.c: Hardware abstract timer layer for the RP2040.
 **
 ** The RP2040 timer is a free running 64-bit counter fed by a fixed 1 us tick derived from
-** clk_ref, and therefore *independent of the core clock*. Changing the core frequency, as
+** clk_ref, and therefore independent of the core clock. Changing the core frequency, as
 ** the power-aware variant does, does not move the kernel's time base — unlike the STM32,
 ** where the timer clock follows the core clock through the APB prescaler.
 **
@@ -174,8 +174,7 @@ void _OSInitializeTimer(void)
   /* The RP2040 freezes its timer as soon as a core is halted by the debugger. Keeping that
   ** behaviour is deliberate: without it, every inspection lets the kernel's clock run on
   ** while the tasks are stopped, and on resume the kernel finds every deadline missed —
-  ** which trips its overload guard as soon as a task has a short period. Debugging a
-  ** real-time kernel requires its clock to stop with it.
+  ** which trips its overload guard as soon as a task has a short period.
   ** Measuring is the one case that wants the opposite. The probe has to hold a core
   ** halted while it loads the image, which freezes the clock; the kernel then arms a
   ** deadline computed on a stopped clock, and since an alarm of the RP2040 fires on

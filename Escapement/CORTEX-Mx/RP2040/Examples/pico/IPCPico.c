@@ -12,14 +12,14 @@
 ** through OSGetReferenceBuffer. An event-driven task, Drainer, which both signal with
 ** OSScheduleSuspendedTask and whose priority is higher still, empties the queue.
 **
-** A task preempted inside OSEnqueueFIFO or OSDequeueFIFO leaves its operation posted,
-** and the task that preempts it completes that operation before its own: the code that
-** does so runs only under preemption, which the host test reaches by hand
-** (test/host/test_ipc.c) and this reaches as a task set does. The Drainer checks that
-** the records of each producer come out once and in order; the Poker, that the buffer
-** never gives it a record twice nor a torn one. Each task also leaves registers R8-R11
-** changed as it ends, which a context switch must not hand to the task it resumes: the
-** Filler checks them around a delay (CheckHighRegisters). The counts sit in Results, which the
+** A task preempted inside OSEnqueueFIFO or OSDequeueFIFO leaves its operation posted, and
+** the task that preempts it completes that operation before its own: the code that does
+** so runs only under preemption, which the host test reaches by hand
+** (test/host/test_ipc.c) and this reaches as a task set does. The Drainer checks that the
+** records of each producer come out once and in order; the Poker, that the buffer never
+** gives it a record twice nor a torn one. Each task also leaves registers R8-R11 changed
+** as it ends, which a context switch must not hand to the task it resumes: the Filler
+** checks them around a delay (CheckHighRegisters). The counts sit in Results, which the
 ** Renode suite reads (escapement_pico.robot) and SWD reads on the board.
 ** Platform version: RP2040 (Raspberry Pi Pico).
 */

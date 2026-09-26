@@ -16,9 +16,10 @@
 #
 # escapement_pico2.robot hooks the entry of OSUINT8_LL, OSUINT8_SC, OSUINT32_LL and
 # OSUINT32_SC (which OSUINTPTR_LL and _SC are) on both cores to ll() and sc(), which do
-# the access themselves and return to the caller, so that no LDREX or STREX runs; the start of every exception to exception(); and the first LL on
-# a granule installs write hooks on it that call write(). The state is kept in the
-# AppDomain, which the hooks of both cores share.
+# the access themselves and return to the caller, so that no LDREX or STREX runs; the
+# start of every exception to exception(); and the first LL on a granule installs write
+# hooks on it that call write(). The state is kept in the AppDomain, which the hooks of
+# both cores share.
 #
 # The hooks of the two cores can run at the same time: with a slice of 1 us, two SCs on
 # one granule both found their reservation and both wrote, and FIFOCoresPico2, each core

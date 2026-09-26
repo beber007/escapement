@@ -20,9 +20,9 @@ Each reading appends a line to the log (BOARD_SOAK_LOG, soak-<board>-<date>.log 
 current directory by default): the seconds run by the firmware, the wraps of the kernel
 clock crossed, the activity and the errors of each part, the worst lateness of the pulse
 and of the timer events, the stack left unused, the work of the long task in the phase
-of load drawn at random; on a Pico the reason of
-the last reset the watchdog block records, and every hour the lateness by bins of 10 us;
-on the UNO Q the bytes of the link, its errors and overruns.
+of load drawn at random; on a Pico the reason of the last reset the watchdog block
+records, and every hour the lateness by bins of 10 us; on the UNO Q the bytes of the link,
+its errors and overruns, the causes of reset and the times the MSIS was locked again.
 
 The test runs to its end whatever it finds. A reading whose marker is gone, whose
 seconds went back, or, on the UNO Q, no report for 10 s, has seen the board restart,

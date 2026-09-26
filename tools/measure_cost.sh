@@ -12,7 +12,7 @@
 # Needs OpenOCD and a CMSIS-DAP probe (the Raspberry Pi Debug Probe); PROBE=name picks
 # one of the bench's (tools/probe.sh).
 #
-# Two points make this trickier than it looks:
+# Two points to know:
 #
 #  - the timer of the RP2040 stops while ANY core is halted by the debugger, and
 #    OpenOCD halts both of them. Core 1 is never resumed here: a firmware in flash

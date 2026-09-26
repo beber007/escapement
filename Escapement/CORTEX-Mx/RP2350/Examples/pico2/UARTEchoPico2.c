@@ -53,7 +53,6 @@ int main(void)
   /* Leave the ring oscillator for the crystal, so the baud rate and the microsecond tick
   ** mean something. */
   OSInitializeSystemClocks();
-  /* Initialize the UART driver and its hardware. */
   if (!OSInitUART(UART_TRANSMIT_FIFO_NB_NODE,UART_TRANSMIT_FIFO_NODE_SIZE,
                   UARTUserReceiveInterruptHandler,UART_VECTOR))
      while (TRUE);

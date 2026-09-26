@@ -47,7 +47,6 @@ int main(void)
 {
   /* 160 MHz, which the baud rate is computed from. */
   OSInitializeSystemClocks();
-  /* Initialize the UART driver and its hardware. */
   if (!OSInitUART(UART_TRANSMIT_FIFO_NB_NODE,UART_TRANSMIT_FIFO_NODE_SIZE,
                   UARTUserReceiveInterruptHandler,UART_VECTOR))
      while (TRUE);

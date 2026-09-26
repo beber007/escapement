@@ -137,7 +137,6 @@ int main(void)
   #else
      OSCreateTask(ProbeTask,0,1000,1000,NULL);
   #endif
-  /* Start the OS so that it starts scheduling the user tasks */
   return OSStartMultitasking(NULL,NULL);
 } /* end of main */
 

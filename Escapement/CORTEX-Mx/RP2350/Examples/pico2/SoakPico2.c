@@ -34,7 +34,8 @@
 ** Results, in words from its start, which tools/soak.py and the Renode suites read:
 **    0 marker   1 seconds run   2 wraps crossed   3-10 activity of the parts
 **   11-18 errors of the parts   19 worst lateness of the pulse   20 of the timer events,
-**   in us   21 bytes of core 0's stack never used   22 of core 1's   23 work of the long task in its phase, in us
+**   in us   21 bytes of core 0's stack never used   22 of core 1's
+**   23 work of the long task in its phase, in us
 **   24-55 lateness of the pulse by 10 us, the last for 310 us or more   56-87 the same
 **   for the timer events.
 ** The counts only grow: a probe reading them twice and finding them smaller, or the

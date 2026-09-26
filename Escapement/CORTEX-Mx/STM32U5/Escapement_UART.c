@@ -31,11 +31,10 @@
 ** whose registers sit at the same offsets, goes to the board's Linux processor on PG7
 ** (TX) and PG8 (RX), alternate function 8, where Linux sees /dev/ttyHS1 (Zephyr's
 ** description of the board, arduino_uno_q-common.dtsi); its flow control lines are left
-** alone. Either is chosen by its interrupt, OS_IO_USART1 or OS_IO_LPUART1. Their FIFOs are
-** left off: the
-** transmit interrupt then reflects a state, the transmit register empty, and fires as
-** soon as it is enabled while there is room, so that enabling it is all a new buffer
-** needs, where the PL011 of the RP2350 had to be primed.
+** alone. Either is chosen by its interrupt, OS_IO_USART1 or OS_IO_LPUART1. Their FIFOs
+** are left off: the transmit interrupt then reflects a state, the transmit register
+** empty, and fires as soon as it is enabled while there is room, so that enabling it is
+** all a new buffer needs, where the PL011 of the RP2350 had to be primed.
 ** Platform version: STM32U585 (Arduino UNO Q).
 */
 

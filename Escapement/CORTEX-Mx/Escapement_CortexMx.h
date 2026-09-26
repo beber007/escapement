@@ -77,8 +77,8 @@ void _OSIOHandler(void);
 ** trollers.
 ** The memory clobber is what makes them critical sections as far as the compiler is
 ** concerned. Without it, masking interrupts only constrains the processor, not the code
-** generator: reads and writes may legally be moved across the boundary, and what the
-** section was protecting is then protected only by the compiler's goodwill. */
+** generator: reads and writes may legally be moved across the boundary, out of the
+** section. */
 #define _OSEnableInterrupts()  __asm volatile ("CPSIE i" ::: "memory")
 #define _OSDisableInterrupts() __asm volatile ("CPSID i" ::: "memory")
 
@@ -132,9 +132,8 @@ void _OSIOHandler(void);
 ** Escapement_CortexMx_a.S). Sets bit PENDSVSET of ICSR (0xE000ED04). */
 /* Note that the write bits of ICSR take effect only if they are set, hence an assignment
 ** is the proper way to set a bit.
-** The barriers are not decoration. Pending an exception does not take it: the write has
-** to reach the NVIC, and the processor has to see the pending state before it executes
-** what follows. Callers such as OSEndTask depend on never returning, and an optimised
+** Pending an exception does not take it at once: the write has to reach the NVIC, and
+** the processor has to see the pending state before it executes what follows. Callers such as OSEndTask depend on never returning, and an optimised
 ** epilogue puts the return one instruction after the store — the task then returns to an
 ** EXC_RETURN value in LR from thread mode, which faults with INVPC. */
 #define _OSScheduleTask() \

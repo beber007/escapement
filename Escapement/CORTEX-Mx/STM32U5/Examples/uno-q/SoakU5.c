@@ -52,7 +52,8 @@
 ** Renode suite reads; tools/soak.py reads the reports of the link (docs/stm32u5.md):
 **    0 marker   1 seconds run   2 wraps crossed   3-10 activity of the parts
 **   11-18 errors of the parts   19 worst lateness of the pulse   20 of the timer events,
-**   in us   21 bytes of the stack never used   22 0, no second core   23 work of the long task in its phase, in us
+**   in us   21 bytes of the stack never used   22 0, no second core
+**   23 work of the long task in its phase, in us
 **   24-55 lateness of the pulse by 10 us, the last for 310 us or more   56-87 the same
 **   for the timer events   88-90 bytes received on the link, its errors and overruns
 **   91 the byte it expects next   92 the flags of reset of RCC_CSR, bits 25 to 31, as

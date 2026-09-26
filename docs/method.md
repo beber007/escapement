@@ -1,7 +1,7 @@
 # Verifying AI-assisted development
 
-This project is written with an AI assistant. That changes what the repository
-has to prove: not that code was produced, but that what was produced is correct.
+This project is written with an AI assistant, so the repository has to show that what
+was produced is correct.
 
 The working rule is one line: **the AI proposes, the instrument decides.**
 Nothing here is considered established because it was asserted confidently — by
@@ -25,9 +25,8 @@ to matter: see the `TIMER_DBGPAUSE` investigation in `rp2040.md`.
 
 ## Hypotheses that were wrong
 
-Kept on purpose. A record that shows only the conclusions teaches nothing about
-how they were reached, and an assistant that is confidently wrong is a fact one
-has to design around.
+The wrong ones are kept, with what tested them: the assistant can be wrong with
+confidence, and the record has to show how each conclusion was reached.
 
 | Stated | What refuted it | What was actually true |
 |---|---|---|
@@ -62,13 +61,10 @@ Working in a repository where every step is committed is what made that cheap.
 
 ## What `-O2` exposed
 
-A test that said yes for the wrong reason, recorded in full.
-
 Adding `-O2` to the Makefiles built cleanly, passed both Renode suites locally
 three times over, and the board reported the per-activation cost falling from
-7.0 to 3.2 µs. Everything said go. The CI then failed the first assertion of the
-stm32f4 suite, and widening the tester window changed nothing — because the
-window was not the problem.
+7.0 to 3.2 µs. The CI then failed the first assertion of the stm32f4 suite, and
+widening the tester window changed nothing: the window was not the cause.
 
 Downloading the ELF the CI had built and running it under the *local* emulator
 reproduced the failure at once: the binary is at fault, not the runner. Tracing
@@ -86,7 +82,7 @@ thread mode faults. At `-O0` the epilogue was long enough for the exception to
 arrive first; optimised, `bx lr` sits one instruction after the store. `dsb`
 and `isb` close it, the CI agrees, and the build is at `-O2`.
 
-Two things are worth keeping from this. A local build passing is a statement about one
+A local build passing is a statement about one
 version of one compiler — the toolchain in the CI, not the version on the developer's
 machine, was the only thing between this defect and a repository claiming to be measured
 and verified. And the first diagnosis was wrong: the registers being written through
@@ -96,16 +92,14 @@ because the code had no right to that store being kept, but it was not the bug.
 
 ## The repository was not scheduling the way it said
 
-It took until the scheduler ran on a host to find it.
-
 The README leads with earliest-deadline-first scheduling, and it is what makes this kernel
 worth looking at next to a fixed-priority one. `EscapementHard.h` nevertheless selected
 deadline-monotonic itself, in a plain `#define` with no `#ifndef` around it, so an
 application could not choose: no example overrode it, and none of them could have.
 
-Nothing exposed it. The examples scheduled correctly, the emulation tests passed, the
-periods were right to the part per hundred thousand on a frequency counter — all of it is
-just as true under deadline-monotonic. It surfaced only because a host build read the
+The examples scheduled correctly, the emulation tests passed, the periods were right to
+the part per hundred thousand on a frequency counter: all of it is just as true under
+deadline-monotonic. It surfaced once the scheduler ran on the host, a build there reading the
 deadline field of the elected task and got a pointer back: under deadline-monotonic the
 kernel inserts a priority byte and drops the two deadline fields, which moves everything
 after them.
@@ -117,13 +111,11 @@ that could not even be written while the field it reads was not there.
 
 ## What this changes in the repository
 
-- Every example is built in CI, and the kernel is **run** there, not merely
-  compiled.
-- Hardware measurements are recorded with their deviation and their
-  interpretation, not as bare numbers.
-- The documentation states what has *not* been verified as clearly as what has.
-- Commit messages carry the reasoning, including the reasoning that turned out
-  to be mistaken.
+The CI runs the kernel, under Renode and on the host, besides building it: that is how
+the `-O2` defect and the scheduling one above were found. A measurement is written with
+its date and its deviation (the +28 ppm of the frequency counter, `rp2040.md`), a result
+that did not reproduce is said so, and a commit message gives its reasoning, the wrong
+turns included.
 
 ## What it does not prove
 
@@ -145,62 +137,69 @@ value before setting the reservation, so that an interrupt in between went unsee
 compiler barrier now keeps the order.
 
 Two of those fixes were wrong, and the endurance test (`SoakPico`, `tools/soak.py`)
-showed it the same day, once an interrupt and phases of high load had joined it. A
-slot buffer's status, set after its slot rather than before, let a reader take the new
-slot early, the status still saying unread from the slot before, and again once the
-writer had said it unread: 37 slots read twice in 79 s on the board, none torn. No
-order of a status apart from the slot is right; each slot now carries its number, and a
-reader taking each slot once compares it with the last it took. And an event-driven task
-signaled while it suspended itself was assumed to be the task the timer handler had
-interrupted, which it finished in its place: preempted instead by a task of higher
-priority that signaled it, it had the context of that task discarded, and the soft
-kernel hung under Renode, the host test segfaulted under deadline-monotonic
-scheduling. Interrupts are now masked from the enqueue of the suspending task to its
-leaving the ready queue, and the handler never sees such a task. Both have a host test
-that fails on the code before (`test/host/README.md`). The races the audit left open,
-and the limits of the design it listed, seven of them, are closed (2026-09-25 and 26),
-each reached on the host but strict aliasing, which is turned off. The counter
-wrapping while the timer handler runs, once it has found no overflow, is reached on the
-host by a hook in that window (`wrapinside`): the handler, reading a time from after the
-wrap with its arrivals not yet shifted, releases nothing, and serves them once it finds
-the flag of the overflow raised meanwhile, which it tests again before it returns; the
-test fails with that test taken out. In the power-aware kernel, a task ending between
-two interrupts left the next at its speed: the flag that told the handler to set that
-speed, raised before the task became a zombie, was cleared by an interrupt that found
-the task still running, and the second, once the task was a zombie, took the next for
-one that had been running. The handler now reads `_OSNoSaveContext`, which only the
-context switch clears, and the host takes the timer interrupt at the kernels' compiler
-barriers (`endinside`); with a barrier in the old window, the kernel before fails it
-(`test/host/README.md`). Under DM_SLACK, a task ending read the time before its
-reservation: an interrupt that shifted the clock at a wrap in between left it a time of
-before the wrap against a last update after it, and the slack, left for the task ending
-after an idle time, grew by the 2^30 of the shift at the next arrival. The time is now
-read inside the reservation; the host runs a task set with a task ending at the last
-tick before the wrap, the interrupt taken at each of its time reads and barriers
-(`timewrap`), and the kernel before misses a deadline there. An optional instance still
-ready at its next arrival, never started, is reached on the host by tasks that take
-time, the mandatory instances busy across its period (`firmwait`): the kernel takes it
-out of the ready queue as it should, under both algorithms. One already started is
-still an overload the kernel stops on (`DEBUG_MODE`), by design: the schedulability
-test lets it start only if it ends in time, so only a task running past its declared
-WCET brings it, or work the test leaves out. Under EDF the test left out the event-
-driven tasks when no share of the processor was declared for them, although each
-declared its WCET and workload: an optional instance started, an event delayed it, and
-the kernel stopped on that guard at its next arrival (`firmeventwait`). It now reserves
-at least the share each event-driven task takes, its WCET over its workload. And the
-indices of the wait-free queue had 16 bits: an operation completed by the one
-preempting it could still move an index it had read, once 65,000 operations during
-that preemption had brought the index back to the same value, and the queue lost an
-item. The host reaches it by running those operations inside an LL of a dequeue
-(`test_ipc`); with 32 bits, as the queue between the cores already had, it takes 2^32
-(2026-09-26). The FIFO example, whose preemptions no longer fell inside the queue's
-operations under Renode once the code had lengthened, now varies the length of its loop. And strict aliasing, which
+showed it the same day, once an interrupt and phases of high load had joined it. A slot
+buffer's status, set after its slot rather than before, let a reader take the new slot
+early, the status still saying unread from the slot before, and again once the writer had
+said it unread: 37 slots read twice in 79 s on the board, none torn. No order of a status
+apart from the slot is right; each slot now carries its number, and a reader taking each
+slot once compares it with the last it took. And an event-driven task signaled while it
+suspended itself was assumed to be the task the timer handler had interrupted, which it
+finished in its place: preempted instead by a task of higher priority that signaled it,
+it had the context of that task discarded, and the soft kernel hung under Renode, the
+host test segfaulted under deadline-monotonic scheduling. Interrupts are now masked from
+the enqueue of the suspending task to its leaving the ready queue, and the handler never
+sees such a task. Both have a host test that fails on the code before
+(`test/host/README.md`).
+
+The races the audit left open, and the limits of the design it listed, seven of them, are
+closed (2026-09-25 and 26), each reached on the host but strict aliasing, which is turned
+off. The counter wrapping while the timer handler runs, once it has found no overflow, is
+reached on the host by a hook in that window (`wrapinside`): the handler, reading a time
+from after the wrap with its arrivals not yet shifted, releases nothing, and serves them
+once it finds the flag of the overflow raised meanwhile, which it tests again before it
+returns; the test fails with that test taken out.
+
+In the power-aware kernel, a task ending between two interrupts left the next at its
+speed: the flag that told the handler to set that speed, raised before the task became a
+zombie, was cleared by an interrupt that found the task still running, and the second,
+once the task was a zombie, took the next for one that had been running. The handler now
+reads `_OSNoSaveContext`, which only the context switch clears, and the host takes the
+timer interrupt at the kernels' compiler barriers (`endinside`); with a barrier in the
+old window, the kernel before fails it (`test/host/README.md`).
+
+Under DM_SLACK, a task ending read the time before its reservation: an interrupt that
+shifted the clock at a wrap in between left it a time of before the wrap against a last
+update after it, and the slack, left for the task ending after an idle time, grew by the
+2^30 of the shift at the next arrival. The time is now read inside the reservation; the
+host runs a task set with a task ending at the last tick before the wrap, the interrupt
+taken at each of its time reads and barriers (`timewrap`), and the kernel before misses a
+deadline there.
+
+An optional instance still ready at its next arrival, never started, is reached on the
+host by tasks that take time, the mandatory instances busy across its period
+(`firmwait`): the kernel takes it out of the ready queue as it should, under both
+algorithms. One already started is still an overload the kernel stops on (`DEBUG_MODE`),
+by design: the schedulability test lets it start only if it ends in time, so only a task
+running past its declared WCET brings it, or work the test leaves out. Under EDF the test
+left out the event- driven tasks when no share of the processor was declared for them,
+although each declared its WCET and workload: an optional instance started, an event
+delayed it, and the kernel stopped on that guard at its next arrival (`firmeventwait`).
+It now reserves at least the share each event-driven task takes, its WCET over its
+workload.
+
+And the indices of the wait-free queue had 16 bits: an operation completed by the one
+preempting it could still move an index it had read, once 65,000 operations during that
+preemption had brought the index back to the same value, and the queue lost an item. The
+host reaches it by running those operations inside an LL of a dequeue (`test_ipc`); with
+32 bits, as the queue between the cores already had, it takes 2^32 (2026-09-26). The FIFO
+example, whose preemptions no longer fell inside the queue's operations under Renode once
+the code had lengthened, now varies the length of its loop. And strict aliasing, which
 GCC does exploit here, is turned off (below).
 
 The execution tests exercise three or four tasks, the host test ten. Nothing here
 establishes how the scheduler behaves with thirty. The 2³⁰ wrap of its clock, about
-eighteen minutes away on hardware, is crossed on the host and under Renode, never on
-a board.
+eighteen minutes away on hardware, is crossed on the host, under Renode, and on the UNO
+Q's STM32U5 by its endurance test (2026-09-26), four times in its first hour and a quarter.
 
 The RP2350 port has not run on a board, and nothing of it has been audited line by
 line; its clocks are acknowledged blindly by the emulated platform (`emulation.md`).

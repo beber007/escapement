@@ -15,9 +15,8 @@
 ** 12 MHz a task of 1 ms already trips its overload guard.
 **
 ** The reference and peripheral clocks stay on the crystal on purpose. The former keeps the
-** microsecond tick exact whatever the core does — which is what makes this chip
-** a good target for the power-aware variant — and the latter keeps the UART dividing a
-** frequency the driver knows.
+** microsecond tick exact whatever the core does, which the power-aware variant needs,
+** and the latter keeps the UART dividing a frequency the driver knows.
 **
 ** The power-aware variant moves the system clock between three operating points and sets
 ** the core voltage of each through the VREG register. The datasheet guarantees the core

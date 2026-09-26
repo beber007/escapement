@@ -4,12 +4,12 @@
 #
 # Every tracked file of this project must be valid UTF-8.
 #
-# This is not housekeeping. A file in another encoding breaks grep silently: the tool
-# stops at the first invalid byte and reports nothing, so a search for a definition that
-# is right there comes back empty. It cost two wrong conclusions in one day.
+# A file in another encoding breaks grep silently: the tool stops at the first invalid
+# byte and reports nothing, so a search for a definition that is right there comes back
+# empty. It cost two wrong conclusions in one day.
 #
-# The vendor libraries under Libraries/ are left alone: they are third-party files and
-# their copyright signs are their own business.
+# The vendor libraries under Libraries/ are left alone: they are third-party files,
+# kept in the encoding their vendor ships them in.
 set -eu
 
 cd "$(dirname "$0")/.."

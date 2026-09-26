@@ -42,7 +42,7 @@ The kernel counts time modulo 2^30 and shifts every temporal variable back when 
 counter wraps. At the usual tick rate that happens once every eighteen minutes, which is
 why the path had never been executed once in the life of this code.
 
-Reaching it in a test takes a platform, not a trick. `escapement_f4_wrap.repl` clocks TIM2
+Reaching it in a test takes a platform of its own: `escapement_f4_wrap.repl` clocks TIM2
 82,000 times faster; the kernel still programs its prescaler of 81, so its counter ticks at
 10 GHz and reaches the boundary after 107 ms. `TaskWrapF4.c` scales its periods by the
 same factor, so the kernel carries the load it would have on hardware, with a counter that

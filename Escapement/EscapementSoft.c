@@ -1805,7 +1805,7 @@ UINT8 OSWriteBuffer(void *descriptor, UINT8 *data, UINT8 size)
   BUFFER_DESCRIPTOR *descript = (BUFFER_DESCRIPTOR *)descriptor;
   BUFFER_DATA *element;
   UINT8 i = 0;
-  if (descript != NULL) { // Check that the buffer was created
+  if (descript != NULL) {
      // CurrentWriter comes first in both slot structures
      element = ((BUFFER_4_SLOT *)descript->Buffer)->CurrentWriter;
      for ( ; i < size && i < descript->BufferSize &&

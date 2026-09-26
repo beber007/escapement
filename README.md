@@ -51,9 +51,8 @@ only a current measurement will price — see [`docs/rp2040.md`](docs/rp2040.md)
 
 ## Verified at six levels
 
-Each level is independent of the ones before it, and they answer different
-questions: the instrument says the periods are right, the host test says the
-scheduler decided what it was supposed to decide.
+They answer different questions: the instrument says the periods are right, the host
+test says the scheduler decided what it was supposed to decide.
 
 | Level | Means | What it establishes |
 |---|---|---|
@@ -103,12 +102,12 @@ openocd -f interface/cmsis-dap.cfg -c 'adapter speed 5000' -f target/rp2040.cfg 
         -c 'init; reset halt; load_image build/TaskLEDPico.elf; resume 0x20000000; exit'
 ```
 
-## What sets this kernel apart
+## Design
 
 ### Scheduling
 
-**EDF without a tick.** Mainstream real-time kernels schedule at fixed
-priorities, paced by a periodic tick. Here tasks declare a period and a deadline,
+**EDF without a tick.** FreeRTOS, for one, schedules at fixed priorities, paced by a
+periodic tick. Here tasks declare a period and a deadline,
 the scheduler elects the one whose deadline is nearest, and the hardware
 interrupts the processor at that moment only. DM scheduling is available too,
 selected in the configuration of an application.
@@ -203,7 +202,7 @@ Evéquoz's queue, and from code written for one core
 ## How this project is built
 
 This project is developed with the help of an AI, under one standing rule:
-**the AI proposes, the instrument decides.** The six levels of verification
+the AI proposes, the instrument decides. The six levels of verification
 above exist for that reason.
 
 The documentation therefore keeps a record of the hypotheses that turned out to

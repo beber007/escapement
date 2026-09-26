@@ -386,9 +386,9 @@ static void Finalize(void)
 
 /* SoftTimerNow: Takes a soft timer interrupt at once, inside the task that raised it. A
 ** task that raised it while ending, its context no longer to be saved (_OSNoSaveContext),
-** is gone: the context switch never returns to it, and the test does not either. Otherwise the tasks the
-** handler elected run first, on top of the interrupted one as on the single stack of the
-** target, until it is at the head of the ready queue again. */
+** is gone: the context switch never returns to it, and the test does not either.
+** Otherwise the tasks the handler elected run first, on top of the interrupted one as on
+** the single stack of the target, until it is at the head of the ready queue again. */
 static void SoftTimerNow(void)
 {
   HostTCB *interrupted = _OSActiveTask;

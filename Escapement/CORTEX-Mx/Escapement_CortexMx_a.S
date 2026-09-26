@@ -60,8 +60,9 @@
 **       placed on the run-time stack so that a return from interruption can be emulated.
 **   The other registers (R4-R11) must be explicitly saved by the interrupt handlers if
 **   they use them. Note that when the interrupt handler is a C function, the compiler
-**   automatically generates the necessary code to store and restore these registers. There can be no possible corruption of
-**   these registers because the interrupts are prioritized and cannot be aborted. For
+**   automatically generates the necessary code to store and restore these registers.
+**   There can be no possible corruption of these registers because the interrupts are
+**   prioritized and cannot be aborted. For
 **   application tasks, all these registers must be explicitly saved during a context
 **   switch because the registers used by the task (a C function) are never restored when
 **   the instance finishes.

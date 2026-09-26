@@ -13,10 +13,10 @@
 //
 // Those blocks keep what is written and read the bits the code waits for as set: the
 // voltage range and the booster ready, PLL1 locked, the switch of the system clock
-// acknowledged, the LSE started. So this platform checks that the code runs and schedules, not that it
-// programs the clocks right: a wrong divider or a missing wait would pass here, and only
-// the board tells. The timers count at 160 MHz before their prescaler, the rate
-// OSInitializeSystemClocks sets.
+// acknowledged, the LSE started. So this platform checks that the code runs and
+// schedules, not that it programs the clocks right: a wrong divider or a missing wait
+// would pass here, and only the board tells. The timers count at 160 MHz before their
+// prescaler, the rate OSInitializeSystemClocks sets.
 
 cpu: CPU.CortexM @ sysbus
     cpuType: "cortex-m33"
