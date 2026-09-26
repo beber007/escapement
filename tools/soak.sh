@@ -82,11 +82,14 @@ elapsed() {
     d=$1
     printf '%dd%02dh%02dm' $((d / 86400)) $((d % 86400 / 3600)) $((d % 3600 / 60))
 }
-# bins FIRST: the bins of 10 us that are not empty, from word FIRST of the reading.
+# bins FIRST WORD...: the bins of 10 us that are not empty, from word FIRST of the
+# reading given after it. A function has positional parameters of its own: the reading
+# must be passed, or its words are unset (set -u).
 bins() {
-    out="" i=0
+    first=$1 out="" i=0
+    shift
     while [ $i -lt 32 ]; do
-        eval "v=\${$(($1 + i + 1))}"
+        eval "v=\${$((first + i + 1))}"
         [ $((0x$v)) -eq 0 ] || out="$out $((i * 10)):$((0x$v))"
         i=$((i + 1))
     done
@@ -156,8 +159,8 @@ while :; do
             if [ $((now - last_hour)) -ge 3600 ]; then
                 set -- $(ocd -c "mdw $RESULTS $WORDS" | sed -n 's/^0x[0-9a-f]*: //p')
                 [ $# -lt $WORDS ] || {
-                    echo "  pulse late by us: $(bins 24)" >>"$LOG"
-                    echo "  events late by us: $(bins 56)" >>"$LOG"
+                    echo "  pulse late by us: $(bins 24 "$@")" >>"$LOG"
+                    echo "  events late by us: $(bins 56 "$@")" >>"$LOG"
                 }
                 last_hour=$now
             fi

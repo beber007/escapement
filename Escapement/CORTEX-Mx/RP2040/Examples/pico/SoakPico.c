@@ -278,7 +278,8 @@ static void PokerTask(void *argument)
   Put(1);
   OSScheduleSuspendedTask(Drain);
   if (OSGetReferenceBuffer(Slots,OS_READ_ONLY_ONCE,(UINT8 **)&slot) == sizeof(SLOT)) {
-     if (slot->Complement != ~slot->Counter || slot->Counter <= last)
+     /* Newer than the last, counted modulo 2^32, as the counters go round. */
+     if (slot->Complement != ~slot->Counter || (INT32)(slot->Counter - last) <= 0)
         Results.Errors[BUFFER] += 1;
      last = slot->Counter;
      Results.Activity[BUFFER] += 1;
@@ -370,7 +371,11 @@ static void ReaderTask(void *argument)
      Results.Activity[CORES] += 1;
   else if (OSGetCopyBuffer(Cores,OS_READ_MULTIPLE,(UINT8 *)record) == sizeof record) {
      for (i = 1; i < WORDS && record[i] == record[0]; i += 1);
-     if (i < WORDS || record[0] < last)
+     /* Not older than the last, modulo 2^32: the writer may go round its counter within
+     ** hours, where a comparison as plain numbers takes the next record for an error. The
+     ** one error of a 12-hour run of SoakPico on the board came at 8.6 hours, when a
+     ** writer of 139,000 records a second would have gone round (2026-09-26). */
+     if (i < WORDS || (INT32)(record[0] - last) < 0)
         Results.Errors[CORES] += 1;
      last = record[0];
      Results.Activity[CORES] += 1;
