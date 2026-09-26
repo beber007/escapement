@@ -19,7 +19,7 @@ into the repository.
 | Clocks | `Escapement_Processor.c` | the MSIS of reset, 4 MHz, to 160 MHz through PLL1: voltage range 1 with the EPOD booster, 4 wait states on the flash, a first step through an AHB prescaler of 2, the instruction cache on |
 | Kernel timer | `Escapement_Timer.c` | TIM2, 32 bits, counting microseconds and wrapping at 2^30, its compare channel 1 on the next arrival: the 32-bit path of the STM32 port |
 | Timer events | `Escapement_TimerEvent.c` | TIM5, 32 bits, free, its compare channel 1 on the next event: the logic of the RP2350 port, an event already due forced through CC1G |
-| UART | `Escapement_UART.c` | USART1 on PB6 and PB7, D1 and D0 of the connector, 115200 baud: the driver of the RP2350 port, with no priming, the transmit interrupt of this USART reflecting a state |
+| UART | `Escapement_UART.c` | USART1 on PB6 and PB7, D1 and D0 of the connector, and LPUART1 on PG7 and PG8, to the board's Linux (`/dev/ttyHS1`), 115200 baud: the driver of the RP2350 port, with no priming, the transmit interrupt of these UARTs reflecting a state; the bytes lost to an overrun are counted |
 | Interrupts | `Escapement_Interrupts.c` | the 126 entries of the STM32U575/U585, every one but the reserved routed to the kernel's dispatcher, so that an application takes any interrupt with `OSSetISRDescriptor` |
 | From SRAM | `Escapement_RamEntry.S`, `STM32U5_SRAM.ld` | the image in SRAM, started at its first word, which takes the stack and the reset handler from the vector table that follows, aligned on 1024 bytes; `OSInitializeSystemClocks` points VTOR at it |
 
@@ -43,9 +43,17 @@ loader also freezes TIM2, TIM3 and TIM5 while the debugger halts the core, so th
 halt to read the board does not make the tasks late; the independent watchdog's bit in
 that register reads back 0, and the watchdog runs on, so a halt must stay short. While
 the core sleeps in the idle task the debugger reads zeros, in SRAM as in the
-peripherals: a reading halts it first. `tools/soak_unoq.sh`, run on the board's Linux,
-reads the endurance test so at every interval, and loads it again if the board
-restarts.
+peripherals: a reading halts it first.
+
+The endurance test does without the debugger once it runs: `SoakU5` sends its counts to
+Linux on LPUART1 every second, and `tools/soak_unoq.py`, run on the board's Linux as a
+service, reads them there and logs them at every interval. The other way, it sends the
+MCU a count of bytes in bursts of random length at random times, interrupts that Linux
+adds at moments of its own, each byte checked against the one before; a byte lost or
+wrong is an error. Arduino's Bridge, which holds `/dev/ttyHS1`, is stopped meanwhile.
+If the reports stop, the board has restarted, and the script loads the image again.
+On 2026-09-26 the link carried every byte sent, 5,570 in 12 s, none lost, while every
+part of the test ran without error.
 
 ## What is verified
 

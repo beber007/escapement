@@ -120,7 +120,8 @@ build/TaskWrapU5.elf : $(COMMON) build/TaskWrapU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/IPCU5.elf : $(COMMON) build/IPCU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-build/SoakU5.elf : $(COMMON) build/Escapement_TimerEvent.o build/SoakU5.o
+build/SoakU5.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
+                   build/SoakU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 
 # The .d files produced by -MMD list the headers of each object: without them, a change

@@ -34,10 +34,14 @@
 **   (1) (UINT8) number of buffers in the transmit queue;
 **   (2) (UINT8) size in bytes of each of these buffers;
 **   (3) pointer to the function called on every byte received, from interrupt context;
-**   (4) (UINT8) OS_IO_USART1.
+**   (4) (UINT8) OS_IO_USART1, on D1 and D0, or OS_IO_LPUART1, to the board's Linux.
 ** Returned value: TRUE when the allocation succeeded. */
 BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8),
                 UINT8 interruptIndex);
+
+/* OSGetUARTOverruns: Returns the bytes lost so far on reception, each for one that was not
+** read before the next came. */
+UINT32 OSGetUARTOverruns(UINT8 interruptIndex);
 
 /* OSGetFreeNodeUART: Returns a free buffer, to be filled and then handed to OSEnqueueUART,
 ** or NULL when the queue is full. */

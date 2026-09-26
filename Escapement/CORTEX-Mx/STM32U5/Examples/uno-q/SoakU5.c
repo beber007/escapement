@@ -28,8 +28,21 @@
 **                 checks the guard words around the structures allocated: less than
 **                 512 bytes free, or a guard overwritten, is an error.
 **
+**   -  Link       bytes the board's Linux sends on LPUART1, a count that goes up by one
+**                 from byte to byte, in bursts at random times: each byte is an
+**                 interrupt, one that is not the one after the last is an error, and
+**                 so is a byte lost to an overrun. Linux may send nothing, so the
+**                 heartbeat does not count it among the parts that must move; the
+**                 script on the Linux side does (tools/soak_unoq.py).
+**
 ** The long task works 500 to 1500 us of each 10 ms, then for 20 s of every minute 6 ms:
 ** the load goes from about a fifth of the processor to three quarters and back.
+**
+** Once a second the heartbeat sends the counts to Linux on LPUART1, a line of text in
+** hexadecimal: SOAK, the seconds run, the wraps, the activity and the errors of the eight
+** parts, the bytes received on the link, its errors and overruns, the worst lateness of
+** the pulse and of the timer events, the stack never used, the load phase, and the byte
+** the link expects next, from which a script started anew goes on counting.
 **
 ** Results, in words from its start, laid out as SoakPico's and SoakPico2's, which the
 ** Renode suite reads; tools/soak.sh drives a Pico only for now (docs/stm32u5.md):
@@ -37,27 +50,30 @@
 **   11-18 errors of the parts   19 worst lateness of the pulse   20 of the timer events,
 **   in us   21 bytes of the stack never used   22 0, no second core   23 load phase
 **   24-55 lateness of the pulse by 10 us, the last for 310 us or more   56-87 the same
-**   for the timer events.
+**   for the timer events   88-90 bytes received on the link, its errors and overruns
+**   91 the byte it expects next.
 ** The counts only grow: a probe reading them twice and finding them smaller, or the
 ** marker gone, has seen the board restart. The independent watchdog restarts it within
 ** 3 s of the heartbeat stopping, which is how a kernel that hangs shows; the image being
 ** in SRAM, the board comes back to Arduino's firmware in its flash. tools/unoq_load.sh
 ** freezes the timers while a debugger halts the core, so that a halt to read the counts
 ** does not make the tasks late; the watchdog runs on, and a halt of more than 3 s
-** restarts the board. The debugger reads zeros while the core sleeps: a reading halts it
-** (tools/soak_unoq.sh).
+** restarts the board. The debugger reads zeros while the core sleeps: a reading halts it.
+** tools/soak_unoq.py reads the reports of the link instead.
 ** Platform version: STM32U585 (Arduino UNO Q).
 */
 
 #include "Escapement.h"
 #include "Escapement_TimerEvent.h"
 #include "Escapement_Timer.h"   /* _OSGetActualTime, for the wraps and the queue's work */
+#include "Escapement_UART.h"
 
 #define PARTS       8
 #define MARKER      0x534F414Bu        /* "SOAK" */
 #define NODES       8
 #define WORDS       8
 #define BINS        32
+#define REPORT_SIZE 240                /* SOAK and 26 numbers of 8 digits at most, spaced */
 #define FILL_TIME   1000               /* per instance of the Filler, without a seed */
 #define FILL_HIGH   6000               /* in the phases of high load */
 #define EVENT_DELAY 1000               /* of the timer events, without a seed */
@@ -74,6 +90,7 @@ volatile struct {
   UINT32 Activity[PARTS], Errors[PARTS];
   UINT32 PulseLateMax, EventLateMax, Stack0Free, Stack1Free, HighLoad;
   UINT32 PulseLate[BINS], EventLate[BINS];
+  UINT32 LinkBytes, LinkErrors, LinkOverruns, LinkNext;
 } Results;
 
 typedef struct {
@@ -110,6 +127,8 @@ static void EventSourceTask(void *argument);
 static void EventTask(void *argument);
 static void ReaderTask(void *argument);
 static void HeartbeatTask(void *argument);
+static void LinkReceive(UINT8 data);
+static void Report(void);
 static void AlarmHandler(void *descriptor);
 static UINT32 *NewGuard(void);
 static void PaintStack(void);
@@ -179,6 +198,7 @@ int main(void)
   Tick = OSCreateEventDescriptor();
   Guard[4] = NewGuard();
   OSInitTimerEvent(2,1,EVENT_TIMER_INDEX);
+  OSInitUART(2,REPORT_SIZE,LinkReceive,OS_IO_LPUART1);
   PERIODIC(PulseTask,20,1000);
   PERIODIC(PokerTask,50,2000);
   PERIODIC(ReaderTask,400,2000);
@@ -410,8 +430,63 @@ static void HeartbeatTask(void *argument)
   Results.Seconds += 1;
   Results.HighLoad = Results.Seconds % 60 >= 40;
   Results.Activity[HEARTBEAT] += 1;
+  Report();
   OSEndTask();
 } /* end of HeartbeatTask */
+
+
+/* LinkReceive: A byte from Linux, from the interrupt of LPUART1: the one after the last,
+** the first after a start being expected to be 0. */
+static void LinkReceive(UINT8 data)
+{
+  if (data != Results.LinkNext)
+     Results.LinkErrors += 1;
+  Results.LinkNext = (UINT8)(data + 1);
+  Results.LinkBytes += 1;
+} /* end of LinkReceive */
+
+
+/* PutHex: A number in hexadecimal, without leading zeros, and a space after it. */
+static UINT8 *PutHex(UINT8 *p, UINT32 value)
+{
+  INT32 shift = 28;
+  while (shift > 0 && (value >> shift) == 0)
+     shift -= 4;
+  for (; shift >= 0; shift -= 4)
+     *p++ = "0123456789abcdef"[value >> shift & 0xF];
+  *p++ = ' ';
+  return p;
+} /* end of PutHex */
+
+
+/* Report: The counts, as a line of text to Linux on LPUART1; none if the line before is
+** still being sent, which Linux sees as a second without a report. */
+static void Report(void)
+{
+  UINT8 *line = (UINT8 *)OSGetFreeNodeUART(OS_IO_LPUART1), *p;
+  UINT32 i;
+  if (line == NULL)
+     return;
+  Results.LinkOverruns = OSGetUARTOverruns(OS_IO_LPUART1);
+  p = line;
+  *p++ = 'S'; *p++ = 'O'; *p++ = 'A'; *p++ = 'K'; *p++ = ' ';
+  p = PutHex(p,Results.Seconds);
+  p = PutHex(p,Results.Wraps);
+  for (i = 0; i < PARTS; i += 1)
+     p = PutHex(p,Results.Activity[i]);
+  for (i = 0; i < PARTS; i += 1)
+     p = PutHex(p,Results.Errors[i]);
+  p = PutHex(p,Results.LinkBytes);
+  p = PutHex(p,Results.LinkErrors);
+  p = PutHex(p,Results.LinkOverruns);
+  p = PutHex(p,Results.PulseLateMax);
+  p = PutHex(p,Results.EventLateMax);
+  p = PutHex(p,Results.Stack0Free);
+  p = PutHex(p,Results.HighLoad);
+  p = PutHex(p,Results.LinkNext);
+  p[-1] = '\n';
+  OSEnqueueUART(line,(UINT8)(p - line),OS_IO_LPUART1);
+} /* end of Report */
 
 
 /* NewGuard: A guard word, allocated between two structures. */

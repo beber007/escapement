@@ -44,6 +44,8 @@ make -C Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
 renode-test emulation/renode/escapement_u5.robot
 tools/unoq_load.sh build/SoakU5.elf           # load and start on the board, over SSH
 tools/unoq_load.sh --reset                    # back to Arduino's firmware
+tools/soak_unoq.py SoakU5.elf 60              # on the board: the U5 endurance test, read
+                                              # on LPUART1 (service escapement-soak-u5)
 
 # The scheduler on the host, every kernel and algorithm, under AddressSanitizer; the CI
 # also runs it at -O2 under the whole of UndefinedBehaviorSanitizer
