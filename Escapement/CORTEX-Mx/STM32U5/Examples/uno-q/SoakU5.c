@@ -41,10 +41,11 @@
 ** The counts only grow: a probe reading them twice and finding them smaller, or the
 ** marker gone, has seen the board restart. The independent watchdog restarts it within
 ** 3 s of the heartbeat stopping, which is how a kernel that hangs shows; the image being
-** in SRAM, the board comes back to Arduino's firmware in its flash, and the marker is
-** gone. tools/unoq_load.sh freezes the watchdog and the timers while a debugger halts
-** the core, so that a halt to read the counts neither restarts the board nor makes the
-** tasks late.
+** in SRAM, the board comes back to Arduino's firmware in its flash. tools/unoq_load.sh
+** freezes the timers while a debugger halts the core, so that a halt to read the counts
+** does not make the tasks late; the watchdog runs on, and a halt of more than 3 s
+** restarts the board. The debugger reads zeros while the core sleeps: a reading halts it
+** (tools/soak_unoq.sh).
 ** Platform version: STM32U585 (Arduino UNO Q).
 */
 

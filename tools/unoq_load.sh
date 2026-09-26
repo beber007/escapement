@@ -23,11 +23,12 @@ else
     [ -f "$ELF" ] || { echo "no image $ELF" >&2; exit 1; }
     # Halted at reset, clocks as reset leaves them, then started at the entry code at the
     # head of the image (Escapement_RamEntry.S). TIM2, the kernel's clock, TIM3 and TIM5,
-    # those of the examples, and the independent watchdog stop while the debugger halts
-    # the core (DBGMCU_APB1FZR1, RM0456): otherwise reading the board by halting it makes
-    # the tasks late, and the kernel stops on its overload check, or the watchdog
-    # restarts the board.
-    COMMANDS="init; reset halt; mww 0xE0044008 0x100b; load_image /tmp/escapement.elf; \
+    # those of the examples, stop while the debugger halts the core (DBGMCU_APB1FZR1,
+    # RM0456): otherwise reading the board by halting it makes the tasks late, and the
+    # kernel stops on its overload check. The bit of the independent watchdog in that
+    # register reads back 0 on the UNO Q: the watchdog runs on, and a halt must stay well
+    # under its period, 3 s in SoakU5.
+    COMMANDS="init; reset halt; mww 0xE0044008 0xb; load_image /tmp/escapement.elf; \
 resume 0x20000000; shutdown"
 fi
 HOST=${2:-${UNOQ_HOST:-arduino@MyUno.local}}

@@ -39,10 +39,13 @@ debug port are not brought out: its Linux processor drives them from GPIOs, with
 OpenOCD of Arduino's in `/opt/openocd`. The images therefore run from SRAM, and
 `tools/unoq_load.sh` sends one to the board over SSH, loads it and starts it, the flash
 left as it was; `--reset` returns the board to Arduino's firmware, as any reset does. The
-loader also freezes TIM2, TIM3, TIM5 and the independent watchdog while the debugger
-halts the core, so that a halt to read the board neither makes the tasks late nor
-restarts it; while the core sleeps in the idle task, the debugger reads the peripherals
-as zeros, so a reading halts it first.
+loader also freezes TIM2, TIM3 and TIM5 while the debugger halts the core, so that a
+halt to read the board does not make the tasks late; the independent watchdog's bit in
+that register reads back 0, and the watchdog runs on, so a halt must stay short. While
+the core sleeps in the idle task the debugger reads zeros, in SRAM as in the
+peripherals: a reading halts it first. `tools/soak_unoq.sh`, run on the board's Linux,
+reads the endurance test so at every interval, and loads it again if the board
+restarts.
 
 ## What is verified
 
