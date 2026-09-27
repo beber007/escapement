@@ -58,8 +58,8 @@ test says the scheduler decided what it was supposed to decide.
 | Compilation | GitHub Actions, with the developer's GCC and a second one, 14.2 | the examples of the Pico, the Pico 2 and the STM32U5, on every push |
 | The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for — 87 to 90 % of the lines of each kernel |
 | Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access, both slot buffers on two cores too, each core free to reorder its accesses as the architecture allows, and the queue of Evéquoz between the cores of the RP2350: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
-| Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the RP2040, the RP2350 and the STM32U5; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after, and on the RP2350 both slot buffers between its two cores — all as regression tests |
-| Internal state on hardware | OpenOCD and SWD on a Pico; the reports of an STM32U5 to the Linux of its Arduino UNO Q | a trace of the scheduling read without stopping a core: deadlines armed ahead of the counter, timer events delivered on the microsecond, the clock changed by the power-aware kernel; cost counters read back from SRAM; on the U5, an endurance test run for hours with every part checked each second, its causes of reset, and its clock measured against Linux's within some 25 ppm |
+| Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the RP2040, the RP2350 and the STM32U5; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after, on the RP2350 both slot buffers between its two cores, and on the STM32U5 the idle task sleeping on its low-power timer and moving the kernel clock on, across the 2^30 wrap too — all as regression tests |
+| Internal state on hardware | OpenOCD and SWD on a Pico; the reports of an STM32U5 to the Linux of its Arduino UNO Q | a trace of the scheduling read without stopping a core: deadlines armed ahead of the counter, timer events delivered on the microsecond, the clock changed by the power-aware kernel; cost counters read back from SRAM; on the U5, an endurance test run for hours with every part checked each second, its causes of reset, and its clock measured against Linux's within some 25 ppm; at each commit, the idle task in Stop 2, every task starting on its period and every timer event and byte from Linux coming through it |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
 
 That last level reads 500.02 Hz, 50.0014 Hz and 16.66713 Hz for declared periods
@@ -129,6 +129,15 @@ Whether that lever actually saves energy is examined in
 one-microsecond tick derived from the reference clock: changing the processor
 frequency does not move the time base of the kernel, which the power-aware variant
 needs.
+
+**An idle task that sleeps in Stop 2, on the STM32U5.** Where the other ports sleep
+between tasks with the clocks running, the U5's idle task, once the application asks
+for it, stops them: when the next event is 5 ms off or more, it arms a low-power timer
+on the 32.768 kHz crystal 3 ms short of it and enters Stop 2, where the kernel's timer
+stands still; on waking it restarts the clocks and moves the kernel's timer on by what
+the low-power timer counted. The UART to the board's Linux receives through it. On the
+board, every start stays on its period to the microsecond and no wake-up has come late
+(`docs/stm32u5.md`); the current it saves is yet to be measured.
 
 ### Concurrency without locks
 
@@ -222,7 +231,7 @@ wrongly suspected when the defect was in the firmware. The full account is in
 | [`docs/emulation.md`](docs/emulation.md) | Renode, tests replayed in CI, fixes to the timer model |
 | [`docs/power-aware.md`](docs/power-aware.md) | DVFS, energy analysis, choosing a target |
 | [`docs/rp2040.md`](docs/rp2040.md) | Raspberry Pi Pico port and hardware measurements |
-| [`docs/stm32u5.md`](docs/stm32u5.md) | STM32U5 port on the Arduino UNO Q: clock, errata, endurance test |
+| [`docs/stm32u5.md`](docs/stm32u5.md) | STM32U5 port on the Arduino UNO Q: clock, errata, endurance test, idle task in Stop 2 |
 | [`tools/board_ci.md`](tools/board_ci.md) | the bench: the checks run on the boards at each commit |
 | [`emulation/renode/RP2040.md`](emulation/renode/RP2040.md) | emulating the Pico under Renode |
 | [`docs/method.md`](docs/method.md) | verifying AI-assisted development |
