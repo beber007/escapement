@@ -12,6 +12,7 @@ with an error unless, at the last report:
   - Stop 2 was entered by at least MIN_ENTRIES of the instances (those that send a
     report stay in Sleep);
   - the longest wake-up took less than the OS_STOP2_WAKE_US allowed, 3 ms;
+  - each instance's timer event came, within MAX_EVENT_OFF_US of when it was due;
   - TIM2 and LPTIM1 agree within MAX_PPM over the run;
 and unless a line through the arrival of each report on CLOCK_MONOTONIC gives a second of
 the kernel's within LIMIT_PPM of Linux's, the bound of tools/unoq_drift.py.
@@ -27,6 +28,7 @@ import termios
 import time
 
 MAX_JITTER_US = 2
+MAX_EVENT_OFF_US = 20
 MIN_ENTRIES = 0.8
 WAKE_TICKS = 3000 * 32768 // 1000000
 MAX_PPM = 20
@@ -53,7 +55,7 @@ while time.monotonic() < end:
         while b"\n" in pending:
             line, pending = pending.split(b"\n", 1)
             words = line.split()
-            if len(words) == 9 and words[0] == b"SLEEP":
+            if len(words) == 11 and words[0] == b"SLEEP":
                 try:
                     last = [int(w, 16) for w in words[1:]]
                 except ValueError:
@@ -62,7 +64,7 @@ while time.monotonic() < end:
 
 if last is None or len(points) < 3:
     sys.exit("SleepU5: no report")
-instances, ticks, micros, jitter, entries, wake, late, nolse = last
+instances, ticks, micros, jitter, entries, wake, late, nolse, events, event_off = last
 n = len(points)
 mx = sum(p[0] for p in points) / n
 my = sum(p[1] for p in points) / n
@@ -71,7 +73,8 @@ slope = sum((p[0] - mx) * (p[1] - my) for p in points) / \
 rate = (slope * 1e6 - 1) * 1e6                  # ppm a second of the kernel's lasts longer
 ppm = (micros - ticks * 1e6 / 32768) / micros * 1e6
 print(f"SleepU5: {instances} instances, {entries} into Stop 2, gap off by {jitter} us "
-      f"at most, longest wake-up {wake} ticks, {late} late, TIM2 {ppm:+.1f} ppm against "
+      f"at most, longest wake-up {wake} ticks, {late} late, {events} events off by "
+      f"{event_off} us at most, TIM2 {ppm:+.1f} ppm against "
       f"LPTIM1, a second lasts {rate:+.1f} ppm against Linux's over {n} reports")
 failures = []
 if instances < (seconds - 3) * 10:
@@ -84,6 +87,8 @@ if entries < MIN_ENTRIES * instances:
     failures.append("too few entries into Stop 2")
 if wake >= WAKE_TICKS:
     failures.append("a wake-up longer than allowed")
+if events < instances or event_off > MAX_EVENT_OFF_US:
+    failures.append("a timer event missing or off its time")
 if abs(ppm) > MAX_PPM:
     failures.append("TIM2 and LPTIM1 apart")
 if abs(rate) > LIMIT_PPM:

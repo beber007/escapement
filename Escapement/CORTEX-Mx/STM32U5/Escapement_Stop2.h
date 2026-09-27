@@ -20,8 +20,9 @@
 /* OSInitStop2: Starts LPTIM1 and lets the idle task enter Stop 2. To be called from main,
 ** after OSInitializeSystemClocks and before OSStartMultitasking; returns FALSE, the idle
 ** task left in Sleep, if the LSE does not run. The idle task enters Stop 2 only when no
-** UART receives or sends and no timer event is pending (Escapement_UART.c and
-** Escapement_TimerEvent.c); any other clock the application uses stops with it. */
+** UART receives or sends (Escapement_UART.c), and wakes before the next timer event
+** (Escapement_TimerEvent.c) as before the next arrival; any other clock the application
+** uses stops with it. */
 BOOL OSInitStop2(void);
 
 /* OSAllowStop2: FALSE keeps the idle task in Sleep, as without OSInitStop2, until TRUE

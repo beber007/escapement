@@ -127,7 +127,7 @@ build/IPCU5.elf : $(COMMON) build/IPCU5.o
 build/TestLPTimerU5.elf : $(COMMON) build/Escapement_LPTimer.o build/TestLPTimerU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/SleepU5.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2.o \
-                    build/Escapement_UART.o build/SleepU5.o
+                    build/Escapement_UART.o build/Escapement_TimerEvent.o build/SleepU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/SoakU5.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
                    build/SoakU5.o

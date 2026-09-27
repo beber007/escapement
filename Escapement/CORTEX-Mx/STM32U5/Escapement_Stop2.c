@@ -5,13 +5,14 @@
 /* File Escapement_Stop2.c: The idle task in Stop 2 (Escapement_Stop2.h). RM0456 rev. 7,
 ** chapters 10 (PWR), 11 (RCC) and 58 (LPTIM); ES0499 rev. 12 for the errata.
 **
-** TIM2 stays the kernel's clock while the chip runs. The idle task, finding the next event
-** of TIM2, the compare of the next arrival or the wrap at 2^30, at least OS_STOP2_MIN_US
-** off, arms the compare of LPTIM1 OS_STOP2_WAKE_US before it and enters Stop 2, where
-** PLL1, the HSE and TIM2 stop and LPTIM1 counts on. On waking the chip runs on the MSIS in
-** range 4 (RM0456, 10.7.8); _OSRaiseSystemClock takes it back to 160 MHz, and TIM2 is moved
-** on by the time LPTIM1 counted. TIM2 is stopped and started again on an edge of LPTIM1,
-** so that the time between is whole ticks, 15625/512 us each, the fraction carried to the
+** TIM2 stays the kernel's clock while the chip runs. The idle task, finding the next
+** event at least OS_STOP2_MIN_US off, the compare of TIM2 for the next arrival, its wrap
+** at 2^30, or the next timer event of TIM5, arms the compare of LPTIM1 OS_STOP2_WAKE_US
+** before it and enters Stop 2, where PLL1, the HSE, TIM2 and TIM5 stop and LPTIM1 counts
+** on. On waking the chip runs on the MSIS in range 4 (RM0456, 10.7.8); _OSRaiseSystemClock
+** takes it back to 160 MHz, and TIM2 and TIM5 are moved on by the time LPTIM1 counted
+** (Escapement_TimerEvent.c). Both are stopped and started again on an edge of LPTIM1, so
+** that the time between is whole ticks, 15625/512 us each, the fraction carried to the
 ** next sleep. The idle task then sleeps in Sleep until the event. Interrupts stay masked
 ** from the reading of TIM2 to its start again: one that comes meanwhile wakes the chip and
 ** is taken after, late by the start of the HSE should it have come during Stop 2.
@@ -71,15 +72,27 @@ static UINT32 Fraction;                    // of a microsecond, in 512ths, carri
 static void Stop2Idle(void);
 
 
-/* The UART and timer-event drivers say whether Stop 2 would lose their work; an image
-** without them has none to lose. */
+/* The UART driver says whether Stop 2 would lose its work, and the timer-event driver
+** how far off its next event is, and stops and moves TIM5 on with TIM2; an image
+** without them has nothing there to lose. */
 __attribute__((weak)) BOOL _OSUARTIdle(void)
 {
   return TRUE;
 }
 
-__attribute__((weak)) BOOL _OSTimerEventIdle(void)
+__attribute__((weak)) BOOL _OSTimerEventNext(UINT32 *delay)
 {
+  (void)delay;
+  return FALSE;
+}
+
+__attribute__((weak)) void _OSTimerEventHalt(void)
+{
+}
+
+__attribute__((weak)) BOOL _OSTimerEventResume(UINT32 micros)
+{
+  (void)micros;
   return TRUE;
 }
 
@@ -124,14 +137,15 @@ static UINT16 NextTick(void)
 ** nothing would be lost, in Sleep otherwise. */
 static void Stop2Idle(void)
 {
-  UINT32 now, target, compare, ticks, micros;
+  UINT32 now, target, compare, ticks, micros, event;
   UINT16 start, wake, end;
   _OSDisableInterrupts();
   now = TIM_CNT;
   compare = TIM_CCR1;                      // 0 when disarmed (Escapement_Timer.c)
   target = compare != 0 && compare > now ? compare : TIMER_WRAP;
-  if (!Allowed || target - now < OS_STOP2_MIN_US || !_OSUARTIdle() ||
-      !_OSTimerEventIdle()) {
+  if (_OSTimerEventNext(&event) && event < target - now)
+     target = now + event;               // the kernel's time of the event, near enough
+  if (!Allowed || target - now < OS_STOP2_MIN_US || !_OSUARTIdle()) {
      __asm volatile ("WFI" ::: "memory");
      _OSEnableInterrupts();
      return;
@@ -144,6 +158,7 @@ static void Stop2Idle(void)
   OSSetLPTimerCompare((UINT16)(start + ticks));
   start = NextTick();
   TIM_CR1 &= ~TIM_CR1_CEN;
+  _OSTimerEventHalt();
   now = TIM_CNT;
   /* A compare the write above may have met on its way clears, and the interrupt with it:
   ** only the one to come is to wake the chip. */
@@ -170,12 +185,11 @@ static void Stop2Idle(void)
      end = NextTick();
   micros = (UINT16)(end - start) * 15625u + Fraction;
   Fraction = micros % 512u;
-  now += micros / 512u;
-  if (now >= target) {
-     now = target - 1;
-     Counts.Late += 1;
-  }
-  TIM_CNT = now;
+  micros /= 512u;
+  TIM_CNT = now + micros >= compare && compare > now ? compare - 1 :
+            now + micros >= TIMER_WRAP ? TIMER_WRAP - 1 : now + micros;
   TIM_CR1 |= TIM_CR1_CEN;
+  if (!_OSTimerEventResume(micros) || now + micros >= target)
+     Counts.Late += 1;
   _OSEnableInterrupts();
 } /* end of Stop2Idle */

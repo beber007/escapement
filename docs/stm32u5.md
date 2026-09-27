@@ -134,10 +134,11 @@ LSE 15 ppm slow against the HSE, within what either crystal gives, and no compar
 in 120 instances.
 
 The idle task enters Stop 2 once the application calls `OSInitStop2`
-(`Escapement_Stop2.c`): when the next event of TIM2 is 5 ms off or more, no UART receives
-or sends and no timer event is pending, it arms LPTIM1 3 ms short of the event, stops
-TIM2 on an edge of LPTIM1 and enters Stop 2; on waking it takes the clock back to
-160 MHz and starts TIM2 again on an edge, moved on by the ticks counted between. `SleepU5`
+(`Escapement_Stop2.c`): when the next event, an arrival or wrap of TIM2 or a timer
+event of TIM5, is 5 ms off or more, and no UART receives or sends, it arms LPTIM1 3 ms
+short of the event, stops TIM2 and TIM5 on an edge of LPTIM1 and enters Stop 2; on
+waking it takes the clock back to 160 MHz and starts both again on an edge, moved on by
+the ticks counted between. Until 2026-09-27 a pending timer event kept it in Sleep. `SleepU5`
 runs one task every 100 ms under it. On the board, on 2026-09-27, over 43 s: 388 entries
 into Stop 2 for 430 instances, the others those that sent a report on LPUART1; each
 instance started 100,000 µs after the one before, to the microsecond; the longest
@@ -149,6 +150,20 @@ TIM2 counted 43,000,000 µs where LPTIM1 counted 1,409,021 ticks, 2.1 ppm more, 
 digital input. With 5 s phases on the board, the same day: nine entries into Stop 2 a
 second in the one, none in the other, every start on its period in both; D13 itself
 not yet observed.
+
+Each instance of `SleepU5` also has a timer event wake a second task 40 ms on, since
+TIM5 is carried through Stop 2. On the board, on 2026-09-27, over 60 s: 1,160 entries
+into Stop 2 for 610 instances, two a period, before the event and before the next
+instance; each event came within 5 µs of the time it was due; the longest wake-up
+19 ticks; none late. The board check runs it (`tools/unoq_sleep.py`).
+
+An image that sleeps in Stop 2 with DBG_STOP cleared leaves the debug port unpowered
+most of the time. Loading the next image then failed on an SWD parity error, OpenOCD
+connecting while the core slept, and `SleepU5` ran on: the endurance test after it in
+the board check of 2dbcece, on 2026-09-27, saw no report and counted restarts.
+`tools/unoq_load.sh` now connects with the reset held (`connect_assert_srst`, with
+`srst_nogate`), and fails on an error from OpenOCD; three loads in three after
+`SleepU5` then succeeded.
 
 ## Errata
 

@@ -174,14 +174,44 @@ BOOL OSUnScheduleTimerEvent(void *event, UINT16 interruptIndex)
 } /* end of OSUnScheduleTimerEvent */
 
 
-/* _OSTimerEventIdle: TRUE when no event is pending: TIM5 stops in Stop 2, and would wake
-** a pending one late by the time slept (Escapement_Stop2.c). Called with interrupts
-** masked. */
-BOOL _OSTimerEventIdle(void)
+/* _OSTimerEventNext, _OSTimerEventHalt and _OSTimerEventResume: TIM5 through Stop 2
+** (Escapement_Stop2.c), where it stops. The idle task asks how far off the next event
+** is, to wake before it; halts TIM5 with TIM2, on the same edge of LPTIM1; and on waking
+** moves it on by the same time, the events then due at the times they were set for.
+** All three are called with interrupts masked. */
+BOOL _OSTimerEventNext(UINT32 *delay)
 {
   TIMER_ISR_DATA *device = (TIMER_ISR_DATA *)OSGetISRDescriptor(OS_IO_TIM5);
-  return device == NULL || device->EventQueue == NULL;
-} /* end of _OSTimerEventIdle */
+  INT32 left;
+  if (device == NULL || device->EventQueue == NULL)
+     return FALSE;
+  left = (INT32)(device->EventQueue->Time - TIM_CNT);
+  *delay = left > 0 ? (UINT32)left : 0;
+  return TRUE;
+} /* end of _OSTimerEventNext */
+
+void _OSTimerEventHalt(void)
+{
+  if (OSGetISRDescriptor(OS_IO_TIM5) != NULL)
+     TIM_CR1 = 0;
+} /* end of _OSTimerEventHalt */
+
+/* Returns FALSE when an event fell due while TIM5 stood still: it is handed to the
+** handler at once, late by what the wake-up overran. */
+BOOL _OSTimerEventResume(UINT32 micros)
+{
+  TIMER_ISR_DATA *device = (TIMER_ISR_DATA *)OSGetISRDescriptor(OS_IO_TIM5);
+  BOOL inTime = TRUE;
+  if (device == NULL)
+     return TRUE;
+  TIM_CNT += micros;
+  if (device->EventQueue != NULL && (INT32)(device->EventQueue->Time - TIM_CNT) <= 0) {
+     TIM_EGR = CC1_BIT;
+     inTime = FALSE;
+  }
+  TIM_CR1 = TIM_CR1_CEN;
+  return inTime;
+} /* end of _OSTimerEventResume */
 
 
 /* ArmComparator: Arms the comparator on the event at the head of the queue, interrupts
