@@ -62,9 +62,9 @@ event. The locals of `main` do not survive it.
 
 ## Time
 
-Times are counted in ticks of the kernel's timer: microseconds on the RP2040,
-whose timer runs at 1 MHz; on the STM32, whatever `ESCAPEMENT_TIMER_PRESCALER`
-makes of the timer clock. A period is given in two parts, `periodCycles` full
+Times are counted in ticks of the kernel's timer: microseconds on every port, the
+timers of the RP2040 and the RP2350 running at 1 MHz, and TIM2 of the STM32U5 through
+a prescaler set for its 160 MHz clock. A period is given in two parts, `periodCycles` full
 turns of 2^30 ticks and a remainder `periodOffset` below 2^30, so that it can
 reach years; `periodCycles` is 0 for any period shorter than 2^30 ticks, some
 eighteen minutes at 1 MHz, and below 65535. A deadline is at least one tick, at most
@@ -306,3 +306,35 @@ There is no `free` and no C library: the code is built freestanding.
 - **The Arduino UNO Q's STM32U585** takes them too, under `STM32U5/Examples/uno-q`, its
   core at 160 MHz, the images loaded into SRAM over the board's own SWD by
   `tools/unoq_load.sh`; the power-aware kernel is not ported to it (`stm32u5.md`).
+
+## On the Arduino UNO Q
+
+- **The UARTs**: `OS_IO_USART1`, on D1 and D0 of the connector at 115,200 baud, or
+  `OS_IO_LPUART1`, to the board's Linux (`/dev/ttyHS1`) at 57,600 baud.
+- **Timer events** take `OS_IO_TIM5`, TIM2 being the kernel's.
+- **An idle task in Stop 2** (`Escapement_Stop2.h`): `OSInitStop2()` in `main`, after
+  `OSInitializeSystemClocks` and before `OSStartMultitasking`, returns FALSE, the idle
+  task left in Sleep, if the 32.768 kHz crystal does not run. From then on, when the
+  next arrival or timer event is 5 ms off or more (`OS_STOP2_MIN_US`), the idle task
+  wakes the chip by LPTIM1 3 ms before it (`OS_STOP2_WAKE_US`) and sleeps in Stop 2
+  meanwhile, the kernel's time kept by what LPTIM1 counted. What that asks of an
+  application:
+  - every clock but the 32.768 kHz crystal's, LPTIM1's and, when LPUART1 asks for it,
+    HSI16's stops in Stop 2: TIM2 and TIM5 are moved on after it, any other timer the
+    application drives, TIM3 for one, loses the time slept;
+  - the independent watchdog runs on in Stop 2 unless an option byte freezes it
+    (FLASH_OPTR.IWDG_STOP, not read on the UNO Q): the task that refreshes it keeps its
+    period, sleep or not;
+  - no Stop 2 while a UART sends, nor while USART1 has a receive handler; LPUART1
+    receives through it, its first byte sampled while its clock starts, hence its
+    57,600 baud;
+  - an interrupt that comes during Stop 2 is taken once the clock is raised again, up
+    to some 1 ms later;
+  - the debug port sleeps with the chip: an image is loaded with the reset held, as
+    `tools/unoq_load.sh` does;
+  - LPTIM1 is the idle task's: an application calls `OSInitLPTimer` and the rest of
+    `Escapement_LPTimer.h` only without `OSInitStop2`.
+
+  `OSAllowStop2(FALSE)` keeps the idle task in Sleep until `OSAllowStop2(TRUE)`, and
+  `OSGetStop2Counts` gives the entries into Stop 2, the longest wake-up in ticks of
+  LPTIM1 and the wake-ups past their event. `SleepU5` uses all of it.
