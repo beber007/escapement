@@ -3,7 +3,7 @@
 # LICENSE at the root of this repository.
 #
 # Build the images the board checks run (tools/board_ci.sh), the Pico's and the UNO Q's
-# STM32U5's, into OUT/<check>_<kernel>/: by the CI, which hands them to the bench as an
+# STM32U5's, into OUT/<check>_<kernel>/, and that of the PPK2's measurement: by the CI, which hands them to the bench as an
 # artifact, so that the bench needs no compiler, or by the bench itself.
 #
 #   tools/board_images.sh OUT
@@ -53,4 +53,11 @@ mkdir -p "$OUT/soak_u5"
 cp "$U5/build/SoakU5.elf" "$U5/build/SleepU5.elf" "$OUT/soak_u5/"
 make -s -C "$U5" clean >/dev/null
 echo "soak_u5: SoakU5 SleepU5"
+# Not a check: SleepU5 alternating 30 s in Stop 2 and 30 s in Sleep, for the PPK2
+# (docs/stm32u5.md), built at each commit so that it is known to build, and at hand.
+make -s -C "$U5" PHASES=30 build/SleepU5.elf >/dev/null
+mkdir -p "$OUT/ppk2_u5"
+cp "$U5/build/SleepU5.elf" "$OUT/ppk2_u5/SleepU5-phases30.elf"
+make -s -C "$U5" clean >/dev/null
+echo "ppk2_u5: SleepU5 PHASES=30"
 "${CROSS_COMPILE:-arm-none-eabi-}gcc" --version | head -1 >"$OUT/compiler"

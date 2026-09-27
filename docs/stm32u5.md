@@ -151,7 +151,8 @@ TIM2 counted 43,000,000 µs where LPTIM1 counted 1,409,021 ticks, 2.1 ppm more, 
 0.2 µs a sleep. What it saves is for the PPK2 to say: built with `make PHASES=30`,
 `SleepU5` alternates 30 s in Stop 2, D13 high, and 30 s in Sleep, D13 low
 (`OSAllowStop2`), the load the same, for the PPK2 to record both with D13 on its
-digital input. With 5 s phases on the board, the same day: nine entries into Stop 2 a
+digital input; the CI builds that image at each commit, among the board's
+(`tools/board_images.sh`, `ppk2_u5/SleepU5-phases30.elf`). With 5 s phases on the board, the same day: nine entries into Stop 2 a
 second in the one, none in the other, every start on its period in both; D13 itself
 not yet observed.
 
