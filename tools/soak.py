@@ -172,16 +172,26 @@ class UnoQ:
         self.lock = threading.Lock()   # self.value, between the link and a restart
 
     def load(self):
-        """Through tools/unoq_load.sh, beside this script, run on the board."""
+        """Through tools/unoq_load.sh, beside this script, run on the board. Returns
+        OpenOCD's error if the load failed, None otherwise: one that failed unseen, the
+        image before left running, passed for restarts of the board (2026-09-27)."""
         loader = os.path.join(os.path.dirname(os.path.abspath(__file__)), "unoq_load.sh")
-        subprocess.run(["sh", loader, self.elf], capture_output=True, check=False)
+        done = subprocess.run(["sh", loader, self.elf], capture_output=True, text=True,
+                              check=False)
         self.last = None
+        if done.returncode == 0:
+            return None
+        errors = [l for l in (done.stdout + done.stderr).splitlines()
+                  if l.startswith("Error")]
+        return errors[0] if errors else f"the loader ended with {done.returncode}"
 
     def start(self):
         """The image already running is read as it is, not loaded again: a test can be
         taken over. Loaded if no report comes."""
         if self.report(self.silent) is None:
-            self.load()
+            failed = self.load()
+            if failed:
+                print(f"LOAD FAILED: {failed}", flush=True)
         threading.Thread(target=self.link, daemon=True).start()
 
     def link(self):
@@ -326,7 +336,9 @@ def main():
         elif r["marker"] != MARKER or (previous and r["seconds"] < previous[0]):
             restarts += 1
             write(f"{stamp} RESTART {restarts}{r.get('extra', '')}", True)
-            board.load()
+            failed = board.load()
+            if failed:
+                write(f"{stamp} LOAD FAILED: {failed}", True)
             previous = None
         else:
             line = f"{stamp} run {r['seconds']} s, {r['wraps']} wraps"
