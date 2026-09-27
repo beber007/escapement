@@ -145,6 +145,37 @@ The long endurance run (`tools/soak.py uno-q`, the user service `escapement-soak
 is stopped for the check. If the check passed, the run starts again on the commit's
 image; otherwise it goes back to the image it had.
 
+### A long run on a NUCLEO-U575ZI-Q
+
+The checks of each commit interrupt the long run on the UNO Q. A NUCLEO-U575ZI-Q plugged
+into one of its USB ports can hold one that nothing interrupts: the same `SoakU5`, built
+in `STM32U5/Examples/nucleo-u575` (`tools/board_images.sh` builds it too, into `soak_nucleo`), its reports and
+link on USART1 to the virtual COM port of the board's ST-LINK at 115,200 baud. It is
+loaded by `tools/nucleo_load.sh`, through the ST-LINK and Debian's OpenOCD, whose
+package brings the udev rules that let the group plugdev drive the probe; the port is
+read by the group dialout. `tools/soak.py nucleo` finds the port under
+`/dev/serial/by-id`, or takes `NUCLEO_TTY`, and posts the status `board/soak-nucleo`.
+The run is the user service `escapement-soak-nucleo`, its files in `~/soak-nucleo`, the
+image and the two scripts copied there by hand when it is to run on another commit:
+
+```sh
+mkdir -p ~/soak-nucleo && cp build/SoakU5.elf tools/soak.py tools/nucleo_load.sh ~/soak-nucleo/
+cat > ~/.config/systemd/user/escapement-soak-nucleo.service <<'EOF'
+[Unit]
+Description=Escapement: the endurance test of the STM32U575, read on USART1 every minute
+
+[Service]
+Environment=BOARD_SOAK_LOG=%h/soak-nucleo/soak-nucleo.log BOARD_SOAK_SHA=<commit> PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 %h/soak-nucleo/soak.py nucleo 0 60 %h/soak-nucleo/SoakU5.elf
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=default.target
+EOF
+systemctl --user daemon-reload && systemctl --user enable --now escapement-soak-nucleo
+```
+
 ### Several probes
 
 The hub carries three Debug Probes. `~/.config/escapement-probes` names them after their

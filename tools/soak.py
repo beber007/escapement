@@ -6,6 +6,8 @@ interval without stopping it, for as long as asked.
 
     tools/soak.py pico DURATION INTERVAL [ELF]      SoakPico, through the Debug Probe $PROBE
     tools/soak.py uno-q DURATION INTERVAL [ELF]     SoakU5, on the board's own Linux
+    tools/soak.py nucleo DURATION INTERVAL [ELF]    SoakU5 on a NUCLEO-U575ZI-Q, through
+                                                    its ST-LINK, beside the UNO Q
 
 DURATION and INTERVAL take a suffix s, m, h or d; a DURATION of 0 runs until stopped.
 
@@ -14,7 +16,11 @@ memory as it runs. The STM32U585 of an Arduino UNO Q sends its counts once a sec
 LPUART1, which the board's Linux sees as /dev/ttyHS1: the script runs there and reads
 them, and sends the MCU bytes that count up by one, in bursts of random length at random
 times, interrupts at moments of Linux's choosing that the firmware checks (SoakU5.c, the
-link). Arduino's Bridge, which holds /dev/ttyHS1, is stopped meanwhile.
+link). Arduino's Bridge, which holds /dev/ttyHS1, is stopped meanwhile. A NUCLEO-U575ZI-Q
+runs the same SoakU5, built in Examples/nucleo-u575, its reports and link on USART1 to the
+virtual COM port of its ST-LINK ($NUCLEO_TTY, the ST-LINK's first under /dev/serial/by-id
+by default), loaded by tools/nucleo_load.sh: a long run on a board of its own, which the
+checks of each commit on the UNO Q do not interrupt.
 
 Each reading appends a line to the log (BOARD_SOAK_LOG, soak-<board>-<date>.log in the
 current directory by default): the seconds run by the firmware, the wraps of the kernel
@@ -33,13 +39,15 @@ that passed. The test passes if none of these happened.
 
 With a token (BOARD_CI_TOKEN, as tools/board_ci.sh), the state is posted to GitHub as the
 commit status "board/soak" of BOARD_SOAK_SHA (HEAD of this checkout by default) on a Pico,
-"board/soak-u5" on the UNO Q: pending with the time run, the restarts and the errors at
-each reading, failure as soon as either is not 0, success at the end if both are. On a
+"board/soak-u5" on the UNO Q, "board/soak-nucleo" on the Nucleo: pending with the time
+run, the restarts and the errors at each reading, failure as soon as either is not 0,
+success at the end if both are. On a
 Pico it holds the lock of tools/board_ci.sh (BOARD_CI_LOCK) while it runs, so that the
 board CI loads no other image.
 """
 import atexit
 import json
+import glob
 import os
 import random
 import select
@@ -152,30 +160,34 @@ class UnoQ:
              "memory"]
     elf = os.path.expanduser("~/soak/SoakU5.elf")
     tty = "/dev/ttyHS1"
+    baud = termios.B57600    # LPUART1 (Escapement_UART.c)
     silent = 10         # seconds without a report that say the board restarted
     bridge = ["arduino-router-serial.path", "arduino-router-serial", "arduino-router"]
+    loader = "unoq_load.sh"
 
     def __init__(self, elf):
         self.elf = elf
         symbol(elf, "Results")
-        subprocess.run(["sudo", "-n", "systemctl", "stop"] + self.bridge,
-                       capture_output=True, check=False)
+        if self.bridge:
+            subprocess.run(["sudo", "-n", "systemctl", "stop"] + self.bridge,
+                           capture_output=True, check=False)
         # Not blocking: the thread that writes shares the descriptor.
         self.fd = os.open(self.tty, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
         attrs = termios.tcgetattr(self.fd)
         attrs[0] = attrs[1] = attrs[3] = 0                     # raw
         attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL   # no flow control
-        attrs[4] = attrs[5] = termios.B57600               # LPUART1 (Escapement_UART.c)
+        attrs[4] = attrs[5] = self.baud
         termios.tcsetattr(self.fd, termios.TCSANOW, attrs)
         termios.tcflush(self.fd, termios.TCIOFLUSH)
         self.pending, self.last, self.sent, self.value = b"", None, 0, None
         self.lock = threading.Lock()   # self.value, between the link and a restart
 
     def load(self):
-        """Through tools/unoq_load.sh, beside this script, run on the board. Returns
-        OpenOCD's error if the load failed, None otherwise: one that failed unseen, the
-        image before left running, passed for restarts of the board (2026-09-27)."""
-        loader = os.path.join(os.path.dirname(os.path.abspath(__file__)), "unoq_load.sh")
+        """Through the loader beside this script, tools/unoq_load.sh run on the board, or
+        tools/nucleo_load.sh. Returns OpenOCD's error if the load failed, None otherwise:
+        one that failed unseen, the image before left running, passed for restarts of the
+        board (2026-09-27)."""
+        loader = os.path.join(os.path.dirname(os.path.abspath(__file__)), self.loader)
         done = subprocess.run(["sh", loader, self.elf], capture_output=True, text=True,
                               check=False)
         self.last = None
@@ -269,6 +281,19 @@ class UnoQ:
         return "+".join(n for b, n in names if flags >> b & 1) or "none"
 
 
+class Nucleo(UnoQ):
+    """SoakU5 on a NUCLEO-U575ZI-Q: the same reports and link, on USART1 to the virtual
+    COM port of its ST-LINK, and no Bridge to stop."""
+    name, context = "SoakU5 (NUCLEO-U575ZI-Q)", "board/soak-nucleo"
+    elf = os.path.expanduser("~/soak-nucleo/SoakU5.elf")
+    tty = os.environ.get("NUCLEO_TTY") or next(
+        iter(sorted(glob.glob("/dev/serial/by-id/usb-STMicroelectronics_STLINK*"))),
+        "/dev/ttyACM0")
+    baud = termios.B115200   # USART1 (Escapement_UART.c)
+    bridge = []
+    loader = "nucleo_load.sh"
+
+
 class Status:
     """The commit status on GitHub, if a token is there."""
 
@@ -298,9 +323,10 @@ class Status:
 
 
 def main():
-    if len(sys.argv) < 4 or sys.argv[1] not in ("pico", "uno-q"):
+    boards = {"pico": Pico, "uno-q": UnoQ, "nucleo": Nucleo}
+    if len(sys.argv) < 4 or sys.argv[1] not in boards:
         sys.exit(__doc__.split("\n\n")[1])
-    kind = Pico if sys.argv[1] == "pico" else UnoQ
+    kind = boards[sys.argv[1]]
     duration, interval = seconds(sys.argv[2]), seconds(sys.argv[3])
     elf = sys.argv[4] if len(sys.argv) > 4 else kind.elf
     if not os.path.isfile(elf):

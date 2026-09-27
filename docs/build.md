@@ -70,8 +70,10 @@ are chosen on the command line (`architecture.md`):
 `make KERNEL=PA bench` builds the two benches of the Pico, `BenchDVFSPico` and
 `BenchVregPico`. `make bin` adds raw binaries of the examples.
 
-`STM32U5/Examples/nucleo-u575` builds `SleepU5` alone, from the sources of `uno-q`, for
-a NUCLEO-U575ZI-Q on which the MCU's current can be measured (`stm32u5.md`).
+`STM32U5/Examples/nucleo-u575` builds `SleepU5` and `SoakU5`, from the sources of
+`uno-q`, for a NUCLEO-U575ZI-Q: the first for measuring the MCU's current
+(`stm32u5.md`), the second for a long endurance run, its reports on the ST-LINK's
+virtual COM port (`tools/board_ci.md`).
 
 ## On hardware and under emulation
 

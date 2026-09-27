@@ -44,7 +44,7 @@ endif
 
 $(shell mkdir -p build)
 
-all: build/SleepU5.elf
+all: build/SleepU5.elf build/SoakU5.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.d
@@ -71,6 +71,13 @@ build/SleepU5.o : $(UNOQ)/SleepU5.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/SleepU5.elf : $(OBJECTS)
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+
+# SoakU5, the endurance test, its reports and link on USART1 to the ST-LINK's virtual COM
+# port (SoakU5.c), for a long run beside the UNO Q's checks (tools/soak.py nucleo).
+build/SoakU5.o : $(UNOQ)/SoakU5.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SoakU5.elf : $(filter-out build/SleepU5.o,$(OBJECTS)) build/SoakU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 
 -include $(wildcard build/*.d)

@@ -71,6 +71,12 @@
 #define ISR_TXE              (1u << 7)
 #define ICR_ORECF            (1u << 3)
 
+#define GPIOA_BASE           0x42020000
+#define GPIOA_MODER          *((volatile UINT32 *)(GPIOA_BASE + 0x00))
+#define GPIOA_AFRH           *((volatile UINT32 *)(GPIOA_BASE + 0x24))
+#define NUCLEO_TX_PIN        9
+#define NUCLEO_RX_PIN        10
+#define RCC_AHB2ENR1_GPIOAEN (1u << 0)
 #define GPIOB_BASE           0x42020400
 #define GPIOB_MODER          *((volatile UINT32 *)(GPIOB_BASE + 0x00))
 #define GPIOB_AFRL           *((volatile UINT32 *)(GPIOB_BASE + 0x20))
@@ -183,14 +189,29 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
   }
   else {
      descriptor->Base = USART1_BASE;
-     RCC_AHB2ENR1 |= RCC_AHB2ENR1_GPIOBEN;
+     #ifdef BOARD_NUCLEO_U575
+        RCC_AHB2ENR1 |= RCC_AHB2ENR1_GPIOAEN;
+     #else
+        RCC_AHB2ENR1 |= RCC_AHB2ENR1_GPIOBEN;
+     #endif
      RCC_APB2ENR |= RCC_APB2ENR_USART1EN;
      (void)RCC_APB2ENR;                // the clocks run before the blocks are written
-     /* PB6 and PB7 to alternate function 7. */
-     GPIOB_AFRL = (GPIOB_AFRL & ~(0xFu << 4 * TX_PIN | 0xFu << 4 * RX_PIN)) |
-                  AF_USART1 << 4 * TX_PIN | AF_USART1 << 4 * RX_PIN;
-     GPIOB_MODER = (GPIOB_MODER & ~(3u << 2 * TX_PIN | 3u << 2 * RX_PIN)) |
-                   MODE_AF << 2 * TX_PIN | MODE_AF << 2 * RX_PIN;
+     #ifdef BOARD_NUCLEO_U575
+        /* The NUCLEO-U575ZI-Q's virtual COM port of its ST-LINK: PA9 and PA10, alternate
+        ** function 7 (UM2861, 6.9; ST's BSP, stm32u5xx_nucleo.h). */
+        GPIOA_AFRH = (GPIOA_AFRH & ~(0xFu << 4 * (NUCLEO_TX_PIN - 8) |
+                                     0xFu << 4 * (NUCLEO_RX_PIN - 8))) |
+                     AF_USART1 << 4 * (NUCLEO_TX_PIN - 8) |
+                     AF_USART1 << 4 * (NUCLEO_RX_PIN - 8);
+        GPIOA_MODER = (GPIOA_MODER & ~(3u << 2 * NUCLEO_TX_PIN | 3u << 2 * NUCLEO_RX_PIN)) |
+                      MODE_AF << 2 * NUCLEO_TX_PIN | MODE_AF << 2 * NUCLEO_RX_PIN;
+     #else
+        /* PB6 and PB7 to alternate function 7. */
+        GPIOB_AFRL = (GPIOB_AFRL & ~(0xFu << 4 * TX_PIN | 0xFu << 4 * RX_PIN)) |
+                     AF_USART1 << 4 * TX_PIN | AF_USART1 << 4 * RX_PIN;
+        GPIOB_MODER = (GPIOB_MODER & ~(3u << 2 * TX_PIN | 3u << 2 * RX_PIN)) |
+                      MODE_AF << 2 * TX_PIN | MODE_AF << 2 * RX_PIN;
+     #endif
      /* 8 bits, no parity, one stop bit, oversampling by 16: the divisor is the clock over
      ** the baud rate, rounded. */
      REG(descriptor,USART_CR1) = 0;

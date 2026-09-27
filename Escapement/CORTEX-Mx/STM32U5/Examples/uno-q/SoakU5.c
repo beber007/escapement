@@ -48,6 +48,10 @@
 ** the times the MSIS was locked again on the LSE (OSGetMSIRelocks) — one number for both,
 ** a line of the UART holding 255 bytes at most.
 **
+** Built for a NUCLEO-U575ZI-Q (Examples/nucleo-u575, BOARD_NUCLEO_U575), the reports and
+** the link go over USART1 instead, to the virtual COM port of the board's ST-LINK, at
+** 115,200 baud (LINK_UART).
+**
 ** Results, in words from its start, laid out as SoakPico's and SoakPico2's, which the
 ** Renode suite reads; tools/soak.py reads the reports of the link (docs/stm32u5.md):
 **    0 marker   1 seconds run   2 wraps crossed   3-10 activity of the parts
@@ -95,6 +99,13 @@
 #define RCC_CSR_RMVF       (1u << 23)
 #define RCC_CSR_RESETS     0xFE000000u  /* OBL, pin, BOR, software, IWDG, WWDG, low power */
 #define EVENT_TIMER_INDEX OS_IO_TIM5
+/* The UART to the machine that reads the reports and feeds the link: LPUART1 to the UNO
+** Q's Linux, USART1 to the virtual COM port of a NUCLEO-U575ZI-Q's ST-LINK. */
+#ifdef BOARD_NUCLEO_U575
+   #define LINK_UART      OS_IO_USART1
+#else
+   #define LINK_UART      OS_IO_LPUART1
+#endif
 #define ISR_TIMER_INDEX   OS_IO_TIM3
 
 enum { PULSE, QUEUE, BUFFER, EVENTS, BUFFER4, HEARTBEAT, INTERRUPT, MEMORY };
@@ -216,7 +227,7 @@ int main(void)
   Tick = OSCreateEventDescriptor();
   Guard[4] = NewGuard();
   OSInitTimerEvent(2,1,EVENT_TIMER_INDEX);
-  OSInitUART(2,REPORT_SIZE,LinkReceive,OS_IO_LPUART1);
+  OSInitUART(2,REPORT_SIZE,LinkReceive,LINK_UART);
   PERIODIC(PulseTask,20,1000);
   PERIODIC(PokerTask,50,2000);
   PERIODIC(ReaderTask,400,2000);
@@ -492,11 +503,11 @@ static UINT8 *PutHex(UINT8 *p, UINT32 value)
 ** still being sent, which Linux sees as a second without a report. */
 static void Report(void)
 {
-  UINT8 *line = (UINT8 *)OSGetFreeNodeUART(OS_IO_LPUART1), *p;
+  UINT8 *line = (UINT8 *)OSGetFreeNodeUART(LINK_UART), *p;
   UINT32 i;
   if (line == NULL)
      return;
-  Results.LinkOverruns = OSGetUARTOverruns(OS_IO_LPUART1);
+  Results.LinkOverruns = OSGetUARTOverruns(LINK_UART);
   p = line;
   *p++ = 'S'; *p++ = 'O'; *p++ = 'A'; *p++ = 'K'; *p++ = ' ';
   p = PutHex(p,Results.Seconds);
@@ -515,7 +526,7 @@ static void Report(void)
   p = PutHex(p,Results.LinkNext);
   p = PutHex(p,Results.Resets | (Results.MSIRelocks & 0xFFFFFF));
   p[-1] = '\n';
-  OSEnqueueUART(line,(UINT8)(p - line),OS_IO_LPUART1);
+  OSEnqueueUART(line,(UINT8)(p - line),LINK_UART);
 } /* end of Report */
 
 
