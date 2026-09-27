@@ -98,6 +98,26 @@ The **STM32L4** is set aside.
    the rate its start allows (`stm32u5.md`). Next, the
    PPK2, on `SleepU5` built with `make PHASES=30`: Stop 2 and Sleep in turn, D13 telling
    them apart.
+6. **A deeper sleep on the RP2350.** Its idle task sleeps by WFI with every clock
+   running. Read from the RP2350 datasheet on 2026-09-27: DORMANT stops every oscillator
+   and keeps the state, the code going on after the instruction that entered it
+   (§6.5.3, p. 489-490), as Stop 2 does on the U5; TIMER0, the kernel's, stops with them
+   (p. 570); an alarm of the always-on timer or a GPIO wakes the chip; the PLLs must be
+   stopped before and restarted after, and the 12 MHz crystal takes more than 1 ms to
+   start (p. 557). The power-down states P1.x reboot through the bootrom instead
+   (p. 446), no use to an idle task. No erratum touches DORMANT, SLEEP or the always-on
+   timer. Two things differ from the U5. The always-on timer counts steps of 1 ms, of
+   62.5 µs at best, and the Pico 2 has no 32.768 kHz crystal: it then runs on LPOSC, an
+   RC oscillator within 20 % untrimmed, 1.5 % trimmed, drifting 14 % with temperature
+   and 20 % with the supply (§8.4.1, p. 569-570; §12.10.5.1 says 1 %), where the U5's
+   crystal held 15 ppm; a sleep of 100 ms could move the kernel's time by some 1.5 ms. And
+   the datasheet gives no current for WFI, SLEEP or DORMANT (§14.9.7), a core at 150 MHz
+   drawing 11 mA (p. 1347). The steps, then: measure the three on a Pico 2 with the PPK2;
+   if SLEEP saves enough, gate the clocks the kernel does not need while TIMER0 runs on
+   (SLEEP_EN1, p. 550), which keeps the time exact; for DORMANT, either calibrate LPOSC
+   against the crystal before each sleep and measure what error is left, or give the
+   always-on timer an external 32.768 kHz clock on GPIO 12, 14, 20 or 22 (§12.10.7),
+   hardware for the bench.
 
 ## Done
 
