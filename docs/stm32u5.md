@@ -74,20 +74,21 @@ raises it (`Escapement_Timer.c`).
 
 Under Renode, on a platform of our own (`emulation/renode/escapement_u5.repl`, see
 `emulation.md`), with the pins of the UNO Q since 2026-09-26, the ten tests of
-`escapement_u5.robot` pass under each of the four builds: the probe task every millisecond, the three periodic tasks, the UART
-echo, the timer events, the 2^30 wrap of the kernel clock, the tasks preempting one
-another inside the FIFO queue and a slot buffer, R8-R11 kept across, and 3.5 s of the
-endurance test with every part active and none in error, LPTIM1's count against
-TIM2's, and the idle task sleeping on LPTIM1, though never in Stop 2 there: the platform
-does not report it (PWR_SR.STOPF), and the clock is not restarted, and the same across
-the 2^30 wrap: `SleepWrapU5`, `SleepU5` with its times and margins a thousand times
-longer on TIM2, TIM5 and LPTIM1 a thousand times faster, crosses it twice in 2.5 s,
-none late, every start within 0.5 µs of its period, every timer event within 10.5 µs
-of its time, the start of the event task not being faster (2026-09-27). The endurance test found the port routing
-to the dispatcher only the interrupts of its own drivers, and TIM3's to the trap of an
-undefined one; every interrupt of the chip now reaches it. The compiled order
-of the slot buffers and of the task-level stores holds (`tools/check_order.py`), and the
-static analysis finds nothing. The CI runs all of it.
+`escapement_u5.robot` pass under each of the four builds: the probe task every
+millisecond, the three periodic tasks, the UART echo, the timer events, the 2^30 wrap of
+the kernel clock, the tasks preempting one another inside the FIFO queue and a slot
+buffer, R8-R11 kept across, and 3.5 s of the endurance test with every part active and
+none in error, LPTIM1's count against TIM2's, and the idle task sleeping on LPTIM1,
+though never in Stop 2 there: the platform does not report it (PWR_SR.STOPF), and the
+clock is not restarted. The same across the 2^30 wrap: `SleepWrapU5`, `SleepU5` with its
+times and margins a thousand times longer on TIM2, TIM5 and LPTIM1 a thousand times
+faster, crosses it twice in 2.5 s, none late, every start within 0.5 µs of its period,
+every timer event within 10.5 µs of its time, the start of the event task not being
+faster (2026-09-27). The endurance test found the port routing to the dispatcher only
+the interrupts of its own drivers, and TIM3's to the trap of an undefined one; every
+interrupt of the chip now reaches it. The compiled order of the slot buffers and of the
+task-level stores holds (`tools/check_order.py`), and the static analysis finds nothing.
+The CI runs all of it.
 
 `tools/soak.py` runs the endurance test of the Pico and of the UNO Q alike: the same
 checks, the counts read over SWD on the one and from the reports of LPUART1 on the other.
@@ -138,23 +139,23 @@ LSE 15 ppm slow against the HSE, within what either crystal gives, and no compar
 in 120 instances.
 
 The idle task enters Stop 2 once the application calls `OSInitStop2`
-(`Escapement_Stop2.c`): when the next event, an arrival or wrap of TIM2 or a timer
-event of TIM5, is 5 ms off or more, no UART sends and USART1 does not receive, it arms LPTIM1 3 ms
-short of the event, stops TIM2 and TIM5 on an edge of LPTIM1 and enters Stop 2; on
+(`Escapement_Stop2.c`): when the next event, an arrival or wrap of TIM2 or a timer event
+of TIM5, is 5 ms off or more, no UART sends and USART1 does not receive, it arms LPTIM1
+3 ms short of the event, stops TIM2 and TIM5 on an edge of LPTIM1 and enters Stop 2; on
 waking it takes the clock back to 160 MHz and starts both again on an edge, moved on by
-the ticks counted between. Until 2026-09-27 a pending timer event kept it in Sleep. `SleepU5`
-runs one task every 100 ms under it. On the board, on 2026-09-27, over 43 s: 388 entries
-into Stop 2 for 430 instances, the others those that sent a report on LPUART1; each
-instance started 100,000 µs after the one before, to the microsecond; the longest
-wake-up took 29 ticks, 885 µs, against the 3 ms allowed; none woke past its event; and
-TIM2 counted 43,000,000 µs where LPTIM1 counted 1,409,021 ticks, 2.1 ppm more, some
-0.2 µs a sleep. What it saves is for the PPK2 to say: built with `make PHASES=30`,
-`SleepU5` alternates 30 s in Stop 2, D13 high, and 30 s in Sleep, D13 low
-(`OSAllowStop2`), the load the same, for the PPK2 to record both with D13 on its
-digital input; the CI builds that image at each commit, among the board's
-(`tools/board_images.sh`, `ppk2_u5/SleepU5-phases30.elf`). With 5 s phases on the board, the same day: nine entries into Stop 2 a
-second in the one, none in the other, every start on its period in both; D13 itself
-not yet observed.
+the ticks counted between. Until 2026-09-27 a pending timer event kept it in Sleep.
+`SleepU5` runs one task every 100 ms under it. On the board, on 2026-09-27, over 43 s:
+388 entries into Stop 2 for 430 instances, the others those that sent a report on
+LPUART1; each instance started 100,000 µs after the one before, to the microsecond; the
+longest wake-up took 29 ticks, 885 µs, against the 3 ms allowed; none woke past its
+event; and TIM2 counted 43,000,000 µs where LPTIM1 counted 1,409,021 ticks, 2.1 ppm
+more, some 0.2 µs a sleep. What it saves is for the PPK2 to say: built with `make
+PHASES=30`, `SleepU5` alternates 30 s in Stop 2, D13 high, and 30 s in Sleep, D13 low
+(`OSAllowStop2`), the load the same, for the PPK2 to record both with D13 on its digital
+input; the CI builds that image at each commit, among the board's
+(`tools/board_images.sh`, `ppk2_u5/SleepU5-phases30.elf`). With 5 s phases on the board,
+the same day: nine entries into Stop 2 a second in the one, none in the other, every
+start on its period in both; D13 itself not yet observed.
 
 Each instance of `SleepU5` also has a timer event wake a second task 40 ms on, since
 TIM5 is carried through Stop 2. On the board, on 2026-09-27, over 60 s: 1,160 entries

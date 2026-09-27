@@ -88,16 +88,16 @@ The **STM32L4** is set aside.
    the datasheet's; the PPK2 is to measure it.
 
    Step 1, the driver of LPTIM1 on the LSE (`Escapement_LPTimer.c`) and its example
-   `TestLPTimerU5`, done on 2026-09-27: on the board, the LSE 15 ppm slow against the HSE
-   over 30 s, no compare missed; under Renode, STM32L0_LpTimer serves. Step 2, the idle
-   task in Stop 2 (`Escapement_Stop2.c`, example `SleepU5`), done the same day: on the
-   board 388 entries in 43 s, every start one period after the last to the microsecond,
-   the longest wake-up 885 µs, TIM2 2.1 ppm ahead of LPTIM1 (`stm32u5.md`). TIM5 is
-   carried through Stop 2 since that day too, so that a pending timer event no longer
-   keeps the idle task in Sleep, and LPUART1 receives through it at 57,600 baud on HSI16,
-   the rate its start allows (`stm32u5.md`). Next, the
-   PPK2, on `SleepU5` built with `make PHASES=30`: Stop 2 and Sleep in turn, D13 telling
-   them apart.
+   `TestLPTimerU5`, done on 2026-09-27: on the board, the LSE 15 ppm slow against the
+   HSE over 30 s, no compare missed; under Renode, STM32L0_LpTimer serves. Step 2, the
+   idle task in Stop 2 (`Escapement_Stop2.c`, example `SleepU5`), done the same day: on
+   the board 388 entries in 43 s, every start one period after the last to the
+   microsecond, the longest wake-up 885 µs, TIM2 2.1 ppm ahead of LPTIM1 (`stm32u5.md`).
+   TIM5 is carried through Stop 2 since that day too, so that a pending timer event no
+   longer keeps the idle task in Sleep, and LPUART1 receives through it at 57,600 baud
+   on HSI16, the rate its start allows (`stm32u5.md`). Next, the PPK2, on `SleepU5`
+   built with `make PHASES=30`: Stop 2 and Sleep in turn, D13 telling them apart.
+
 6. **A deeper sleep on the RP2350.** Its idle task sleeps by WFI with every clock
    running. Read from the RP2350 datasheet on 2026-09-27: DORMANT stops every oscillator
    and keeps the state, the code going on after the instruction that entered it
