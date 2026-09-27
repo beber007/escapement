@@ -1,0 +1,19 @@
+// Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+// LICENSE at the root of this repository.
+//
+// escapement_u5.repl for the images of Examples/nucleo-u575, which drive the pins of the
+// NUCLEO-U575ZI-Q (BoardU5.h): ports A and F besides, for D13 on PA5, D7 and D8 on PF13
+// and PF12, and USART1 on PA9 and PA10, the virtual COM port of the ST-LINK. The same
+// STM32U5 otherwise: the platform does not tell the U575 from the U585, and reads the HSE
+// ready, which the board does not fit.
+using "escapement_u5.repl"
+
+gpioPortA: GPIOPort.STM32_GPIOPort @ sysbus <0x42020000, +0x400>
+    modeResetValue: 0xABFFFFFF
+    outputSpeedResetValue: 0x0C000000
+    pullUpPullDownResetValue: 0x64000000
+    numberOfAFs: 16
+
+gpioPortF: GPIOPort.STM32_GPIOPort @ sysbus <0x42021400, +0x400>
+    modeResetValue: 0xFFFFFFFF
+    numberOfAFs: 16

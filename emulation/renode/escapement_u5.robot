@@ -19,6 +19,7 @@ Resource                      ${RENODEKEYWORDS}
 
 *** Variables ***
 ${EXAMPLE}                    ${CURDIR}/../../Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
+${NUCLEO}                     ${CURDIR}/../../Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575
 
 *** Keywords ***
 Load Escapement
@@ -26,12 +27,12 @@ Load Escapement
     ...                       and starts it at its reset handler with the stack pointer of its
     ...                       vector table, which is what the entry code at the head of the
     ...                       image does there (Escapement_RamEntry.S).
-    [Arguments]               ${binary}  ${platform}=escapement_u5.repl
+    [Arguments]               ${binary}  ${platform}=escapement_u5.repl  ${example}=${EXAMPLE}
     Execute Command           mach create "uno_q"
     Execute Command           path add @${CURDIR}
     Execute Command           include @${CURDIR}/Escapement_STM32_Timer.cs
     Execute Command           machine LoadPlatformDescription @${CURDIR}/${platform}
-    Execute Command           sysbus LoadELF @${EXAMPLE}/build/${binary}.elf
+    Execute Command           sysbus LoadELF @${example}/build/${binary}.elf
     ${table}=                 Execute Command  sysbus GetSymbolAddress "CortexMxVectorTable"
     Execute Command           sysbus.cpu VectorTableOffset ${table.strip()}
 
@@ -282,6 +283,33 @@ Every part of the endurance test runs without error
     ${pulses}=                Read Word  ${results + 12}
     Should Be Equal As Integers  ${marker}  0x534F414B
     Should Be True            ${seconds} >= 3 and ${pulses} >= 3400
+    FOR  ${part}  IN RANGE  8
+        ${activity}=          Read Word  ${results + 12 + 4 * ${part}}
+        ${errors}=            Read Word  ${results + 44 + 4 * ${part}}
+        Log To Console        part ${part}: ${activity} done, ${errors} errors
+        Should Be True        ${activity} > 0
+        Should Be Equal As Integers  ${errors}  0
+    END
+
+The endurance test of the NUCLEO-U575ZI-Q reports on USART1
+    [Documentation]           SoakU5 of Examples/nucleo-u575 (escapement_u5_nucleo.repl), whose
+    ...                       reports go on USART1, the ST-LINK's virtual COM port, which
+    ...                       tools/soak.py nucleo reads, rather than on LPUART1: a line
+    ...                       starting SOAK each second, none on LPUART1, and every part of the
+    ...                       test active and without error, as for the UNO Q.
+    [Timeout]                 10 minutes
+    Load Escapement           SoakU5  escapement_u5_nucleo.repl  ${NUCLEO}
+
+    ${usart1}=                Create Terminal Tester  sysbus.usart1  defaultPauseEmulation=true
+    ${lpuart1}=               Create Terminal Tester  sysbus.lpuart1  defaultPauseEmulation=true
+    Wait For Line On Uart     SOAK  timeout=2.5  testerId=${usart1}
+    Wait For Line On Uart     SOAK  timeout=1.5  testerId=${usart1}
+    Should Not Be On Uart     SOAK  timeout=0.1  testerId=${lpuart1}
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${seconds}=               Read Word  ${results + 4}
+    Should Be True            ${seconds} >= 2
     FOR  ${part}  IN RANGE  8
         ${activity}=          Read Word  ${results + 12 + 4 * ${part}}
         ${errors}=            Read Word  ${results + 44 + 4 * ${part}}

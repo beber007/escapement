@@ -113,7 +113,7 @@ counter raises the flag (`Escapement_Timer.c`).
 
 Renode runs the port on a platform of the project's own
 (`emulation/renode/escapement_u5.repl`, see [`emulation.md`](emulation.md)), which has
-the pins of the UNO Q since 2026-09-26. The ten tests of `escapement_u5.robot` pass
+the pins of the UNO Q since 2026-09-26. The eleven tests of `escapement_u5.robot` pass
 under each of the four builds, hard and soft kernel under EDF and deadline-monotonic.
 They cover:
 
@@ -123,7 +123,10 @@ They cover:
 - tasks preempting one another inside the FIFO queue and a slot buffer, R8-R11 kept
   across;
 - 3.5 s of the endurance test with every part active and none in error;
-- LPTIM1's count against TIM2's, and the idle task sleeping on LPTIM1.
+- LPTIM1's count against TIM2's, and the idle task sleeping on LPTIM1;
+- the endurance test built for the NUCLEO-U575ZI-Q reporting on USART1, the ST-LINK's
+  virtual COM port, and not on LPUART1 (`escapement_u5_nucleo.repl`, which adds the
+  ports A and F of that board's pins).
 
 The idle task never reaches Stop 2 there. The platform does not report it
 (PWR_SR.STOPF), and the clock is not restarted. `SleepWrapU5` takes the idle task across

@@ -10,7 +10,7 @@ It says nothing of energy; the board and an instrument decide that.
 |---|---|---|---|---:|
 | RP2040 (Pico) | matgla/Renode_RP2040, with a fixed timer | 1.16.1, `linux-dotnet` | `escapement_pico.robot`, 8 | 11 |
 | RP2350 (Pico 2) | our own, `escapement_pico2.repl` | 1.17.0, portable | `escapement_pico2.robot`, 10 | 4, and 1 under GCC 14.2 |
-| STM32U585 (UNO Q) | our own, `escapement_u5.repl` | 1.17.0, portable | `escapement_u5.robot`, 10 | 4 |
+| STM32U585 (UNO Q) | our own, `escapement_u5.repl` | 1.17.0, portable | `escapement_u5.robot`, 11 | 4 |
 
 The RP2350 and STM32U5 suites run on a Mac as well as in the CI:
 
@@ -295,3 +295,6 @@ dispatcher (`stm32u5.md`); the platform gained TIM3 and Renode's model of the
 independent watchdog for it, and LPUART1 on 2026-09-26. On 2026-09-27 LPTIM1 (Renode's
 STM32L0 model) joined it, and three tests now cover LPTIM1 on the 32.768 kHz crystal and
 the idle task sleeping on it, across the 2^30 wrap too, which makes ten (`stm32u5.md`).
+The eleventh, the same day, runs the endurance test built for the NUCLEO-U575ZI-Q and
+reads its reports on USART1; built to report on LPUART1 as on the UNO Q, the image fails
+it.
