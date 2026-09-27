@@ -24,6 +24,11 @@
 ** Escapement_TimerEvent.c); any other clock the application uses stops with it. */
 BOOL OSInitStop2(void);
 
+/* OSAllowStop2: FALSE keeps the idle task in Sleep, as without OSInitStop2, until TRUE
+** lets it enter Stop 2 again; TRUE after OSInitStop2. To compare the two on the same
+** load (SleepU5). */
+void OSAllowStop2(BOOL allowed);
+
 /* The counts of the idle task, for the examples: the times it entered Stop 2, the largest
 ** wake-up it took, in ticks of LPTIM1, and the times it woke past the next event, whose
 ** kernel time it then set just before it. */

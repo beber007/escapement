@@ -48,7 +48,8 @@ LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
 # Build variants, which the CI also runs:
 #   make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING    the other scheduling algorithm
 #   make KERNEL=SOFT                                the soft real-time kernel
-# Also: make TRACE=1, a trace of the scheduling in RAM (not built by the CI).
+# Also: make TRACE=1, a trace of the scheduling in RAM (not built by the CI), and
+# make PHASES=30, SleepU5 alternating 30 s in Stop 2 and 30 s in Sleep (SleepU5.c).
 # The power-aware kernel is not ported yet.
 ifeq ($(KERNEL),PA)
    $(error the power-aware kernel is not ported to the STM32U5 yet)
@@ -63,6 +64,9 @@ ifeq ($(KERNEL),SOFT)
 endif
 ifdef TRACE
    CFLAGS += -DESCAPEMENT_TRACE
+endif
+ifdef PHASES
+   CFLAGS += -DSLEEP_PHASES=$(PHASES)
 endif
 
 # Every rule writes into build/ without ever creating it.

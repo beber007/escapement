@@ -65,6 +65,7 @@
 
 
 static OS_STOP2_COUNTS Counts;
+static volatile BOOL Allowed = TRUE;
 static UINT32 Fraction;                    // of a microsecond, in 512ths, carried over
 
 static void Stop2Idle(void);
@@ -104,6 +105,12 @@ void OSGetStop2Counts(OS_STOP2_COUNTS *counts)
 } /* end of OSGetStop2Counts */
 
 
+void OSAllowStop2(BOOL allowed)
+{
+  Allowed = allowed;
+} /* end of OSAllowStop2 */
+
+
 /* NextTick: Waits for the count of LPTIM1 to change, and returns the new one. */
 static UINT16 NextTick(void)
 {
@@ -123,7 +130,8 @@ static void Stop2Idle(void)
   now = TIM_CNT;
   compare = TIM_CCR1;                      // 0 when disarmed (Escapement_Timer.c)
   target = compare != 0 && compare > now ? compare : TIMER_WRAP;
-  if (target - now < OS_STOP2_MIN_US || !_OSUARTIdle() || !_OSTimerEventIdle()) {
+  if (!Allowed || target - now < OS_STOP2_MIN_US || !_OSUARTIdle() ||
+      !_OSTimerEventIdle()) {
      __asm volatile ("WFI" ::: "memory");
      _OSEnableInterrupts();
      return;

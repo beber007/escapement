@@ -12,6 +12,10 @@
 ** stm32u5.md), plus what each sleep loses; and each instance starts one period after the
 ** one before, within a few microseconds, if the wake-up comes in time.
 **
+** Built with make PHASES=n, the idle task alternates n seconds in Stop 2, D13 high, and n
+** seconds in Sleep, D13 low (OSAllowStop2), the load the same: what the PPK2 compares,
+** its digital input on D13 telling the phases apart in the one record.
+**
 ** Every ten instances a line of text goes to Linux on LPUART1, which sends nothing back:
 ** "SLEEP" and, in hexadecimal, the words 1 to 8 of Results. The idle task stays in Sleep
 ** for the few milliseconds of its sending.
@@ -48,6 +52,10 @@ int main(void)
   OSInitializeSystemClocks();
   Results.Marker = MARKER;
   InitializeFlag(FLAG1_PIN);
+  #ifdef SLEEP_PHASES
+     InitializeFlag(FLAG3_PIN);
+     SetPin(FLAG3_PIN);
+  #endif
   OSInitUART(1,REPORT_SIZE,NULL,OS_IO_LPUART1);
   Results.NoLSE = !OSInitStop2();
   #if defined(ESCAPEMENT_VERSION_SOFT)
@@ -89,6 +97,19 @@ static void SleepTask(void *argument)
         Report();
      }
   }
+  #ifdef SLEEP_PHASES
+     /* The phase changes at a start: the next sleep is the first of the new one. */
+     if (Results.Instances % (SLEEP_PHASES * 1000000 / PERIOD) == 0) {
+        if ((Results.Instances / (SLEEP_PHASES * 1000000 / PERIOD)) % 2 == 0) {
+           OSAllowStop2(TRUE);
+           SetPin(FLAG3_PIN);
+        }
+        else {
+           OSAllowStop2(FALSE);
+           ClearPin(FLAG3_PIN);
+        }
+     }
+  #endif
   started = TRUE;
   lastTicks = ticks;
   lastMicros = micros;

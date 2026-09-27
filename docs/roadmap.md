@@ -93,7 +93,8 @@ The **STM32L4** is set aside.
    task in Stop 2 (`Escapement_Stop2.c`, example `SleepU5`), done the same day: on the
    board 388 entries in 43 s, every start one period after the last to the microsecond,
    the longest wake-up 885 µs, TIM2 2.1 ppm ahead of LPTIM1 (`stm32u5.md`). Next, the
-   PPK2.
+   PPK2, on `SleepU5` built with `make PHASES=30`: Stop 2 and Sleep in turn, D13 telling
+   them apart.
 
 ## Done
 
