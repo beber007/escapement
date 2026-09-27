@@ -130,7 +130,7 @@ That turned up four defects: a race between `OSEnqueueUART` and its interrupt, a
 zero-sized transmission that emptied 64 KB onto the port, missing header dependencies,
 and stale comments.
 
-The kernel inherited from 2016 went through the same audit on 2026-09-25. Each finding
+The kernel inherited from ZottaOS went through the same audit on 2026-09-25. Each finding
 was reproduced by a host test that failed before its fix (`test/host/README.md`):
 
 - a slot buffer lost a slot to a reader preempting its writer, and read fields

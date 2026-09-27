@@ -7,6 +7,10 @@ copies. That notice is reproduced below and applies to the portions of this
 repository derived from ZottaOS, and is kept at the head of each source file derived
 from it, followed by a line for the changes made since.
 
+ZottaOS was written at the MIS institute of the HEIG-VD by Claude Evéquoz and
+Bertrand Hurst; its notice names the authors "MIS-TIC". Its sources and its user manual (May 2012)
+are kept in the archived repository https://github.com/beber007/zottaos.
+
     Copyright (c) 2006-2012 MIS Institute of the HEIG-VD affiliated to the
     University of Applied Sciences of Western Switzerland. All rights reserved.
     Authors: MIS-TIC

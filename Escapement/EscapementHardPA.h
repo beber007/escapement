@@ -118,11 +118,12 @@
 /* POWER MANAGEMENT SCHEMES ---------------------------------------------------------- */
 /* On this version of Escapement, there are 4 possible power scheme modes: DRA and DR_OTE
 ** only work with EDF*, DM_SLACK works with deadline monotonic scheduling and OTE is
-** suitable for any scheduling algorithm. DRA, OTE and EDF* are those of H. Aydin,
-** R. Melhem, D. Mossé and P. Mejía-Alvarez, IEEE Trans. Computers 53(5), 2004. */
+** suitable for any scheduling algorithm. DRA and EDF* are those of H. Aydin, R. Melhem,
+** D. Mossé and P. Mejía-Alvarez, IEEE Trans. Computers 53(5), 2004; OTE is after Y. Shin
+** and K. Choi, DAC 1999. DM_SLACK was designed for ZottaOS (ZottaOS User Manual, 2012). */
 #define NONE      0  /* No power management, uses sleep mode only */
 #define DRA       1  /* Dynamic Reclaiming Algorithm (works only with EDF*) */
-#define OTE       2  /* One Task Extension */
+#define OTE       2  /* One-Time Extension */
 #define DR_OTE    3  /* DRA with OTE */
 #define DM_SLACK  4  /* Deadline monotonic scheduling with slack reclamation */
 

@@ -1,6 +1,7 @@
 # State of the project and direction
 
-Escapement continues ZottaOS, a real-time kernel whose development stopped in 2016.
+Escapement continues ZottaOS, a real-time kernel by Claude Evéquoz and Bertrand Hurst,
+whose code last changed in 2014 and was published in 2016.
 `NOTICE` gives the lineage and the third-party components.
 
 This page separates what is open from what is done. Open items are plans, each with the

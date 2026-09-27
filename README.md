@@ -366,7 +366,9 @@ account is in [`docs/method.md`](docs/method.md).
 
 ## Origin and licence
 
-Escapement continues ZottaOS, a real-time kernel developed at the HEIG-VD, whose
-development stopped in 2016. It has been renamed and taken over as a personal project.
-`LICENSE` and `NOTICE` keep the original copyright and describe the lineage and the
-third-party components.
+Escapement continues ZottaOS, a real-time kernel that Claude Evéquoz and Bertrand Hurst
+developed at the MIS institute of the HEIG-VD. Its code last changed in 2014, and it was
+published on GitHub in 2016. Its sources and its user manual of May 2012 stay in the
+archived repository [beber007/zottaos](https://github.com/beber007/zottaos). Escapement
+takes the kernel up again as a personal project. `LICENSE` and `NOTICE` keep the
+original copyright and describe the lineage and the third-party components.

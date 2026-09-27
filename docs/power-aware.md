@@ -64,7 +64,20 @@ DVFS can win only where sleeping is not an option:
 
 Whatever the energy gain, the kernel's part is the scheduling. Its four policies, OTE
 (the default), DRA, DR_OTE and DM_SLACK, compute from the declared WCETs when the speed
-can be lowered without a task missing its deadline (`EscapementHardPA.h`).
+can be lowered without a task missing its deadline (`EscapementHardPA.h`). OTE, the
+one-time extension, gives the slack to the last task instance in the ready queue, after
+Shin and Choi [1]. DRA, the dynamic reclaiming algorithm, and the EDF\* it runs on are
+those of Aydin, Melhem, Mossé and Mejía-Alvarez [2]; DR_OTE combines the two. DM_SLACK,
+for deadline-monotonic scheduling, was designed for ZottaOS: the slack a task leaves goes
+to lower-priority tasks only, a scheme close to Saewong and Rajkumar's but with fewer
+computations [3] (ZottaOS User Manual, May 2012, pp. 92-100).
+
+ZottaOS measured a gain. Its manual shows the energy saved by EDF with dynamic
+reclaiming and OTE, against EDF that only sleeps (LPM1) when idle, as a function of the
+load, for three synthetic tasks on a prerelease MSP430F5438A (the X430F55438): about
+10 % at a fixed frequency assignment for an 80 % worst-case load, and some 20 % more
+when the actual load drops to 20 % (fig. 6.11 and table 6.5, pp. 98-99). The MSP430
+port is gone and that result has not been reproduced on any target of Escapement.
 
 ## Measuring the RP2040
 
@@ -221,6 +234,18 @@ What emulation shows is said above ("What emulation proves"): the kernel schedul
 drives the registers in the right order.
 
 ## Sources
+
+1. Y. Shin and K. Choi, *Power-Conscious Fixed Priority Scheduling for Hard Real-Time
+   Systems*, Proc. 36th Design Automation Conference (DAC '99), pp. 134-139, June 1999.
+2. H. Aydin, R. Melhem, D. Mossé and P. Mejía-Alvarez, *Power-Aware Scheduling for
+   Periodic Real-Time Tasks*, IEEE Transactions on Computers, 53(5), pp. 584-600,
+   May 2004.
+3. S. Saewong and R. Rajkumar, *Practical Voltage-Scaling for Fixed-Priority Real-Time
+   Systems*, Proc. IEEE Real-Time and Embedded Technology and Applications Symposium
+   (RTAS), pp. 106-115, May 2003.
+4. MIS-TIC, HEIG-VD, *ZottaOS User Manual*, May 2012, written by C. Evéquoz according to
+   its metadata, in the archived repository
+   [beber007/zottaos](https://github.com/beber007/zottaos).
 
 - Raspberry Pi, [*RP2040 Datasheet*](https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf):
   the core regulator, its output voltages and the range the chip is specified for,
