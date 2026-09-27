@@ -44,12 +44,13 @@ image events   soft TestTimerEventPico "KERNEL=SOFT TRACE=1" counters
 image events   pa   TestTimerEventPico "KERNEL=PA TRACE=1" counters
 image dvfs     pa   BenchDVFSPico "KERNEL=PA" plain
 make -s -C "$PICO" clean >/dev/null
-# The STM32U5 of the UNO Q: its endurance test, which tools/unoq_check.sh runs.
+# The STM32U5 of the UNO Q: its endurance test and the idle task in Stop 2, which
+# tools/unoq_check.sh runs.
 U5=Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
 make -s -C "$U5" clean >/dev/null
-make -s -C "$U5" build/SoakU5.elf >/dev/null
+make -s -C "$U5" build/SoakU5.elf build/SleepU5.elf >/dev/null
 mkdir -p "$OUT/soak_u5"
-cp "$U5/build/SoakU5.elf" "$OUT/soak_u5/"
+cp "$U5/build/SoakU5.elf" "$U5/build/SleepU5.elf" "$OUT/soak_u5/"
 make -s -C "$U5" clean >/dev/null
-echo "soak_u5: SoakU5"
+echo "soak_u5: SoakU5 SleepU5"
 "${CROSS_COMPILE:-arm-none-eabi-}gcc" --version | head -1 >"$OUT/compiler"

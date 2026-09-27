@@ -263,11 +263,11 @@ if [ "${BOARD_CI_U5:-}" = 1 ] && [ -f "$DIR/fw/soak_u5/SoakU5.elf" ]; then
     if (cd "$SRC" && sh tools/unoq_check.sh "$DIR/fw/soak_u5/SoakU5.elf" "$SHA") \
             >>"$LOG" 2>&1; then
         u5=success
-        status success "endurance test for 2 min, clock within 300 ppm; the long run goes on" \
+        status success "Stop 2 for 1 min, endurance test for 2, clock within 300 ppm; the long run goes on" \
             board/u5
     else
         u5=failure
-        status failure "the endurance test or the clock failed; see the bench's log" board/u5
+        status failure "Stop 2, the endurance test or the clock failed; see the bench's log" board/u5
     fi
 fi
 

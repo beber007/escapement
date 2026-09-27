@@ -59,7 +59,8 @@ The **STM32L4** is set aside.
    clock set-up runs, and 22 s of the endurance test passed; since 2026-09-26 the clock
    comes from the board's 16 MHz crystal, within some 25 ppm of NTP (`stm32u5.md`). A
    board check of each commit runs on the UNO Q's own Linux since 2026-09-26
-   (`tools/unoq_check.sh`, status `board/u5`): the endurance test for two minutes and the
+   (`tools/unoq_check.sh`, status `board/u5`): since 2026-09-27 the idle task in Stop 2
+   for a minute (`SleepU5`), the endurance test for two minutes and the
    clock within 300 ppm, the long endurance run then carried on to the commit. The F4,
    the last older STM32 port, went the same day. For energy (`power-aware.md`, read from
    the datasheet on 2026-09-26): a time base on LPTIM1 and the 32.768 kHz crystal, which

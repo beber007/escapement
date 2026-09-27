@@ -2,12 +2,16 @@
 # Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
 # LICENSE at the root of this repository.
 #
-# The board check of the STM32U5, on the Arduino UNO Q itself: the endurance test of a
-# commit run for two minutes, then its clock against Linux's; and the long endurance run,
-# which holds the board otherwise, carried on to that commit if it passes.
+# The board check of the STM32U5, on the Arduino UNO Q itself: the idle task in Stop 2
+# for a minute, the endurance test of a commit for two, then its clock against Linux's;
+# and the long endurance run, which holds the board otherwise, carried on to that commit
+# if it passes.
 #
-#   tools/unoq_check.sh ELF SHA        # ELF: SoakU5.elf of the commit SHA
+#   tools/unoq_check.sh ELF SHA        # ELF: SoakU5.elf of the commit SHA, SleepU5.elf
+#                                      # beside it
 #
+# SleepU5 runs first, if its image is there: the restart of the clock on waking from
+# Stop 2 is the board's to check, Renode never entering it (tools/unoq_sleep.py).
 # SoakU5 checks every part of itself each second (SoakU5.c) and tools/soak.py ends with an
 # error on any error or restart it saw. tools/unoq_drift.py then times its reports for five
 # minutes: shorter windows read up to 180 ppm off on 2026-09-26, Linux's clock itself
@@ -30,7 +34,11 @@ LIMIT_PPM=300
 
 systemctl --user stop "$SERVICE" 2>/dev/null
 ok=yes
-sh "$HERE/unoq_load.sh" "$ELF" || ok=""
+SLEEP=$(dirname "$ELF")/SleepU5.elf
+if [ -f "$SLEEP" ]; then
+    sh "$HERE/unoq_load.sh" "$SLEEP" && python3 "$HERE/unoq_sleep.py" 60 || ok=""
+fi
+[ -n "$ok" ] && { sh "$HERE/unoq_load.sh" "$ELF" || ok=""; }
 if [ -n "$ok" ]; then
     BOARD_CI_TOKEN=/nonexistent BOARD_SOAK_LOG=$(mktemp) \
         python3 "$HERE/soak.py" uno-q 2m 30s "$ELF" || ok=""

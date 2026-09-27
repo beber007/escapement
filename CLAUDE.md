@@ -43,7 +43,8 @@ tools/unoq_load.sh --reset                    # back to Arduino's firmware
 tools/soak.py uno-q 0 1m SoakU5.elf           # on the UNO Q: SoakU5, read on LPUART1, until
                                               # stopped (service escapement-soak-u5)
 tools/unoq_check.sh SoakU5.elf SHA            # on the UNO Q: the board check of a commit
-                                              # (status board/u5), then the long run goes on
+                                              # (status board/u5), then the long run goes on;
+                                              # SleepU5.elf beside it runs first (unoq_sleep.py)
 
 # The scheduler on the host, every kernel and algorithm, under AddressSanitizer; the CI
 # also runs it at -O2 under the whole of UndefinedBehaviorSanitizer
