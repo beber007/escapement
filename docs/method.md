@@ -1,32 +1,35 @@
 # Verifying AI-assisted development
 
 This project is written with an AI assistant, so the repository has to show that what
-was produced is correct.
+was produced is correct. This page describes the levels of verification, then records
+the hypotheses that turned out wrong and the defects found along the way, with their
+dates.
 
-The working rule is one line: **the AI proposes, the instrument decides.**
-Nothing here is considered established because it was asserted confidently — by
-the assistant or by anyone else. It is established when something outside the
-claim confirms it.
+The working rule fits in one line: **the AI proposes, the instrument decides.** Nothing
+here counts as established because it was asserted confidently, by the assistant or by
+anyone else. It is established when something outside the claim confirms it.
 
 ## Six independent levels
 
 | Level | Means | Catches |
 |---|---|---|
-| Compilation | GitHub Actions on every push, with the developer's GCC 16.2 and, for every variant, the compiled order and the Pico 2 suite, the GCC 14.2 of the stable distributions (since 2026-09-26; 14.2 alone before) | code that does not build, and anything one compiler forgives that the other does not |
+| Compilation | GitHub Actions on each push to `main` and each pull request, with the developer's GCC 16.2 and, for every variant, the compiled order and the Pico 2 suite, the GCC 14.2 of the stable distributions (since 2026-09-26; 14.2 alone before) | code that does not build, and anything one compiler forgives that the other does not |
 | The scheduler alone | the kernel built for the host, with time as a variable, in CI | a kernel that does not run the algorithm it claims, the 2^30 wrap of its clock, which the board reaches only after eighteen minutes, and the parts of the kernel no example exercises: event-driven tasks, FIFO queue, slot buffers |
 | Every interleaving | small models of the slot buffers and of the FIFO queue, explored exhaustively in CI (`test/model`) | what no test that runs one path at a time can reach: an interrupt at the one instruction where it matters |
 | Replayable execution | Renode, replayed by `renode-test` in CI | a kernel that builds but does not schedule |
 | Internal state on hardware | OpenOCD and SWD | an emulator that models the hardware wrongly |
 | Independent instrument | frequency counter of a Bus Pirate v4 | everything above at once — it trusts no software from this repository |
 
-The levels are ordered by how much they cost and by how little they assume. The
-sixth exists because the fifth still runs through a debugger, which turned out
-to matter: see the `TIMER_DBGPAUSE` investigation in `rp2040.md`.
+The levels are ordered by how much they cost and by how little they assume. The sixth
+exists because the fifth still runs through a debugger, and that turned out to matter
+(the `TIMER_DBGPAUSE` investigation in `rp2040.md`). Beside these levels, the CI runs
+static analysis (cppcheck over each port, GCC's `-fanalyzer`) and checks the compiled
+order of the accesses the lock-free code depends on (below).
 
 ## Hypotheses that were wrong
 
-The wrong ones are kept, with what tested them: the assistant can be wrong with
-confidence, and the record has to show how each conclusion was reached.
+The wrong hypotheses are kept here, each with what tested it. The assistant can be
+wrong with confidence, and the record has to show how each conclusion was reached.
 
 | Stated | What refuted it | What was actually true |
 |---|---|---|
@@ -53,204 +56,243 @@ confidence, and the record has to show how each conclusion was reached.
 | The FIFO queue of the kernels is wait-free on one core, its announced operation completed by whoever preempts it | An exhaustive model of the queue (`test/model/fifo.py`), run by run checked for linearizability | A dequeue that signals an event and finds the queue empty leaves the signal, then gets preempted before marking itself done. The first helper to see the signal left without marking it either; once a waiting task had taken the signal, a second helper, preempted since before, found the slot empty and put a signal back. One event, two tasks woken. The dequeue now marks itself done when it finds its signal |
 | A full FIFO queue refusing a node would corrupt its tail, having no capacity test like the one in Evéquoz's paper — stated by the assistant from reading the code | The host test, strengthened to check the queue after the refusal | The enqueue only ever writes into an empty slot, a guard the reading had missed; the queue refuses cleanly |
 | DRA, DR_OTE and DM_SLACK compile, and only running them is left — the roadmap, from reading the build | Building the power-aware kernel with each of them, on the target and on the host (2026-09-24) | None compiled. DRA and DR_OTE called an interrupt intrinsic of the MSP430 and gave the task control block a third link where the context switch reads its fields; DM_SLACK read a clock variable that no longer exists. Once built, the host test found four defects: the speed computation multiplied a time by a ratio and overflowed past 21 s, which OTE shares; DRA shifted a time that nothing updates without event-driven tasks and overflowed at the third wraparound; DRA looked for the running task in its simulation queue and read through a null link when the task had outlived its WCET there; and DM_SLACK gave the time a task left unused to tasks of higher priority, which never counted it in their response time — a hand-built task set shows the first task missing its deadline, and the time now goes to tasks of lower priority, as the kernel's own comment said |
-| The kernel schedules by earliest deadline first — the first line of the README, and the reason the project is interesting | Running the scheduler on the host, where a mirror of the task control block read a pointer where a deadline belonged | Every example shipped was scheduling deadline-monotonic. `EscapementHard.h` set the algorithm itself, with no `#ifndef`, and no configuration file overrode it |
+| The kernel schedules by earliest deadline first — the first line of the README, and what sets the project apart | Running the scheduler on the host, where a mirror of the task control block read a pointer where a deadline belonged | Every example shipped was scheduling deadline-monotonic. `EscapementHard.h` set the algorithm itself, with no `#ifndef`, and no configuration file overrode it |
 
-One more, of a different kind: an early rebranding pass deleted a comment
-terminator in 32 files, and the first attempt to repair them corrupted 57
-healthy ones. It was undone with `git checkout` and redone from an exact list.
-Working in a repository where every step is committed is what made that cheap.
+One more mistake was of a different kind. An early rebranding pass deleted a comment
+terminator in 32 files, and the first attempt to repair them corrupted 57 healthy ones.
+It was undone with `git checkout` and redone from an exact list. Working in a
+repository where every step is committed made that cheap.
 
 ## What `-O2` exposed
 
-Adding `-O2` to the Makefiles built cleanly, passed both Renode suites locally
-three times over, and the board reported the per-activation cost falling from
-7.0 to 3.2 µs. The CI then failed the first assertion of the stm32f4 suite, and
-widening the tester window changed nothing: the window was not the cause.
+Adding `-O2` to the Makefiles built cleanly and passed both Renode suites locally three
+times over. The board reported the per-activation cost falling from 7.0 to 3.2 µs. The
+CI then failed the first assertion of the stm32f4 suite. Widening the tester window
+changed nothing, so the window was not the cause.
 
-Downloading the ELF the CI had built and running it under the *local* emulator
-reproduced the failure at once: the binary is at fault, not the runner. Tracing
-its outputs showed the kernel raising one output at 19 µs and then stopping
-dead. The program counter sat in `HardFaultException`, and `CFSR` read
-`0x00040000` — `INVPC`, an invalid exception return. The context switch, which
-builds its own exception frame by hand, does something the architecture only
-tolerates as long as the compiler leaves the surrounding code alone.
+The ELF the CI had built, run under the *local* emulator, reproduced the failure at
+once: the binary was at fault, not the runner. Its outputs showed the kernel raising one
+output at 19 µs and then stopping dead. The program counter sat in
+`HardFaultException`, and `CFSR` read `0x00040000`, which is `INVPC`, an invalid
+exception return. The context switch builds its own exception frame by hand. The
+architecture tolerates what it does only as long as the compiler leaves the surrounding
+code alone.
 
-The defect itself is a missing barrier. Pending PendSV does not take it: the
-write has to reach the NVIC and the processor has to observe the pending state
-before it runs what follows. `OSEndTask` depends on never returning — a task
-starts with `0xFFFFFFF9` in `LR`, an `EXC_RETURN` value, so returning from
-thread mode faults. At `-O0` the epilogue was long enough for the exception to
-arrive first; optimised, `bx lr` sits one instruction after the store. `dsb`
-and `isb` close it, the CI agrees, and the build is at `-O2`.
+The defect itself was a missing barrier. Setting PendSV pending does not take the
+exception at once. The write has to reach the NVIC, and the processor has to observe
+the pending state before it runs what follows. `OSEndTask` depends on never returning.
+A task starts with `0xFFFFFFF9` in `LR`, an `EXC_RETURN` value, so returning from
+thread mode faults. At `-O0` the epilogue was long enough for the exception to arrive
+first. Optimised, `bx lr` sits one instruction after the store. A `dsb` and an `isb`
+close the window, the CI agrees, and the build is at `-O2`.
 
-A local build passing is a statement about one
-version of one compiler — the toolchain in the CI, not the version on the developer's
-machine, was the only thing between this defect and a repository claiming to be measured
-and verified. And the first diagnosis was wrong: the registers being written through
-non-volatile pointers, it concluded that the compiler had dropped the store, and the
-disassembly of the CI binary showed it there all along. The `volatile` was added anyway,
-because the code had no right to that store being kept, but it was not the bug.
+A local build passing is a statement about one version of one compiler. Here the
+toolchain in the CI, not the one on the developer's machine, was the only thing between
+this defect and a repository that claimed to be measured and verified. The first
+diagnosis was wrong, too. Because the registers were written through non-volatile
+pointers, it concluded that the compiler had dropped the store. The disassembly of the
+CI binary showed the store there all along. The `volatile` was added anyway, since the
+code had no right to count on that store being kept, but it was not the bug.
 
 ## The repository was not scheduling the way it said
 
-The README leads with earliest-deadline-first scheduling, and it is what makes this kernel
-worth looking at next to a fixed-priority one. `EscapementHard.h` nevertheless selected
-deadline-monotonic itself, in a plain `#define` with no `#ifndef` around it, so an
-application could not choose: no example overrode it, and none of them could have.
+The README put earliest-deadline-first scheduling first, and EDF is what sets this
+kernel apart from a fixed-priority one. `EscapementHard.h` nevertheless selected
+deadline-monotonic scheduling itself, in a plain `#define` with no `#ifndef` around it.
+No example overrode it, and none could have.
 
-The examples scheduled correctly, the emulation tests passed, the periods were right to
-the part per hundred thousand on a frequency counter: all of it is just as true under
-deadline-monotonic. It surfaced once the scheduler ran on the host, a build there reading the
-deadline field of the elected task and got a pointer back: under deadline-monotonic the
-kernel inserts a priority byte and drops the two deadline fields, which moves everything
-after them.
+The examples scheduled correctly, the emulation tests passed, and the periods were right
+to the part per hundred thousand on a frequency counter. All of that is just as true
+under deadline-monotonic scheduling. The problem surfaced once the scheduler ran on the
+host. A build there read the deadline field of the elected task and got a pointer back.
+Under deadline-monotonic scheduling the kernel inserts a priority byte and drops the two
+deadline fields, which moves everything after them.
 
 The algorithm is now chosen in `Escapement_Config.h`, the header only supplies the
-fallback, and every example selects earliest-deadline-first. All three emulation suites
-still pass, and the host test additionally checks that no deadline is missed — a check
-that could not even be written while the field it reads was not there.
+fallback, and every example selects EDF. All three emulation suites still pass. The host
+test also checks that no deadline is missed, a check that could not be written while
+the field it reads did not exist.
 
 ## What this changes in the repository
 
-The CI runs the kernel, under Renode and on the host, besides building it: that is how
+The CI runs the kernel, under Renode and on the host, besides building it. That is how
 the `-O2` defect and the scheduling one above were found. A measurement is written with
-its date and its deviation (the +28 ppm of the frequency counter, `rp2040.md`), a result
-that did not reproduce is said so, and a commit message gives its reasoning, the wrong
-turns included.
+its date and its deviation (the +28 ppm of the frequency counter, `rp2040.md`). A result
+that did not reproduce is said so. A commit message gives its reasoning, wrong turns
+included.
 
 ## What it does not prove
 
-The new code — the RP2040 port and the Cortex-M layer — has been audited line by
-line, which turned up four defects: a race between `OSEnqueueUART` and its
-interrupt, a zero-sized transmission that emptied 64 KB onto the port, missing
-header dependencies, and stale comments. The kernel inherited from 2016 went through
-the same audit on 2026-09-25, each finding reproduced by a host test that failed before
-its fix (`test/host/README.md`): a slot buffer that lost a slot to a reader preempting
-its writer, and read fields `OSMalloc` had not cleared; an event-driven task ending at
-its deadline inserted twice in the ready queue; an event-driven task waiting past a
-wrap sorted before periodic tasks due earlier; deadlines left unshifted at the wrap in
-the soft kernel's optional instances, and in the power-aware kernel under
-deadline-monotonic scheduling and in DRA's simulation queue; a DM_SLACK slack given
-twice; a task past its WCET slowed to the slowest speed; overflows in the soft kernel's
-test of optional instances; and creations the kernel cannot count with, now refused.
-In the compiled code of the Cortex-M0+, three of the five emulated load-linked read the
-value before setting the reservation, so that an interrupt in between went unseen: a
-compiler barrier now keeps the order.
+### The line-by-line audit
 
-Two of those fixes were wrong, and the endurance test (`SoakPico`, `tools/soak.py`)
-showed it the same day, once an interrupt and phases of high load had joined it. A slot
-buffer's status, set after its slot rather than before, let a reader take the new slot
-early, the status still saying unread from the slot before, and again once the writer had
-said it unread: 37 slots read twice in 79 s on the board, none torn. No order of a status
-apart from the slot is right; each slot now carries its number, and a reader taking each
-slot once compares it with the last it took. And an event-driven task signaled while it
-suspended itself was assumed to be the task the timer handler had interrupted, which it
-finished in its place: preempted instead by a task of higher priority that signaled it,
-it had the context of that task discarded, and the soft kernel hung under Renode, the
-host test segfaulted under deadline-monotonic scheduling. Interrupts are now masked from
-the enqueue of the suspending task to its leaving the ready queue, and the handler never
-sees such a task. Both have a host test that fails on the code before
+The new code, the RP2040 port and the Cortex-M layer, has been audited line by line.
+That turned up four defects: a race between `OSEnqueueUART` and its interrupt, a
+zero-sized transmission that emptied 64 KB onto the port, missing header dependencies,
+and stale comments.
+
+The kernel inherited from 2016 went through the same audit on 2026-09-25. Each finding
+was reproduced by a host test that failed before its fix (`test/host/README.md`):
+
+- a slot buffer lost a slot to a reader preempting its writer, and read fields
+  `OSMalloc` had not cleared;
+- an event-driven task ending at its deadline was inserted twice in the ready queue;
+- an event-driven task waiting past a wrap was sorted before periodic tasks due earlier;
+- deadlines were left unshifted at the wrap in the soft kernel's optional instances, in
+  the power-aware kernel under deadline-monotonic scheduling, and in DRA's simulation
+  queue;
+- a DM_SLACK slack was given twice;
+- a task past its WCET was slowed to the slowest speed;
+- the soft kernel's test of optional instances overflowed;
+- the kernel accepted creations it cannot count with, which it now refuses.
+
+In the compiled code of the Cortex-M0+, three of the five emulated load-linked read the
+value before setting the reservation, so an interrupt in between went unseen. A compiler
+barrier now keeps the order.
+
+### Two fixes that were wrong
+
+The endurance test (`SoakPico`, `tools/soak.py`) showed two of those fixes wrong the
+same day, once an interrupt and phases of high load had joined it.
+
+A slot buffer's status, set after its slot rather than before, let a reader take the new
+slot early while the status still said unread from the slot before, and take it again
+once the writer had marked it unread. On the board, 37 slots were read twice in 79 s,
+none torn. No order of a status kept apart from the slot is right. Each slot now carries
+its number, and a reader that takes each slot once compares it with the last it took.
+
+An event-driven task signalled while it suspended itself was assumed to be the task the
+timer handler had interrupted, and the handler finished it in its place. When a task of
+higher priority had preempted it and signalled it instead, the context of that task was
+discarded. The soft kernel hung under Renode, and the host test segfaulted under
+deadline-monotonic scheduling. Interrupts are now masked from the enqueue of the
+suspending task until it leaves the ready queue, so the handler never sees such a task.
+Both defects have a host test that fails on the code before (`test/host/README.md`).
+
+### Races and limits closed after the audit
+
+The audit left races open and listed limits of the design, seven in all. They were
+closed on 2026-09-25 and 26. Each was reached on the host, except strict aliasing, which
+is turned off.
+
+The counter can wrap while the timer handler runs, after the handler has found no
+overflow. The host reaches that window with a hook (`wrapinside`). The handler then reads
+a time from after the wrap while its arrivals are not yet shifted, and releases nothing.
+It serves them once it finds the overflow flag raised in the meantime, which it now tests
+again before it returns. The test fails with that second test taken out.
+
+In the power-aware kernel, a task ending between two interrupts left the next task at
+its own speed. The flag that told the handler to set that speed was raised before the
+task became a zombie. A first interrupt, which found the task still running, cleared it.
+A second one, once the task was a zombie, took the next task for one that had been
+running. The handler now reads `_OSNoSaveContext`, which only the context switch
+clears. The host takes the timer interrupt at the kernels' compiler barriers
+(`endinside`), and with a barrier in the old window the kernel before the fix fails it
 (`test/host/README.md`).
 
-The races the audit left open, and the limits of the design it listed, seven of them, are
-closed (2026-09-25 and 26), each reached on the host but strict aliasing, which is turned
-off. The counter wrapping while the timer handler runs, once it has found no overflow, is
-reached on the host by a hook in that window (`wrapinside`): the handler, reading a time
-from after the wrap with its arrivals not yet shifted, releases nothing, and serves them
-once it finds the flag of the overflow raised meanwhile, which it tests again before it
-returns; the test fails with that test taken out.
+Under DM_SLACK, a task ending read the time before its reservation. An interrupt that
+shifted the clock at a wrap in between left the task a time from before the wrap against
+a last update from after it. The slack, left for the task ending after an idle time,
+then grew by the 2^30 of the shift at the next arrival. The time is now read inside the
+reservation. The host runs a task set in which a task ends at the last tick before the
+wrap, and takes the interrupt at each of its time reads and barriers (`timewrap`). The
+kernel before the fix misses a deadline there.
 
-In the power-aware kernel, a task ending between two interrupts left the next at its
-speed: the flag that told the handler to set that speed, raised before the task became a
-zombie, was cleared by an interrupt that found the task still running, and the second,
-once the task was a zombie, took the next for one that had been running. The handler now
-reads `_OSNoSaveContext`, which only the context switch clears, and the host takes the
-timer interrupt at the kernels' compiler barriers (`endinside`); with a barrier in the
-old window, the kernel before fails it (`test/host/README.md`).
+An optional instance can still be ready at its next arrival, never started. The host
+reaches that case with tasks that take time, the mandatory instances keeping the
+processor busy across its period (`firmwait`). The kernel takes the instance out of the
+ready queue as it should, under both algorithms. An optional instance already started
+at that point is still an overload the kernel stops on (`DEBUG_MODE`), by design. The
+schedulability test lets it start only if it ends in time, so only a task running past
+its declared WCET brings it, or work the test leaves out. Under EDF the test left out
+the event-driven tasks when no share of the processor was declared for them, although
+each declared its WCET and workload. An optional instance started, an event delayed it,
+and the kernel stopped on that guard at its next arrival (`firmeventwait`). The test now
+reserves at least the share each event-driven task takes, its WCET over its workload.
 
-Under DM_SLACK, a task ending read the time before its reservation: an interrupt that
-shifted the clock at a wrap in between left it a time of before the wrap against a last
-update after it, and the slack, left for the task ending after an idle time, grew by the
-2^30 of the shift at the next arrival. The time is now read inside the reservation; the
-host runs a task set with a task ending at the last tick before the wrap, the interrupt
-taken at each of its time reads and barriers (`timewrap`), and the kernel before misses a
-deadline there.
-
-An optional instance still ready at its next arrival, never started, is reached on the
-host by tasks that take time, the mandatory instances busy across its period
-(`firmwait`): the kernel takes it out of the ready queue as it should, under both
-algorithms. One already started is still an overload the kernel stops on (`DEBUG_MODE`),
-by design: the schedulability test lets it start only if it ends in time, so only a task
-running past its declared WCET brings it, or work the test leaves out. Under EDF the test
-left out the event- driven tasks when no share of the processor was declared for them,
-although each declared its WCET and workload: an optional instance started, an event
-delayed it, and the kernel stopped on that guard at its next arrival (`firmeventwait`).
-It now reserves at least the share each event-driven task takes, its WCET over its
-workload.
-
-And the indices of the wait-free queue had 16 bits: an operation completed by the one
+The indices of the wait-free queue had 16 bits. An operation completed by the one
 preempting it could still move an index it had read, once 65,000 operations during that
-preemption had brought the index back to the same value, and the queue lost an item. The
-host reaches it by running those operations inside an LL of a dequeue (`test_ipc`); with
-32 bits, as the queue between the cores already had, it takes 2^32 (2026-09-26). The FIFO
-example, whose preemptions no longer fell inside the queue's operations under Renode once
-the code had lengthened, now varies the length of its loop. And strict aliasing, which
-GCC does exploit here, is turned off (below).
+preemption had brought the index back to the same value, and the queue lost an item.
+The host reaches this by running those operations inside the LL of a dequeue
+(`test_ipc`). With 32 bits, as the queue between the cores already had, it takes 2^32
+(2026-09-26). Under Renode, the preemptions of the FIFO example no longer fell inside the
+queue's operations once the code had grown longer, so the example now varies the length
+of its loop. Strict aliasing, which GCC does exploit here, is turned off (below).
+
+### Scale
 
 The execution tests exercise three or four tasks, the host test ten. Nothing here
-establishes how the scheduler behaves with thirty. The 2³⁰ wrap of its clock, about
-eighteen minutes away on hardware, is crossed on the host, under Renode, and on the UNO
-Q's STM32U5 by its endurance test (2026-09-26), four times in its first hour and a quarter.
+establishes how the scheduler behaves with thirty. The 2³⁰ wrap of the kernel clock,
+about eighteen minutes away on hardware, is crossed on the host, under Renode, and on
+the UNO Q's STM32U5 by its endurance test (2026-09-26), four times in its first hour and
+a quarter.
 
-The RP2350 port has not run on a board, and nothing of it has been audited line by
-line; its clocks are acknowledged blindly by the emulated platform (`emulation.md`).
-Between the cores, the models cover the order of accesses the architecture allows;
-that the compiled code keeps it, `tools/check_order.py` checks in the CI on every build
-of the Pico and the Pico 2, on every path through the buffers' functions, and
-`tools/check_order_mutants.sh` shows it failing without any one of the barriers — nine
-since the status of a buffer, which the models leave out, is set after its slot is
-handed over (2026-09-25). What
-the check cannot see is a reordering by the processor that the architecture does not
-allow — the models' premise — nor code the compiler might emit for another version or
-level of optimisation until it runs there. Without the barriers' memory clobber, GCC
-16.2 happened to keep the same order at -O2 (2026-09-25): the clobber is a guarantee,
-not a fix to an observed fault.
+### Between the cores
 
-On one core, the same holds of the stores a task makes that the timer interrupt may
-find half done: the processor keeps their order, the compiler need not, and did. Besides
-`OSEndTask` (above), the soft kernel's `ScheduleNextTask` promotes an optional instance
-by marking it `STATE_ACTIVATE`, moving it to the head of the ready queue in three steps,
-and setting it `STATE_INIT`; the interrupt completes a promotion it finds marked. GCC
-saw the mark overwritten and dropped it, on the Cortex-M0+, the M33 and the M4 alike:
-a promotion interrupted there left the task at the head and in the list of optional
-instances at once. No test had shown it. Compiler barriers now order these stores, those of the
-two drops in the same function, and the clearing of `SetActiveTaskRemainingTime` in the
-power-aware kernel (a flag since removed, above), and `tools/check_order.py` checks the compiled order of each on every
-path, on every build of the Pico, the Pico 2 and the F4 (2026-09-25). Run on the kernels
-of the day before, it reports exactly the faults found by hand: `OSEndTask` on the M33
-and the M4, the promotion on all three; the mutants script shows each rule failing on a
-source whose order is turned around. A port audit found no other such sequence, one
-latent in the UART, now ordered as well.
+The RP2350 port has not run on a board, and none of it has been audited line by line.
+The emulated platform acknowledges its clocks blindly (`emulation.md`).
+
+Between the cores, the models cover the orders of access the architecture allows. That
+the compiled code keeps the order they need is checked by `tools/check_order.py`, in the
+CI, on every build of the Pico and the Pico 2, and of the STM32U5 since its port
+(2026-09-25), on every path through the buffers' functions.
+`tools/check_order_mutants.sh` shows the check failing without any one of the barriers.
+There are nine since the status of a buffer, which the models leave out, is set after
+its slot is handed over (2026-09-25).
+
+The check cannot see a reordering by the processor that the architecture does not
+allow, which is the models' premise. Nor can it see code the compiler might emit for
+another version or optimisation level until it runs there. Without the barriers' memory
+clobber, GCC 16.2 happened to keep the same order at -O2 (2026-09-25). The clobber is a
+guarantee, not a fix to an observed fault.
+
+### Store order on one core
+
+The same holds on one core for the stores a task makes that the timer interrupt may
+find half done. The processor keeps their order; the compiler need not, and did not.
+Besides `OSEndTask` (above), the soft kernel's `ScheduleNextTask` promotes an optional
+instance in three stages. It marks the instance `STATE_ACTIVATE`, moves it to the head
+of the ready queue in three steps, and sets it `STATE_INIT`. The interrupt completes a
+promotion it finds marked. GCC saw the mark overwritten and dropped it, on the
+Cortex-M0+, the M33 and the M4 alike. A promotion interrupted there left the task both
+at the head of the queue and in the list of optional instances. No test had shown it.
+
+Compiler barriers now order these stores, those of the two drops in the same function,
+and the clearing of `SetActiveTaskRemainingTime` in the power-aware kernel (a flag since
+removed, above). `tools/check_order.py` checks the compiled order of each on every path,
+on every build of the Pico, the Pico 2 and the F4 (2026-09-25). The F4 port was removed
+on 2026-09-26, and the STM32U5's builds are checked in its place. Run on the kernels of
+the day before, the check reports exactly the faults found by hand: `OSEndTask` on the
+M33 and the M4, and the promotion on all three. The mutants script shows each rule
+failing on a source whose order is turned around. An audit of the ports found no other
+such sequence, apart from one latent in the UART, which is now ordered as well.
+
+### What else -O2 could take
 
 What else -O2 could take was checked the same day. The host tests pass at -O2 under the
 whole of UndefinedBehaviorSanitizer, with Clang on the Mac, and the CI now runs them so
 with GCC. Every inline assembly statement that must keep its place among memory
-accesses declares it (`CLREX`, the `WFI` of the idle task, the `SEV` and `WFE` of the
-launch of core 1): the 88 images of every build came out byte for byte the same, a
-guarantee rather than a fix. The board machine ran `tools/check_order.py` on what its
-own GCC 16.2 built, the CI's being 14.2; since 2026-09-26 the CI builds with 16.2 and
-checks the order of every variant under 14.2 as well, and the bench, now an Arduino
-UNO Q with no GCC 16, runs the CI's images. Strict aliasing is used: built with
-`-fno-strict-aliasing`, all 88 images change, in functions of the kernels among others,
+accesses now declares it: `CLREX`, the `WFI` of the idle task, the `SEV` and `WFE` of
+the launch of core 1. The 88 images of every build came out byte for byte the same, so
+this too is a guarantee rather than a fix.
+
+The board machine ran `tools/check_order.py` on what its own GCC 16.2 built, while the
+CI's compiler was 14.2. Since 2026-09-26 the CI builds with 16.2 and also checks the
+order of every variant under 14.2. The bench, now an Arduino UNO Q with no GCC 16, runs
+the CI's images.
+
+The code breaks the strict-aliasing rule, and GCC uses it. Built with
+`-fno-strict-aliasing`, all 88 images change, among them functions of the kernels,
 which access the same memory as `TCB`, `ETCB` and the port's `MinimalTCB`. The one
 difference read, in `OSEndTask`, is a value reused instead of read again, correct either
-way; no fault has been traced to aliasing. Every firmware is now built with
-`-fno-strict-aliasing`, as insurance against what another version of GCC could draw
-from the rule the code breaks: on the board it cost 68 bytes and 3.4 to 3.5 µs per
-round on average, 11 to 12 µs at worst, over two runs of each. Built with `-Wextra -Wnull-dereference -Warray-bounds=2`, every
-variant gave no warning of those the optimiser computes, but a comparison of signedness
-led to the timer events of the STM32 port: on its 32-bit timers the counter and the
-comparator were read through pointers that were not volatile, so that GCC could reuse
-the counter read in the loop and the comparator just written, and take an event whose
-time had passed for one to come, 71 minutes later. GCC 16.2 happened to read them again;
-the eleven accesses are volatile now, as the 16-bit path's already were.
+way. No fault has been traced to aliasing. Every firmware is now built with
+`-fno-strict-aliasing` anyway, as insurance against what another version of GCC could
+draw from the rule the code breaks. On the board that cost 68 bytes, and 3.4 to 3.5 µs
+per round on average, 11 to 12 µs at worst, over two runs of each.
+
+Built with `-Wextra -Wnull-dereference -Warray-bounds=2`, no variant gave any of the
+warnings the optimiser computes. A comparison of signedness, though, led to the timer
+events of the STM32 port. On its 32-bit timers the counter and the comparator were read
+through pointers that were not volatile. GCC could therefore reuse the counter read in
+the loop and the comparator just written, and take an event whose time had passed for
+one to come, 71 minutes later. GCC 16.2 happened to read them again. The eleven accesses
+are volatile now, as those of the 16-bit path already were.

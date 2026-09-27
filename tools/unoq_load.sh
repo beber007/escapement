@@ -12,8 +12,8 @@
 #   tools/unoq_load.sh --reset [HOST]   back to Arduino's firmware
 #
 # Run on the board itself, where /opt/openocd is, it loads at once; elsewhere it sends the
-# image to HOST over SSH and loads it there, HOST being arduino@MyUno.local by default
-# (UNOQ_HOST). The user on the board must be in the group gpiod, which it is as shipped.
+# image to HOST over SSH and loads it there, HOST being $UNOQ_HOST if set, else
+# arduino@unoq.local. The user on the board must be in the group gpiod, as shipped.
 # The one place the U5 is loaded: tools/soak.py calls it to load the endurance test again.
 set -eu
 
@@ -52,7 +52,7 @@ if [ -x /opt/openocd/bin/openocd ] && [ -z "${2:-}" ]; then
     sh -c "$OCD '$RESET; $(echo "$COMMANDS" |
         sed "s|IMAGE|$image|")'" 2>&1 | report
 else
-    HOST=${2:-${UNOQ_HOST:-arduino@MyUno.local}}
+    HOST=${2:-${UNOQ_HOST:-arduino@unoq.local}}
     [ -z "$ELF" ] || scp -q "$ELF" "$HOST:/tmp/escapement.elf"
     ssh "$HOST" "$OCD '$RESET; $(echo "$COMMANDS" |
         sed "s|IMAGE|/tmp/escapement.elf|")'" 2>&1 | report

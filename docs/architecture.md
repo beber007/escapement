@@ -1,5 +1,10 @@
 # Architecture and targets
 
+Escapement has three kernels, two scheduling algorithms and a handful of lock-free
+mechanisms for passing data. This page describes how they fit together, which chips they
+run on and how far each port has been verified, and where the sources live. How to use
+the kernels is in `api.md`, how to build them in `build.md`.
+
 ## Kernel variants
 
 | Variant | Files | Use |
@@ -10,23 +15,26 @@
 
 ## Scheduling algorithm
 
-Two are implemented: earliest deadline first, where the task whose deadline is nearest
-runs first, and deadline-monotonic, where priorities are fixed before start-up from the
-declared deadlines. An application picks one in its `Escapement_Config.h`:
+Two algorithms are implemented. Under earliest deadline first (EDF), the task whose
+deadline is nearest runs first. Under deadline-monotonic scheduling (DM), priorities are
+fixed before start-up from the declared deadlines. An application picks one in its
+`Escapement_Config.h`:
 
 ```c
 #define SCHEDULER_REAL_TIME_MODE EARLIEST_DEADLINE_FIRST
 ```
 
-Every example here selects earliest deadline first. The kernel headers fall back to
-deadline-monotonic when an application says nothing — which is what all of them used to
-do without meaning to, see `method.md`. The power-aware kernel adds EDF*, a deterministic
-EDF, and its DRA, DR_OTE and DM_SLACK algorithms impose their scheduling whatever the
-application chose; OTE, the one the example uses, works with any.
+Every example here selects EDF. When an application says nothing, the kernel headers
+fall back to DM. Until the host test caught it, that fallback was what every example got
+without meaning to (`method.md`).
 
-The names of the algorithms live in `Escapement/Escapement_Modes.h`, which every file that
-tests the choice includes first. The examples build in every combination without editing
-a file, and the CI runs them all:
+The power-aware kernel adds EDF*, a deterministic variant of EDF. Its DRA, DR_OTE and
+DM_SLACK policies impose their own algorithm whatever the application chose. OTE, the
+policy the examples use, works with either.
+
+The names of the algorithms live in `Escapement/Escapement_Modes.h`, which every file
+that tests the choice includes first. The examples build in every combination without
+editing a file, and the CI runs them all:
 
 ```sh
 make                                           # hard kernel, earliest deadline first
@@ -35,111 +43,133 @@ make KERNEL=SOFT                               # soft kernel, earliest deadline 
 make KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
 ```
 
-On the Pico, `make KERNEL=PA` builds the power-aware kernel as well, and
-`make KERNEL=PA UNDERVOLT=1` the same below the specified core voltage, for the
-measurement bench only (`power-aware.md`). The STM32 port no longer provides the
-power-aware kernel.
+On the Pico, `make KERNEL=PA` also builds the power-aware kernel. `make KERNEL=PA
+UNDERVOLT=1` builds it to run below the specified core voltage, for the measurement bench
+only (`power-aware.md`). No other port has the power-aware kernel.
 
 ## Synchronisation
 
-The kernels mask interrupts only at start-up and in the traps of `DEBUG_MODE`: their
-queues are updated with load-linked / store-conditional pairs, `LDREX`/`STREX` on the
-Cortex-M3, M4 and M33 and an emulation on the Cortex-M0+, where a flag stands for the
-reservation and every context switch and every interrupt clears it on its way out
+The kernels update their queues with load-linked / store-conditional (LL/SC) pairs
+rather than by masking interrupts. The Cortex-M3, M4 and M33 have `LDREX`/`STREX`. The
+Cortex-M0+ has no exclusive access, so the port emulates it: a flag stands for the
+reservation, and every context switch and every interrupt clears it on its way out
 (`Escapement_Atomic.c`, `_OSIOHandler`, the end of `_OSContextSwapHandler`). The
-application gets the same guarantees from two mechanisms:
+emulated store-conditional masks interrupts for the few instructions it takes.
 
-- **FIFO queues** (`OSInitFIFOQueue`), shared by any number of tasks and interrupt
-  handlers, with buffers allocated once. They build on the array-based LL/SC queue of
-  Evéquoz (ICPP 2008), with one operation announced at a time and completed by any
-  caller that preempts it, so that every operation ends in a bounded number of steps.
-- **Slot buffers** (`OSInitBuffer`), from one writer to one reader, neither waiting for
-  the other: four slots after Simpson (1990), without atomic instructions, or three
-  after Chen and Burns (1997), with an LL/SC pair. Between two cores, each buffer
-  orders its accesses with four calls to `_OSMemoryBarrier()`: a `DMB` on the RP2040
-  and the RP2350, a compiler barrier alone in the single-core STM32 port and the host
-  build. `tools/check_order.py` checks in the compiled code of every RP build that the
-  accesses and the barriers keep the models' order, and in every build the order of the
-  stores a task makes that the timer interrupt may find half done (`method.md`).
+Interrupts are masked in a few other places only. The kernels mask them at start-up,
+while the idle task starts the timer, in the traps of `DEBUG_MODE`, and in
+`OSSuspendSynchronousTask` from the enqueue of the suspending task until it has left the
+ready queue. The last one was added on 2026-09-25, after the endurance test found a race
+there (`method.md`). Some drivers of the ports, the timer events and the trace among
+them, also mask interrupts for a few instructions.
 
-Each mechanism has an exhaustive model in `test/model`, run by the CI: every run of a
-few queue operations preempting one another at any access, checked for linearizability;
-every interleaving of a slot buffer's writer with its reader, the writer being an
-interrupt handler or code on the other core, checked against the properties Rushby
-model-checked for Simpson's algorithm — no read mixes two records, none goes backwards —
-and, between two cores, with each core free to reorder its accesses. The models found
-four defects, now fixed (`method.md`).
+An application gets the same guarantees from two mechanisms.
 
-**Across the two cores.** The kernel runs on core 0 alone. The emulated LL/SC and the
-announced operation of the kernel's queue both rely on preemptions nesting, which two
-cores do not give, so between the cores the slot buffers work, and on the RP2350 a
-queue of its own. The 4-slot buffer works on
-both chips, and was measured on the Pico (`rp2040.md`). On the RP2350 the 3-slot buffer
-should work too: its model holds provided the exclusive monitors see both cores —
-`ACTLR.EXTEXCLALL`, which the port sets on each — and `ThreeSlotCoresPico2` holds
-under Renode with that monitor played (`emulation.md`), until a board shows it. Code on
-core 1 may not signal an event: `OSScheduleSuspendedTask` would pend the timer interrupt
-of core 1, where no kernel runs.
+- FIFO queues (`OSInitFIFOQueue`) can be shared by any number of tasks and interrupt
+  handlers. Their buffers are allocated once. They build on the array-based LL/SC queue
+  of Evéquoz (ICPP 2008). One operation at a time is announced, and any caller that
+  preempts it completes it, so every operation ends in a bounded number of steps.
+- Slot buffers (`OSInitBuffer`) carry data from one writer to one reader, and neither
+  waits for the other. The 4-slot buffer follows Simpson (1990) and uses no atomic
+  instruction. The 3-slot buffer follows Chen and Burns (1997) with an LL/SC pair.
+
+For use between two cores, each slot buffer orders its accesses with four calls to
+`_OSMemoryBarrier()`. That is a `DMB` on the RP2040, the RP2350 and the STM32U5, and a
+compiler barrier alone in the host build. On every build of the Pico, the Pico 2 and the
+STM32U5, `tools/check_order.py` reads the compiled code and checks that the accesses and
+the barriers keep the order of the models. It also checks the order of the stores a task
+makes that the timer interrupt may find half done (`method.md`).
+
+Each mechanism has an exhaustive model in `test/model`, run by the CI. The queue model
+runs a few operations preempting one another at every possible access and checks each
+run for linearizability. The slot-buffer models explore every interleaving of a writer
+with its reader, the writer being an interrupt handler or code on the other core. They
+check the properties Rushby model-checked for Simpson's algorithm: no read mixes two
+records, and none goes backwards. Between two cores, each core is also free to reorder
+its accesses. The models found four defects, now fixed (`method.md`).
+
+### Across the two cores
+
+The kernel runs on core 0 alone. The emulated LL/SC and the announced operation of the
+kernel's queue both rely on preemptions nesting, which two cores do not provide. Between
+the cores, the slot buffers work, and so does a queue of its own on the RP2350.
+
+The 4-slot buffer crossed between the cores of the Pico on the board (`rp2040.md`) and
+between those of the Pico 2 under Renode. On the RP2350 the 3-slot buffer should work
+too. Its model holds provided the exclusive monitors see both cores, which
+`ACTLR.EXTEXCLALL` gives; the port sets it on each core. `ThreeSlotCoresPico2` passes
+under Renode with that monitor played (`emulation.md`), but no board has run it yet.
+Code on core 1 may not signal an event: `OSScheduleSuspendedTask` would pend the timer
+interrupt of core 1, where no kernel runs.
 
 The queue between the cores of the RP2350 (`Escapement_CoreQueue.c`, `OSInitCoreQueue`)
-is the array-based queue of Evéquoz's Figure 3, lock-free rather than wait-free, for any
-number of producers and consumers on either core, adapted to the chip in two ways its
-model (`test/model/fifo_mp.py`) asked for. Figure 3 assumes an SC that fails only when
-another thread's succeeded, which the paper itself notes real LL/SC do not promise; on
-the RP2350 an SC also fails when the other core wrote in its granule, or for no reason,
-so the SC that advances Tail or Head after an operation is tried again while the index
-has not moved. And six DMB order each core's accesses where the queue needs it, the
-fifteen of its first version cut down by a model of weakly ordered cores. The
-hardware spinlocks of the SIO offered no alternative, being unreliable on that chip
+is the array-based queue of Evéquoz's Figure 3. It is lock-free rather than wait-free,
+and serves any number of producers and consumers on either core. Its model
+(`test/model/fifo_mp.py`) called for two changes to fit the chip:
+
+- Figure 3 assumes an SC that fails only when another thread's SC succeeded. The paper
+  itself notes that real LL/SC do not promise this. On the RP2350 an SC also fails when
+  the other core wrote in its granule, or for no reason at all. The SC that advances
+  Tail or Head after an operation is therefore tried again while the index has not
+  moved.
+- Six `DMB` order each core's accesses where the queue needs it. The first version had
+  fifteen; a model of weakly ordered cores cut them down.
+
+The hardware spinlocks of the SIO were no alternative: they are unreliable on that chip
 (erratum RP2350-E2 of the
 [datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)).
 
 ## Supported targets
 
-- **ARM Cortex-M0 / M3 / M4** — the generic layer under `Escapement/CORTEX-Mx/`, whose
-  Cortex-M3/M4 path the Cortex-M33 takes. The STM32 ports it served went one after the
-  other: the F0, F1 and F2 on 2026-09-20, their examples only ever compiled, this being a
-  demonstration of what the kernel does rather than a catalogue of the parts it could run
-  on; the L1 on 2026-09-22, with its DVFS driver, once the Pico ran every test it ran; and
-  the F4 on 2026-09-26, kept until then for the Cortex-M3/M4 path, which the RP2350 and
-  the STM32U5 now take, the latter checked on its board at each commit.
-- **ARM Cortex-M33** (ARMv8-M Mainline), toward the RP2350 of the Pico 2: the generic
-  layer takes it down the Cortex-M3/M4 path — the same registers to save, the same
-  frame with the floating-point unit left off, `LDREX`/`STREX`/`CLREX` — under
-  `CORTEX_M33`. Built without the floating-point unit (`-mcpu=cortex-m33+nofp`).
-  The errata of the core itself were read on 2026-09-26: Arm's notice (SDEN-756493,
-  v9.0, April 2018) leaves only 1080541 open in r0p4, the STM32U585's core, on the
-  MPU the port does not use; the errata of the context switch, 851802, 937163 and
-  1015127 among them, are fixed by r0p4. The RP2350's core is r1p0, which that version
-  of the notice predates and the current one, not publicly served, would cover; the
-  RP2350 datasheet lists no erratum of it.
-- **Raspberry Pi RP2350** (Pico 2) — Cortex-M33, port under
-  `Escapement/CORTEX-Mx/RP2350/`, transposed from the RP2040 port on 2026-09-24: the
-  clocks at 150 MHz, TIMER0 with its tick from the TICKS block, 52 interrupts, the pads
-  released from their isolation, the UART, the timer events and the launch of core 1.
-  The hard and the soft kernel build eight examples under `pico2/` in the CI — the six
-  of the Pico, `ThreeSlotCoresPico2` and `FIFOCoresPico2` — and all eight run under
-  Renode on a platform of our own (`emulation.md`), the 2^30 wrap of the kernel clock
-  and both slot buffers between the two cores included, which shows that they schedule,
-  not that the clocks are programmed right. The power-aware kernel is not ported, and no
-  board has run the port yet.
-- **STM32U5** (the STM32U585 of the Arduino UNO Q) — Cortex-M33, port under
-  `Escapement/CORTEX-Mx/STM32U5/`, written anew in the manner of the RP2350's on
-  2026-09-25: the clocks at 160 MHz from the board's 16 MHz crystal, TIM2 for the kernel,
-  TIM3 and TIM5 for the timer events, USART1 and LPUART1, the latter to the board's
-  Linux. The hard and the soft kernel build eight examples under `uno-q/`, run from SRAM,
-  which leaves Arduino's firmware in the flash; all eight run under Renode on a platform
-  of our own, and the board has run `TaskLEDU5` and the endurance test, the latter for
-  hours, since 2026-09-26 (`stm32u5.md`). The power-aware kernel is not ported (`power-aware.md`).
-- **Raspberry Pi RP2040** — Cortex-M0+, port under
-  `Escapement/CORTEX-Mx/RP2040/`. A 64-bit timer with four alarms, clocked
-  **independently of the core clock**: the kernel takes two of them, the timer
-  events one of the other two. The target of the power-aware kernel, with the
-  DVFS driver of the project (`power-aware.md`).
+- **Raspberry Pi RP2040** (Pico): Cortex-M0+, port under `Escapement/CORTEX-Mx/RP2040/`.
+  Its 64-bit timer has four alarms and is clocked **independently of the core clock**.
+  The kernel takes two of the alarms, the timer events one of the other two. This is the
+  target of the power-aware kernel, with the project's own DVFS driver
+  (`power-aware.md`).
+- **Raspberry Pi RP2350** (Pico 2): Cortex-M33, port under
+  `Escapement/CORTEX-Mx/RP2350/`. It was transposed from the RP2040 port on 2026-09-24:
+  the clocks at 150 MHz, TIMER0 with its tick from the TICKS block, 52 interrupts, the
+  pads released from their isolation, the UART, the timer events and the launch of
+  core 1. The hard and the soft kernel build nine examples under `pico2/` in the CI. They
+  are the seven of the Pico that are not benches, plus `ThreeSlotCoresPico2` and
+  `FIFOCoresPico2`. All nine run under Renode on a platform of our own (`emulation.md`),
+  including the 2^30 wrap of the kernel clock, both slot buffers between the two cores
+  and the queue between them. That shows that they schedule, not that the clocks are
+  programmed right. The power-aware kernel is not ported, and no board has run the port
+  yet.
+- **STM32U5** (the STM32U585 of the Arduino UNO Q): Cortex-M33, port under
+  `Escapement/CORTEX-Mx/STM32U5/`. It was written anew on 2026-09-25, after the model of
+  the RP2350 port. The clocks run at 160 MHz from the board's 16 MHz crystal. TIM2 serves
+  the kernel and TIM5 the timer events. USART1 goes to the connector and LPUART1 to the
+  board's Linux. An idle task can sleep in Stop 2, woken by LPTIM1. The hard and the soft
+  kernel build nine images under `uno-q/`, one of them `SleepWrapU5`, which is `SleepU5`
+  with its times scaled for the wrap. They run from SRAM and leave Arduino's firmware
+  in the flash. All nine run under Renode on a platform of our own. The board has run `TaskLEDU5` and the
+  endurance test since 2026-09-26, the latter for hours (`stm32u5.md`). The same sources
+  build `SleepU5` for a NUCLEO-U575ZI-Q, to measure the MCU's current; that build has
+  not yet run on its board. The power-aware kernel is not ported (`power-aware.md`).
+- **ARM Cortex-M33** (ARMv8-M Mainline): the generic layer takes it down the
+  Cortex-M3/M4 path under `CORTEX_M33`. The registers to save are the same, and so is
+  the frame with the floating-point unit left off, and `LDREX`/`STREX`/`CLREX`. It is
+  built without the floating-point unit (`-mcpu=cortex-m33+nofp`). The errata of the
+  core itself were read on 2026-09-26. Arm's notice (SDEN-756493, v9.0, April 2018)
+  leaves only 1080541 open in r0p4, the STM32U585's core, and that one concerns the MPU,
+  which the port does not use. The errata of the context switch, 851802, 937163 and
+  1015127 among them, are fixed by r0p4. The RP2350's core is r1p0. That version of the
+  notice predates it, and the current one, which would cover it, is not publicly
+  served. The RP2350 datasheet lists no erratum of the core.
+- **ARM Cortex-M0 / M3 / M4**: the generic layer under `Escapement/CORTEX-Mx/`. The
+  Cortex-M33 takes its Cortex-M3/M4 path. The STM32 ports it served were removed one
+  after the other:
+  - the F0, F1 and F2 on 2026-09-20. Their examples had only ever been compiled, and the
+    project demonstrates what the kernel does rather than list the parts it could run
+    on;
+  - the L1 on 2026-09-22, with its DVFS driver, once the Pico ran every test it ran;
+  - the F4 on 2026-09-26. It had been kept for the Cortex-M3/M4 path, which the RP2350
+    and the STM32U5 now take; the STM32U5 is checked on its board at each commit.
 
-Escapement began life on the TI MSP430, and that port was removed on
-2026-09-20: see `roadmap.md`. The history keeps it, and so does the archived
-`beber007/zottaos`.
+Escapement began life on the TI MSP430. That port was removed on 2026-09-20
+(`roadmap.md`). The history keeps it, and so does the archived `beber007/zottaos`.
 
 ## Source tree
 
@@ -147,17 +177,21 @@ Escapement began life on the TI MSP430, and that port was removed on
 Escapement/
   EscapementHard.{c,h}      hard real-time kernel
   EscapementSoft.{c,h}      (m,k)-firm real-time kernel
-  Escapement_Modes.h        names of the scheduling algorithms
   EscapementHardPA.{c,h}    power-aware hard real-time kernel
+  Escapement_Modes.h        names of the scheduling algorithms
   CORTEX-Mx/                ARM port: generic Cortex-M layer, RP2040, RP2350, STM32U5
-  CORTEX-Mx/STM32U5/Examples/ the Arduino UNO Q examples
   CORTEX-Mx/RP2040/Examples/ the Raspberry Pi Pico examples
   CORTEX-Mx/RP2350/Examples/ the Raspberry Pi Pico 2 examples
+  CORTEX-Mx/STM32U5/Examples/ the Arduino UNO Q examples, and SleepU5 for the
+                            NUCLEO-U575ZI-Q
 test/host/                  the three kernels built for the host
 test/model/                 exhaustive models of the lock-free mechanisms
 emulation/renode/           Renode platforms, models and Robot suites
-tools/                      trace capture, board checks and figure generation
-.github/workflows/build.yml builds the examples, runs them under Renode on
-                            every kernel and algorithm, the models, and the
-                            kernels on the host
+tools/                      trace capture, loading and board checks, endurance tests,
+                            the compiled-order check, static analysis, figures
+ci/                         the container image the CI runs in
+.github/workflows/build.yml builds the examples and runs them under Renode on
+                            every kernel and algorithm; runs the models, the
+                            kernels on the host, the order check and the static
+                            analysis
 ```

@@ -1,23 +1,33 @@
 # Checks on the board
 
-A timer runs `board_ci.sh` every two minutes. The script fetches `main`, and when it has
-moved since the last run, builds and runs on a Pico wired to the machine the checks
-listed in [`docs/rp2040.md`](../docs/rp2040.md#checks-on-the-board), then posts the
-outcome as the commit status `board/pico`, with a fine-grained token for this
-repository alone ("Commit statuses: read and write"). A run with nothing new ends at
-once, in some 2 s: a commit already checked, or one whose CI has not finished. The
-timer ran every half hour until 2026-09-27, when that wait was the longest part of a
-check. A run holds a lock; the board
-stays free between runs for work by hand, which must not overlap one. The logs stay on
-the machine, under `~/escapement-rp2040/board-ci/logs`.
+`tools/board_ci.sh` runs the board checks on each new commit of `main` and posts the
+outcome to GitHub as commit statuses: `board/pico` for the Pico, and `board/u5` for the
+STM32U5 of the Arduino UNO Q that carries the bench. The checks themselves are listed in
+[`docs/rp2040.md`](../docs/rp2040.md#checks-on-the-board). This page explains how to
+install the script under systemd on Linux, under launchd on a Mac, and on the UNO Q.
 
-The machine needs `git`, `jq` and `curl`; the probe side, OpenOCD and `python3`; the
-build side, the ARM toolchain — unless it takes the images the CI builds for each commit
-(`BOARD_CI_IMAGES=ci`, below), which then needs `unzip` and `arm-none-eabi-nm` only,
-and a token that also reads Actions: GitHub serves artifacts to a signed-in client
-only. The compiled order is then checked by the CI, under two compilers (`build.yml`).
-The variables `BOARD_CI_*` at the head of the script change the working directory, the
-containers, the repository, the token file and where the images come from.
+## How it runs
+
+A timer starts `board_ci.sh` every two minutes. The script fetches `main`. When `main`
+has moved since the last run, it runs the checks on a Pico wired to the machine and
+posts the outcome as the commit status `board/pico`. Posting takes a fine-grained token
+for this repository alone ("Commit statuses: read and write"). Only `main` is ever
+built, and only its owner pushes to it. Since the machine pulls, no pull request runs
+there. A run with nothing new ends at once, in some 2 s, when the commit was already
+checked or its CI has not finished. The timer ran every half hour until 2026-09-27, when
+that wait had become the longest part of a check.
+
+A run holds a lock. Between runs the board is free for work by hand, which must not
+overlap a run. The logs stay on the machine, under `~/escapement-rp2040/board-ci/logs`.
+
+The machine needs `git`, `jq` and `curl`. Driving the probe takes OpenOCD and `python3`,
+and building the images takes the ARM toolchain. A machine can instead take the images
+the CI builds for each commit (`BOARD_CI_IMAGES=ci`, below). It then needs only `unzip`
+and `arm-none-eabi-nm`, and a token that can also read Actions, since GitHub serves
+artifacts to a signed-in client only. In that mode the CI checks the compiled order,
+under two compilers (`build.yml`). The `BOARD_CI_*` variables at the head of the script
+set the working directory, the containers, the repository, the token file, where the
+images come from, and whether the STM32U5 of the UNO Q is checked.
 
 ## On Linux
 
@@ -53,12 +63,13 @@ systemctl --user daemon-reload && systemctl --user enable --now escapement-board
 loginctl enable-linger   # runs without a session open
 ```
 
-A machine asleep runs nothing; `Persistent=true` catches up once it wakes.
+A machine that is asleep runs nothing. With `Persistent=true`, the missed run happens
+once it wakes.
 
 ## On a Mac
 
 The toolchain and OpenOCD run natively, without containers, and launchd takes the place
-of systemd (replace `YOU` with the user's name, and the label with one of your own):
+of systemd. Replace `YOU` with the user's name, and the label with one of your own:
 
 ```sh
 brew install open-ocd arm-none-eabi-gcc arm-none-eabi-binutils
@@ -67,12 +78,12 @@ git clone https://github.com/beber007/escapement.git ~/escapement-rp2040/board-c
 mkdir -p ~/.config/escapement-board-ci
 (umask 077 && cat > ~/.config/escapement-board-ci/token)
 # an agent that runs the script every two minutes:
-cat > ~/Library/LaunchAgents/li.hurst.escapement-board-ci.plist <<'EOF'
+cat > ~/Library/LaunchAgents/escapement.board-ci.plist <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key>                <string>li.hurst.escapement-board-ci</string>
+  <key>Label</key>                <string>escapement.board-ci</string>
   <key>ProgramArguments</key>     <array><string>/bin/sh</string>
     <string>/Users/YOU/escapement-rp2040/board-ci/src/tools/board_ci.sh</string></array>
   <key>EnvironmentVariables</key> <dict><key>PATH</key>
@@ -81,17 +92,18 @@ cat > ~/Library/LaunchAgents/li.hurst.escapement-board-ci.plist <<'EOF'
 </dict>
 </plist>
 EOF
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/li.hurst.escapement-board-ci.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/escapement.board-ci.plist
 ```
 
-A launch agent runs while its user is logged in, as on a Mac left on for the purpose.
+A launch agent runs only while its user is logged in, so the Mac must be left on and
+logged in for the purpose.
 
 ## On an Arduino UNO Q
 
-The bench since 2026-09-26: Debian on the board's Qualcomm processor, the probe and the
-Pico behind a powered USB-C hub on its only port, which it drives as a host. It has no
-GCC 16, so it takes the CI's images, and runs under systemd as on Linux, without
-containers:
+The UNO Q has been the bench since 2026-09-26. Debian runs on the board's Qualcomm
+processor. The probe and the Pico sit behind a powered USB-C hub on its only port, which
+it drives as a host. The board has no GCC 16, so it takes the CI's images. The script
+runs under systemd as on Linux, without containers:
 
 ```sh
 sudo apt install openocd binutils-arm-none-eabi jq unzip
@@ -108,29 +120,38 @@ git clone https://github.com/beber007/escapement.git ~/escapement-rp2040/board-c
 mkdir -p ~/.config/escapement-board-ci && (umask 077 && cat > ~/.config/escapement-board-ci/token)
 ```
 
-Then the service and the timer of the Linux section, with one line more in the
-service, under `[Service]`: `Environment=BOARD_CI_IMAGES=ci BOARD_CI_BUILD= BOARD_CI_PROBE=`,
-the last two empty, for no containers, which the script otherwise expects on Linux. A
-run waits for the CI of the commit to finish, and the next one tries again until it
-has. The first run there, on 2026-09-26, passed every check: 322,880 reads of the
-4-slot buffer across the cores, none torn; 3.5 us a round; the timer events within
-3 us of their period; 8.8 us from 12 to 125 MHz.
+Then install the service and the timer of the Linux section, with one more line under
+`[Service]`: `Environment=BOARD_CI_IMAGES=ci BOARD_CI_BUILD= BOARD_CI_PROBE=`. The last
+two are empty because the script otherwise expects containers on Linux. A run waits for
+the CI of its commit to finish, and the next run tries again until it has. The first run
+there, on 2026-09-26 against 3b80541, passed every check: 322,880 reads of the 4-slot
+buffer across the cores with none torn, 3.5 µs a round, the timer events within 3 µs of
+their period, and 8.8 µs from 12 to 125 MHz.
 
-The board's own STM32U5 is checked too with `BOARD_CI_U5=1` in that same line
-(`tools/unoq_check.sh`): first the CI's image of `SleepU5` for a minute, the idle task
-in Stop 2 (`tools/unoq_sleep.py`: every start on its period, no late wake-up, most of
-the instances slept in Stop 2, TIM2 within 20 ppm of LPTIM1, every byte sent to it
-received), then that of its endurance
-test run for two minutes, every part without error, then its clock against Linux's, within 300 ppm over five minutes, as
-the status `board/u5`. The long endurance run (`tools/soak.py uno-q`, the user service
-`escapement-soak-u5`) is stopped for it, and started again on the commit if it passed, on
-the image it had otherwise.
+### The STM32U5 of the UNO Q
 
-The hub carries three Debug Probes, named after their USB serials in
-`~/.config/escapement-probes`, one `name serial` per line. Every tool that drives one
-takes `PROBE=name` (or a serial as is), probe1 by default, the one wired to the Pico:
-OpenOCD, left to itself, takes the first probe it finds (`tools/probe.sh`). A probe's
-serial, once it is plugged in:
+With `BOARD_CI_U5=1` in that same line, the script also checks the board's own STM32U5
+(`tools/unoq_check.sh`) and posts the outcome as the status `board/u5`. The check runs
+on the CI's images, so it needs `BOARD_CI_IMAGES=ci`. It has three steps:
+
+1. `SleepU5` for a minute, the idle task in Stop 2 (`tools/unoq_sleep.py`): every start
+   on its period, no late wake-up, at least 80 % of the instances in Stop 2, every
+   timer event within 20 µs of its time, TIM2 within 20 ppm of LPTIM1, and every byte
+   sent to it received;
+2. the endurance test, `SoakU5`, for two minutes, every part without error;
+3. its clock against Linux's over five minutes (`tools/unoq_drift.py`), within 300 ppm.
+
+The long endurance run (`tools/soak.py uno-q`, the user service `escapement-soak-u5`)
+is stopped for the check. If the check passed, the run starts again on the commit's
+image; otherwise it goes back to the image it had.
+
+### Several probes
+
+The hub carries three Debug Probes. `~/.config/escapement-probes` names them after their
+USB serials, one `name serial` per line. Every tool that drives a probe takes
+`PROBE=name`, or a serial as is. The default is probe1, the one wired to the Pico, since
+OpenOCD left to itself takes the first probe it finds (`tools/probe.sh`). To read a
+probe's serial once it is plugged in:
 
 ```sh
 for d in /sys/bus/usb/devices/*; do
@@ -138,10 +159,13 @@ for d in /sys/bus/usb/devices/*; do
 done
 ```
 
+### OpenOCD for the RP2350
+
 Debian's OpenOCD, 0.12, knows the RP2040 but not the RP2350 of the Pico 2, and no
-release does yet. Raspberry Pi's fork does; built on the board on 2026-09-26 (branch
-`rpi-common`, acff23f), apart from the OpenOCD the checks use and from Arduino's in
-`/opt/openocd`, it reads the Pico's CHIP_ID through probe1 as Debian's does:
+release does yet. Raspberry Pi's fork does. It was built on the board on 2026-09-26
+(branch `rpi-common`, acff23f) and installed apart from the OpenOCD the checks use and
+from Arduino's in `/opt/openocd`. Like Debian's, it reads the Pico's CHIP_ID through
+probe1:
 
 ```sh
 sudo apt install build-essential git autoconf automake libtool texinfo pkg-config \
@@ -150,6 +174,7 @@ git clone --depth 1 --branch rpi-common --recurse-submodules --shallow-submodule
     https://github.com/raspberrypi/openocd.git ~/src/openocd-rpi
 cd ~/src/openocd-rpi && ./bootstrap && ./configure --prefix=$HOME/opt/openocd-rpi \
     --enable-cmsis-dap-v2 --enable-cmsis-dap --disable-werror && make -j2 && make install
-~/opt/openocd-rpi/bin/openocd -f interface/cmsis-dap.cfg -c "$(tools/probe.sh)" \
+~/opt/openocd-rpi/bin/openocd -f interface/cmsis-dap.cfg \
+    -c "$(sh ~/escapement-rp2040/board-ci/src/tools/probe.sh)" \
     -f target/rp2350.cfg -c init -c exit      # with a Pico 2 on the probe
 ```

@@ -9,7 +9,7 @@
 # The bench has several probes: OpenOCD, left to itself, takes the first it finds, which
 # is not always the one wired to the board under test. The table names them by their USB
 # serial, one "name serial" per line (~/.config/escapement-probes, or $PROBE_TABLE):
-#   probe1 E6633861A392872C
+#   probe1 0123456789ABCDEF
 # Without PROBE, probe1 if the table has it; without a table, any Debug Probe.
 #
 # The probe is picked by its USB ids too: OpenOCD otherwise asks every Raspberry Pi device
