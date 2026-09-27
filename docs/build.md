@@ -37,11 +37,18 @@ request; `STM32U5/Examples/nucleo-u575` is built by its job for the board's imag
 | `STM32U5/Examples/uno-q` | Cortex-M33 | STM32U585 | 4 | 5,656 / 8 / 648 |
 
 The figures are the bytes of the `TaskLED` target with the hard kernel, that is the
-whole kernel plus the periodic tasks of the example. Earlier figures: the Pico's was
-5,156 bytes of `text` on 2026-09-22. At 6f90fa2, on 2026-09-25, the Pico and the Pico 2
-gave 5,164 / 8 / 240 and 4,288 / 8 / 344, which the same compiler rebuilds exactly at
-that commit; the kernel has shrunk since. The STM32U5 gave 5,596 / 8 / 640 on
-2026-09-26, and its port has grown since.
+whole kernel plus the periodic tasks of the example. Rebuilt on 2026-09-27 with GCC 16.2,
+each at the commit that published it, the earlier figures come out byte for byte:
+
+| Published | Commit | Pico | Pico 2 | STM32U5 |
+|---|---|---|---|---|
+| 2026-09-22 | 4dede39 | 5,156 / 8 / 240 | | |
+| 2026-09-25 | 6f90fa2 | 5,164 / 8 / 240 | 4,288 / 8 / 344 | |
+| 2026-09-26 | ff4fd7b | | | 5,596 / 8 / 640 |
+| 2026-09-27 | bf447b8 | 4,716 / 8 / 240 | 4,324 / 8 / 344 | 5,656 / 8 / 648 |
+
+The kernel has shrunk since 2026-09-25, and the STM32U5 port has grown since
+2026-09-26.
 
 ## Build options
 
