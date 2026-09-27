@@ -31,10 +31,18 @@
 ** whose registers sit at the same offsets, goes to the board's Linux processor on PG7
 ** (TX) and PG8 (RX), alternate function 8, where Linux sees /dev/ttyHS1 (Zephyr's
 ** description of the board, arduino_uno_q-common.dtsi); its flow control lines are left
-** alone. Either is chosen by its interrupt, OS_IO_USART1 or OS_IO_LPUART1. Their FIFOs
-** are left off: the transmit interrupt then reflects a state, the transmit register
-** empty, and fires as soon as it is enabled while there is room, so that enabling it is
-** all a new buffer needs, where the PL011 of the RP2350 had to be primed.
+** alone. Either is chosen by its interrupt, OS_IO_USART1 or OS_IO_LPUART1. The transmit
+** interrupt reflects a state, room in the transmit register or FIFO, and fires as soon as
+** it is enabled while there is room, so that enabling it is all a new buffer needs, where
+** the PL011 of the RP2350 had to be primed.
+**
+** LPUART1 receives through Stop 2 (Escapement_Stop2.c), which USART1 cannot (RM0456,
+** table 686): its kernel clock is HSI16, which the LPUART wakes itself as a byte comes
+** (UESM, autonomous mode, RM0456 67.4.15 and 11.4.24), and its receive FIFO holds the
+** 8 bytes that come while the clock of the chip is raised again, interrupts masked, up to
+** some 900 us. The first byte is sampled while HSI16 starts, up to 3.6 us (DS13086,
+** table 82): at 115,200 baud that is 3.8 % of the frame, past the 3.41 % the receiver
+** tolerates (RM0456, 67.4.15), hence 57,600 baud on LPUART1; USART1 stays at 115,200.
 ** Platform version: STM32U585 (Arduino UNO Q).
 */
 
@@ -51,12 +59,14 @@
 #define USART_TDR            0x28
 
 #define CR1_UE               (1u << 0)
+#define CR1_UESM             (1u << 1)
 #define CR1_RE               (1u << 2)
 #define CR1_TE               (1u << 3)
 #define CR1_RXNEIE           (1u << 5)
-#define CR1_TXEIE            (1u << 7)
+#define CR1_TXEIE            (1u << 7)   /* TXFNFIE with the FIFO */
+#define CR1_FIFOEN           (1u << 29)
 #define ISR_ORE              (1u << 3)
-#define ISR_RXNE             (1u << 5)
+#define ISR_RXNE             (1u << 5)   /* RXFNE with the FIFO */
 #define ISR_TC               (1u << 6)
 #define ISR_TXE              (1u << 7)
 #define ICR_ORECF            (1u << 3)
@@ -79,10 +89,18 @@
 #define RCC_AHB2ENR1         *((volatile UINT32 *)(0x46020C00 + 0x8C))
 #define RCC_APB2ENR          *((volatile UINT32 *)(0x46020C00 + 0xA4))
 #define RCC_APB3ENR          *((volatile UINT32 *)(0x46020C00 + 0xA8))
+#define RCC_APB3SMENR        *((volatile UINT32 *)(0x46020C00 + 0xD0))
+#define RCC_SRDAMR           *((volatile UINT32 *)(0x46020C00 + 0xD8))
+#define RCC_CCIPR3           *((volatile UINT32 *)(0x46020C00 + 0xE8))
+#define RCC_CR               *((volatile UINT32 *)(0x46020C00 + 0x00))
+#define RCC_CR_HSION         (1u << 8)
+#define RCC_CR_HSIRDY        (1u << 10)
+#define LPUART1SEL_MASK      7u
+#define LPUART1SEL_HSI16     2u
 #define RCC_AHB2ENR1_GPIOBEN (1u << 1)
 #define RCC_AHB2ENR1_GPIOGEN (1u << 6)
 #define RCC_APB2ENR_USART1EN (1u << 14)
-#define RCC_APB3ENR_LPUART1EN (1u << 6)
+#define RCC_APB3ENR_LPUART1EN (1u << 6)   /* and LPUART1SMEN, LPUART1AMEN */
 /* Port G from PG2 is supplied by VDDIO2, which must be declared valid before the port
 ** is used (RM0456, PWR_SVMCR.IO2SV); the clock of PWR is on since the clock set-up. */
 #define PWR_SVMCR            *((volatile UINT32 *)(0x46020800 + 0x10))
@@ -93,9 +111,11 @@
 #define NVIC_ICER(irq)       ((volatile UINT32 *)0xE000E180)[(irq) >> 5]
 #define NVIC_BIT(irq)        (1u << ((irq) & 0x1F))
 
-/* USART1 is clocked by PCLK2, LPUART1 by PCLK3, the system clock with the APB prescalers
-** at 1 (USART1SEL and LPUART1SEL left at their reset value). */
+/* USART1 is clocked by PCLK2, the system clock with the APB prescaler at 1 (USART1SEL left
+** at its reset value); LPUART1 by HSI16. */
 #define BAUD_RATE            115200u
+#define LP_BAUD_RATE         57600u
+#define HSI16_HZ             16000000u
 
 
 typedef struct UART_INTERRUPT_DESCRIPTOR { // Interrupt handler opaque descriptor
@@ -140,7 +160,12 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
      descriptor->Base = LPUART1_BASE;
      PWR_SVMCR |= PWR_SVMCR_IO2SV;
      RCC_AHB2ENR1 |= RCC_AHB2ENR1_GPIOGEN;
+     RCC_CR |= RCC_CR_HSION;
+     while ((RCC_CR & RCC_CR_HSIRDY) == 0);
+     RCC_CCIPR3 = (RCC_CCIPR3 & ~LPUART1SEL_MASK) | LPUART1SEL_HSI16;
      RCC_APB3ENR |= RCC_APB3ENR_LPUART1EN;
+     RCC_APB3SMENR |= RCC_APB3ENR_LPUART1EN;
+     RCC_SRDAMR |= RCC_APB3ENR_LPUART1EN;
      (void)RCC_APB3ENR;                // the clocks run before the blocks are written
      /* PG7 and PG8 to alternate function 8. */
      GPIOG_AFRL = (GPIOG_AFRL & ~(0xFu << 4 * LP_TX_PIN)) | AF_LPUART1 << 4 * LP_TX_PIN;
@@ -151,8 +176,10 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
      /* 8 bits, no parity, one stop bit: the divisor of a low-power UART is 256 times the
      ** clock over the baud rate, rounded (RM0456, LPUART_BRR). */
      REG(descriptor,USART_CR1) = 0;
-     REG(descriptor,USART_BRR) = (UINT32)((256ull * OS_SYSTEM_CLOCK_HZ + BAUD_RATE / 2) /
-                                          BAUD_RATE);
+     REG(descriptor,USART_BRR) = (UINT32)((256ull * HSI16_HZ + LP_BAUD_RATE / 2) /
+                                          LP_BAUD_RATE);
+     /* FIFOEN and UESM while the LPUART is disabled. */
+     REG(descriptor,USART_CR1) = CR1_FIFOEN | CR1_UESM;
   }
   else {
      descriptor->Base = USART1_BASE;
@@ -171,7 +198,7 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
   }
   /* Reception interrupt only; transmission is enabled by OSEnqueueUART when there is
   ** something to send. */
-  REG(descriptor,USART_CR1) = CR1_UE | CR1_RE | CR1_TE | CR1_RXNEIE;
+  REG(descriptor,USART_CR1) |= CR1_UE | CR1_RE | CR1_TE | CR1_RXNEIE;
   OSSetISRDescriptor(interruptIndex,descriptor);
   NVIC_ISER(interruptIndex) = NVIC_BIT(interruptIndex);
   return TRUE;
@@ -185,9 +212,10 @@ UINT32 OSGetUARTOverruns(UINT8 interruptIndex)
 } /* end of OSGetUARTOverruns */
 
 
-/* _OSUARTIdle: TRUE when neither UART receives nor has a byte to send, which Stop 2, where
-** their clocks stop, would lose (Escapement_Stop2.c). A UART that hands its bytes to a
-** handler may receive one at any time. Called with interrupts masked. */
+/* _OSUARTIdle: TRUE when no UART has a byte to send and USART1 does not receive, which
+** Stop 2, where their clocks stop, would lose (Escapement_Stop2.c); LPUART1 receives
+** through it. A UART that hands its bytes to a handler may receive one at any time.
+** Called with interrupts masked. */
 BOOL _OSUARTIdle(void)
 {
   static const UINT8 index[] = { OS_IO_USART1, OS_IO_LPUART1 };
@@ -195,8 +223,8 @@ BOOL _OSUARTIdle(void)
   UINT32 i;
   for (i = 0; i < sizeof(index); i += 1)
      if ((des = (UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(index[i])) != NULL &&
-         (des->UserReceiveInterruptHandler != NULL || (REG(des,USART_CR1) & CR1_TXEIE) ||
-          (REG(des,USART_ISR) & ISR_TC) == 0))
+         ((des->UserReceiveInterruptHandler != NULL && index[i] == OS_IO_USART1) ||
+          (REG(des,USART_CR1) & CR1_TXEIE) || (REG(des,USART_ISR) & ISR_TC) == 0))
         return FALSE;
   return TRUE;
 } /* end of _OSUARTIdle */
@@ -277,10 +305,13 @@ static void TakeNextBuffer(UART_INTERRUPT_DESCRIPTOR *des)
 static void InterruptHandler(UART_INTERRUPT_DESCRIPTOR *des)
 {
   UINT32 status = REG(des,USART_ISR);
-  if (status & ISR_RXNE) {
+  while (status & ISR_RXNE) {
      UINT8 data = (UINT8)REG(des,USART_RDR);
      if (des->UserReceiveInterruptHandler != NULL)
         des->UserReceiveInterruptHandler(data);
+     if ((REG(des,USART_CR1) & CR1_FIFOEN) == 0)
+        break;                          // one byte an interrupt, as before the FIFO
+     status = REG(des,USART_ISR);       // every byte of the FIFO
   }
   if (status & ISR_ORE) {
      REG(des,USART_ICR) = ICR_ORECF;

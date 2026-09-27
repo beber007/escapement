@@ -19,7 +19,7 @@ into the repository.
 | Clocks | `Escapement_Processor.c` | the 16 MHz crystal of the board, the HSE, to 160 MHz through PLL1 (the MSIS of reset, locked on the LSE, if it does not start): voltage range 1 with the EPOD booster, 4 wait states on the flash, a first step through an AHB prescaler of 2, the instruction cache on |
 | Kernel timer | `Escapement_Timer.c` | TIM2, 32 bits, counting microseconds and wrapping at 2^30, its compare channel 1 on the next arrival: the 32-bit path of the STM32 port |
 | Timer events | `Escapement_TimerEvent.c` | TIM5, 32 bits, free, its compare channel 1 on the next event: the logic of the RP2350 port, an event already due forced through CC1G |
-| UART | `Escapement_UART.c` | USART1 on PB6 and PB7, D1 and D0 of the connector, and LPUART1 on PG7 and PG8, to the board's Linux (`/dev/ttyHS1`), 115200 baud: the driver of the RP2350 port, with no priming, the transmit interrupt of these UARTs reflecting a state; the bytes lost to an overrun are counted |
+| UART | `Escapement_UART.c` | USART1 on PB6 and PB7, D1 and D0 of the connector, and LPUART1 on PG7 and PG8, to the board's Linux (`/dev/ttyHS1`), 115,200 baud on USART1 and 57,600 on LPUART1, which receives through Stop 2: the driver of the RP2350 port, with no priming, the transmit interrupt of these UARTs reflecting a state; the bytes lost to an overrun are counted |
 | Interrupts | `Escapement_Interrupts.c` | the 126 entries of the STM32U575/U585, every one but the reserved routed to the kernel's dispatcher, so that an application takes any interrupt with `OSSetISRDescriptor` |
 | From SRAM | `Escapement_RamEntry.S`, `STM32U5_SRAM.ld` | the image in SRAM, started at its first word, which takes the stack and the reset handler from the vector table that follows, aligned on 1024 bytes; `OSInitializeSystemClocks` points VTOR at it |
 
@@ -135,7 +135,7 @@ in 120 instances.
 
 The idle task enters Stop 2 once the application calls `OSInitStop2`
 (`Escapement_Stop2.c`): when the next event, an arrival or wrap of TIM2 or a timer
-event of TIM5, is 5 ms off or more, and no UART receives or sends, it arms LPTIM1 3 ms
+event of TIM5, is 5 ms off or more, no UART sends and USART1 does not receive, it arms LPTIM1 3 ms
 short of the event, stops TIM2 and TIM5 on an edge of LPTIM1 and enters Stop 2; on
 waking it takes the clock back to 160 MHz and starts both again on an edge, moved on by
 the ticks counted between. Until 2026-09-27 a pending timer event kept it in Sleep. `SleepU5`
@@ -165,6 +165,18 @@ the board check of 2dbcece, on 2026-09-27, saw no report and counted restarts.
 `srst_nogate`), and fails on an error from OpenOCD; three loads in three after
 `SleepU5` then succeeded.
 
+LPUART1 receives through Stop 2 since 2026-09-27 (`Escapement_UART.c`). Its kernel
+clock is HSI16, which it wakes itself as a byte comes (UESM, autonomous mode, RM0456
+67.4.15); the first byte is sampled while HSI16 starts, up to 3.6 µs (DS13086, table 82),
+3.8 % of a frame at 115,200 baud, past the 3.41 % the receiver tolerates, 1.9 % at
+57,600, hence that rate on LPUART1 and in the tools that read it. Its receive FIFO holds
+the bytes that come while the clock is raised again, interrupts masked. Keeping HSI16 on
+in Stop 2 instead (HSIKERON) would have kept 115,200 at some 150 µA (table 82), against
+20.5 µA for Stop 2 itself, every SRAM retained, at 25 °C (table 56). On the board, the
+same day: `SleepU5` over 60 s received 2,761 bytes of 2,761 sent by `tools/unoq_sleep.py`
+in bursts of 1 to 32, none out of the count, no overrun, with 2,444 entries into Stop 2;
+`SoakU5` at 57,600 baud ran 2 min without error, its link included.
+
 ## Errata
 
 The errata sheet of the chip, ES0499 (rev. 12, June 2026), was read against the port on
@@ -189,7 +201,7 @@ The port already stands clear of the others that come near it:
 | 2.2.3, 2.2.16: LSE unusable at the low and medium-low drives | it sets medium-high, as Zephyr |
 | 2.2.26: hang on entering Stop or Standby with the flash prefetching at 4 wait states | the images, the entry into Stop 2 with them, run from SRAM |
 | 2.2.1: PC13 toggling disturbs the LSE | neither the port nor Arduino's device tree uses PC13 |
-| 2.22.3: LPUART transmitter jitter with a kernel clock 3 to 4 times the baud rate | 160 MHz for 115,200 baud |
+| 2.22.3: LPUART transmitter jitter with a kernel clock 3 to 4 times the baud rate | HSI16 for 57,600 baud, 278 times |
 | 2.2.2: MSI slow on leaving Standby or Stop 3 | the port enters Stop 2 alone |
 | 2.2.5: hang entering Stop 2 with PLL2, PLL3, HSI48 or SHSI on | the port starts none of them |
 | 2.2.11: first read of a cache line after Stop 2 corrupted | the images run from SRAM through the S-bus, which ICACHE does not cache; DCACHE1 is off |

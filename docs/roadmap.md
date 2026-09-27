@@ -94,7 +94,8 @@ The **STM32L4** is set aside.
    board 388 entries in 43 s, every start one period after the last to the microsecond,
    the longest wake-up 885 µs, TIM2 2.1 ppm ahead of LPTIM1 (`stm32u5.md`). TIM5 is
    carried through Stop 2 since that day too, so that a pending timer event no longer
-   keeps the idle task in Sleep. Next, the
+   keeps the idle task in Sleep, and LPUART1 receives through it at 57,600 baud on HSI16,
+   the rate its start allows (`stm32u5.md`). Next, the
    PPK2, on `SleepU5` built with `make PHASES=30`: Stop 2 and Sleep in turn, D13 telling
    them apart.
 

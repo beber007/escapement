@@ -119,7 +119,8 @@ has. The first run there, on 2026-09-26, passed every check: 322,880 reads of th
 The board's own STM32U5 is checked too with `BOARD_CI_U5=1` in that same line
 (`tools/unoq_check.sh`): first the CI's image of `SleepU5` for a minute, the idle task
 in Stop 2 (`tools/unoq_sleep.py`: every start on its period, no late wake-up, most of
-the instances slept in Stop 2, TIM2 within 20 ppm of LPTIM1), then that of its endurance
+the instances slept in Stop 2, TIM2 within 20 ppm of LPTIM1, every byte sent to it
+received), then that of its endurance
 test run for two minutes, every part without error, then its clock against Linux's, within 300 ppm over five minutes, as
 the status `board/u5`. The long endurance run (`tools/soak.py uno-q`, the user service
 `escapement-soak-u5`) is stopped for it, and started again on the commit if it passed, on

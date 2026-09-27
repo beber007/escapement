@@ -47,6 +47,8 @@
 #define PWR_SR_STOPF         (1u << 1)
 
 #define RCC_BASE             0x46020C00
+#define RCC_CR               *((volatile UINT32 *)(RCC_BASE + 0x00))
+#define RCC_CR_HSION         (1u << 8)
 #define RCC_APB3SMENR        *((volatile UINT32 *)(RCC_BASE + 0xD0))
 #define RCC_SRDAMR           *((volatile UINT32 *)(RCC_BASE + 0xD8))
 #define RCC_LPTIM1           (1u << 11)    /* in APB3SMENR and SRDAMR */
@@ -137,7 +139,7 @@ static UINT16 NextTick(void)
 ** nothing would be lost, in Sleep otherwise. */
 static void Stop2Idle(void)
 {
-  UINT32 now, target, compare, ticks, micros, event;
+  UINT32 now, target, compare, ticks, micros, event, hsi;
   UINT16 start, wake, end;
   _OSDisableInterrupts();
   now = TIM_CNT;
@@ -166,6 +168,7 @@ static void Stop2Idle(void)
   NVIC_ICPR(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
   NVIC_ISER(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
   PWR_SR = PWR_SR_CSSF;
+  hsi = RCC_CR & RCC_CR_HSION;           // cleared entering Stop (RM0456, RCC_CR)
   SCB_SCR |= SCB_SCR_SLEEPDEEP;
   __asm volatile ("DSB\n\tWFI\n\tISB" ::: "memory");
   SCB_SCR &= ~SCB_SCR_SLEEPDEEP;
@@ -176,6 +179,7 @@ static void Stop2Idle(void)
   if (PWR_SR & PWR_SR_STOPF) {
      wake = OSGetLPTimer();
      _OSRaiseSystemClock();
+     RCC_CR |= hsi;                      // HSI16 back for LPUART1 (Escapement_UART.c)
      end = NextTick();
      Counts.Entries += 1;
      if ((UINT16)(end - wake) > Counts.WakeMaxTicks)

@@ -19,15 +19,18 @@
 ** seconds in Sleep, D13 low (OSAllowStop2), the load the same: what the PPK2 compares,
 ** its digital input on D13 telling the phases apart in the one record.
 **
-** Every ten instances a line of text goes to Linux on LPUART1, which sends nothing back:
-** "SLEEP" and, in hexadecimal, the words 1 to 10 of Results. The idle task stays in Sleep
-** for the few milliseconds of its sending.
+** Every ten instances a line of text goes to Linux on LPUART1: "SLEEP" and, in
+** hexadecimal, the words 1 to 13 of Results. Linux may send back a count, one byte after
+** the other modulo 256, which LPUART1 receives through Stop 2 (Escapement_UART.c) and the
+** handler checks. The idle task stays in Sleep for the few milliseconds of a line's
+** sending.
 **
 ** Results, in words: 0 marker, 1 instances measured, 2 ticks of LPTIM1 summed, 3 us of
 ** TIM2 summed, 4 largest gap between two starts off the period, in us, 5 entries into
 ** Stop 2, 6 largest wake-up in ticks, 7 wake-ups past the next event, 8 1 if Stop 2
 ** could not be set up (no LSE), 9 timer events come, 10 largest gap between the time an
-** event was due and the time it came, in us, early or late.
+** event was due and the time it came, in us, early or late, 11 bytes received from Linux,
+** 12 bytes out of the count, 13 bytes lost to an overrun.
 ** Platform version: STM32U585 (Arduino UNO Q).
 */
 
@@ -47,13 +50,16 @@
 
 volatile struct {
   UINT32 Marker, Instances, Ticks, Micros, JitterMax, Entries, WakeMaxTicks, Late, NoLSE;
-  UINT32 Events, EventOffMax;
+  UINT32 Events, EventOffMax, LinkBytes, LinkErrors, LinkOverruns;
 } Results;
+
+static UINT8 LinkNext;                   // the byte of the count expected next
 
 static INT32 EventDue;                   // TIM2's time the event is due at
 
 static void SleepTask(void *argument);
 static void EventTask(void *argument);
+static void LinkReceive(UINT8 byte);
 static void Report(void);
 
 
@@ -67,7 +73,7 @@ int main(void)
      InitializeFlag(FLAG3_PIN);
      SetPin(FLAG3_PIN);
   #endif
-  OSInitUART(1,REPORT_SIZE,NULL,OS_IO_LPUART1);
+  OSInitUART(1,REPORT_SIZE,LinkReceive,OS_IO_LPUART1);
   OSInitTimerEvent(1,1,OS_IO_TIM5);
   Results.NoLSE = !OSInitStop2();
   event = OSCreateEventDescriptor();
@@ -108,6 +114,7 @@ static void SleepTask(void *argument)
         Results.Entries = counts.Entries;
         Results.WakeMaxTicks = counts.WakeMaxTicks;
         Results.Late = counts.Late;
+        Results.LinkOverruns = OSGetUARTOverruns(OS_IO_LPUART1);
         Report();
      }
   }
@@ -150,6 +157,17 @@ static void EventTask(void *argument)
 } /* end of EventTask */
 
 
+/* LinkReceive: A byte from Linux, from the interrupt of LPUART1: the one after the last,
+** or an error, the count then taken up from it. */
+static void LinkReceive(UINT8 byte)
+{
+  if (Results.LinkBytes > 0 && byte != LinkNext)
+     Results.LinkErrors += 1;
+  LinkNext = (UINT8)(byte + 1);
+  Results.LinkBytes += 1;
+} /* end of LinkReceive */
+
+
 /* PutHex: A number in hexadecimal, without leading zeros, and a space after it. */
 static UINT8 *PutHex(UINT8 *p, UINT32 value)
 {
@@ -163,7 +181,7 @@ static UINT8 *PutHex(UINT8 *p, UINT32 value)
 } /* end of PutHex */
 
 
-/* Report: Words 1 to 10 of Results as a line of text to Linux; none if the line before is
+/* Report: Words 1 to 13 of Results as a line of text to Linux; none if the line before is
 ** still being sent. */
 static void Report(void)
 {
@@ -182,6 +200,9 @@ static void Report(void)
   p = PutHex(p,Results.NoLSE);
   p = PutHex(p,Results.Events);
   p = PutHex(p,Results.EventOffMax);
+  p = PutHex(p,Results.LinkBytes);
+  p = PutHex(p,Results.LinkErrors);
+  p = PutHex(p,Results.LinkOverruns);
   p[-1] = '\n';
   OSEnqueueUART(line,(UINT8)(p - line),OS_IO_LPUART1);
 } /* end of Report */

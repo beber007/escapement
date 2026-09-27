@@ -126,5 +126,9 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
   per connection, which failed the cost check. The tools select the Debug Probe by its
   ids and serial, `tools/probe.sh` (`PROBE=probe2`, probe1 by default): the bench has
   three; pass `-c "$(tools/probe.sh)"` in a command typed by hand.
+- An image whose idle task sleeps in Stop 2 (`OSInitStop2`) clears DBG_STOP: the debug
+  port is unpowered most of the time, and OpenOCD connecting then fails on an SWD parity
+  error, the image left running. Connect with the reset held, as `tools/unoq_load.sh`
+  does (`srst_nogate connect_assert_srst`).
 - Emulation proves scheduling and register sequences, not energy; the board and an
   instrument decide.
