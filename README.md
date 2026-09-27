@@ -113,6 +113,14 @@ without stopping a core. `tools/dvfs_figure.py` draws the figure from
 sleeps at 125 MHz, and only a current measurement can say what that costs
 ([`docs/rp2040.md`](docs/rp2040.md)).
 
+![TaskLEDPico's schedule, computed from the task set above, traced on a Raspberry Pi Pico below, at a release of all four tasks](docs/images/pico-schedule.svg)
+
+The same board under the hard kernel, at an instant when its four tasks are released
+together. Above, the schedule computed from the task set and the kernel's costs the
+trace shows. Below, the trace. They agree within 2 µs. Every response the trace saw stays
+under the bound of the analysis in ZottaOS's manual, 526 µs at most against 620
+([`docs/rp2040.md`](docs/rp2040.md#response-times-against-their-analysis)).
+
 ## Verified at six levels
 
 The levels answer different questions. The frequency counter says the periods are
