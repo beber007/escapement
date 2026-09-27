@@ -37,6 +37,24 @@ The **STM32L4** is set aside.
    anything over OTE, how long the regulator really takes to settle, and whether the
    core undervolted still computes right, checked by a computation whose result is
    verified.
+
+   Read from the RP2040 datasheet (build of 2025-02-20) on 2026-09-27, for the idle
+   task: SLEEP, entered when both cores wait in WFI, gates the clocks as the SLEEP_EN
+   registers say while the oscillators and the PLLs run on, the state kept (§2.11.2,
+   p. 161); the kernel's timer and its tick, from clk_ref, can stay on (SLEEP_EN1,
+   CLK_SYS_TIMER, p. 211-213), which keeps the kernel's time exact and lets its alarm
+   wake the core. The datasheet's example of it, every clock on the crystal at 12 MHz,
+   the PLLs stopped, the timer gated off, draws 0.39 mA typical, against 9.0 mA idle in
+   BOOTSEL (table 637, p. 623). DORMANT stops every clock, clk_ref and so the timer
+   with them (§2.11.3), a timed wake-up coming only from the RTC, to the second, and
+   only on an external clock on a GPIN (§4.8); no use to an idle task that keeps time
+   to the microsecond. The idle task of the power-aware kernel sleeps at 12 MHz with the
+   PLL locked (`power-aware.md`), where the 0.39 mA had it stopped, and no lock time is
+   given (§2.18). No erratum touches SLEEP, DORMANT or the RTC. Hence, on the same
+   bench: the idle task as it is, at 125 and at 12 MHz; then SLEEP, the timer, its tick
+   and the interrupts in use left on, whether the tick also needs CLK_SYS_WATCHDOG being
+   for the board to say; then the PLL's lock time, to decide whether a long sleep pays
+   for stopping it, as the U5 stops its clocks in Stop 2.
 2. **The Pico 2 on the board.** It needs a Pico 2, and an OpenOCD that knows the
    RP2350, which neither Homebrew's 0.12 nor Debian's does: Raspberry Pi's fork, built
    on the UNO Q on 2026-09-26 (`tools/board_ci.md`), waits for the board. The board alone can say that the clocks are
