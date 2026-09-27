@@ -10,21 +10,35 @@
 ** other two come out on PB13 and PB14, D13 and D12 of the connector (datasheet
 ** ABX00162/ABX00173, 5 UI & Indicators and 9.6 JDIGITAL). PIN_LOW marks a pin that is on
 ** when low: SetPin turns it on all the same.
-** Platform version: STM32U585 (Arduino UNO Q).
+**
+** Built with BOARD_NUCLEO_U575 (Examples/nucleo-u575), the same examples drive pins of
+** the NUCLEO-U575ZI-Q instead, none of them an LED, whose current the jumper that
+** measures the MCU's would count (UM2861, 6.4.5): D7 and D8, PF13 and PF12, and D13,
+** PA5 (Zephyr, nucleo_u575zi_q, arduino_r3_connector.dtsi). The probe of TaskLEDU5 has
+** no pin there: an example that needs it does not build for that board.
+** Platform version: STM32U585 (Arduino UNO Q), STM32U575 (NUCLEO-U575ZI-Q).
 */
 
 #ifndef BOARD_U5_H
 #define BOARD_U5_H
 
+#define PORT_A 0
 #define PORT_B 1
+#define PORT_F 5
 #define PORT_H 7
 #define PIN(port,n)       ((UINT8)((port) << 4 | (n)))
 #define PIN_LOW(port,n)   ((UINT8)(0x80 | (port) << 4 | (n)))   /* on when low */
 
-#define FLAG1_PIN         PIN_LOW(PORT_H,11)   /* LED3, green */
-#define FLAG2_PIN         PIN_LOW(PORT_H,15)   /* LED4, blue */
-#define FLAG3_PIN         PIN(PORT_B,13)       /* D13 */
-#define PROBE_PIN         PIN(PORT_B,14)       /* D12, measurement probe */
+#ifdef BOARD_NUCLEO_U575
+   #define FLAG1_PIN      PIN(PORT_F,13)       /* D7 */
+   #define FLAG2_PIN      PIN(PORT_F,12)       /* D8 */
+   #define FLAG3_PIN      PIN(PORT_A,5)        /* D13 */
+#else
+   #define FLAG1_PIN      PIN_LOW(PORT_H,11)   /* LED3, green */
+   #define FLAG2_PIN      PIN_LOW(PORT_H,15)   /* LED4, blue */
+   #define FLAG3_PIN      PIN(PORT_B,13)       /* D13 */
+   #define PROBE_PIN      PIN(PORT_B,14)       /* D12, measurement probe */
+#endif
 
 /* Ports on AHB2, 0x400 apart. MODER takes 01 for an output; BSRR sets a pin with the low
 ** half of the word and clears it with the high half, in one write that no interrupt can

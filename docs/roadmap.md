@@ -114,7 +114,10 @@ The **STM32L4** is set aside.
    TIM5 is carried through Stop 2 since that day too, so that a pending timer event no
    longer keeps the idle task in Sleep, and LPUART1 receives through it at 57,600 baud
    on HSI16, the rate its start allows (`stm32u5.md`). Next, the PPK2, on `SleepU5`
-   built with `make PHASES=30`: Stop 2 and Sleep in turn, D13 telling them apart.
+   built with `make PHASES=30`: Stop 2 and Sleep in turn, D13 telling them apart. On the
+   UNO Q only the difference can show, its MCU sharing a rail with the rest of the board
+   and no jumper to measure it alone (`stm32u5.md`, 2026-09-27); the absolute currents
+   are for a NUCLEO-U575ZI-Q, borrowed for it.
 
 6. **A deeper sleep on the RP2350.** Its idle task sleeps by WFI with every clock
    running. Read from the RP2350 datasheet on 2026-09-27: DORMANT stops every oscillator

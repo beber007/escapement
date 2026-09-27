@@ -183,6 +183,36 @@ same day: `SleepU5` over 60 s received 2,761 bytes of 2,761 sent by `tools/unoq_
 in bursts of 1 to 32, none out of the count, no overrun, with 2,444 entries into Stop 2;
 `SoakU5` at 57,600 baud ran 2 min without error, its link included.
 
+Three hours of it on the board, on 2026-09-27 from 11:18 to 14:18 UTC, in six runs of
+30 min at 2673f02, each across a wrap of TIM2 at 2^30: 108,000 instances, 454,487
+entries into Stop 2, every start on its period to the microsecond, the longest wake-up
+18 ticks, none late, every timer event within 7 µs of its time, 547,645 bytes of 547,645
+received from Linux, none out of the count, no overrun, TIM2 7.3 to 7.6 ppm behind
+LPTIM1.
+
+The UNO Q cannot show the U585's current alone. Read from its schematics (ABX00162,
+dated 2025-10-01, pages 19, 21 and 22) and datasheet on 2026-09-27: the MCU's VDD,
+VDDA and VDDUSB sit on PWR_3P3V, made by two buck converters in series from 5 V
+(TPS62A02, U2801 and U2802), with no jumper, 0-ohm resistor or test point in between;
+the same rail feeds the ANX7625, the 3.3 V side of the Wi-Fi, the level shifters, the
+3.3 V pins of the connectors and the power LED, through 330 ohms, some 3 to 4 mA of its
+own; VDDIO2, and with it port G and LPUART1, comes from the Qualcomm side's PMIC
+(PM4125, VREG_L15A_1P8V). The U585 has no SMPS there (STM32U585AII6, VCAP but no VDD11),
+confirming the port's use of the LDO. At the board's 5 V input a PPK2 measures the whole
+board, some 0.6 to 0.7 W running and 28 mA with Linux powered off (a user's figures on
+the Arduino forum, 2026-05-28); the 20 µA of Stop 2 are lost in it, and only the
+difference between Sleep and Stop 2, some mA at the MCU, may show through `make
+PHASES=30`'s alternation. The absolute currents are for a NUCLEO-U575ZI-Q, whose board
+has a jumper for the MCU's current, JP5 (UM2861, 6.4.5): `Examples/nucleo-u575` builds
+`SleepU5` for it from the same sources, its outputs on pins that are no LED, since the
+LEDs are on the rail that jumper measures. That board has no HSE fitted as shipped
+(UM2861, 6.7), and the port, which falls back to the MSIS locked on the LSE, now gives the
+HSE up after one failed start rather than waiting for it at every wake-up from Stop 2.
+Its STM32U575ZIT6Q has the SMPS the U585 of the UNO Q lacks, 8.2 against 20.5 µA in
+Stop 2 with every SRAM retained at 25 °C by the datasheet (DS13737 rev. 4, tables 54 and
+56); the port keeps the LDO, as reset leaves it. Neither the board nor the image has been
+tried yet.
+
 ## Errata
 
 The errata sheet of the chip, ES0499 (rev. 12, June 2026), was read against the port on

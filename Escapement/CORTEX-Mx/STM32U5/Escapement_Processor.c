@@ -124,6 +124,7 @@ typedef struct UNLOCK_ISR_DATA {
 void (*_OSIdleHook)(void) = NULL;
 
 static UNLOCK_ISR_DATA UnlockDescriptor;
+static BOOL NoHSE = FALSE;               // the HSE did not start once: not tried again
 static volatile UINT32 MSIRelocks;
 
 
@@ -192,12 +193,17 @@ void OSInitializeSystemClocks(void)
 
 
 /* _OSRaiseSystemClock: From the MSIS, as reset or a wake-up from Stop leaves the system
-** clock, in range 4, to 160 MHz on PLL1. */
+** clock, in range 4, to 160 MHz on PLL1. The HSE, given up once, is not waited for again
+** at each wake-up from Stop 2: a board without it fitted, the NUCLEO-U575ZI-Q as shipped
+** (UM2861, 6.7), would otherwise spend its time-out there every time. */
 void _OSRaiseSystemClock(void)
 {
   volatile UINT32 i;
-  RCC_CR |= RCC_CR_HSEON;
-  for (i = 0; (RCC_CR & RCC_CR_HSERDY) == 0 && i < HSE_START_TURNS; i += 1);
+  if (!NoHSE) {
+     RCC_CR |= RCC_CR_HSEON;
+     for (i = 0; (RCC_CR & RCC_CR_HSERDY) == 0 && i < HSE_START_TURNS; i += 1);
+     NoHSE = (RCC_CR & RCC_CR_HSERDY) == 0;
+  }
   /* The input of PLL1, which is also the booster's clock, before the booster: the HSE
   ** divided by 4, or the MSIS as it is, 4 MHz either way. */
   if ((RCC_CR & RCC_CR_HSERDY) != 0)
