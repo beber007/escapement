@@ -61,6 +61,10 @@ On the UNO Q, on 2026-09-26: the clock set-up reaches 160 MHz, PLL1 locked and t
 system clock on it, voltage range 1 with the booster ready, and TIM2 counts microseconds;
 `TaskLEDU5` runs, the idle task asleep between the rounds; `SoakU5` ran 22 s with every
 part active and none in error, its pulse at most 40 µs late and its timer events 23 µs.
+The endurance test has run for hours since, restarted at each commit the bench checks:
+over the night of 2026-09-26 to 27, on 52440a3, 9.3 hours, 31 wraps of the kernel clock,
+no error, no restart, the pulse at most 48 µs late and the timer events 49 µs, and 21 MB
+from Linux on the link without an error.
 The first load found a defect Renode could not show: the update event that loads TIM2's
 prescaler raised its flag a few timer cycles after the write, past the clear that
 followed at once, and the overflow it stood for reached the kernel before the timer had
@@ -112,8 +116,12 @@ board, the HSE, which divides into one exactly: the same evening the second last
 0.1 ppm too little over 300 s, and 22.5 ppm too long over 600 s. The two disagree by more
 than their standard errors (2.4 and 0.4 ppm) say: the reference moved, Linux's clock
 pulling in an offset of 35 ms from NTP meanwhile. Within some 25 ppm, then, which is as
-close as that reference tells, and what a crystal gives. The MSIS stays PLL1's input
-should the HSE not start.
+close as that reference tells, and what a crystal gives. Over the 9.2 hours of the night
+after, the seconds `SoakU5` counted were as many as Linux's to the second, and a line
+through the 543 readings gives 21 ppm slow, its standard error 1.7 ppm; Linux's clock,
+kept by systemd-timesyncd, was itself 61 ms off NTP with 54 ms of jitter that morning,
+and within those 25 ppm the U5's and Linux's cannot be told apart. The MSIS stays
+PLL1's input should the HSE not start.
 
 ## Errata
 
