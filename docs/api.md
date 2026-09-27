@@ -149,7 +149,13 @@ int main(void)
 ```
 
 A signal is remembered. If it arrives while the task still runs, the task restarts as
-soon as it ends, so a task can signal itself to run again. Signals come from tasks,
+soon as it ends, so a task can signal itself to run again.
+
+Several tasks may wait on the same event. Each signal wakes one of them: the one that
+has waited longest, whatever its priority or its deadline. The waiting tasks form a
+FIFO queue in all three kernels (`DequeueEventTask`), as in ZottaOS (User Manual,
+May 2012, p. 116). A task that must answer before the others needs an event of its
+own. Signals come from tasks,
 interrupt handlers, or the function given to `OSStartMultitasking`, never from `main`
 itself.
 
@@ -162,7 +168,9 @@ The `workload` of an event-driven task is its worst-case execution time divided 
 share of the processor set aside for it. It is also the task's deadline and its minimum
 interarrival time. In the example above, 2000 suits a task that must be done within
 2 ms of its signal. A workload is at least one tick and below 2^30, and at most 255
-tasks wait on one event.
+tasks wait on one event. `OSCreateSynchronousTask` returns `FALSE` outside those limits,
+for a `NULL` event, which is what `OSCreateEventDescriptor` returns when memory runs
+out, and for the reasons `OSCreateTask` fails.
 
 The soft and power-aware kernels add a `wcet` before the workload and an
 `aperiodicUtilization` after it: the share of the processor left to all event-driven
