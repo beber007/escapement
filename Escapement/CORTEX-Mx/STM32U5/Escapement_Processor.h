@@ -23,7 +23,8 @@
 */
 /* File Escapement_Processor.h: Clock set-up of the STM32U575. The kernel's timer counts
 ** microseconds through a prescaler set for the system clock this file chooses, so the
-** clock is set once, first, and not changed afterwards. The power-aware kernel is not
+** clock is set once, first, and not changed afterwards, but for its restart on waking
+** from Stop 2 (Escapement_Stop2.c), TIM2 stopped meanwhile. The power-aware kernel is not
 ** ported yet: its DVFS driver would need the voltage ranges and the SMPS of this chip.
 ** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
@@ -52,6 +53,21 @@
 ** by the MSIS left by reset should the crystal not start. To be called first, before the
 ** timer and before any peripheral whose rate depends on the clock. */
 void OSInitializeSystemClocks(void);
+
+/* _OSRaiseSystemClock: The second half of OSInitializeSystemClocks, from the MSIS to
+** PLL1, which Escapement_Stop2.c calls again on waking from Stop 2. */
+void _OSRaiseSystemClock(void);
+
+/* The idle task sleeps through _OSIdleHook once OSInitStop2 has set it, so that an image
+** without Stop 2 links neither it nor LPTIM1; the hook returns with interrupts enabled. */
+extern void (*_OSIdleHook)(void);
+#undef _OSSleep
+#define _OSSleep() while (TRUE) { \
+                      if (_OSIdleHook != NULL) \
+                         _OSIdleHook(); \
+                      else \
+                         __asm volatile ("WFI" ::: "memory"); \
+                   };
 
 /* OSGetMSIRelocks: Returns the times the MSIS, having left its lock on the LSE, was locked
 ** again (erratum 2.2.27 of the chip, Escapement_Processor.c). */

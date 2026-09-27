@@ -24,8 +24,8 @@ into the repository.
 | From SRAM | `Escapement_RamEntry.S`, `STM32U5_SRAM.ld` | the image in SRAM, started at its first word, which takes the stack and the reset handler from the vector table that follows, aligned on 1024 bytes; `OSInitializeSystemClocks` points VTOR at it |
 
 The examples, in `Examples/uno-q`, are those of the Pico 2 transposed:
-`TaskLEDU5`, `UARTEchoU5`, `TestTimerEventU5`, `TaskWrapU5`, `IPCU5`, `TestLPTimerU5`
-and `SoakU5`, the
+`TaskLEDU5`, `UARTEchoU5`, `TestTimerEventU5`, `TaskWrapU5`, `IPCU5`, `TestLPTimerU5`,
+`SleepU5` and `SoakU5`, the
 endurance test, where the part the Pico 2 runs between its cores becomes a 4-slot buffer
 written by the interrupt, of TIM3 here, and read by a task it preempts, and the
 independent watchdog takes the part of the RP2350's. Their outputs
@@ -73,12 +73,13 @@ started, which stopped on its overload check. With `URS` set, only a wrap of the
 raises it (`Escapement_Timer.c`).
 
 Under Renode, on a platform of our own (`emulation/renode/escapement_u5.repl`, see
-`emulation.md`), with the pins of the UNO Q since 2026-09-26, the eight tests of
+`emulation.md`), with the pins of the UNO Q since 2026-09-26, the nine tests of
 `escapement_u5.robot` pass under each of the four builds: the probe task every millisecond, the three periodic tasks, the UART
 echo, the timer events, the 2^30 wrap of the kernel clock, the tasks preempting one
 another inside the FIFO queue and a slot buffer, R8-R11 kept across, and 3.5 s of the
-endurance test with every part active and none in error, and LPTIM1's count against
-TIM2's. The endurance test found the port routing
+endurance test with every part active and none in error, LPTIM1's count against
+TIM2's, and the idle task sleeping on LPTIM1, though never in Stop 2 there: the platform
+does not report it (PWR_SR.STOPF), and the clock is not restarted. The endurance test found the port routing
 to the dispatcher only the interrupts of its own drivers, and TIM3's to the trap of an
 undefined one; every interrupt of the chip now reaches it. The compiled order
 of the slot buffers and of the task-level stores holds (`tools/check_order.py`), and the
@@ -132,6 +133,18 @@ instance finds raised. On the board, on 2026-09-27, 983,025 ticks in 30,000,000 
 LSE 15 ppm slow against the HSE, within what either crystal gives, and no compare missed
 in 120 instances.
 
+The idle task enters Stop 2 once the application calls `OSInitStop2`
+(`Escapement_Stop2.c`): when the next event of TIM2 is 5 ms off or more, no UART receives
+or sends and no timer event is pending, it arms LPTIM1 3 ms short of the event, stops
+TIM2 on an edge of LPTIM1 and enters Stop 2; on waking it takes the clock back to
+160 MHz and starts TIM2 again on an edge, moved on by the ticks counted between. `SleepU5`
+runs one task every 100 ms under it. On the board, on 2026-09-27, over 43 s: 388 entries
+into Stop 2 for 430 instances, the others those that sent a report on LPUART1; each
+instance started 100,000 µs after the one before, to the microsecond; the longest
+wake-up took 29 ticks, 885 µs, against the 3 ms allowed; none woke past its event; and
+TIM2 counted 43,000,000 µs where LPTIM1 counted 1,409,021 ticks, 2.1 ppm more, some
+0.2 µs a sleep. What it saves is for the PPK2 to say.
+
 ## Errata
 
 The errata sheet of the chip, ES0499 (rev. 12, June 2026), was read against the port on
@@ -154,10 +167,14 @@ The port already stands clear of the others that come near it:
 | Erratum | Why the port is clear |
 |---|---|
 | 2.2.3, 2.2.16: LSE unusable at the low and medium-low drives | it sets medium-high, as Zephyr |
-| 2.2.26: hang on entering Stop or Standby with the flash prefetching at 4 wait states | the idle task only sleeps (WFI, SLEEPDEEP never set), and the images run from SRAM |
+| 2.2.26: hang on entering Stop or Standby with the flash prefetching at 4 wait states | the images, the entry into Stop 2 with them, run from SRAM |
 | 2.2.1: PC13 toggling disturbs the LSE | neither the port nor Arduino's device tree uses PC13 |
 | 2.22.3: LPUART transmitter jitter with a kernel clock 3 to 4 times the baud rate | 160 MHz for 115,200 baud |
-| 2.2.2, 2.2.5, 2.2.11, 2.2.19, 2.2.22: exits from and entries to Stop and Standby | the port uses neither |
+| 2.2.2: MSI slow on leaving Standby or Stop 3 | the port enters Stop 2 alone |
+| 2.2.5: hang entering Stop 2 with PLL2, PLL3, HSI48 or SHSI on | the port starts none of them |
+| 2.2.11: first read of a cache line after Stop 2 corrupted | the images run from SRAM through the S-bus, which ICACHE does not cache; DCACHE1 is off |
+| 2.2.19: HardFault on a wake-up by an SRD peripheral with DBG_STOP set | `OSInitStop2` clears DBG_STOP, which the debugger may set |
+| 2.2.22: device locked by a reset in Stop 2 with an SRAM powered down | every SRAM stays powered |
 | TIM break and ocref, IWDG in Stop, USART DMA and smartcard, MPU faults | not used |
 
 The core is a Cortex-M33 r0p4 (CPUID 0x410FD214). Arm's own errata notice for it

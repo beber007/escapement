@@ -57,6 +57,7 @@
 #define CR1_TXEIE            (1u << 7)
 #define ISR_ORE              (1u << 3)
 #define ISR_RXNE             (1u << 5)
+#define ISR_TC               (1u << 6)
 #define ISR_TXE              (1u << 7)
 #define ICR_ORECF            (1u << 3)
 
@@ -182,6 +183,23 @@ UINT32 OSGetUARTOverruns(UINT8 interruptIndex)
 {
   return ((UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(interruptIndex))->Overruns;
 } /* end of OSGetUARTOverruns */
+
+
+/* _OSUARTIdle: TRUE when neither UART receives nor has a byte to send, which Stop 2, where
+** their clocks stop, would lose (Escapement_Stop2.c). A UART that hands its bytes to a
+** handler may receive one at any time. Called with interrupts masked. */
+BOOL _OSUARTIdle(void)
+{
+  static const UINT8 index[] = { OS_IO_USART1, OS_IO_LPUART1 };
+  UART_INTERRUPT_DESCRIPTOR *des;
+  UINT32 i;
+  for (i = 0; i < sizeof(index); i += 1)
+     if ((des = (UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(index[i])) != NULL &&
+         (des->UserReceiveInterruptHandler != NULL || (REG(des,USART_CR1) & CR1_TXEIE) ||
+          (REG(des,USART_ISR) & ISR_TC) == 0))
+        return FALSE;
+  return TRUE;
+} /* end of _OSUARTIdle */
 
 
 /* OSGetFreeNodeUART: Returns a free buffer to be filled by the application. */

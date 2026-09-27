@@ -20,6 +20,7 @@
 #define LPTIM1_BASE          0x46004400
 #define LPTIM_ISR            *((volatile UINT32 *)(LPTIM1_BASE + 0x00))
 #define LPTIM_ICR            *((volatile UINT32 *)(LPTIM1_BASE + 0x04))
+#define LPTIM_DIER           *((volatile UINT32 *)(LPTIM1_BASE + 0x08))
 #define LPTIM_CFGR           *((volatile UINT32 *)(LPTIM1_BASE + 0x0C))
 #define LPTIM_CR             *((volatile UINT32 *)(LPTIM1_BASE + 0x10))
 #define LPTIM_CCR1           *((volatile UINT32 *)(LPTIM1_BASE + 0x14))
@@ -28,6 +29,8 @@
 #define LPTIM_CC1IF          (1u << 0)
 #define LPTIM_CMP1OK         (1u << 3)
 #define LPTIM_ARROK          (1u << 4)
+#define LPTIM_DIEROK         (1u << 24)
+#define LPTIM_CC1IE          (1u << 0)
 #define LPTIM_CR_ENABLE      (1u << 0)
 #define LPTIM_CR_CNTSTRT     (1u << 2)
 
@@ -56,6 +59,12 @@ BOOL OSInitLPTimer(void)
   LPTIM_ARR = 0xFFFF;
   while ((LPTIM_ISR & LPTIM_ARROK) == 0);
   LPTIM_ICR = LPTIM_ARROK;
+  /* The compare interrupt enabled once, its flag clear: writing DIER clears the flag it
+  ** enables (ES0499, 2.17.3), and an enable written after its flag rose would not assert
+  ** the interrupt (RM0456, 58.6). Only the NVIC decides whether it is taken. */
+  LPTIM_DIER = LPTIM_CC1IE;
+  while ((LPTIM_ISR & LPTIM_DIEROK) == 0);
+  LPTIM_ICR = LPTIM_DIEROK;
   LPTIM_CR = LPTIM_CR_ENABLE | LPTIM_CR_CNTSTRT;   // continuous
   return TRUE;
 } /* end of OSInitLPTimer */

@@ -121,6 +121,8 @@ typedef struct UNLOCK_ISR_DATA {
   void (*UnlockHandler)(struct UNLOCK_ISR_DATA *);
 } UNLOCK_ISR_DATA;
 
+void (*_OSIdleHook)(void) = NULL;
+
 static UNLOCK_ISR_DATA UnlockDescriptor;
 static volatile UINT32 MSIRelocks;
 
@@ -176,7 +178,6 @@ static void LockMSIS(void)
 
 void OSInitializeSystemClocks(void)
 {
-  volatile UINT32 i;
   /* The image runs from SRAM (STM32U5_SRAM.ld): the core took its stack and first
   ** instruction from the loader, and the vector table must be named before the first
   ** interrupt, VTOR pointing at the flash after reset. */
@@ -186,6 +187,15 @@ void OSInitializeSystemClocks(void)
   (void)RCC_AHB3ENR;                       // the enable takes effect before PWR is written
   /* The MSIS locked, should PLL1 have to take it; then the HSE. */
   LockMSIS();
+  _OSRaiseSystemClock();
+} /* end of OSInitializeSystemClocks */
+
+
+/* _OSRaiseSystemClock: From the MSIS, as reset or a wake-up from Stop leaves the system
+** clock, in range 4, to 160 MHz on PLL1. */
+void _OSRaiseSystemClock(void)
+{
+  volatile UINT32 i;
   RCC_CR |= RCC_CR_HSEON;
   for (i = 0; (RCC_CR & RCC_CR_HSERDY) == 0 && i < HSE_START_TURNS; i += 1);
   /* The input of PLL1, which is also the booster's clock, before the booster: the HSE
@@ -216,4 +226,4 @@ void OSInitializeSystemClocks(void)
   for (i = 0; i < 100; i += 1);            // some microseconds at 80 MHz
   RCC_CFGR2 &= ~RCC_CFGR2_HPRE_MASK;
   ICACHE_CR |= ICACHE_CR_EN;
-} /* end of OSInitializeSystemClocks */
+} /* end of _OSRaiseSystemClock */

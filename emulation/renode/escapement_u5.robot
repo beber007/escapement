@@ -121,6 +121,29 @@ LPTIM1 counts the crystal of 32.768 kHz
     Should Be Equal As Integers  ${missed}  0
     Should Be True            abs(${ticks} * 1000000 - ${micros} * 32768) <= ${micros} * 32768 / 1000
 
+The idle task sleeps in Stop 2 on LPTIM1
+    [Documentation]           SleepU5: the idle task arms LPTIM1 short of each 100 ms period,
+    ...                       stops TIM2, sleeps, and moves TIM2 on by what LPTIM1 counted.
+    ...                       The platform never reports Stop 2 entered (PWR_SR.STOPF), so the
+    ...                       clock is not restarted here, which the board checks; the
+    ...                       sleeps, the wake-up and the time carried over are the port's.
+    Load Escapement           SleepU5
+    Execute Command           emulation RunFor "3"
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${instances}=             Read Word  ${results + 4}
+    ${ticks}=                 Read Word  ${results + 8}
+    ${micros}=                Read Word  ${results + 12}
+    ${jitter}=                Read Word  ${results + 16}
+    ${late}=                  Read Word  ${results + 28}
+    ${nolse}=                 Read Word  ${results + 32}
+    Log To Console            ${instances} instances, ${ticks} ticks for ${micros} us, gap off by ${jitter} us at most
+    Should Be True            ${instances} >= 25
+    Should Be Equal As Integers  ${nolse}  0
+    Should Be Equal As Integers  ${late}  0
+    Should Be True            ${jitter} <= 5
+    Should Be True            abs(${ticks} * 1000000 - ${micros} * 32768) <= ${micros} * 32768 / 10000
+
 Scheduling survives the 2^30 wrap of the kernel clock
     [Documentation]           The kernel counts time modulo 2^30 and shifts every temporal
     ...                       variable back when its counter wraps, which TIM2 does at 2^30.

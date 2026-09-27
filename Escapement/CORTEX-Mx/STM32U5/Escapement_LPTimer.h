@@ -6,7 +6,7 @@
 ** the board, the LSE, a clock that runs on through Stop 2 where TIM2, the kernel's, stops
 ** (RM0456, RCC_CCIPR3, and LPTIM, table 599). The first step of an idle task that sleeps
 ** in Stop 2 (docs/roadmap.md): a counter of 16 bits, wrapping every 2 s, in steps of
-** 30.5 us, and a compare that raises a flag, later to wake the chip.
+** 30.5 us, and a compare that raises a flag, which wakes the chip from Stop 2.
 ** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 

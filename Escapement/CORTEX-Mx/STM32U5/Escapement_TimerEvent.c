@@ -174,6 +174,16 @@ BOOL OSUnScheduleTimerEvent(void *event, UINT16 interruptIndex)
 } /* end of OSUnScheduleTimerEvent */
 
 
+/* _OSTimerEventIdle: TRUE when no event is pending: TIM5 stops in Stop 2, and would wake
+** a pending one late by the time slept (Escapement_Stop2.c). Called with interrupts
+** masked. */
+BOOL _OSTimerEventIdle(void)
+{
+  TIMER_ISR_DATA *device = (TIMER_ISR_DATA *)OSGetISRDescriptor(OS_IO_TIM5);
+  return device == NULL || device->EventQueue == NULL;
+} /* end of _OSTimerEventIdle */
+
+
 /* ArmComparator: Arms the comparator on the event at the head of the queue, interrupts
 ** masked; an event already due is handed to the handler by generating the compare
 ** event. */
