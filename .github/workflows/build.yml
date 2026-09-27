@@ -216,12 +216,21 @@ jobs:
         run: make -C test/host run
       - name: The same at -O2, under the whole of UndefinedBehaviorSanitizer
         run: make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
-      - name: Check the slot buffers and the FIFO queue over every interleaving
-        run: |
-          python3 test/model/fourslot.py
-          python3 test/model/threeslot.py
-          python3 test/model/fifo.py
-          python3 test/model/fifo_mp.py
+
+  models:
+    # The slot buffers and the FIFO queues over every interleaving, one model a job: run
+    # one after another, beside the host test, they made the longest job of the run.
+    name: Model ${{ matrix.model }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [fourslot, threeslot, fifo, fifo_mp]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Every interleaving
+        run: python3 test/model/${{ matrix.model }}.py
 
   emulation-rp2350:
     # The RP2350 port on a platform of our own (escapement_pico2.repl), which Renode's
