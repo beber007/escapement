@@ -100,29 +100,12 @@ on the RP2040. The **STM32L4** is set aside.
    (`stm32u5.md`, 2026-09-27). The absolute currents are for a NUCLEO-U575ZI-Q, borrowed
    for it. `Examples/nucleo-u575` builds `SleepU5` for that board, on the LDO or, with
    `make SMPS=1`, on its SMPS (bf447b8); neither the board nor the image has been tried.
+   Then the margin of the wake-up, 3 ms, where the longest wake-up measured is 885 µs:
+   the Sleep it leaves after waking may cost more than Stop 2 saves, which the PPK2 will
+   price.
 
-   The plan for Stop 2, read from RM0456 rev. 7 and ES0499 on 2026-09-26, and what became
-   of it. LPTIM1 cannot be the kernel's clock. It has 16 bits and wraps every 2 s on the
-   LSE, in steps of 30.5 µs. Its counter must be read twice to be trusted, and a new
-   compare waited for (CMPOK) after a latency RM0456 does not quantify for it (§58.4). So
-   TIM2 stays the kernel's clock while the core runs. The idle task, finding the next
-   event far enough off, arms LPTIM1 on the LSE to wake it early and enters Stop 2, from
-   which LPTIM1 wakes the chip (table 599). Stop 2 turns the HSE off and leaves the chip
-   in range 4. Waking takes the HSE's 2 ms, up to 47 µs for range 1, 50 µs for the
-   booster and 25 to 50 µs for PLL1, so Stop 2 pays only for waits of some milliseconds.
-   TIM2 is then moved on by the time LPTIM1 counted, and the idle task finishes the wait
-   in Sleep. The errata kept in view: never clear LPTIM1's ENABLE, reset it through the
-   RCC instead (2.17.1); writing DIER clears the flag it enables (2.17.3); a HardFault may
-   follow a wake-up by LPTIM1, of the SRD domain, when debugging with DBG_STOP (2.2.19).
-   Renode's STM32L0_LpTimer has the same first registers and was expected to serve.
-
-   Two parts of that plan changed on 2026-09-27. It kept Stop 2 away while a timer event
-   was pending, TIM5 stopping with it, a rule taken from the definition of Stop rather
-   than read for TIM5 itself; TIM5 is now carried through Stop 2 instead (06e2e60). It
-   also kept Stop 2 away while a UART had to receive, since LPUART1 runs on PCLK3, and
-   `SoakU5`, fed by Linux, would hardly ever have entered it. LPUART1 now receives
-   through Stop 2 on HSI16, at 57,600 baud, the rate its start allows (2673f02,
-   `stm32u5.md`).
+   The plan for Stop 2, as read on 2026-09-26, and the two parts of it that changed the
+   next day are in `stm32u5.md`, "The plan, as read on 2026-09-26".
 
 6. **A deeper sleep on the RP2350.** Its idle task sleeps by WFI with every clock
    running. The RP2350 datasheet was read on 2026-09-27:
