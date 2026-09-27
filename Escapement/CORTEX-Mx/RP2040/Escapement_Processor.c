@@ -176,8 +176,9 @@ UINT8 OSGetProcessorSpeed(void)
 /* OSSetProcessorSpeed: Moves to another operating point, raising the voltage before the
 ** frequency and lowering it after, so that the core never runs faster than its voltage
 ** allows. The kernel calls it from tasks and from the timer handler alike, so the whole
-** change is done with interrupts masked; without a lock of the PLL to wait for, that lasts
-** a few cycles of clk_ref, plus the settling time when undervolting. */
+** change is done with interrupts masked. There is no lock of the PLL to wait for: a change
+** took 3.9 to 8.7 us on the board, reads of the counter included (BenchDVFSPico,
+** 2026-09-24, docs/rp2040.md), plus the settling time when undervolting. */
 void OSSetProcessorSpeed(UINT8 speed)
 {
   UINT32 primask;
