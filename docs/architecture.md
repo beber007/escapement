@@ -88,7 +88,8 @@ model (`test/model/fifo_mp.py`) asked for. Figure 3 assumes an SC that fails onl
 another thread's succeeded, which the paper itself notes real LL/SC do not promise; on
 the RP2350 an SC also fails when the other core wrote in its granule, or for no reason,
 so the SC that advances Tail or Head after an operation is tried again while the index
-has not moved. And a DMB stands between any two of its accesses to different words. The
+has not moved. And six DMB order each core's accesses where the queue needs it, the
+fifteen of its first version cut down by a model of weakly ordered cores. The
 hardware spinlocks of the SIO offered no alternative, being unreliable on that chip
 (erratum RP2350-E2 of the
 [datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)).

@@ -44,11 +44,14 @@ The **STM32L4** is set aside.
    examples, `ThreeSlotCoresPico2` first, and litmus tests of the order in which each
    core sees the other's accesses.
 3. **What is left to verify between the cores.** The queue between the cores
-   (`Escapement_CoreQueue.c`) puts a DMB between any two of its accesses to different
-   words, which lets its model take each core's accesses in program order; a model of
-   weakly ordered cores, as the slot buffers have, would keep only those it needs.
-   `FIFOCoresPico2` makes each core a producer and a consumer of the same queues since
-   2026-09-26, as the model does.
+   (`Escapement_CoreQueue.c`) had a DMB between any two of its accesses to different
+   words, fifteen; a model of weakly ordered cores (`test/model/fifo_mp.py`, 2026-09-26)
+   kept six, five of them shown needed and the six enough within its bounds, on a
+   machine of 30 GB, where the CI explores only a part. The sixth, before a dequeue
+   returns, could not be shown superfluous. `FIFOCoresPico2` makes each core a producer
+   and a consumer of the same queues since 2026-09-26, as the model does. No Pico 2 has
+   run the queue yet, and Renode, whose cores keep program order, cannot show the
+   barriers at work.
 4. **DVFS on the RP2350**, if the verdict of item 1 is for it: its regulator and its
    power manager differ from the RP2040's, and the driver is to be written from the
    pico-sdk headers.

@@ -17,10 +17,17 @@
 **     enough when a failed SC means another thread advanced the index; on the RP2350 an
 **     SC also fails when the other core wrote anywhere in the granule of 16 bytes, or for
 **     no visible reason, and the index would stay behind an operation that returned;
-**   - a DMB stands between any two accesses to different words of the queue, so that
-**     each core's accesses reach the other in program order, as the model takes them.
-**     Armv8-M lets them be seen in another order otherwise (DDI0553B.y, B7); fewer
-**     barriers would need a model of weakly ordered cores, as the slot buffers have.
+**   - DMB barriers, which Armv8-M needs for each core's accesses to reach the other in
+**     an order the queue can bear (DDI0553B.y, B7): six of them, where a first version
+**     had one between any two accesses to different words, fifteen. The model of weakly
+**     ordered cores (explore_weak) finds five needed, each caught when left out: after
+**     E5, E9, D5, D6 and D9. With those and the one before a dequeue returns, every run
+**     is linearizable and every dequeuer finds its item's contents, the model free to
+**     reorder any run of accesses between two barriers (2026-09-26, on a machine of
+**     30 GB; in the CI's window only a part, test/model/fifo_mp.py). That last one could
+**     not be shown superfluous: without it, one case outgrew 26 GB. The proof holds
+**     within the model's bounds: a queue of two places, two operations a core, two
+**     rounds of each loop.
 **
 ** Head and Tail count up without end and wrap at 2^32, which the length, a power of 2,
 ** divides: the place of an index is its remainder, and Tail - Head the items held.
@@ -57,7 +64,9 @@ void *OSInitCoreQueue(UINT32 length)
 } /* end of OSInitCoreQueue */
 
 
-/* OSEnqueueCoreQueue: Enqueue of Figure 3; the paper's line numbers are in the comments. */
+/* OSEnqueueCoreQueue: Enqueue of Figure 3; the paper's line numbers are in the comments.
+** Two barriers, after the read of Tail and after the LL of the place: the first also puts
+** what the item points to before the item is seen in the queue. */
 BOOL OSEnqueueCoreQueue(void *queue, void *item)
 {
   CORE_QUEUE *q = (CORE_QUEUE *)queue;
@@ -65,44 +74,39 @@ BOOL OSEnqueueCoreQueue(void *queue, void *item)
   UINT32 t;
   if (item == NULL)
      return FALSE;
-  _OSMemoryBarrier();   // what the item points to, before the item is seen in the queue
   while (TRUE) {
      t = q->Tail;                                              // E5
      _OSMemoryBarrier();
      if (t == q->Head + q->Mask + 1)                           // E6
         return FALSE;
      place = (UINTPTR *)&q->Q[t & q->Mask];
-     _OSMemoryBarrier();
      slot = OSUINTPTR_LL(place);                               // E9
      _OSMemoryBarrier();
      if (t != q->Tail)                                         // E10: the place is Tail's
         continue;
-     _OSMemoryBarrier();
      if (slot != (UINTPTR)NULL) {                              // E11: Tail lags behind an
         if (OSUINT32_LL((UINT32 *)&q->Tail) == t)              // E12  insertion; help it on
            OSUINT32_SC((UINT32 *)&q->Tail,t + 1);              // E13
-        _OSMemoryBarrier();
      }
      else if (OSUINTPTR_SC(place,(UINTPTR)item)) {             // E15
-        _OSMemoryBarrier();
         while (OSUINT32_LL((UINT32 *)&q->Tail) == t)           // E16
            if (OSUINT32_SC((UINT32 *)&q->Tail,t + 1))          // E17, again if it fails
               break;
-        _OSMemoryBarrier();
         return TRUE;                                           // E18
      }
   }
 } /* end of OSEnqueueCoreQueue */
 
 
-/* OSDequeueCoreQueue: Dequeue of Figure 3. */
+/* OSDequeueCoreQueue: Dequeue of Figure 3. Four barriers, after the reads of Head and of
+** Tail, after the LL of the place, and before returning, which puts the item's contents
+** read by the caller after the item was taken. */
 void *OSDequeueCoreQueue(void *queue)
 {
   CORE_QUEUE *q = (CORE_QUEUE *)queue;
   UINTPTR *place, slot;
   UINT32 h;
   while (TRUE) {
-     _OSMemoryBarrier();
      h = q->Head;                                              // D5
      _OSMemoryBarrier();
      if (h == q->Tail)                                         // D6
@@ -113,17 +117,15 @@ void *OSDequeueCoreQueue(void *queue)
      _OSMemoryBarrier();
      if (h != q->Head)                                         // D10: still the oldest
         continue;
-     _OSMemoryBarrier();
      if (slot == (UINTPTR)NULL) {                              // D11: Head lags behind a
         if (OSUINT32_LL((UINT32 *)&q->Head) == h)              // D12  removal; help it on
            OSUINT32_SC((UINT32 *)&q->Head,h + 1);              // D13
      }
      else if (OSUINTPTR_SC(place,(UINTPTR)NULL)) {             // D15
-        _OSMemoryBarrier();
         while (OSUINT32_LL((UINT32 *)&q->Head) == h)           // D16
            if (OSUINT32_SC((UINT32 *)&q->Head,h + 1))          // D17, again if it fails
               break;
-        _OSMemoryBarrier();   // the item's contents read after it was taken
+        _OSMemoryBarrier();
         return (void *)slot;                                   // D18
      }
   }

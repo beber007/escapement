@@ -54,7 +54,7 @@ make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
 python3 test/model/fourslot.py
 python3 test/model/threeslot.py      # ~1 min, up to 1.2 GB
 python3 test/model/fifo.py           # ~35 s
-python3 test/model/fifo_mp.py        # the queue between the cores, ~1 s
+python3 test/model/fifo_mp.py        # the queue between the cores, ~100 s, 2.3 GB
 
 # The compiled order of the slot buffers against the models, and of the task-level
 # stores the timer interrupt relies on (run by the CI)
