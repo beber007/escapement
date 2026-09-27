@@ -155,8 +155,9 @@ on the RP2040. The **STM32L4** is set aside.
 - **Response times against their analysis, on the Pico (2026-09-27, 42db832).** The
   bound of ZottaOS's manual (eq. 2.3), the kernel's costs taken from the trace (7 to
   16 µs from an alarm to the task it releases), held for every response seen under DM
-  and EDF: 58, 140 and 526 µs against bounds of 123, 220 and 620 µs, the last at the
-  60 ms task's longest instances, traced four minutes after start. A figure sets the
+  and EDF: 58, 140 and 526 µs under DM, 58, 141 and 527 under EDF, against bounds of
+  123, 220 and 620 µs, the last at the 60 ms task's longest instances, traced four
+  minutes after start. A figure sets the
   schedule computed from the task set beside the trace; they agree within 2 µs
   (`rp2040.md`, "Response times against their analysis"; `tools/response_times.py`,
   `tools/schedule_figure.py`).
