@@ -149,6 +149,22 @@ on the RP2040. The **STM32L4** is set aside.
    3. for DORMANT, either calibrate LPOSC against the crystal before each sleep and
       measure the error left, or give the always-on timer an external 32.768 kHz clock
       on GPIO 12, 14, 20 or 22 (§12.10.7), which is hardware for the bench.
+7. **Response times against their analysis, on the Pico.** ZottaOS's manual (May 2012,
+   eq. 2.3, p. 15) bounds the response time of each task under fixed priorities with the
+   kernel's costs in it: C_isw to save a context and enter the timer's interrupt,
+   C_timer for its handler, C_rsw to restore a context. The manual gave 78 and 63
+   cycles for C_isw and C_rsw on the MSP430; nothing of the kind has been measured on a
+   Cortex-M. `tools/response_times.py` computes the bound under DM and sets it beside
+   the responses a trace shows, each instance's end mark less its release. The release
+   is known from the kernel's origin, `TimeOrigin`, which `tools/read_trace.py --csv
+   --absolute` now reads (2026-09-27, tried by its self-test only). On the board:
+   1. `TaskLEDPico` built with `make TRACE=1` under DM, its three marked tasks of 10, 20
+      and 60 ms and the 1 ms probe given to the tool;
+   2. the costs from the same trace, the time from the alarm's entry to the first mark
+      of the task it releases giving C_isw, C_timer and C_rsw together, beside the round
+      `tools/measure_cost.sh` measures;
+   3. the same trace under EDF, whose analysis the manual gives only without costs;
+   4. the results, with the task set's schedule beside the trace, in `rp2040.md`.
 
 ## Done
 

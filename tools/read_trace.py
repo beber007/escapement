@@ -14,7 +14,9 @@ ever stopping a core, which would make the tasks miss their deadlines.
 With --pins, it summarises instead the marks the tasks leave on each output: the period
 from one start to the next, and the time from a start to its end. With --csv, it
 prints the raw events, times counted from the first one kept (tools/dvfs_figure.py
-draws them).
+draws them); with --csv --absolute, the times as the timer counts them, after a line
+giving the kernel's origin of time, TimeOrigin of Escapement_Timer.c, the instant its
+tasks were first released (tools/response_times.py reads it).
 
 Needs OpenOCD and a CMSIS-DAP probe (the Raspberry Pi Debug Probe; PROBE=name picks one
 of the bench's, tools/probe.sh), and the arm-none-eabi binutils for the addresses of the
@@ -110,11 +112,14 @@ def read(elf, keep_frozen=False):
             sys.exit(f"{name} not found: build with make TRACE=1")
     commands = [f"write_memory {sym['_OSTraceFrozen']:#x} 32 {{1}}",
                 f"echo \"COUNT [read_memory {sym['_OSTraceCount']:#x} 32 1]\"",
+                f"echo \"ORIGIN [read_memory {sym.get('TimeOrigin', 0):#x} 32 1]\"",
                 f"echo \"NOW [read_memory {TIMERAWL:#x} 32 1]\"",
                 f"echo \"DATA [read_memory {sym['_OSTrace']:#x} 32 {2 * SIZE}]\""]
     if not keep_frozen:
         commands.append(f"write_memory {sym['_OSTraceFrozen']:#x} 32 {{0}}")
     out = openocd(commands)
+    origin = re.search(r"ORIGIN (\S+)", out)
+    read.origin = int(origin.group(1), 0) if origin and "TimeOrigin" in sym else None
     count = re.search(r"COUNT (\S+)", out)
     now = re.search(r"NOW (\S+)", out)
     data = re.search(r"DATA ([0-9a-fx ]+)", out)
@@ -143,6 +148,8 @@ def main():
                         help="summarise the periods and high times of the marks")
     parser.add_argument("--csv", action="store_true",
                         help="print the raw events as CSV")
+    parser.add_argument("--absolute", action="store_true",
+                        help="with --csv, the timer's own times and the kernel's origin")
     args = parser.parse_args()
 
     count, now, entries = read(args.elf, args.keep_frozen)
@@ -155,9 +162,14 @@ def main():
         pin_summary(entries)
         return
     if args.csv:
+        if args.absolute:
+            if read.origin is None:
+                sys.exit("TimeOrigin not found in the image")
+            print(f"# origin {read.origin}")
         print("time_us,event,arg,extra")
         for time, event, arg, extra in entries:
-            print(f"{(time - entries[0][0]) & 0xFFFFFFFF},{event},{arg},{extra}")
+            t = time if args.absolute else (time - entries[0][0]) & 0xFFFFFFFF
+            print(f"{t},{event},{arg},{extra}")
         return
     first = entries[0][0]
     previous = first
