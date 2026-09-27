@@ -13,9 +13,11 @@ with an error unless, at the last report:
     report stay in Sleep);
   - the longest wake-up took less than the OS_STOP2_WAKE_US allowed, 3 ms;
   - each instance's timer event came, within MAX_EVENT_OFF_US of when it was due;
-  - TIM2 and LPTIM1 agree within MAX_PPM over the run;
-and unless a line through the arrival of each report on CLOCK_MONOTONIC gives a second of
-the kernel's within LIMIT_PPM of Linux's, the bound of tools/unoq_drift.py.
+  - TIM2 and LPTIM1 agree within MAX_PPM over the run.
+A line through the arrival of each report on CLOCK_MONOTONIC gives the rate of a second
+of the kernel's against Linux's, shown but not checked: over a minute it read from -37 to
++543 ppm on 2026-09-27, a report some 30 ms late being enough; tools/unoq_drift.py
+checks the clock over five minutes right after.
 Run on the board, the endurance test's service stopped (tools/unoq_check.sh).
 
     tools/unoq_sleep.py SECONDS
@@ -32,7 +34,6 @@ MAX_EVENT_OFF_US = 20
 MIN_ENTRIES = 0.8
 WAKE_TICKS = 3000 * 32768 // 1000000
 MAX_PPM = 20
-LIMIT_PPM = 300
 BRIDGE = ["arduino-router-serial.path", "arduino-router-serial", "arduino-router"]
 
 subprocess.run(["sudo", "-n", "systemctl", "stop"] + BRIDGE, capture_output=True,
@@ -91,7 +92,5 @@ if events < instances or event_off > MAX_EVENT_OFF_US:
     failures.append("a timer event missing or off its time")
 if abs(ppm) > MAX_PPM:
     failures.append("TIM2 and LPTIM1 apart")
-if abs(rate) > LIMIT_PPM:
-    failures.append("the clock against Linux's")
 if failures:
     sys.exit("SleepU5: " + ", ".join(failures))
