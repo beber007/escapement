@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="468" viewBox="0 0 900 468" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="900" height="468" fill="#ffffff"/>
+<text x="128" y="26" font-size="15" font-weight="600" fill="#1f2328">TaskLEDPico on a Raspberry Pi Pico: the four tasks released at once</text>
+<text x="128" y="43" font-size="12" fill="#59636e">Medians of the trace: kernel's entry 16 µs when all four are released, probe 1 µs, switch 2 µs; the 60 ms task's instance ran 384 µs</text>
+<text x="128" y="64" font-size="12.5" font-weight="600" fill="#1f2328">Computed from the task set and the medians of the trace</text>
+<line x1="128.0" y1="72" x2="128.0" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="128.0" y="231" font-size="11" fill="#59636e" text-anchor="middle">0</text>
+<line x1="190.3" y1="72" x2="190.3" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="190.3" y="231" font-size="11" fill="#59636e" text-anchor="middle">50</text>
+<line x1="252.7" y1="72" x2="252.7" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="252.7" y="231" font-size="11" fill="#59636e" text-anchor="middle">100</text>
+<line x1="315.0" y1="72" x2="315.0" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="315.0" y="231" font-size="11" fill="#59636e" text-anchor="middle">150</text>
+<line x1="377.3" y1="72" x2="377.3" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="377.3" y="231" font-size="11" fill="#59636e" text-anchor="middle">200</text>
+<line x1="439.7" y1="72" x2="439.7" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="439.7" y="231" font-size="11" fill="#59636e" text-anchor="middle">250</text>
+<line x1="502.0" y1="72" x2="502.0" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="502.0" y="231" font-size="11" fill="#59636e" text-anchor="middle">300</text>
+<line x1="564.3" y1="72" x2="564.3" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="564.3" y="231" font-size="11" fill="#59636e" text-anchor="middle">350</text>
+<line x1="626.7" y1="72" x2="626.7" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="626.7" y="231" font-size="11" fill="#59636e" text-anchor="middle">400</text>
+<line x1="689.0" y1="72" x2="689.0" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="689.0" y="231" font-size="11" fill="#59636e" text-anchor="middle">450</text>
+<line x1="751.3" y1="72" x2="751.3" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="751.3" y="231" font-size="11" fill="#59636e" text-anchor="middle">500</text>
+<line x1="813.7" y1="72" x2="813.7" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="813.7" y="231" font-size="11" fill="#59636e" text-anchor="middle">550</text>
+<line x1="876.0" y1="72" x2="876.0" y2="216" stroke="#e7ecf0" stroke-width="1"/>
+<text x="876.0" y="231" font-size="11" fill="#59636e" text-anchor="middle">600</text>
+<text x="876" y="246" font-size="11" fill="#59636e" text-anchor="end">µs after the release</text>
+<text x="118" y="86" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">kernel</text>
+<text x="118" y="97" font-size="10" fill="#59636e" text-anchor="end">entry</text>
+<line x1="128" y1="94" x2="876" y2="94" stroke="#8c959f" stroke-width="1.2" opacity="0.4"/>
+<rect x="128.00" y="80" width="19.95" height="14" rx="1" fill="#8c959f"/>
+<text x="118" y="114" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP4</text>
+<text x="118" y="125" font-size="10" fill="#59636e" text-anchor="end">probe · 1 ms</text>
+<line x1="128" y1="122" x2="876" y2="122" stroke="#1a7f37" stroke-width="1.2" opacity="0.4"/>
+<rect x="147.95" y="108" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<text x="118" y="142" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP25</text>
+<text x="118" y="153" font-size="10" fill="#59636e" text-anchor="end">10 ms</text>
+<line x1="128" y1="150" x2="876" y2="150" stroke="#1f6feb" stroke-width="1.2" opacity="0.4"/>
+<rect x="149.19" y="136" width="49.87" height="14" rx="1" fill="#1f6feb"/>
+<text x="118" y="170" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP2</text>
+<text x="118" y="181" font-size="10" fill="#59636e" text-anchor="end">20 ms</text>
+<line x1="128" y1="178" x2="876" y2="178" stroke="#6f42c1" stroke-width="1.2" opacity="0.4"/>
+<rect x="201.55" y="164" width="99.73" height="14" rx="1" fill="#6f42c1"/>
+<text x="118" y="198" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP3</text>
+<text x="118" y="209" font-size="10" fill="#59636e" text-anchor="end">60 ms</text>
+<line x1="128" y1="206" x2="876" y2="206" stroke="#bc4c00" stroke-width="1.2" opacity="0.4"/>
+<rect x="303.78" y="192" width="478.72" height="14" rx="1" fill="#bc4c00"/>
+<text x="128" y="268" font-size="12.5" font-weight="600" fill="#1f2328">Traced on the board</text>
+<line x1="128.0" y1="276" x2="128.0" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="128.0" y="435" font-size="11" fill="#59636e" text-anchor="middle">0</text>
+<line x1="190.3" y1="276" x2="190.3" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="190.3" y="435" font-size="11" fill="#59636e" text-anchor="middle">50</text>
+<line x1="252.7" y1="276" x2="252.7" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="252.7" y="435" font-size="11" fill="#59636e" text-anchor="middle">100</text>
+<line x1="315.0" y1="276" x2="315.0" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="315.0" y="435" font-size="11" fill="#59636e" text-anchor="middle">150</text>
+<line x1="377.3" y1="276" x2="377.3" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="377.3" y="435" font-size="11" fill="#59636e" text-anchor="middle">200</text>
+<line x1="439.7" y1="276" x2="439.7" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="439.7" y="435" font-size="11" fill="#59636e" text-anchor="middle">250</text>
+<line x1="502.0" y1="276" x2="502.0" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="502.0" y="435" font-size="11" fill="#59636e" text-anchor="middle">300</text>
+<line x1="564.3" y1="276" x2="564.3" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="564.3" y="435" font-size="11" fill="#59636e" text-anchor="middle">350</text>
+<line x1="626.7" y1="276" x2="626.7" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="626.7" y="435" font-size="11" fill="#59636e" text-anchor="middle">400</text>
+<line x1="689.0" y1="276" x2="689.0" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="689.0" y="435" font-size="11" fill="#59636e" text-anchor="middle">450</text>
+<line x1="751.3" y1="276" x2="751.3" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="751.3" y="435" font-size="11" fill="#59636e" text-anchor="middle">500</text>
+<line x1="813.7" y1="276" x2="813.7" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="813.7" y="435" font-size="11" fill="#59636e" text-anchor="middle">550</text>
+<line x1="876.0" y1="276" x2="876.0" y2="420" stroke="#e7ecf0" stroke-width="1"/>
+<text x="876.0" y="435" font-size="11" fill="#59636e" text-anchor="middle">600</text>
+<text x="876" y="450" font-size="11" fill="#59636e" text-anchor="end">µs after the release</text>
+<text x="118" y="290" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">kernel</text>
+<text x="118" y="301" font-size="10" fill="#59636e" text-anchor="end">entry</text>
+<line x1="128" y1="298" x2="876" y2="298" stroke="#8c959f" stroke-width="1.2" opacity="0.4"/>
+<rect x="128.00" y="284" width="19.95" height="14" rx="1" fill="#8c959f"/>
+<text x="118" y="318" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP4</text>
+<text x="118" y="329" font-size="10" fill="#59636e" text-anchor="end">probe · 1 ms</text>
+<line x1="128" y1="326" x2="876" y2="326" stroke="#1a7f37" stroke-width="1.2" opacity="0.4"/>
+<rect x="147.95" y="312" width="1.60" height="14" rx="1" fill="#1a7f37"/>
+<text x="118" y="346" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP25</text>
+<text x="118" y="357" font-size="10" fill="#59636e" text-anchor="end">10 ms</text>
+<line x1="128" y1="354" x2="876" y2="354" stroke="#1f6feb" stroke-width="1.2" opacity="0.4"/>
+<rect x="149.19" y="340" width="51.11" height="14" rx="1" fill="#1f6feb"/>
+<text x="118" y="374" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP2</text>
+<text x="118" y="385" font-size="10" fill="#59636e" text-anchor="end">20 ms</text>
+<line x1="128" y1="382" x2="876" y2="382" stroke="#6f42c1" stroke-width="1.2" opacity="0.4"/>
+<rect x="202.80" y="368" width="99.73" height="14" rx="1" fill="#6f42c1"/>
+<text x="118" y="402" font-size="11.5" font-weight="600" fill="#1f2328" text-anchor="end">GP3</text>
+<text x="118" y="413" font-size="10" fill="#59636e" text-anchor="end">60 ms</text>
+<line x1="128" y1="410" x2="876" y2="410" stroke="#bc4c00" stroke-width="1.2" opacity="0.4"/>
+<rect x="305.03" y="396" width="478.72" height="14" rx="1" fill="#bc4c00"/>
+</svg>

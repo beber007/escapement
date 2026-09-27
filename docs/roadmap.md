@@ -149,18 +149,17 @@ on the RP2040. The **STM32L4** is set aside.
    3. for DORMANT, either calibrate LPOSC against the crystal before each sleep and
       measure the error left, or give the always-on timer an external 32.768 kHz clock
       on GPIO 12, 14, 20 or 22 (§12.10.7), which is hardware for the bench.
-7. **The schedule beside the trace.** The response times of `TaskLEDPico` are measured
-   against the manual's analysis since 2026-09-27 (see Done). Left: a figure of the task
-   set's theoretical schedule beside the trace of the board, and the 60 ms task traced
-   once it reaches its longest instances, some four minutes after start.
 
 ## Done
 
 - **Response times against their analysis, on the Pico (2026-09-27, 42db832).** The
   bound of ZottaOS's manual (eq. 2.3), the kernel's costs taken from the trace (7 to
   16 µs from an alarm to the task it releases), held for every response seen under DM
-  and EDF: 58, 140 and 191 µs against bounds of 123, 220 and 557 µs
-  (`rp2040.md`, "Response times against their analysis"; `tools/response_times.py`).
+  and EDF: 58, 140 and 526 µs against bounds of 123, 220 and 620 µs, the last at the
+  60 ms task's longest instances, traced four minutes after start. A figure sets the
+  schedule computed from the task set beside the trace; they agree within 2 µs
+  (`rp2040.md`, "Response times against their analysis"; `tools/response_times.py`,
+  `tools/schedule_figure.py`).
 
 - **The STM32U5 port, under Renode (2026-09-25).** `Escapement/CORTEX-Mx/STM32U5` runs
   the hard and the soft kernel under both algorithms. It has eight examples with the
