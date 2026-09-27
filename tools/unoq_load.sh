@@ -34,16 +34,26 @@ else
 resume 0x20000000; shutdown"
 fi
 # The board's OpenOCD, with the configuration Arduino's own scripts use (arduino-flash.sh).
+# It connects with the reset held: an image whose idle task sleeps in Stop 2 with DBG_STOP
+# cleared (Escapement_Stop2.c) leaves the debug port unpowered most of the time, and a
+# connection made then failed on a parity error, the load not done and the image left
+# running (2026-09-27); srst_nogate keeps the SWD clock going meanwhile, which OpenOCD
+# requires to connect under reset. An error from OpenOCD fails the load.
 OCD="cd /opt/openocd && ./bin/openocd -s /opt/openocd -f openocd_gpiod.cfg -c"
-report() { grep -E "^(Error|Warn)|downloaded|bytes" || true; }
+RESET="reset_config srst_only srst_nogate srst_push_pull connect_assert_srst"
+report() {
+    out=$(cat)
+    echo "$out" | grep -E "^(Error|Warn)|downloaded|bytes" || true
+    ! echo "$out" | grep -q "^Error"
+}
 
 if [ -x /opt/openocd/bin/openocd ] && [ -z "${2:-}" ]; then
     image=$(cd "$(dirname "${ELF:-.}")" && pwd)/$(basename "${ELF:-.}")
-    sh -c "$OCD 'reset_config srst_only srst_push_pull; $(echo "$COMMANDS" |
+    sh -c "$OCD '$RESET; $(echo "$COMMANDS" |
         sed "s|IMAGE|$image|")'" 2>&1 | report
 else
     HOST=${2:-${UNOQ_HOST:-arduino@MyUno.local}}
     [ -z "$ELF" ] || scp -q "$ELF" "$HOST:/tmp/escapement.elf"
-    ssh "$HOST" "$OCD 'reset_config srst_only srst_push_pull; $(echo "$COMMANDS" |
+    ssh "$HOST" "$OCD '$RESET; $(echo "$COMMANDS" |
         sed "s|IMAGE|/tmp/escapement.elf|")'" 2>&1 | report
 fi

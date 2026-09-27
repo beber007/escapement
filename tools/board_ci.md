@@ -1,10 +1,13 @@
 # Checks on the board
 
-A timer runs `board_ci.sh` every half hour. The script fetches `main`, and when it has
+A timer runs `board_ci.sh` every two minutes. The script fetches `main`, and when it has
 moved since the last run, builds and runs on a Pico wired to the machine the checks
 listed in [`docs/rp2040.md`](../docs/rp2040.md#checks-on-the-board), then posts the
 outcome as the commit status `board/pico`, with a fine-grained token for this
-repository alone ("Commit statuses: read and write"). A run holds a lock; the board
+repository alone ("Commit statuses: read and write"). A run with nothing new ends at
+once, in some 2 s: a commit already checked, or one whose CI has not finished. The
+timer ran every half hour until 2026-09-27, when that wait was the longest part of a
+check. A run holds a lock; the board
 stays free between runs for work by hand, which must not overlap one. The logs stay on
 the machine, under `~/escapement-rp2040/board-ci/logs`.
 
@@ -37,10 +40,10 @@ ExecStart=/bin/sh %h/escapement-rp2040/board-ci/src/tools/board_ci.sh
 EOF
 cat > ~/.config/systemd/user/escapement-board-ci.timer <<'EOF'
 [Unit]
-Description=Escapement: board checks every half hour
+Description=Escapement: board checks every two minutes
 
 [Timer]
-OnCalendar=*:0/30
+OnCalendar=*:0/2
 Persistent=true
 
 [Install]
@@ -63,7 +66,7 @@ git clone https://github.com/beber007/escapement.git ~/escapement-rp2040/board-c
 # the token: macOS's install cannot read /dev/stdin, so cat it in, then Ctrl-D
 mkdir -p ~/.config/escapement-board-ci
 (umask 077 && cat > ~/.config/escapement-board-ci/token)
-# an agent that runs the script every half hour:
+# an agent that runs the script every two minutes:
 cat > ~/Library/LaunchAgents/li.hurst.escapement-board-ci.plist <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -74,7 +77,7 @@ cat > ~/Library/LaunchAgents/li.hurst.escapement-board-ci.plist <<'EOF'
     <string>/Users/YOU/escapement-rp2040/board-ci/src/tools/board_ci.sh</string></array>
   <key>EnvironmentVariables</key> <dict><key>PATH</key>
     <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
-  <key>StartInterval</key>        <integer>1800</integer>
+  <key>StartInterval</key>        <integer>120</integer>
 </dict>
 </plist>
 EOF
