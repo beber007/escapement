@@ -149,6 +149,36 @@ The idle task sleeps in Stop 2 on LPTIM1
     Should Be True            ${eventoff} <= 20
     Should Be True            abs(${ticks} * 1000000 - ${micros} * 32768) <= ${micros} * 32768 / 10000
 
+The idle task sleeps across the 2^30 wrap of the kernel clock
+    [Documentation]           SleepWrapU5, SleepU5 with its times a thousand times longer, on
+    ...                       TIM2, TIM5 and LPTIM1 a thousand times faster: 2.5 s cross the
+    ...                       wrap at 2^30 twice while the idle task sleeps on LPTIM1 and
+    ...                       moves TIM2 and TIM5 on, in ticks of a nanosecond, its margins
+    ...                       scaled with them. Every start one period after the last within
+    ...                       5 us, none late, and every timer event within 20 us of its
+    ...                       time, as tools/unoq_sleep.py asks of the board: the core is not
+    ...                       faster, and the event task's start takes as long as there.
+    Load Escapement           SleepWrapU5  escapement_u5_wrap.repl
+    Execute Command           emulation RunFor "2.5"
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${instances}=             Read Word  ${results + 4}
+    ${ticks}=                 Read Word  ${results + 8}
+    ${micros}=                Read Word  ${results + 12}
+    ${jitter}=                Read Word  ${results + 16}
+    ${late}=                  Read Word  ${results + 28}
+    ${nolse}=                 Read Word  ${results + 32}
+    ${events}=                Read Word  ${results + 36}
+    ${eventoff}=              Read Word  ${results + 40}
+    ${entries}=               Read Word  ${results + 20}
+    Log To Console            ${instances} instances, ${entries} into Stop 2, ${late} late, gap off by ${jitter} ns at most, ${events} events off by ${eventoff} ns at most
+    Should Be True            ${instances} >= 20
+    Should Be Equal As Integers  ${nolse}  0
+    Should Be Equal As Integers  ${late}  0
+    Should Be True            ${jitter} <= 5000
+    Should Be True            ${events} >= ${instances}
+    Should Be True            ${eventoff} <= 20000
+
 Scheduling survives the 2^30 wrap of the kernel clock
     [Documentation]           The kernel counts time modulo 2^30 and shifts every temporal
     ...                       variable back when its counter wraps, which TIM2 does at 2^30.

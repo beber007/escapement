@@ -43,9 +43,15 @@
 #include "BoardU5.h"
 
 #define MARKER      0x534C5050u          /* "SLPP" */
-#define PERIOD      100000               /* us */
+/* Built as SleepWrapU5 with TIME_SCALE 1000 for escapement_u5.robot, which clocks TIM2,
+** TIM5 and LPTIM1 as much faster (escapement_u5_wrap.repl): a tick is then a nanosecond,
+** the 2^30 wrap comes after 1.07 s, and the load is the board's. */
+#ifndef TIME_SCALE
+   #define TIME_SCALE 1
+#endif
+#define PERIOD      (100000 * TIME_SCALE)  /* us */
 #define WORK        4000                 /* loop turns, some 100 us at 160 MHz */
-#define EVENT_DELAY 40000                /* us */
+#define EVENT_DELAY (40000 * TIME_SCALE)   /* us */
 #define REPORT_SIZE 96
 
 volatile struct {
@@ -78,10 +84,10 @@ int main(void)
   Results.NoLSE = !OSInitStop2();
   event = OSCreateEventDescriptor();
   #if defined(ESCAPEMENT_VERSION_SOFT)
-     OSCreateSynchronousTask(EventTask,0,1000,0,event,NULL);
-     OSCreateTask(SleepTask,50,0,PERIOD,PERIOD,1,1,0,event);
+     OSCreateSynchronousTask(EventTask,0,1000 * TIME_SCALE,0,event,NULL);
+     OSCreateTask(SleepTask,50 * TIME_SCALE,0,PERIOD,PERIOD,1,1,0,event);
   #else
-     OSCreateSynchronousTask(EventTask,1000,event,NULL);
+     OSCreateSynchronousTask(EventTask,1000 * TIME_SCALE,event,NULL);
      OSCreateTask(SleepTask,0,PERIOD,PERIOD,event);
   #endif
   return OSStartMultitasking(NULL,NULL);
@@ -120,8 +126,8 @@ static void SleepTask(void *argument)
   }
   #ifdef SLEEP_PHASES
      /* The phase changes at a start: the next sleep is the first of the new one. */
-     if (Results.Instances % (SLEEP_PHASES * 1000000 / PERIOD) == 0) {
-        if ((Results.Instances / (SLEEP_PHASES * 1000000 / PERIOD)) % 2 == 0) {
+     if (Results.Instances % (SLEEP_PHASES * 1000000 * TIME_SCALE / PERIOD) == 0) {
+        if ((Results.Instances / (SLEEP_PHASES * 1000000 * TIME_SCALE / PERIOD)) % 2 == 0) {
            OSAllowStop2(TRUE);
            SetPin(FLAG3_PIN);
         }

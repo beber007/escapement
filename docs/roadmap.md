@@ -103,7 +103,7 @@ The **STM32L4** is set aside.
 
 - **The STM32U5 port, under Renode (2026-09-25).** `Escapement/CORTEX-Mx/STM32U5`: the
   hard and the soft kernel under both algorithms, eight examples with the endurance test,
-  a Renode platform of our own (`escapement_u5.repl`) whose suite passes 9 tests of 9
+  a Renode platform of our own (`escapement_u5.repl`) whose suite passes 10 tests of 10
   under the four builds,
   in the CI; not yet on a board (`stm32u5.md`).
 

@@ -73,13 +73,17 @@ started, which stopped on its overload check. With `URS` set, only a wrap of the
 raises it (`Escapement_Timer.c`).
 
 Under Renode, on a platform of our own (`emulation/renode/escapement_u5.repl`, see
-`emulation.md`), with the pins of the UNO Q since 2026-09-26, the nine tests of
+`emulation.md`), with the pins of the UNO Q since 2026-09-26, the ten tests of
 `escapement_u5.robot` pass under each of the four builds: the probe task every millisecond, the three periodic tasks, the UART
 echo, the timer events, the 2^30 wrap of the kernel clock, the tasks preempting one
 another inside the FIFO queue and a slot buffer, R8-R11 kept across, and 3.5 s of the
 endurance test with every part active and none in error, LPTIM1's count against
 TIM2's, and the idle task sleeping on LPTIM1, though never in Stop 2 there: the platform
-does not report it (PWR_SR.STOPF), and the clock is not restarted. The endurance test found the port routing
+does not report it (PWR_SR.STOPF), and the clock is not restarted, and the same across
+the 2^30 wrap: `SleepWrapU5`, `SleepU5` with its times and margins a thousand times
+longer on TIM2, TIM5 and LPTIM1 a thousand times faster, crosses it twice in 2.5 s,
+none late, every start within 0.5 µs of its period, every timer event within 10.5 µs
+of its time, the start of the event task not being faster (2026-09-27). The endurance test found the port routing
 to the dispatcher only the interrupts of its own drivers, and TIM3's to the trap of an
 undefined one; every interrupt of the chip now reaches it. The compiled order
 of the slot buffers and of the task-level stores holds (`tools/check_order.py`), and the

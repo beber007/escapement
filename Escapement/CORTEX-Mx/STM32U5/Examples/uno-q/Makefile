@@ -72,7 +72,8 @@ endif
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p build)
 
-EXAMPLES = TaskLEDU5 UARTEchoU5 TestTimerEventU5 TaskWrapU5 IPCU5 SoakU5 TestLPTimerU5 SleepU5
+EXAMPLES = TaskLEDU5 UARTEchoU5 TestTimerEventU5 TaskWrapU5 IPCU5 SoakU5 TestLPTimerU5 SleepU5 \
+           SleepWrapU5
 
 all: $(EXAMPLES:%=build/%.elf)
 
@@ -128,6 +129,17 @@ build/TestLPTimerU5.elf : $(COMMON) build/Escapement_LPTimer.o build/TestLPTimer
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/SleepU5.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2.o \
                     build/Escapement_UART.o build/Escapement_TimerEvent.o build/SleepU5.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+# SleepU5 with its times a thousand times longer, for the wrap under Renode (SleepU5.c),
+# the margins of the idle task in Stop 2 with them.
+SCALED = -DTIME_SCALE=1000 -DOS_STOP2_WAKE_US=3000000u -DOS_STOP2_MIN_US=5000000u
+build/SleepWrapU5.o : SleepU5.c
+	$(CC) $(CFLAGS) $(SCALED) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Stop2Wrap.o : ../../Escapement_Stop2.c
+	$(CC) $(CFLAGS) $(SCALED) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SleepWrapU5.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2Wrap.o \
+                        build/Escapement_UART.o build/Escapement_TimerEvent.o \
+                        build/SleepWrapU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/SoakU5.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
                    build/SoakU5.o

@@ -13,9 +13,13 @@
 
 /* The time a wake-up takes, the HSE's start and PLL1's lock, which LPTIM1 wakes the chip
 ** that much before the next event; and the shortest wait slept in Stop 2, below which it
-** would save little. */
-#define OS_STOP2_WAKE_US 3000u
-#define OS_STOP2_MIN_US  5000u
+** would save little. Both in ticks of TIM2, which SleepWrapU5 scales (Makefile). */
+#ifndef OS_STOP2_WAKE_US
+   #define OS_STOP2_WAKE_US 3000u
+#endif
+#ifndef OS_STOP2_MIN_US
+   #define OS_STOP2_MIN_US  5000u
+#endif
 
 /* OSInitStop2: Starts LPTIM1 and lets the idle task enter Stop 2. To be called from main,
 ** after OSInitializeSystemClocks and before OSStartMultitasking; returns FALSE, the idle
