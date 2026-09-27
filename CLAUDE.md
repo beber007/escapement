@@ -119,7 +119,9 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
   faulty variants it must catch.
 - On the RP2040, stopping a core with the debugger pauses the timer, and loading an
   image leaves the previous one's timer interrupts behind. Observe a running board with
-  the trace, not by halting it.
+  the trace, not by halting it. A cost build (`ESCAPEMENT_MEASURE_SCHEDULING_COST`) does
+  the reverse: the timer runs on while the debugger holds the core, and a halt of a few
+  ms stops the kernel on a `DEBUG_MODE` overload check. Read it without halting.
 - At 12 MHz the core and the 1 µs timer run off the same crystal: a timing loop meets
   the counter at the same phase every time. Dither before each measurement. Two loops
   on the two cores fall into step the same way.

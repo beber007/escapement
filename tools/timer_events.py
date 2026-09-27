@@ -15,6 +15,11 @@ image, then reads the trace N times, a second apart, without stopping a core, an
 prints for each output the periods and the high times seen, and how late the events
 were. docs/rp2040.md, "Timer events on the board", has the figures of 2026-09-23.
 
+Each read must find the trace moved on since the one before, or the tool fails: a kernel
+stopped on one of its DEBUG_MODE checks, or a trace left frozen, otherwise gave the same
+buffer five times over, and figures that passed (2026-09-27). Entries two reads share,
+when the second comes before the buffer has turned over, are counted once.
+
 The image is loaded with both cores held and core 1 left so: the example does not use
 it, and a firmware in flash may have armed a watchdog that only pauses while a core is
 held.
@@ -38,10 +43,17 @@ def main():
     out = read_trace.openocd(["reset halt", f"load_image {args.elf}", "resume 0x20000000"])
     if "downloaded" not in out and "bytes written" not in out:
         sys.exit("could not load the image:\n" + out)
-    periods, highs, late, events = {}, {}, [], 0
+    periods, highs, late, events, last = {}, {}, [], 0, None
     for _ in range(args.reads):
         time.sleep(1)
-        _, _, entries = read_trace.read(args.elf)
+        count, _, entries = read_trace.read(args.elf)
+        if last is not None:
+            new = (count - last) & 0xFFFFFFFF
+            if new == 0:
+                sys.exit(f"the trace did not move on in a second ({count} entries): "
+                         "the kernel stopped, or the trace is frozen")
+            entries = entries[-new:] if new < len(entries) else entries
+        last = count
         events += len(entries)
         p, h = read_trace.pin_stats(entries)
         for pin, values in p.items():
