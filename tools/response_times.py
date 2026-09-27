@@ -13,7 +13,9 @@ C_isw is the time to save a context and enter the timer's interrupt, C_timer the
 worst-case time of its handler, C_rsw the time to restore a context. Priorities are
 deadline-monotonic, the shorter deadline first. The trace is the CSV of
 tools/read_trace.py --csv --absolute, from a build with make TRACE=1 whose tasks leave a
-mark on their pin as they start (extra 0) and end (extra 1), as TaskLEDPico's do. Every
+mark on their pin as they start (extra 0) and end (extra 1), as TaskLEDPico's do. Several
+reads of the trace may follow one another in the file: an end is paired with the start
+before it only if they lie less than a period apart. Every
 task is first released at the kernel's origin, TimeOrigin, then every period: the
 response of an instance is its end mark less its release.
 
@@ -81,9 +83,10 @@ def observed(origin, events, tasks):
             if x == 0:
                 start = (t, since - since % period)
             elif start is not None:
-                release = start[1]
-                responses.append(since - release)
-                spans.append((t - start[0]) & 0xFFFFFFFF)
+                span = (t - start[0]) & 0xFFFFFFFF
+                if span < period:           # not the start of an instance read earlier
+                    responses.append(since - start[1])
+                    spans.append(span)
                 start = None
         out[pin] = (responses, spans)
     return out
