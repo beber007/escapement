@@ -66,5 +66,8 @@ make -s -C "$NUCLEO" clean >/dev/null
 make -s -C "$NUCLEO" PHASES=30 >/dev/null
 cp "$NUCLEO/build/SleepU5.elf" "$OUT/ppk2_u5/SleepU5-nucleo-phases30.elf"
 make -s -C "$NUCLEO" clean >/dev/null
-echo "ppk2_u5: SleepU5 PHASES=30, NUCLEO-U575ZI-Q"
+make -s -C "$NUCLEO" PHASES=30 SMPS=1 >/dev/null
+cp "$NUCLEO/build/SleepU5.elf" "$OUT/ppk2_u5/SleepU5-nucleo-smps-phases30.elf"
+make -s -C "$NUCLEO" clean >/dev/null
+echo "ppk2_u5: SleepU5 PHASES=30, NUCLEO-U575ZI-Q, LDO and SMPS"
 "${CROSS_COMPILE:-arm-none-eabi-}gcc" --version | head -1 >"$OUT/compiler"

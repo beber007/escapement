@@ -210,8 +210,9 @@ LEDs are on the rail that jumper measures. That board has no HSE fitted as shipp
 HSE up after one failed start rather than waiting for it at every wake-up from Stop 2.
 Its STM32U575ZIT6Q has the SMPS the U585 of the UNO Q lacks, 8.2 against 20.5 µA in
 Stop 2 with every SRAM retained at 25 °C by the datasheet (DS13737 rev. 4, tables 54 and
-56); the port keeps the LDO, as reset leaves it. Neither the board nor the image has been
-tried yet.
+56); the port keeps the LDO, as reset leaves it, unless built with `make SMPS=1`, which
+selects the SMPS before the voltage range is raised (PWR_CR3.REGSEL), so that the two
+can be measured on the same board. Neither the board nor the image has been tried yet.
 
 ## Errata
 

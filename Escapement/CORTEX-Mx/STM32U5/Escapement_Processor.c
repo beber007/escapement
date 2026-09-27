@@ -95,6 +95,10 @@
 #define PLL1DIVR_FIELDS      (0x1FFu | (0x7Fu << 24))
 
 #define PWR_BASE             0x46020800
+#define PWR_CR3              *((volatile UINT32 *)(PWR_BASE + 0x08))
+#define PWR_CR3_REGSEL       (1u << 1)
+#define PWR_SVMSR            *((volatile UINT32 *)(PWR_BASE + 0x3C))
+#define PWR_SVMSR_REGS       (1u << 1)
 #define PWR_VOSR             *((volatile UINT32 *)(PWR_BASE + 0x0C))
 #define PWR_VOSR_VOS_RANGE1  (3u << 16)
 #define PWR_VOSR_BOOSTEN     (1u << 18)
@@ -186,6 +190,14 @@ void OSInitializeSystemClocks(void)
   *((volatile UINT32 *)0xE000ED08) = (UINT32)CortexMxVectorTable;   // SCB->VTOR
   RCC_AHB3ENR |= RCC_AHB3ENR_PWREN;
   (void)RCC_AHB3ENR;                       // the enable takes effect before PWR is written
+  #ifdef OS_SMPS
+     /* The SMPS rather than the LDO, on a package that has one (the "Q" of the
+     ** STM32U575ZIT6Q; REGSEL is reserved without it, RM0456, PWR_CR3), chosen before the
+     ** voltage range is raised, as ST's HAL does (HAL_PWREx_ConfigSupply); it is kept
+     ** through Stop 2 (RM0456, 10.5.2). */
+     PWR_CR3 |= PWR_CR3_REGSEL;
+     while ((PWR_SVMSR & PWR_SVMSR_REGS) == 0);
+  #endif
   /* The MSIS locked, should PLL1 have to take it; then the HSE. */
   LockMSIS();
   _OSRaiseSystemClock();
