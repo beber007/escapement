@@ -24,7 +24,8 @@ into the repository.
 | From SRAM | `Escapement_RamEntry.S`, `STM32U5_SRAM.ld` | the image in SRAM, started at its first word, which takes the stack and the reset handler from the vector table that follows, aligned on 1024 bytes; `OSInitializeSystemClocks` points VTOR at it |
 
 The examples, in `Examples/uno-q`, are those of the Pico 2 transposed:
-`TaskLEDU5`, `UARTEchoU5`, `TestTimerEventU5`, `TaskWrapU5`, `IPCU5` and `SoakU5`, the
+`TaskLEDU5`, `UARTEchoU5`, `TestTimerEventU5`, `TaskWrapU5`, `IPCU5`, `TestLPTimerU5`
+and `SoakU5`, the
 endurance test, where the part the Pico 2 runs between its cores becomes a 4-slot buffer
 written by the interrupt, of TIM3 here, and read by a task it preempts, and the
 independent watchdog takes the part of the RP2350's. Their outputs
@@ -72,11 +73,12 @@ started, which stopped on its overload check. With `URS` set, only a wrap of the
 raises it (`Escapement_Timer.c`).
 
 Under Renode, on a platform of our own (`emulation/renode/escapement_u5.repl`, see
-`emulation.md`), with the pins of the UNO Q since 2026-09-26, the seven tests of
+`emulation.md`), with the pins of the UNO Q since 2026-09-26, the eight tests of
 `escapement_u5.robot` pass under each of the four builds: the probe task every millisecond, the three periodic tasks, the UART
 echo, the timer events, the 2^30 wrap of the kernel clock, the tasks preempting one
 another inside the FIFO queue and a slot buffer, R8-R11 kept across, and 3.5 s of the
-endurance test with every part active and none in error. The last found the port routing
+endurance test with every part active and none in error, and LPTIM1's count against
+TIM2's. The endurance test found the port routing
 to the dispatcher only the interrupts of its own drivers, and TIM3's to the trap of an
 undefined one; every interrupt of the chip now reaches it. The compiled order
 of the slot buffers and of the task-level stores holds (`tools/check_order.py`), and the
@@ -122,6 +124,13 @@ through the 543 readings gives 21 ppm slow, its standard error 1.7 ppm; Linux's 
 kept by systemd-timesyncd, was itself 61 ms off NTP with 54 ms of jitter that morning,
 and within those 25 ppm the U5's and Linux's cannot be told apart. The MSIS stays
 PLL1's input should the HSE not start.
+
+LPTIM1, on the 32.768 kHz crystal (`Escapement_LPTimer.c`), is the first step of an idle
+task in Stop 2 (`roadmap.md`). `TestLPTimerU5` sums, every 250 ms, the ticks it counted
+and the microseconds TIM2 counted, and arms a compare some 10 ms ahead that the next
+instance finds raised. On the board, on 2026-09-27, 983,025 ticks in 30,000,000 µs: the
+LSE 15 ppm slow against the HSE, within what either crystal gives, and no compare missed
+in 120 instances.
 
 ## Errata
 

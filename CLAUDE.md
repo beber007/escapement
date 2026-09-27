@@ -33,7 +33,7 @@ tools/soak_emulated_status.sh OUT [SHA]       # their sum, status emulation/soak
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
 renode-test emulation/renode/escapement_pico2.robot
 
-# STM32U5 (Arduino UNO Q, STM32U585, Cortex-M33) — six examples, run from SRAM, which
+# STM32U5 (Arduino UNO Q, STM32U585, Cortex-M33) — seven examples, run from SRAM, which
 # leaves Arduino's firmware in the flash; its Renode suite runs on a platform of our own
 # as for the Pico 2 (docs/stm32u5.md); no KERNEL=PA
 make -C Escapement/CORTEX-Mx/STM32U5/Examples/uno-q

@@ -68,7 +68,7 @@ endif
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p build)
 
-EXAMPLES = TaskLEDU5 UARTEchoU5 TestTimerEventU5 TaskWrapU5 IPCU5 SoakU5
+EXAMPLES = TaskLEDU5 UARTEchoU5 TestTimerEventU5 TaskWrapU5 IPCU5 SoakU5 TestLPTimerU5
 
 all: $(EXAMPLES:%=build/%.elf)
 
@@ -119,6 +119,8 @@ build/TestTimerEventU5.elf : $(COMMON) build/Escapement_TimerEvent.o build/TestT
 build/TaskWrapU5.elf : $(COMMON) build/TaskWrapU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/IPCU5.elf : $(COMMON) build/IPCU5.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+build/TestLPTimerU5.elf : $(COMMON) build/Escapement_LPTimer.o build/TestLPTimerU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/SoakU5.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
                    build/SoakU5.o

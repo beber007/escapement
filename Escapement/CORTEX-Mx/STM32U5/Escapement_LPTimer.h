@@ -1,0 +1,34 @@
+/* Copyright (c) 2026 Bertrand Hurst. All rights reserved.
+** Escapement - Lightweight Power-Aware Real-Time OS.
+** Distributed under the terms of LICENSE at the root of this repository.
+*/
+/* File Escapement_LPTimer.h: LPTIM1 of the STM32U585 counting the 32.768 kHz crystal of
+** the board, the LSE, a clock that runs on through Stop 2 where TIM2, the kernel's, stops
+** (RM0456, RCC_CCIPR3, and LPTIM, table 599). The first step of an idle task that sleeps
+** in Stop 2 (docs/roadmap.md): a counter of 16 bits, wrapping every 2 s, in steps of
+** 30.5 us, and a compare that raises a flag, later to wake the chip.
+** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
+*/
+
+#ifndef ESCAPEMENT_LPTIMER_H
+#define ESCAPEMENT_LPTIMER_H
+
+#define OS_LPTIMER_HZ 32768u
+
+/* OSInitLPTimer: Starts LPTIM1 counting the LSE, from 0 to 0xFFFF and round again. The
+** LSE must run, which OSInitializeSystemClocks sees to; returns FALSE if it does not. */
+BOOL OSInitLPTimer(void);
+
+/* OSGetLPTimer: The count of LPTIM1. It runs on a clock of its own: two reads that agree
+** are taken for it (RM0456, LPTIM_CNT). */
+UINT16 OSGetLPTimer(void);
+
+/* OSSetLPTimerCompare: The count at which the compare flag of LPTIM1 rises; the write
+** takes some cycles of the LSE to reach the counter, which this waits for. */
+void OSSetLPTimerCompare(UINT16 count);
+
+/* OSLPTimerCompared: TRUE once the count has reached the compare set last, the flag then
+** cleared. */
+BOOL OSLPTimerCompared(void);
+
+#endif /* ESCAPEMENT_LPTIMER_H */

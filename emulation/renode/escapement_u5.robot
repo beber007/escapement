@@ -102,6 +102,25 @@ Timer events wake the event-driven tasks
     Assert LED Is Blinking    testDuration=0.1  onDuration=0.001  offDuration=0.004  tolerance=0.02  testerId=${flag1}  pauseEmulation=true
     Assert LED Is Blinking    testDuration=0.1  onDuration=0.002  offDuration=0.008  tolerance=0.02  testerId=${flag2}  pauseEmulation=true
 
+LPTIM1 counts the crystal of 32.768 kHz
+    [Documentation]           TestLPTimerU5: LPTIM1 on the LSE against TIM2, every 250 ms for
+    ...                       3 s, 32768 ticks for 1,000,000 us, and the compare it sets each
+    ...                       time found reached at the next.
+    Load Escapement           TestLPTimerU5
+    Execute Command           emulation RunFor "3"
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${instances}=             Read Word  ${results + 4}
+    ${ticks}=                 Read Word  ${results + 8}
+    ${micros}=                Read Word  ${results + 12}
+    ${missed}=                Read Word  ${results + 16}
+    ${nolse}=                 Read Word  ${results + 20}
+    Log To Console            ${instances} instances, ${ticks} ticks for ${micros} us
+    Should Be True            ${instances} >= 10
+    Should Be Equal As Integers  ${nolse}  0
+    Should Be Equal As Integers  ${missed}  0
+    Should Be True            abs(${ticks} * 1000000 - ${micros} * 32768) <= ${micros} * 32768 / 1000
+
 Scheduling survives the 2^30 wrap of the kernel clock
     [Documentation]           The kernel counts time modulo 2^30 and shifts every temporal
     ...                       variable back when its counter wraps, which TIM2 does at 2^30.

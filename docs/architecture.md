@@ -127,8 +127,8 @@ hardware spinlocks of the SIO offered no alternative, being unreliable on that c
   `Escapement/CORTEX-Mx/STM32U5/`, written anew in the manner of the RP2350's on
   2026-09-25: the clocks at 160 MHz from the board's 16 MHz crystal, TIM2 for the kernel,
   TIM3 and TIM5 for the timer events, USART1 and LPUART1, the latter to the board's
-  Linux. The hard and the soft kernel build six examples under `uno-q/`, run from SRAM,
-  which leaves Arduino's firmware in the flash; all six run under Renode on a platform
+  Linux. The hard and the soft kernel build seven examples under `uno-q/`, run from SRAM,
+  which leaves Arduino's firmware in the flash; all seven run under Renode on a platform
   of our own, and the board has run `TaskLEDU5` and the endurance test, the latter for
   hours, since 2026-09-26 (`stm32u5.md`). The power-aware kernel is not ported (`power-aware.md`).
 - **Raspberry Pi RP2040** — Cortex-M0+, port under

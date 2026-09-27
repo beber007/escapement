@@ -86,11 +86,16 @@ The **STM32L4** is set aside.
    first registers and may serve. The gain, some 5.3 against 1.4 mA at a tenth busy, is
    the datasheet's; the PPK2 is to measure it.
 
+   Step 1, the driver of LPTIM1 on the LSE (`Escapement_LPTimer.c`) and its example
+   `TestLPTimerU5`, done on 2026-09-27: on the board, the LSE 15 ppm slow against the HSE
+   over 30 s, no compare missed; under Renode, STM32L0_LpTimer serves. Next, the idle
+   task entering Stop 2 and moving TIM2 on at waking, then the PPK2.
+
 ## Done
 
 - **The STM32U5 port, under Renode (2026-09-25).** `Escapement/CORTEX-Mx/STM32U5`: the
-  hard and the soft kernel under both algorithms, six examples with the endurance test,
-  a Renode platform of our own (`escapement_u5.repl`) whose suite passes 7 tests of 7
+  hard and the soft kernel under both algorithms, seven examples with the endurance test,
+  a Renode platform of our own (`escapement_u5.repl`) whose suite passes 8 tests of 8
   under the four builds,
   in the CI; not yet on a board (`stm32u5.md`).
 
