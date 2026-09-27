@@ -52,7 +52,7 @@ make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
 
 # Exhaustive models of the lock-free mechanisms (run by the CI)
 python3 test/model/fourslot.py
-python3 test/model/threeslot.py      # ~1 min, up to 1.2 GB
+python3 test/model/threeslot.py      # ~1 min, up to 1.2 GB; --jobs N in parallel
 python3 test/model/fifo.py           # ~35 s
 python3 test/model/fifo_mp.py        # the queue between the cores, ~100 s, 2.3 GB
 

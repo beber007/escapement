@@ -38,8 +38,9 @@ Two runs expect a variant to hold instead. One takes the exclusive monitor of Re
 ThreeSlotCoresPico2 is left to the board (docs/emulation.md). In explore_weak, a reader
 that loads Latest before its LL (latest_first) holds too.
 
-    python3 test/model/threeslot.py
+    python3 test/model/threeslot.py [--jobs N]     # N explorations at once
 """
+import multiprocessing
 import sys
 from collections import deque
 
@@ -509,74 +510,106 @@ def explore_weak(barriers=KERNEL_BARRIERS, latest_first=False, writer_spurious=T
     return None
 
 
+def later(pool, fn, *args, **kwargs):
+    """fn(*args, **kwargs) on the pool, or here when it is read, with no pool."""
+    if pool:
+        return pool.apply_async(fn, args, kwargs)
+
+    class Now:
+        def get(self):
+            return fn(*args, **kwargs)
+    return Now()
+
+
 def main():
+    args = sys.argv[1:]
+    jobs = int(args[args.index("--jobs") + 1]) if "--jobs" in args else 1
+    pool = multiprocessing.Pool(jobs) if jobs > 1 else None
+    faulty_next = tuple(tuple(r if r < 3 else n for n in row) for r, row in enumerate(NEXT))
+    # Every exploration asked for first, the weak ones, the longest, first; read in the
+    # order they are printed in.
+    weak = later(pool, explore_weak)
+    weak_latest = later(pool, explore_weak, latest_first=True)
+    weak_fewer = []
+    for side in (0, 1):
+        for point in KERNEL_BARRIERS[side]:
+            fewer = [list(KERNEL_BARRIERS[0]), list(KERNEL_BARRIERS[1])]
+            fewer[side].remove(point)
+            weak_fewer.append((side, point,
+                               later(pool, explore_weak, (tuple(fewer[0]), tuple(fewer[1])))))
+    weak_faults = [(name, later(pool, explore_weak, **kwargs)) for name, kwargs in (
+        ("the monitors local to each core", {"global_monitor": False}),
+        ("a writer that does not retry a failed SC", {"writer_retries": False}))]
+    one = later(pool, explore)
+    one_retry = later(pool, explore, retry=False)
+    one_faults = [(name, later(pool, explore, **kwargs)) for name, kwargs in (
+        ("reader whose SC ignores the reservation", {"sc_checks_reservation": False}),
+        ("writer that may take the slot being read", {"next_table": faulty_next}))]
+    two = later(pool, explore_two_cores)
+    two_faults = [(name, later(pool, explore_two_cores, **kwargs)) for name, kwargs in (
+        ("the monitors local to each core", {"global_monitor": False}),
+        ("a writer that does not retry a failed SC, as the kernels did",
+         {"writer_retries": False}),
+        ("a reader that does not retry a failed SC", {"retry": False}),
+        ("a writer that may take the slot being read", {"next_table": faulty_next}))]
+    renode = {"value_compare": True, "writer_spurious": False}
+    ren = later(pool, explore_two_cores, **renode)
+    ren_next = later(pool, explore_two_cores, next_table=faulty_next, **renode)
+    ren_retry = later(pool, explore_two_cores, retry=False, **renode)
+    ren_writer = later(pool, explore_two_cores, writer_retries=False, **renode)
+
     ok = True
     print("one core, the writer an interrupt, LL/SC as the Cortex-M0+ emulates it:")
-    failure = explore()
+    failure = one.get()
     print(f"  the kernel's 3-slot buffer {'holds' if failure is None else 'FAILS: ' + failure}")
     ok = ok and failure is None
-    failure = explore(retry=False)
+    failure = one_retry.get()
     print(f"  a reader that does not retry a failed SC is caught: {failure or 'NOT CAUGHT'}")
     ok = ok and failure is not None
-    faulty_next = tuple(tuple(r if r < 3 else n for n in row) for r, row in enumerate(NEXT))
-    for name, kwargs in (("reader whose SC ignores the reservation",
-                          {"sc_checks_reservation": False}),
-                         ("writer that may take the slot being read",
-                          {"next_table": faulty_next})):
-        failure = explore(**kwargs)
+    for name, result in one_faults:
+        failure = result.get()
         print(f"  a {name} is caught: {failure or 'NOT CAUGHT'}")
         ok = ok and failure is not None
     print("two cores, the exclusive monitors seeing both (ACTLR.EXTEXCLALL):")
-    failure = explore_two_cores()
+    failure = two.get()
     print(f"  the kernel's 3-slot buffer {'holds' if failure is None else 'FAILS: ' + failure}")
     ok = ok and failure is None
-    for name, kwargs in (("the monitors local to each core", {"global_monitor": False}),
-                         ("a writer that does not retry a failed SC, as the kernels did",
-                          {"writer_retries": False}),
-                         ("a reader that does not retry a failed SC", {"retry": False}),
-                         ("a writer that may take the slot being read",
-                          {"next_table": faulty_next})):
-        failure = explore_two_cores(**kwargs)
+    for name, result in two_faults:
+        failure = result.get()
         print(f"  {name} is caught: {failure or 'NOT CAUGHT'}")
         ok = ok and failure is not None
     print("two cores, the monitor of Renode (an SC compares values), the writer's SC"
           " failing only for a reason:")
-    renode = {"value_compare": True, "writer_spurious": False}
-    failure = explore_two_cores(**renode)
+    failure = ren.get()
     print(f"  the kernel's 3-slot buffer {'holds' if failure is None else 'FAILS: ' + failure}")
     ok = ok and failure is None
-    failure = explore_two_cores(next_table=faulty_next, **renode)
+    failure = ren_next.get()
     print(f"  a writer that may take the slot being read is caught: {failure or 'NOT CAUGHT'}")
     ok = ok and failure is not None
-    failure = explore_two_cores(retry=False, **renode)
+    failure = ren_retry.get()
     print(f"  a reader that does not retry a failed SC is caught: {failure or 'NOT CAUGHT'}")
     ok = ok and failure is not None
-    failure = explore_two_cores(writer_retries=False, **renode)
+    failure = ren_writer.get()
     print(f"  a writer that does not retry a failed SC cannot be seen there:"
           f" {'right' if failure is None else 'WRONG, it fails: ' + failure}")
     ok = ok and failure is None
     print("two cores, each free to reorder its accesses as Armv8-M allows, the writer's"
           " core taking interrupts:")
-    failure = explore_weak()
+    failure = weak.get()
     print(f"  the 3-slot buffer with the kernel's four DMB "
           f"{'holds' if failure is None else 'FAILS: ' + failure}")
     ok = ok and failure is None
-    failure = explore_weak(latest_first=True)
+    failure = weak_latest.get()
     print(f"  with the reader taking Latest before its LL, "
           f"{'holds' if failure is None else 'FAILS: ' + failure}")
     ok = ok and failure is None
-    for side in (0, 1):
-        for point in KERNEL_BARRIERS[side]:
-            fewer = [list(KERNEL_BARRIERS[0]), list(KERNEL_BARRIERS[1])]
-            fewer[side].remove(point)
-            failure = explore_weak((tuple(fewer[0]), tuple(fewer[1])))
-            who = "writer" if side == 0 else "reader"
-            print(f"  without the {who}'s DMB {point}, caught: {failure or 'NOT CAUGHT'}")
-            ok = ok and failure is not None
-    for name, kwargs in (("the monitors local to each core", {"global_monitor": False}),
-                         ("a writer that does not retry a failed SC",
-                          {"writer_retries": False})):
-        failure = explore_weak(**kwargs)
+    for side, point, result in weak_fewer:
+        failure = result.get()
+        who = "writer" if side == 0 else "reader"
+        print(f"  without the {who}'s DMB {point}, caught: {failure or 'NOT CAUGHT'}")
+        ok = ok and failure is not None
+    for name, result in weak_faults:
+        failure = result.get()
         print(f"  {name} is caught: {failure or 'NOT CAUGHT'}")
         ok = ok and failure is not None
     print("all checks passed" if ok else "FAILED")

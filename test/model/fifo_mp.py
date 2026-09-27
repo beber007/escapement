@@ -64,9 +64,10 @@ E10, a dequeuer without that of D10 — both caught with SCs that fail only for 
 too — and monitors local to each core, which do not see the other core's writes, as
 the RP2350's are without ACTLR.EXTEXCLALL.
 
-    python3 test/model/fifo_mp.py      # some 100 s, 2.3 GB at most
+    python3 test/model/fifo_mp.py      # some 100 s, 2.3 GB at most; --jobs N in parallel
     python3 test/model/fifo_mp.py --wide   # the six barriers proven: 30 GB of memory
 """
+import multiprocessing
 import sys
 from collections import deque
 
@@ -722,42 +723,68 @@ def wide():
     sys.exit(0 if ok else 1)
 
 
+def later(pool, fn, *args, **kwargs):
+    """fn(*args, **kwargs) on the pool, or here when it is read, with no pool."""
+    if pool:
+        return pool.apply_async(fn, args, kwargs)
+
+    class Now:
+        def get(self):
+            return fn(*args, **kwargs)
+    return Now()
+
+
 def main():
-    if sys.argv[1:] == ["--wide"]:
+    args = sys.argv[1:]
+    if args == ["--wide"]:
         wide()
+    jobs = int(args[args.index("--jobs") + 1]) if "--jobs" in args else 1
+    pool = multiprocessing.Pool(jobs) if jobs > 1 else None
+    # Every exploration asked for first, the longest first, so that a pool keeps busy;
+    # read in the order they are printed in.
+    weak = [later(pool, explore_weak, p, KERNEL_BARRIERS, f) for _, p, f in SCENARIOS]
+    needed = []
+    for point, scenario in NEEDED + (("every", 1),):
+        _, programs, prefill = SCENARIOS[scenario]
+        fewer = () if point == "every" else tuple(b for b in POINTS if b != point)
+        needed.append((point, later(pool, explore_weak, programs, fewer, prefill)))
+    plain = [later(pool, explore, p, prefill=f) for _, p, f in SCENARIOS]
+    faults = [(fault, [later(pool, explore, p, prefill=f, **kwargs) for _, p, f in SCENARIOS])
+              for fault, kwargs in (
+                  ("Figure 3's single SC on Tail and Head", {"faults": ("single SC",)}),
+                  ("an enqueuer without the check of E10", {"faults": ("no E10",)}),
+                  ("a dequeuer without the check of D10", {"faults": ("no D10",)}),
+                  ("monitors local to each core", {"global_monitor": False}))]
+    paper = [later(pool, explore, p, faults=("single SC",), prefill=f, spurious=False,
+                   shared_granule=False) for _, p, f in SCENARIOS]
+
     ok = True
     print(f"two cores, a queue of {LEN} places, the RP2350 monitor, spurious SC failures:")
-    for what, programs, prefill in SCENARIOS:
-        result = explore(programs, prefill=prefill)
+    for (what, _, _), result in zip(SCENARIOS, plain):
+        result = result.get()
         print(f"  {what}: {'holds' if result is None else result}")
         ok &= result is None
-    for fault, kwargs in (("Figure 3's single SC on Tail and Head", {"faults": ("single SC",)}),
-                          ("an enqueuer without the check of E10", {"faults": ("no E10",)}),
-                          ("a dequeuer without the check of D10", {"faults": ("no D10",)}),
-                          ("monitors local to each core", {"global_monitor": False})):
+    for fault, results in faults:
         caught = None
-        for what, programs, prefill in SCENARIOS:
-            caught = explore(programs, prefill=prefill, **kwargs)
+        for result in results:
+            caught = result.get()
             if caught:
                 break
         print(f"  {fault}: {'caught: ' + caught[:90] if caught else 'NOT CAUGHT'}")
         ok &= caught is not None
-    held = all(explore(p, faults=("single SC",), prefill=f, spurious=False,
-                       shared_granule=False) is None for _, p, f in SCENARIOS)
+    held = all(result.get() is None for result in paper)
     print(f"  Figure 3's single SC under the paper's LL/SC, an SC failing only once its "
           f"word was written: "
           f"{'holds' if held else 'FAILS'}")
     ok &= held
     print("two cores, each free to reorder its accesses as Armv8-M allows, within "
           f"{WINDOW} pending:")
-    for what, programs, prefill in SCENARIOS:
-        result = explore_weak(programs, KERNEL_BARRIERS, prefill)
+    for (what, _, _), result in zip(SCENARIOS, weak):
+        result = result.get()
         print(f"  {what}, the queue's six DMB: {'holds' if result is None else result}")
         ok &= result is None
-    for point, scenario in NEEDED + (("every", 1),):
-        _, programs, prefill = SCENARIOS[scenario]
-        fewer = () if point == "every" else tuple(b for b in POINTS if b != point)
-        caught = explore_weak(programs, fewer, prefill)
+    for point, result in needed:
+        caught = result.get()
         what = "any DMB" if point == "every" else f"{point} DMB, the others in place"
         print(f"  without {what}: {'caught: ' + caught[:80] if caught else 'NOT CAUGHT'}")
         ok &= caught is not None

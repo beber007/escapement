@@ -147,9 +147,23 @@ jobs:
                      Escapement/CORTEX-Mx/STM32U5/Examples/uno-q; do
             sh tools/check_order_mutants.sh "$dir"
           done
-      # Run as well as built: the CI's other compiler once made the kernel HardFault where
-      # the developer's ran it (docs/method.md). The Pico 2 suite, which needs no models of
-      # its own, on the images of this compiler.
+
+  second-compiler-run:
+    # Run as well as built: the CI's other compiler once made the kernel HardFault where
+    # the developer's ran it (docs/method.md). The Pico 2 suite, which needs no models of
+    # its own, on the images of this compiler; a job of its own, beside the one above.
+    name: Execution under Renode, GCC 14.2 (RP2350)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    container:
+      image: ghcr.io/beber007/escapement-ci:3
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      CROSS_COMPILE: /usr/bin/arm-none-eabi-
+    steps:
+      - uses: actions/checkout@v7
       - name: Build the Pico 2 examples
         run: make -s -C Escapement/CORTEX-Mx/RP2350/Examples/pico2 clean all
       - name: Use Renode 1.17.0
@@ -230,7 +244,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Every interleaving
-        run: python3 test/model/${{ matrix.model }}.py
+        # The two longest take their explorations four at a time, one per core of the
+        # runner.
+        run: |
+          case ${{ matrix.model }} in
+              threeslot|fifo_mp) python3 test/model/${{ matrix.model }}.py --jobs 4 ;;
+              *) python3 test/model/${{ matrix.model }}.py ;;
+          esac
 
   emulation-rp2350:
     # The RP2350 port on a platform of our own (escapement_pico2.repl), which Renode's
