@@ -271,6 +271,8 @@ Every part of the endurance test runs without error
     ...                       The watchdog, started by the first heartbeat and reloaded by the
     ...                       others, must not have restarted the board: the counts, cleared
     ...                       at each start, would then be those of less than 3 s.
+    ...                       PG6, the CTS of the Linux side's UART, must be an output held
+    ...                       low (Escapement_UART.c).
     [Timeout]                 10 minutes
     Load Escapement           SoakU5
 
@@ -290,6 +292,11 @@ Every part of the endurance test runs without error
         Should Be True        ${activity} > 0
         Should Be Equal As Integers  ${errors}  0
     END
+    # GPIOG: MODER, then ODR.
+    ${moder}=                 Read Word  0x42021800
+    ${odr}=                   Read Word  0x42021814
+    Should Be Equal As Integers  ${{ (${moder} >> 12) & 3 }}  1
+    Should Be Equal As Integers  ${{ (${odr} >> 6) & 1 }}  0
 
 The endurance test of the NUCLEO-U575ZI-Q reports on USART1
     [Documentation]           SoakU5 of Examples/nucleo-u575 (escapement_u5_nucleo.repl), whose

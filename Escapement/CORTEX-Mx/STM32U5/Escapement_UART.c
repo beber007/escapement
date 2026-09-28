@@ -30,8 +30,13 @@
 ** connector of the Arduino UNO Q (datasheet ABX00162/ABX00173, 9.6 JDIGITAL). LPUART1,
 ** whose registers sit at the same offsets, goes to the board's Linux processor on PG7
 ** (TX) and PG8 (RX), alternate function 8, where Linux sees /dev/ttyHS1 (Zephyr's
-** description of the board, arduino_uno_q-common.dtsi); its flow control lines are left
-** alone. Either is chosen by its interrupt, OS_IO_USART1 or OS_IO_LPUART1. The transmit
+** description of the board, arduino_uno_q-common.dtsi). Its flow control is not used,
+** but its RTS line, PG6, is also the CTS of the Linux side's UART (qup2 on gpio6, pulled
+** neither way there): left in analog mode, as after a reset, it floated, and read high,
+** "do not send", on 2026-09-28. PG6 is driven low, "ready", instead, which leaves nothing
+** to chance. It was not what stopped Linux's transmitter that day: driven low over SWD,
+** it did not start it again.
+** Either is chosen by its interrupt, OS_IO_USART1 or OS_IO_LPUART1. The transmit
 ** interrupt reflects a state, room in the transmit register or FIFO, and fires as soon as
 ** it is enabled while there is room, so that enabling it is all a new buffer needs, where
 ** the PL011 of the RP2350 had to be primed.
@@ -88,9 +93,12 @@
 #define GPIOG_MODER          *((volatile UINT32 *)(GPIOG_BASE + 0x00))
 #define GPIOG_AFRL           *((volatile UINT32 *)(GPIOG_BASE + 0x20))
 #define GPIOG_AFRH           *((volatile UINT32 *)(GPIOG_BASE + 0x24))
+#define GPIOG_BSRR           *((volatile UINT32 *)(GPIOG_BASE + 0x18))
+#define LP_RTS_PIN           6
 #define LP_TX_PIN            7
 #define LP_RX_PIN            8
 #define AF_LPUART1           8u
+#define MODE_OUTPUT          1u
 
 #define RCC_AHB2ENR1         *((volatile UINT32 *)(0x46020C00 + 0x8C))
 #define RCC_APB2ENR          *((volatile UINT32 *)(0x46020C00 + 0xA4))
@@ -179,6 +187,11 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
                   AF_LPUART1 << 4 * (LP_RX_PIN - 8);
      GPIOG_MODER = (GPIOG_MODER & ~(3u << 2 * LP_TX_PIN | 3u << 2 * LP_RX_PIN)) |
                    MODE_AF << 2 * LP_TX_PIN | MODE_AF << 2 * LP_RX_PIN;
+     #ifndef BOARD_NUCLEO_U575
+        /* PG6 low, then an output: the Linux side's CTS held at "ready" (see above). */
+        GPIOG_BSRR = 1u << (16 + LP_RTS_PIN);
+        GPIOG_MODER = (GPIOG_MODER & ~(3u << 2 * LP_RTS_PIN)) | MODE_OUTPUT << 2 * LP_RTS_PIN;
+     #endif
      /* 8 bits, no parity, one stop bit: the divisor of a low-power UART is 256 times the
      ** clock over the baud rate, rounded (RM0456, LPUART_BRR). */
      REG(descriptor,USART_CR1) = 0;
