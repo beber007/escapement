@@ -65,7 +65,21 @@ elif ! mkdir "$LOCK" 2>/dev/null; then
     rm -rf "$LOCK" && mkdir "$LOCK"
 fi
 echo $$ >"$LOCK/pid"
-trap 'rm -rf "$LOCK"' EXIT
+held=""
+trap 'rm -rf "$LOCK" $held' EXIT
+
+# hold <probe>: the lock of one Debug Probe, which tools/soak.py holds for as long as an
+# endurance run lasts on the board wired to it; returns 1 while a live process holds it.
+# A probe, not the bench: a run of two weeks on one board leaves the others checked.
+hold() {
+    probe_lock=$DIR/lock-$1
+    if ! mkdir "$probe_lock" 2>/dev/null; then
+        kill -0 "$(cat "$probe_lock/pid" 2>/dev/null)" 2>/dev/null && return 1
+        rm -rf "$probe_lock" && mkdir "$probe_lock"
+    fi
+    echo $$ >"$probe_lock/pid"
+    held="$held $probe_lock"
+}
 
 [ -d "$SRC/.git" ] || git clone --quiet "https://github.com/$REPO.git" "$SRC"
 git -C "$SRC" fetch --quiet origin main
@@ -221,11 +235,18 @@ else
     checks="order_hard order_soft order_pa $checks"
 fi
 
-status pending "running on the Pico"
+# The Pico, unless an endurance run holds its probe: then no check and no status.
+pico=yes
+if ! hold "${PROBE:-probe1}"; then
+    pico=""
+    checks=""
+fi
+[ -z "$pico" ] || status pending "running on the Pico"
 failed=""
 {
     echo "main at $SHA, $(date), images: $IMAGES"
     [ "$IMAGES" = build ] || cat "$DIR/fw/compiler" 2>/dev/null || true
+    [ -n "$pico" ] || echo "the Pico is not checked: its probe is held ($DIR/lock-${PROBE:-probe1})"
     for check in $checks; do
         # shellcheck disable=SC2046  # its words are the fields wanted
         set -- $(echo "$check" | tr _ ' ')
@@ -278,9 +299,15 @@ fi
 
 # The Pico 2, on the CI's images.
 pico2=""
+PICO2_PROBE=${BOARD_CI_PICO2_PROBE:-probe3}
 if [ "${BOARD_CI_PICO2:-}" = 1 ] && [ -f "$DIR/fw/pico2/SoakPico2.elf" ]; then
+    hold "$PICO2_PROBE" || pico2=held
+fi
+if [ "$pico2" = held ]; then
+    echo "the Pico 2 is not checked: its probe is held ($DIR/lock-$PICO2_PROBE)" >>"$LOG"
+elif [ "${BOARD_CI_PICO2:-}" = 1 ] && [ -f "$DIR/fw/pico2/SoakPico2.elf" ]; then
     status pending "running on the Pico 2" board/pico2
-    if (cd "$SRC" && PROBE=${BOARD_CI_PICO2_PROBE:-probe3} \
+    if (cd "$SRC" && PROBE=$PICO2_PROBE \
             OPENOCD=${BOARD_CI_OPENOCD_RP2350:-$HOME/opt/openocd-rpi/bin/openocd} \
             python3 tools/pico2_check.py "$DIR/fw/pico2") >>"$LOG" 2>&1; then
         pico2=success
@@ -293,7 +320,9 @@ if [ "${BOARD_CI_PICO2:-}" = 1 ] && [ -f "$DIR/fw/pico2/SoakPico2.elf" ]; then
 fi
 
 echo "$SHA" >"$DIR/last"
-if [ -n "$failed" ]; then
+if [ -z "$pico" ]; then
+    :
+elif [ -n "$failed" ]; then
     status failure "failed:$failed"
 elif [ "$IMAGES" = ci ]; then
     status success "4-slot across cores, round cost, timer events, DVFS, on the CI's images"

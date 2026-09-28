@@ -18,7 +18,9 @@ checked or its CI has not finished. The timer ran every half hour until 2026-09-
 that wait had become the longest part of a check.
 
 A run holds a lock. Between runs the board is free for work by hand, which must not
-overlap a run. The logs stay on the machine, under `~/escapement-rp2040/board-ci/logs`.
+overlap a run. Each Debug Probe has a lock of its own too, `lock-probe1` and so on, which
+an endurance run (`tools/soak.py pico`) holds for as long as it lasts: the board CI then
+skips the board on that probe, without posting its status, and checks the others. The logs stay on the machine, under `~/escapement-rp2040/board-ci/logs`.
 
 The machine needs `git`, `jq` and `curl`. Driving the probe takes OpenOCD and `python3`,
 and building the images takes the ARM toolchain. A machine can instead take the images

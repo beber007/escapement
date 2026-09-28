@@ -24,7 +24,7 @@ tools/board_images.sh OUT                     # the images those checks run (the
 tools/timer_events.py <elf>                   # TestTimerEventPico (TRACE=1 + cost build) summed up
 tools/dvfs_bench.py <elf>                     # BenchDVFSPico: means of each change of speed
 tools/soak.py pico 14d 1m                     # endurance test: SoakPico, read without stopping
-                                              # it, status board/soak (holds the board-ci lock)
+                                              # it, status board/soak (holds its probe's lock)
 tools/soak_emulated.sh OUT 60 1440 hard::1 soft:KERNEL=SOFT:2   # instances under Renode
 tools/soak_emulated_status.sh OUT [SHA]       # their sum, status emulation/soak
 

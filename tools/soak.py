@@ -42,8 +42,8 @@ commit status "board/soak" of BOARD_SOAK_SHA (HEAD of this checkout by default) 
 "board/soak-u5" on the UNO Q, "board/soak-nucleo" on the Nucleo: pending with the time
 run, the restarts and the errors at each reading, failure as soon as either is not 0,
 success at the end if both are. On a
-Pico it holds the lock of tools/board_ci.sh (BOARD_CI_LOCK) while it runs, so that the
-board CI loads no other image.
+Pico it holds the lock of its probe (BOARD_CI_LOCK, board-ci/lock-$PROBE) while it runs,
+so that the board CI loads no other image there; it checks the other boards meanwhile.
 """
 import atexit
 import json
@@ -102,8 +102,10 @@ class Pico:
         self.probe = subprocess.run(["sh", os.path.join(ROOT, "tools/probe.sh")],
                                     stdout=subprocess.PIPE, text=True,
                                     check=True).stdout.strip()
-        lock = os.environ.get("BOARD_CI_LOCK",
-                              os.path.expanduser("~/escapement-rp2040/board-ci/lock"))
+        # The lock of that probe (tools/board_ci.sh, hold), not of the whole bench: the
+        # board CI goes on checking the boards wired to the other probes.
+        lock = os.environ.get("BOARD_CI_LOCK", os.path.expanduser(
+            "~/escapement-rp2040/board-ci/lock-" + os.environ.get("PROBE", "probe1")))
         os.makedirs(os.path.dirname(lock), exist_ok=True)
         try:
             os.mkdir(lock)
