@@ -95,10 +95,12 @@ kernel's queue both rely on preemptions nesting, which two cores do not provide.
 the cores, the slot buffers work, and so does a queue of its own on the RP2350.
 
 The 4-slot buffer crossed between the cores of the Pico on the board (`rp2040.md`) and
-between those of the Pico 2 under Renode. On the RP2350 the 3-slot buffer should work
-too. Its model holds provided the exclusive monitors see both cores, which
+between those of the Pico 2, under Renode and on the board. On the RP2350 the 3-slot
+buffer works too. Its model holds provided the exclusive monitors see both cores, which
 `ACTLR.EXTEXCLALL` gives; the port sets it on each core. `ThreeSlotCoresPico2` passes
-under Renode with that monitor played (`emulation.md`), but no board has run it yet.
+under Renode with that monitor played (`emulation.md`), and on a Pico 2 on 2026-09-28:
+30 runs of 15 s, some 480,000 reads each, none torn nor backwards, while the plain array
+beside it tore some 10,000 times a run (`tools/pico2_check.py`).
 Code on core 1 may not signal an event: `OSScheduleSuspendedTask` would pend the timer
 interrupt of core 1, where no kernel runs.
 
@@ -135,8 +137,12 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
   `FIFOCoresPico2`. All nine run under Renode on a platform of our own (`emulation.md`),
   including the 2^30 wrap of the kernel clock, both slot buffers between the two cores
   and the queue between them. That shows that they schedule, not that the clocks are
-  programmed right. The power-aware kernel is not ported, and no board has run the port
-  yet.
+  programmed right. A Pico 2 did on 2026-09-28: the frequency counter gave clk_sys
+  150,000 kHz on the PLL, clk_ref and clk_peri 12,000 kHz on the crystal. On it the five
+  examples that count in memory pass the criteria of the Renode suite
+  (`tools/pico2_check.py`): both slot buffers and the queue between the cores, `IPCPico2`
+  and the endurance test. Those that toggle outputs, and the UART echo, wait for a
+  witness on the pins. The power-aware kernel is not ported.
 - **STM32U5** (the STM32U585 of the Arduino UNO Q): Cortex-M33, port under
   `Escapement/CORTEX-Mx/STM32U5/`. It was written anew on 2026-09-25, after the model of
   the RP2350 port. The clocks run at 160 MHz from the board's 16 MHz crystal. TIM2 serves
@@ -146,8 +152,9 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
   with its times scaled for the wrap. They run from SRAM and leave Arduino's firmware
   in the flash. All nine run under Renode on a platform of our own. The board has run `TaskLEDU5` and the
   endurance test since 2026-09-26, the latter for hours (`stm32u5.md`). The same sources
-  build `SleepU5` for a NUCLEO-U575ZI-Q, to measure the MCU's current; that build has
-  not yet run on its board. The power-aware kernel is not ported (`power-aware.md`).
+  build `SleepU5` for a NUCLEO-U575ZI-Q, to measure the MCU's current, and the endurance
+  test, which has run on that board since 2026-09-28 (`tools/board_ci.md`); `SleepU5`
+  has not run there yet. The power-aware kernel is not ported (`power-aware.md`).
 - **ARM Cortex-M33** (ARMv8-M Mainline): the generic layer takes it down the
   Cortex-M3/M4 path under `CORTEX_M33`. The registers to save are the same, and so is
   the frame with the floating-point unit left off, and `LDREX`/`STREX`/`CLREX`. It is

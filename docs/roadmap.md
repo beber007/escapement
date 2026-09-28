@@ -67,12 +67,12 @@ on the RP2040. The **STM32L4** is set aside.
    3. the PLL's lock time, to decide whether a long sleep pays for stopping it, as the U5
       stops its clocks in Stop 2.
 
-2. **The Pico 2 on the board.** It needs a Pico 2 and an OpenOCD that knows the RP2350,
-   which neither Homebrew's 0.12 nor Debian's does. Raspberry Pi's fork was built on the
-   UNO Q on 2026-09-26 (`tools/board_ci.md`) and waits for the board. Only the board can
-   say that the clocks are programmed right; the Renode platform acknowledges every
-   request blindly. Then come the nine examples, `ThreeSlotCoresPico2` first, and litmus
-   tests of the order in which each core sees the other's accesses.
+2. **The Pico 2 on the board.** A Pico 2 has been on the bench since 2026-09-28, on
+   probe3, driven by Raspberry Pi's OpenOCD (`tools/board_ci.md`). Its clocks are right
+   and the five examples that count in memory pass (`architecture.md`,
+   `tools/pico2_check.py`). Left: the three examples that toggle outputs and the UART
+   echo, which need a witness on the pins; the check at each commit; and litmus tests of
+   the order in which each core sees the other's accesses.
 
 3. **What is left to verify between the cores.** The queue between the cores
    (`Escapement_CoreQueue.c`) had a DMB between any two of its accesses to different
@@ -81,8 +81,11 @@ on the RP2040. The **STM32L4** is set aside.
    enough within the model's bounds, on a machine of 30 GB; the CI explores only a part.
    The sixth, before a dequeue returns, could not be shown superfluous. Since 2026-09-26
    each core of `FIFOCoresPico2` is both producer and consumer of the same queues, as in
-   the model. No Pico 2 has run the queue yet, and Renode, whose cores keep program
-   order, cannot show the barriers at work.
+   the model. A Pico 2 ran it four times on 2026-09-28, each record taken once, whole
+   and in order, the two consumers sharing the records the same way each time. That
+   shows the queue working there, not that each barrier is needed nor that they suffice
+   in every interleaving: neither the board nor Renode, whose cores keep program order,
+   shows them at work.
 
 4. **DVFS on the RP2350**, if the verdict of item 1 is for it. Its regulator and its
    power manager differ from the RP2040's, and the driver is to be written from the

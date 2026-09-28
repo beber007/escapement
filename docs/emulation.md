@@ -130,7 +130,10 @@ what the examples of the RP2350 port touch:
 That last choice bounds what the suite shows. It proves that the kernel runs and
 schedules on a Cortex-M33, with the timer, the UART and the GPIO of the RP2350 at their
 addresses. It does not prove that the clocks are programmed right, since every switch
-and every reset is acknowledged whatever was written. Only the board will say that.
+and every reset is acknowledged whatever was written. Only the board will say that. It
+did on 2026-09-28 (`architecture.md`), and showed what the platform leaves out: after a
+debugger's reset, core 1's bootrom waits for core 0 to seed its redundancy coprocessor
+before it answers the launch, and here nothing waits (`tools/rp2350_rcp_seed.S`).
 
 Core 1 is a second Cortex-M33 with its own NVIC, halted at the start. The SIO model
 answers each core with its own number and its end of the two inter-core FIFOs. It also

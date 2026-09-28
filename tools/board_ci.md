@@ -178,8 +178,8 @@ systemctl --user daemon-reload && systemctl --user enable --now escapement-soak-
 
 ### Several probes
 
-The bench has three Debug Probes. On 2026-09-28 two are plugged in: probe1, wired to the
-Pico, and probe3, wired to a Pico 2; probe2 is named for when it is.
+The bench has three Debug Probes, all on the hub since 2026-09-28: probe1 wired to the
+Pico the checks use, probe2 to a second Pico, probe3 to a Pico 2.
 `~/.config/escapement-probes` names them after their USB serials, one `name serial` per
 line. Every tool that drives a probe takes `PROBE=name`, or a serial as is. The default
 is probe1, the one wired to the Pico, since OpenOCD left to itself takes the first probe

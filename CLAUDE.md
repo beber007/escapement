@@ -32,6 +32,8 @@ tools/soak_emulated_status.sh OUT [SHA]       # their sum, status emulation/soak
 # on a platform of our own, on the Mac too (Renode 1.17 portable, robotframework 6.1 venv)
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
 renode-test emulation/renode/escapement_pico2.robot
+OPENOCD=~/opt/openocd-rpi/bin/openocd PROBE=probe3 tools/pico2_check.py DIR   # on the UNO Q:
+                                              # the five examples that count in memory
 
 # STM32U5 (Arduino UNO Q, STM32U585, Cortex-M33) — eight examples, run from SRAM, which
 # leaves Arduino's firmware in the flash; its Renode suite runs on a platform of our own
@@ -133,6 +135,11 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
   per connection, which failed the cost check. The tools select the Debug Probe by its
   ids and serial, `tools/probe.sh` (`PROBE=probe2`, probe1 by default): the bench has
   three; pass `-c "$(tools/probe.sh)"` in a command typed by hand.
+- On the RP2350 a debugger's reset stops core 0 before the bootrom seeds the RCP, and
+  core 1's bootrom then never answers the launch: run `tools/rp2350_rcp_seed.S` first.
+  That reset also leaves core 1 running the previous image, which wrote into the next
+  one's heap (a 3-slot pointer moved by 3, up to 38 % of reads torn): force it off in the
+  PSM before loading, as `tools/pico2_check.py` does.
 - An image whose idle task sleeps in Stop 2 (`OSInitStop2`) clears DBG_STOP: the debug
   port is unpowered most of the time, and OpenOCD connecting then fails on an SWD parity
   error, the image left running. Connect with the reset held, as `tools/unoq_load.sh`

@@ -70,8 +70,8 @@ and slows down only as far as those times still meet every deadline.
 |---|---|---|---|
 | Raspberry Pi Pico (RP2040) | Cortex-M0+, 125 MHz | hard, soft, power-aware with DVFS | the board, checked at each commit; Renode |
 | Arduino UNO Q (STM32U585) | Cortex-M33, 160 MHz | hard, soft; the idle task in Stop 2 | the board, checked at each commit; Renode |
-| Raspberry Pi Pico 2 (RP2350) | Cortex-M33, 150 MHz | hard, soft; two cores sharing lock-free buffers | Renode only, no board yet |
-| NUCLEO-U575ZI-Q (STM32U575) | Cortex-M33, 160 MHz | the hard kernel's example in Stop 2, for current measurement | built, not yet run |
+| Raspberry Pi Pico 2 (RP2350) | Cortex-M33, 150 MHz | hard, soft; two cores sharing lock-free buffers | Renode; on the board since 2026-09-28, its clocks and the five examples that count in memory |
+| NUCLEO-U575ZI-Q (STM32U575) | Cortex-M33, 160 MHz | the hard kernel's example in Stop 2, for current measurement; the endurance test | the endurance test on the board since 2026-09-28; Renode |
 
 ## An application
 
