@@ -52,6 +52,7 @@ import os
 import random
 import select
 import shutil
+import signal
 import subprocess
 import sys
 import termios
@@ -110,10 +111,20 @@ class Pico:
         try:
             os.mkdir(lock)
         except FileExistsError:
-            sys.exit(f"the board is in use ({lock})")
+            # Taken over if its process is gone, as the board CI does: a run as a service
+            # is started again after the board rebooted, which left the lock behind.
+            try:
+                with open(os.path.join(lock, "pid")) as f:
+                    os.kill(int(f.read()), 0)
+                sys.exit(f"the board is in use ({lock})")
+            except (OSError, ValueError):
+                shutil.rmtree(lock, True)
+                os.mkdir(lock)
         with open(os.path.join(lock, "pid"), "w") as f:
             f.write(str(os.getpid()))
         atexit.register(shutil.rmtree, lock, True)
+        # systemd stops a service with SIGTERM, which would skip the line above.
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))
 
     def ocd(self, *commands):
         """OpenOCD with the Debug Probe and the RP2040, core 0 only; its output."""
