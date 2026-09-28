@@ -28,9 +28,11 @@ resume 0x20000000; shutdown"
 fi
 # Connected with the reset held, as on the UNO Q: an image idle in Stop 2 leaves the
 # debug port unpowered most of the time. The ST-LINK drives NRST (UM2861). An error from
-# OpenOCD fails the load.
+# OpenOCD fails the load. Its ports for gdb, telnet and Tcl are closed, as in
+# tools/probe.sh: another OpenOCD may be running on the bench.
 SERIAL=${NUCLEO_SERIAL:+adapter serial $NUCLEO_SERIAL;}
-openocd -f interface/stlink-dap.cfg -c "transport select dapdirect_swd; $SERIAL" \
+openocd -f interface/stlink-dap.cfg \
+        -c "transport select dapdirect_swd; $SERIAL gdb_port disabled; telnet_port disabled; tcl_port disabled" \
         -f target/stm32u5x.cfg \
         -c "reset_config srst_only srst_nogate connect_assert_srst; $COMMANDS" 2>&1 |
     { out=$(cat)

@@ -15,6 +15,11 @@
 # The probe is picked by its USB ids too: OpenOCD otherwise asks every Raspberry Pi device
 # for its strings, the Pico's own USB too, which a firmware in flash may leave unanswering:
 # 3.3 s per connection, which failed the cost check's count of rounds (2026-09-25).
+#
+# The line also closes the ports OpenOCD opens for gdb, telnet and Tcl, which no tool
+# uses: two OpenOCDs at once, each on a probe of its own, otherwise collide on port 3333,
+# and the second fails, as a reload of an endurance run did when the UNO Q booted
+# (2026-09-28).
 set -eu
 
 TABLE=${PROBE_TABLE:-$HOME/.config/escapement-probes}
@@ -35,4 +40,4 @@ if [ -z "$SERIAL" ]; then
 fi
 
 # One line, which OpenOCD takes as a single -c: Tcl runs the commands in turn.
-echo "cmsis_dap_vid_pid 0x2e8a 0x000c${SERIAL:+; adapter serial $SERIAL}"
+echo "cmsis_dap_vid_pid 0x2e8a 0x000c${SERIAL:+; adapter serial $SERIAL}; gdb_port disabled; telnet_port disabled; tcl_port disabled"

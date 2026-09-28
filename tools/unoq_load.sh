@@ -38,8 +38,10 @@ fi
 # cleared (Escapement_Stop2.c) leaves the debug port unpowered most of the time, and a
 # connection made then failed on a parity error, the load not done and the image left
 # running (2026-09-27); srst_nogate keeps the SWD clock going meanwhile, which OpenOCD
-# requires to connect under reset. An error from OpenOCD fails the load.
-OCD="cd /opt/openocd && ./bin/openocd -s /opt/openocd -f openocd_gpiod.cfg -c"
+# requires to connect under reset. An error from OpenOCD fails the load. Its ports for
+# gdb, telnet and Tcl are closed, as in tools/probe.sh: at boot the two endurance runs
+# loaded their boards at once, and this one failed on port 3333 (2026-09-28).
+OCD="cd /opt/openocd && ./bin/openocd -s /opt/openocd -c 'gdb_port disabled; telnet_port disabled; tcl_port disabled' -f openocd_gpiod.cfg -c"
 RESET="reset_config srst_only srst_nogate srst_push_pull connect_assert_srst"
 report() {
     out=$(cat)
