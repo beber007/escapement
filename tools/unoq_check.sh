@@ -22,7 +22,9 @@
 # The long run is the service BOARD_SOAK_SERVICE (escapement-soak-u5), its files in
 # BOARD_SOAK_DIR (~/soak): stopped for the check, then started again on the commit's image
 # and tools if the check passed, on the image it had otherwise, loaded again, since the
-# check left the board running another.
+# check left the board running another. Carried on to another commit, the run of the
+# commit before ends: its last status "board/soak-u5", still pending, is posted again as
+# ended, a success, or left as it is if it was a failure, with the token of the board CI.
 set -u
 
 ELF=$1
@@ -32,6 +34,24 @@ SOAK=${BOARD_SOAK_DIR:-$HOME/soak}
 SERVICE=${BOARD_SOAK_SERVICE:-escapement-soak-u5}
 UNIT=$HOME/.config/systemd/user/$SERVICE.service
 LIMIT_PPM=300
+TOKEN=${BOARD_CI_TOKEN:-$HOME/.config/escapement-board-ci/token}
+REPO=${BOARD_CI_REPO:-beber007/escapement}
+
+# close <sha>: the run of the commit sha, carried on to $SHA, ended; otherwise its status
+# stayed pending for good (2026-09-28).
+close() {
+    [ -r "$TOKEN" ] && [ -n "$1" ] && [ "$1" != "$SHA" ] || return 0
+    auth="Authorization: Bearer $(cat "$TOKEN")"
+    # The combined status, the last of each context: a list of them all has the minute's
+    # of every endurance run first.
+    last=$(curl -fsS -H "$auth" "https://api.github.com/repos/$REPO/commits/$1/status" |
+        jq -c '[.statuses[] | select(.context == "board/soak-u5")][0] // empty') || return 0
+    [ "$(echo "$last" | jq -r .state)" = pending ] || return 0
+    jq -n --arg d "ended, carried on to $(echo "$SHA" | cut -c1-7): $(echo "$last" | jq -r .description)" \
+        '{state: "success", context: "board/soak-u5", description: $d[:140]}' |
+    curl -fsS -o /dev/null -X POST -H "$auth" -H "Accept: application/vnd.github+json" \
+        --data @- "https://api.github.com/repos/$REPO/statuses/$1" || true
+}
 
 systemctl --user stop "$SERVICE" 2>/dev/null
 ok=yes
@@ -64,6 +84,7 @@ if [ -n "$ok" ] && [ -f "$UNIT" ]; then
         mv "$SOAK/soak-u5.log" "$old"
         [ -f "$SOAK/soak-u5.log.state" ] && mv "$SOAK/soak-u5.log.state" "$old.state"
     fi
+    close "$(sed -n 's/.*BOARD_SOAK_SHA=\([0-9a-f]*\).*/\1/p' "$UNIT")"
     sed "s/BOARD_SOAK_SHA=[0-9a-f]*/BOARD_SOAK_SHA=$SHA/" "$UNIT" >"$UNIT.new" &&
         mv "$UNIT.new" "$UNIT"
     systemctl --user daemon-reload

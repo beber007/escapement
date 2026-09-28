@@ -50,8 +50,11 @@ time starting the Nucleo's run over.
 With a token (BOARD_CI_TOKEN, as tools/board_ci.sh), the state is posted to GitHub as the
 commit status "board/soak" of BOARD_SOAK_SHA (HEAD of this checkout by default) on a Pico,
 "board/soak-u5" on the UNO Q, "board/soak-nucleo" on the Nucleo: pending with the time
-run, the restarts and the errors at each reading, failure as soon as either is not 0,
-success at the end if both are. On a
+run, the restarts and the errors, failure as soon as either is not 0, success at the end
+if both are. GitHub keeps at most 1,000 statuses for a commit and a context and refuses
+the next: posted at each reading, a run's reached it in 16 hours and could post neither
+its failure nor its end (2026-09-28). A status is therefore posted when the state or the
+counts change, and otherwise once an hour. On a
 Pico it holds the lock of its probe (BOARD_CI_LOCK, board-ci/lock-$PROBE) while it runs,
 so that the board CI loads no other image there; it checks the other boards meanwhile.
 """
@@ -355,6 +358,7 @@ class Status:
 
     def __init__(self, context):
         self.context = context
+        self.posted = (None, None, 0.0)   # state, counts, when
         self.repo = os.environ.get("BOARD_CI_REPO", "beber007/escapement")
         token = os.environ.get("BOARD_CI_TOKEN",
                                os.path.expanduser("~/.config/escapement-board-ci/token"))
@@ -363,9 +367,14 @@ class Status:
             ["git", "-C", ROOT, "rev-parse", "HEAD"], capture_output=True,
             text=True).stdout.strip()
 
-    def post(self, state, description):
+    def post(self, state, description, counts=None):
+        """Posts now if the state or the counts changed, or an hour after the last."""
         if not self.token or not self.sha:
             return
+        if counts is not None and self.posted[:2] == (state, counts) and \
+                time.monotonic() - self.posted[2] < 3600:
+            return
+        self.posted = (state, counts, time.monotonic())
         request = urllib.request.Request(
             f"https://api.github.com/repos/{self.repo}/statuses/{self.sha}",
             data=json.dumps({"state": state, "context": self.context,
@@ -504,7 +513,8 @@ def main():
         save()
         run = elapsed(int(now - start)) + (f" of {elapsed(duration)}" if duration else "")
         summary = summarise()
-        status.post("failure" if restarts + errors else "pending", f"{run}: {summary}")
+        status.post("failure" if restarts + errors else "pending", f"{run}: {summary}",
+                    counts=(restarts, errors, interruptions))
         if duration and now - start >= duration:
             break
     save(ended=True)
