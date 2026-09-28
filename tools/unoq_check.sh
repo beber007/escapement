@@ -41,8 +41,11 @@ if [ -f "$SLEEP" ]; then
 fi
 [ -n "$ok" ] && { sh "$HERE/unoq_load.sh" "$ELF" || ok=""; }
 if [ -n "$ok" ]; then
-    BOARD_CI_TOKEN=/nonexistent BOARD_SOAK_LOG=$(mktemp) \
+    # A log and the state soak.py keeps beside it, both dropped after.
+    run=$(mktemp -d)
+    BOARD_CI_TOKEN=/nonexistent BOARD_SOAK_LOG=$run/soak.log \
         python3 "$HERE/soak.py" uno-q 2m 30s "$ELF" || ok=""
+    rm -rf "$run"
 fi
 if [ -n "$ok" ]; then
     drift=$(python3 "$HERE/unoq_drift.py" 300) || ok=""
@@ -56,8 +59,11 @@ if [ -n "$ok" ] && [ -f "$UNIT" ]; then
     # The long run goes on with this commit: its image, its tools, a log of its own.
     cp "$ELF" "$SOAK/SoakU5.elf"
     cp "$HERE/soak.py" "$HERE/unoq_load.sh" "$SOAK/"
-    [ -f "$SOAK/soak-u5.log" ] &&
-        mv "$SOAK/soak-u5.log" "$SOAK/soak-u5-$(date +%Y%m%d-%H%M%S).log"
+    if [ -f "$SOAK/soak-u5.log" ]; then
+        old=$SOAK/soak-u5-$(date +%Y%m%d-%H%M%S).log
+        mv "$SOAK/soak-u5.log" "$old"
+        [ -f "$SOAK/soak-u5.log.state" ] && mv "$SOAK/soak-u5.log.state" "$old.state"
+    fi
     sed "s/BOARD_SOAK_SHA=[0-9a-f]*/BOARD_SOAK_SHA=$SHA/" "$UNIT" >"$UNIT.new" &&
         mv "$UNIT.new" "$UNIT"
     systemctl --user daemon-reload

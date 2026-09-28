@@ -37,6 +37,16 @@ loaded again, and the counts start over. Errors counted are added up across rest
 is a part that did not move between two readings, or seconds that fell behind the time
 that passed. The test passes if none of these happened.
 
+The state of a run, its start, its counts and its last reading, is kept beside the log
+(BOARD_SOAK_STATE, the log's name and .state by default). The script started again with
+the same board, image, commit and duration, as a service is after this machine
+restarted, reads it back: if the image ran on meanwhile, its seconds and each part moving
+on from the last reading, the run goes on where it was, without loading anything; if not,
+the image is loaded again and the interruption is counted apart from the board's own
+restarts, since the board did not cause it, though the run was not continuous. A run
+that has ended is not started again. The UNO Q had rebooted twice on 2026-09-28, each
+time starting the Nucleo's run over.
+
 With a token (BOARD_CI_TOKEN, as tools/board_ci.sh), the state is posted to GitHub as the
 commit status "board/soak" of BOARD_SOAK_SHA (HEAD of this checkout by default) on a Pico,
 "board/soak-u5" on the UNO Q, "board/soak-nucleo" on the Nucleo: pending with the time
@@ -46,6 +56,7 @@ Pico it holds the lock of its probe (BOARD_CI_LOCK, board-ci/lock-$PROBE) while 
 so that the board CI loads no other image there; it checks the other boards meanwhile.
 """
 import atexit
+import hashlib
 import json
 import glob
 import os
@@ -55,6 +66,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import termios
 import threading
 import time
@@ -147,8 +159,26 @@ class Pico:
     def load(self):
         self.ocd("reset halt", f"load_image {self.elf}", "resume 0x20000000")
 
-    def start(self):
+    def start(self, reload=False):
         self.load()
+
+    def take_over(self, seconds):
+        """Whether the image runs on, without stopping it: the marker, at least seconds
+        counted, the count moving on over two seconds, and its first 64 words in SRAM those
+        of the ELF. An image left halted in SRAM kept the rest (2026-09-28)."""
+        r = self.read()
+        if r is None or r["marker"] != MARKER or r["seconds"] < seconds:
+            return False
+        time.sleep(2)
+        later = self.read()
+        if later is None or later["marker"] != MARKER or later["seconds"] <= r["seconds"]:
+            return False
+        with tempfile.NamedTemporaryFile() as binary:
+            subprocess.run(["arm-none-eabi-objcopy", "-O", "binary", self.elf, binary.name],
+                           check=True)
+            image = binary.read()
+        words = [int.from_bytes(image[i:i + 4], "little") for i in range(0, 256, 4)]
+        return self.words_at(0x20000000, 64) == words
 
     def read(self):
         w = self.words_at(self.results, self.words)
@@ -210,14 +240,27 @@ class UnoQ:
                   if l.startswith("Error")]
         return errors[0] if errors else f"the loader ended with {done.returncode}"
 
-    def start(self):
+    def start(self, reload=False):
         """The image already running is read as it is, not loaded again: a test can be
-        taken over. Loaded if no report comes."""
-        if self.report(self.silent) is None:
+        taken over. Loaded if no report comes, or if reload."""
+        if reload or self.report(self.silent) is None:
             failed = self.load()
             if failed:
                 print(f"LOAD FAILED: {failed}", flush=True)
         threading.Thread(target=self.link, daemon=True).start()
+
+    def take_over(self, seconds):
+        """Whether reports come with at least seconds counted and the count moving on; the
+        link then goes on from the byte the MCU expects."""
+        r = self.report(self.silent)
+        if r is None or r[0] < seconds:
+            return False
+        time.sleep(2)
+        later = self.report(self.silent)
+        if later is None or later[0] <= r[0]:
+            return False
+        threading.Thread(target=self.link, daemon=True).start()
+        return True
 
     def link(self):
         """A count, in bursts of 1 to 64 bytes, 1 to 100 ms apart, going on from the byte
@@ -348,6 +391,10 @@ def main():
     log = os.environ.get("BOARD_SOAK_LOG",
                          f"soak-{sys.argv[1]}-{time.strftime('%Y%m%d-%H%M%S')}.log")
     status = Status(board.context)
+    state_file = os.environ.get("BOARD_SOAK_STATE", log + ".state")
+    with open(elf, "rb") as f:
+        run_id = {"board": sys.argv[1], "sha": status.sha, "duration": duration,
+                  "image": hashlib.sha256(f.read()).hexdigest()}
 
     def write(line, show=False):
         with open(log, "a") as out:
@@ -355,15 +402,53 @@ def main():
         if show:
             print(line, flush=True)
 
-    board.start()
-    start = time.time()
+    def save(ended=False):
+        with open(state_file + ".new", "w") as out:
+            json.dump(dict(run_id, start=start, restarts=restarts, errors=errors,
+                           wraps=wraps, interruptions=interruptions, previous=previous,
+                           last_hour=last_hour, ended=ended, at=time.time()), out)
+        os.replace(state_file + ".new", state_file)
+
+    def summarise():
+        return (f"{restarts} restarts, {errors} errors, {wraps} wraps" +
+                (f", {interruptions} interrupted" if interruptions else ""))
+
+    try:
+        with open(state_file) as f:
+            saved = json.load(f)
+        if any(saved.get(k) != v for k, v in run_id.items()):
+            saved = None
+    except (OSError, ValueError):
+        saved = None
     span = f"for {elapsed(duration)}" if duration else "until stopped"
-    write(f"{board.name} {status.sha or '(no commit)'}, {time.ctime()}, {span}, read every {interval} s, "
-          f"{elf}", True)
-    status.post("pending", f"running since {time.strftime('%Y-%m-%d')}")
-    restarts = errors = wraps = 0
-    previous = None               # seconds, errors found, activity, time
-    last_hour = start
+    if saved and saved["ended"]:
+        sys.exit(f"this run has ended ({state_file})")
+    if saved:
+        start, restarts, errors = saved["start"], saved["restarts"], saved["errors"]
+        wraps, interruptions = saved["wraps"], saved["interruptions"]
+        previous, last_hour = saved["previous"], saved["last_hour"]
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        gap = int(time.time() - saved["at"])
+        # The image ran on only if its seconds kept up with the time this script was
+        # away, within the 5 % the readings allow.
+        if board.take_over(previous[0] + int(gap * 0.95) if previous else 0):
+            write(f"{stamp} TAKEN OVER after {gap} s: the image ran on", True)
+        else:
+            interruptions += 1
+            write(f"{stamp} INTERRUPTED {interruptions}: the image did not run on "
+                  f"through {gap} s without this script, loaded again", True)
+            board.start(reload=True)
+            previous = None
+    else:
+        board.start()
+        start = time.time()
+        write(f"{board.name} {status.sha or '(no commit)'}, {time.ctime()}, {span}, "
+              f"read every {interval} s, {elf}", True)
+        status.post("pending", f"running since {time.strftime('%Y-%m-%d')}")
+        restarts = errors = wraps = interruptions = 0
+        previous = None           # seconds, errors found, activity, time, wraps
+        last_hour = start
+    save()
     while True:
         time.sleep(interval)
         now = time.time()
@@ -413,18 +498,21 @@ def main():
                     write(f"  {what} late by us: " +
                           " ".join(f"{i * 10}:{v}" for i, v in enumerate(bins) if v))
                 last_hour = now
-            previous = (r["seconds"], found,
+            previous = [r["seconds"], found,
                         r["activity"] + ([r["link"][0]] if r["link"] else []), now,
-                        r["wraps"])
+                        r["wraps"]]
+        save()
         run = elapsed(int(now - start)) + (f" of {elapsed(duration)}" if duration else "")
-        summary = f"{restarts} restarts, {errors} errors, {wraps} wraps"
+        summary = summarise()
         status.post("failure" if restarts + errors else "pending", f"{run}: {summary}")
         if duration and now - start >= duration:
             break
+    save(ended=True)
     write(f"end after {elapsed(int(now - start))}: {summary}", True)
-    if restarts + errors == 0:
+    if restarts + errors + interruptions == 0:
         status.post("success", f"{elapsed(int(now - start))} without error: {wraps} wraps")
         sys.exit(0)
+    status.post("failure", f"{elapsed(int(now - start))}: {summary}")
     sys.exit(1)
 
 

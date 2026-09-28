@@ -31,6 +31,40 @@ under two compilers (`build.yml`). The `BOARD_CI_*` variables at the head of the
 set the working directory, the containers, the repository, the token file, where the
 images come from, and whether the STM32U5 of the UNO Q is checked.
 
+## The bench
+
+Since 2026-09-28 everything hangs on the Arduino UNO Q, `ssh arduino@192.168.1.220`
+(`unoq.local` does not resolve from the Mac), through its powered hub. This table is the
+reference; `~/.config/escapement-probes` and the units under `~/.config/systemd/user`
+must agree with it.
+
+| Probe or port | Board | Role | Held by |
+|---|---|---|---|
+| probe1 | Pico | the checks of each commit, `board/pico` | `board_ci.sh`, some 10 min a commit |
+| probe2 | Pico W | the endurance test, a week per kernel, `board/soak` | `escapement-soak-pico` |
+| probe3 | Pico 2 | the checks of each commit, `board/pico2` | `board_ci.sh` |
+| STLINK-V3 | NUCLEO-U575ZI-Q | a run until stopped, `board/soak-nucleo` | `escapement-soak-nucleo` |
+| the UNO Q's own SWD | STM32U585 | the checks of each commit, `board/u5`, then a run until the next | `board_ci.sh`, then `escapement-soak-u5` |
+| Bus Pirate v4 | — | none yet; `tools/pico_reset.py` is untried | — |
+
+`tools/bench_status.sh` shows on one screen who holds each probe, the board CI, the last
+reading of each endurance run and the statuses of the commits concerned, from the Mac
+over SSH as on the board. It changes nothing.
+
+Rules, each learnt on this bench:
+
+- **No board is kept for work by hand.** Work on probe1 goes between two checks, holding
+  its lock (`mkdir lock-probe1`, a pid in it) the whole time; a check that finds it held
+  skips the Pico without posting `board/pico`, and the commit stays without it. Put the
+  Pico back as the checks expect it after.
+- **Never touch probe2 while its run lasts,** nor the image, the log or the state of a run.
+- **Rebooting the UNO Q, or unbinding its drivers, interrupts every run.** On 2026-09-28
+  two reboots from sessions working on its serial port started the Nucleo's run over,
+  and unbinding `geni_se_qup` had first oopsed the kernel. Look at
+  `tools/bench_status.sh` first. Since `tools/soak.py` keeps the state of a run, a run
+  whose image ran on through the reboot goes on; one whose board lost power counts an
+  interruption.
+
 ## On Linux
 
 The toolchain runs in a container `esc`, set up as in
@@ -192,10 +226,8 @@ systemctl --user daemon-reload && systemctl --user enable --now escapement-soak-
 
 ### Several probes
 
-The bench has three Debug Probes, all on the hub since 2026-09-28: probe1 wired to the
-Pico the checks use, probe2 to the Pico W of the endurance test (`escapement-soak-pico`,
-from 2026-09-28, which holds its lock for the week), probe3 to a Pico 2.
-`~/.config/escapement-probes` names them after their USB serials, one `name serial` per
+The bench has three Debug Probes, all on the hub since 2026-09-28, wired as "The bench"
+says. `~/.config/escapement-probes` names them after their USB serials, one `name serial` per
 line. Every tool that drives a probe takes `PROBE=name`, or a serial as is. The default
 is probe1, the one wired to the Pico, since OpenOCD left to itself takes the first probe
 it finds (`tools/probe.sh`). To read a probe's serial once it is plugged in:
