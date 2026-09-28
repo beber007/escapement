@@ -70,9 +70,10 @@ on the RP2040. The **STM32L4** is set aside.
 2. **The Pico 2 on the board.** A Pico 2 has been on the bench since 2026-09-28, on
    probe3, driven by Raspberry Pi's OpenOCD (`tools/board_ci.md`). Its clocks are right
    and the five examples that count in memory pass (`architecture.md`,
-   `tools/pico2_check.py`). Left: the three examples that toggle outputs and the UART
-   echo, which need a witness on the pins; the check at each commit; and litmus tests of
-   the order in which each core sees the other's accesses.
+   `tools/pico2_check.py`), and so do litmus tests of the order in which each core sees
+   the other's accesses: none reordered (`architecture.md`). The bench checks them at
+   each commit. Left: the three examples that toggle outputs and the UART echo, which
+   need a witness on the pins.
 
 3. **What is left to verify between the cores.** The queue between the cores
    (`Escapement_CoreQueue.c`) had a DMB between any two of its accesses to different

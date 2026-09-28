@@ -32,7 +32,7 @@
 #                    checked too (tools/unoq_check.sh), on the CI's image, and posted as
 #                    the status "board/u5"; the endurance run it holds goes on with the
 #                    commit if it passes.
-#   BOARD_CI_PICO2   1 when a Pico 2 is wired too: its five examples that count in memory
+#   BOARD_CI_PICO2   1 when a Pico 2 is wired too: its six examples that count in memory
 #                    are run on the CI's images (tools/pico2_check.py) and posted as the
 #                    status "board/pico2", through the probe BOARD_CI_PICO2_PROBE (probe3)
 #                    and the OpenOCD BOARD_CI_OPENOCD_RP2350
@@ -284,7 +284,7 @@ if [ "${BOARD_CI_PICO2:-}" = 1 ] && [ -f "$DIR/fw/pico2/SoakPico2.elf" ]; then
             OPENOCD=${BOARD_CI_OPENOCD_RP2350:-$HOME/opt/openocd-rpi/bin/openocd} \
             python3 tools/pico2_check.py "$DIR/fw/pico2") >>"$LOG" 2>&1; then
         pico2=success
-        status success "both slot buffers and the queue across cores, IPC, endurance test, on the CI's images" \
+        status success "slot buffers and queue across cores, IPC, endurance test, litmus tests, on the CI's images" \
             board/pico2
     else
         pico2=failure

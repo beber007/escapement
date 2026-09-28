@@ -232,6 +232,14 @@ each of the 500 records of each producer is taken once, whole, in its producer's
 under the four builds. The counts, and the sums of the counters and of their squares,
 show it.
 
+### Litmus tests between the cores
+
+`LitmusPico2` runs store buffering, message passing and load buffering between the two
+cores, each with and without a DMB (`architecture.md`). Renode runs each core in program
+order, so no round may end in a weak outcome: the test checks the harness, and the chip
+is for the board to try. At a slice of 1 µs both cores go first in every test. On
+2026-09-28 the six tests ran some 6,100 rounds each in 50 ms of emulated time, none weak.
+
 ### Preemption inside the queue, on one core
 
 `IPCPico2` and `IPCPico` make tasks preempt one another inside the FIFO queue and a

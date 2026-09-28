@@ -8,9 +8,11 @@ criteria of emulation/renode/escapement_pico2.robot.
     tools/pico2_check.py [BUILD_DIR] [--only NAME ...]
 
 BUILD_DIR holds the images of Examples/pico2 (its build/ by default). Each one is loaded
-into SRAM, left to run, and its Results read over SWD without stopping a core. Five of
+into SRAM, left to run, and its Results read over SWD without stopping a core. Six of
 the suite's tests count in memory: the 4-slot and the 3-slot buffers, the queue of
-Evéquoz across the two cores, IPCPico2 and SoakPico2. The criteria that count what only
+Evéquoz across the two cores, IPCPico2, SoakPico2 and the litmus tests of LitmusPico2,
+which the board holds to more than Renode can: the outcome that needs the two cores
+within a cycle of each other must show. The criteria that count what only
 the emulator sees (SCs failed, reservations cleared, helpers entered on another stack)
 are left out; the tests of the outputs and of the UART need a witness on the pins.
 
@@ -149,11 +151,28 @@ def soak(r):
     return checks
 
 
+def litmus(r):
+    """LitmusPico2: Marker, then for SB, SB+DMB, MP, MP+DMB, LB, LB+DMB the rounds and the
+    four outcomes, indexed r0 * 2 + r1. None may end in its weak outcome, and each must
+    have met the other core within a cycle or two: the outcome that needs both halves to
+    overlap (SB 11, MP 01, LB 00) must show, or the rounds proved nothing."""
+    checks = [(r[0] == 0x4C544D53, f"marker {r[0]:#x}")]
+    for i, (name, weak, overlap) in enumerate([("SB", 0, 3), ("SB+DMB", 0, 3),
+                                               ("MP", 2, 1), ("MP+DMB", 2, 1),
+                                               ("LB", 3, 0), ("LB+DMB", 3, 0)]):
+        rounds, outcome = r[1 + 5 * i], r[2 + 5 * i:6 + 5 * i]
+        checks.append((rounds > 100000 and outcome[weak] == 0 and outcome[overlap] > 0,
+                       f"{name}: {rounds} rounds, weak {outcome[weak]}, "
+                       f"overlapping {outcome[overlap]}"))
+    return checks
+
+
 TESTS = [("FourSlotCoresPico2", 10, 10, lambda r: slot_buffer(r, "4-slot")),
          ("ThreeSlotCoresPico2", 10, 10, lambda r: slot_buffer(r, "3-slot")),
          ("FIFOCoresPico2", 3, 18, fifo_cores),
          ("IPCPico2", 5, 10, ipc),
-         ("SoakPico2", 5, 19, soak)]
+         ("SoakPico2", 5, 19, soak),
+         ("LitmusPico2", 20, 31, litmus)]
 
 
 def main():

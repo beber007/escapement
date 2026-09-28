@@ -362,3 +362,37 @@ The queue of Evéquoz crosses between the two cores
     ${cleared0}=              Monitor Count  cleared.write0
     ${cleared1}=              Monitor Count  cleared.write1
     Should Be True            ${cleared0} > 0 and ${cleared1} > 0
+
+The litmus tests keep program order between the cores
+    [Documentation]           LitmusPico2 runs store buffering, message passing and load
+    ...                       buffering between the two cores, each with and without a DMB
+    ...                       between its accesses. Renode runs each core in program order,
+    ...                       so no test may end in its weak outcome: this checks the
+    ...                       harness, whose results on the board say what the chip does
+    ...                       (tools/pico2_check.py). Each core running for a slice of 1 us,
+    ...                       both orders of the two cores must show in every test, or the
+    ...                       rounds proved nothing.
+    [Timeout]                 3 minutes
+    Load Escapement           LitmusPico2
+    Execute Command           emulation SetGlobalQuantum "0.000001"
+
+    Execute Command           emulation RunFor "0.05"
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${marker}=                Read Word  ${results}
+    Should Be Equal As Integers  ${marker}  0x4C544D53
+    # SB, SB+DMB, MP, MP+DMB, LB, LB+DMB: the index of each one's weak outcome, and those
+    # of the two outcomes of core 0 first and core 1 first.
+    FOR  ${test}  ${weak}  ${a}  ${b}  IN  0  0  1  2  1  0  1  2  2  2  3  0  3  2  3  0
+    ...                       4  3  1  2  5  3  1  2
+        ${base}=              Evaluate  ${results} + 4 + 20 * ${test}
+        ${rounds}=            Read Word  ${base}
+        ${weak_seen}=         Read Word  ${base + 4 + 4 * ${weak}}
+        ${first}=             Read Word  ${base + 4 + 4 * ${a}}
+        ${second}=            Read Word  ${base + 4 + 4 * ${b}}
+        Log To Console        test ${test}: ${rounds} rounds, weak ${weak_seen}, orders ${first} ${second}
+        Should Be True        ${rounds} > 100
+        Should Be Equal As Integers  ${weak_seen}  0
+        Should Be True        ${first} > 0 and ${second} > 0
+    END

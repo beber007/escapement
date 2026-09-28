@@ -28,12 +28,12 @@ tools/soak.py pico 14d 1m                     # endurance test: SoakPico, read w
 tools/soak_emulated.sh OUT 60 1440 hard::1 soft:KERNEL=SOFT:2   # instances under Renode
 tools/soak_emulated_status.sh OUT [SHA]       # their sum, status emulation/soak
 
-# Pico 2 (RP2350, Cortex-M33) — nine examples; no KERNEL=PA yet. Its Renode suite runs
+# Pico 2 (RP2350, Cortex-M33) — ten examples; no KERNEL=PA yet. Its Renode suite runs
 # on a platform of our own, on the Mac too (Renode 1.17 portable, robotframework 6.1 venv)
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
 renode-test emulation/renode/escapement_pico2.robot
 OPENOCD=~/opt/openocd-rpi/bin/openocd PROBE=probe3 tools/pico2_check.py DIR   # on the UNO Q:
-                                              # the five examples that count in memory
+                                              # the six examples that count in memory
 
 # STM32U5 (Arduino UNO Q, STM32U585, Cortex-M33) — eight examples, run from SRAM, which
 # leaves Arduino's firmware in the flash; its Renode suite runs on a platform of our own

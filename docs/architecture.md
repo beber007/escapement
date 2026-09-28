@@ -104,6 +104,18 @@ beside it tore some 10,000 times a run (`tools/pico2_check.py`).
 Code on core 1 may not signal an event: `OSScheduleSuspendedTask` would pend the timer
 interrupt of core 1, where no kernel runs.
 
+Whether the RP2350 reorders at all, `LitmusPico2` asks of the chip: store buffering,
+message passing and load buffering between its two cores, each with and without a DMB
+between its two accesses (Alglave, Maranget, Sarkar and Sewell, TACAS 2011). Each round
+the two cores start at a pseudo-random offset from each other, to the cycle. On a Pico 2
+on 2026-09-28, in 10 minutes, each of the six tests ran 69.4 million rounds and none
+ended in its weak outcome. Each also met the other core within a cycle or two: in store
+buffering without a DMB, both loads saw the other core's store in 109,901 rounds, in
+message passing the reader saw the data without the flag in 1.3 million, and in load
+buffering both loads came before both stores in 1.4 million. The chip showed no reordering between its cores.
+The DMBs stay: the architecture allows the reorderings, and a test that saw none does
+not show that none can happen.
+
 The queue between the cores of the RP2350 (`Escapement_CoreQueue.c`, `OSInitCoreQueue`)
 is the array-based queue of Evéquoz's Figure 3. It is lock-free rather than wait-free,
 and serves any number of producers and consumers on either core. Its model
@@ -132,16 +144,16 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
   `Escapement/CORTEX-Mx/RP2350/`. It was transposed from the RP2040 port on 2026-09-24:
   the clocks at 150 MHz, TIMER0 with its tick from the TICKS block, 52 interrupts, the
   pads released from their isolation, the UART, the timer events and the launch of
-  core 1. The hard and the soft kernel build nine examples under `pico2/` in the CI. They
-  are the seven of the Pico that are not benches, plus `ThreeSlotCoresPico2` and
-  `FIFOCoresPico2`. All nine run under Renode on a platform of our own (`emulation.md`),
+  core 1. The hard and the soft kernel build ten examples under `pico2/` in the CI. They
+  are the seven of the Pico that are not benches, plus `ThreeSlotCoresPico2`,
+  `FIFOCoresPico2` and `LitmusPico2`. All ten run under Renode on a platform of our own (`emulation.md`),
   including the 2^30 wrap of the kernel clock, both slot buffers between the two cores
   and the queue between them. That shows that they schedule, not that the clocks are
   programmed right. A Pico 2 did on 2026-09-28: the frequency counter gave clk_sys
-  150,000 kHz on the PLL, clk_ref and clk_peri 12,000 kHz on the crystal. On it the five
+  150,000 kHz on the PLL, clk_ref and clk_peri 12,000 kHz on the crystal. On it the six
   examples that count in memory pass the criteria of the Renode suite
-  (`tools/pico2_check.py`): both slot buffers and the queue between the cores, `IPCPico2`
-  and the endurance test. Those that toggle outputs, and the UART echo, wait for a
+  (`tools/pico2_check.py`): both slot buffers and the queue between the cores, `IPCPico2`,
+  the endurance test and the litmus tests. Those that toggle outputs, and the UART echo, wait for a
   witness on the pins. The power-aware kernel is not ported.
 - **STM32U5** (the STM32U585 of the Arduino UNO Q): Cortex-M33, port under
   `Escapement/CORTEX-Mx/STM32U5/`. It was written anew on 2026-09-25, after the model of
