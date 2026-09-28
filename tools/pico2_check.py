@@ -19,7 +19,11 @@ are left out; the tests of the outputs and of the UART need a witness on the pin
 Needs the GNU Arm binutils and an OpenOCD that knows the RP2350 (Raspberry Pi's fork, in
 $OPENOCD), and a CMSIS-DAP probe: PROBE=name picks one of the bench's (tools/probe.sh).
 
-Two things of the board that the emulator does not have, found on 2026-09-28:
+Three things of the board that the emulator does not have, found on 2026-09-28:
+- After the board is powered, the firmware in its flash runs, and the one on the bench
+  left the debugger unable to examine core 0 (its access port answered WAIT). The tool
+  first has the RP-AP restart the chip into its bootrom, as it does for rescue
+  (rescue_reset in Raspberry Pi's target/rp2350.cfg), which the flash cannot prevent.
 - A debugger's reset stops core 0 at the entry of the bootrom, before it seeds the RCP
   of both cores, and core 1 never answers the launch (tools/rp2350_rcp_seed.S, which is
   run first for that).
@@ -182,6 +186,7 @@ def main():
     args = parser.parse_args()
 
     failed = 0
+    openocd(["rescue_reset"])
     with tempfile.TemporaryDirectory() as directory:
         seed = build_seed(directory)
         for name, seconds, words, judge in TESTS:

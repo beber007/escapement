@@ -135,6 +135,8 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
   per connection, which failed the cost check. The tools select the Debug Probe by its
   ids and serial, `tools/probe.sh` (`PROBE=probe2`, probe1 by default): the bench has
   three; pass `-c "$(tools/probe.sh)"` in a command typed by hand.
+- A Pico 2 just powered runs its flash, which may keep the debugger from examining core
+  0: `rescue_reset` (Raspberry Pi's target/rp2350.cfg) gets it back, as the tool does.
 - On the RP2350 a debugger's reset stops core 0 before the bootrom seeds the RCP, and
   core 1's bootrom then never answers the launch: run `tools/rp2350_rcp_seed.S` first.
   That reset also leaves core 1 running the previous image, which wrote into the next
