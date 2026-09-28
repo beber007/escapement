@@ -32,6 +32,11 @@
 #                    checked too (tools/unoq_check.sh), on the CI's image, and posted as
 #                    the status "board/u5"; the endurance run it holds goes on with the
 #                    commit if it passes.
+#   BOARD_CI_PICO2   1 when a Pico 2 is wired too: its five examples that count in memory
+#                    are run on the CI's images (tools/pico2_check.py) and posted as the
+#                    status "board/pico2", through the probe BOARD_CI_PICO2_PROBE (probe3)
+#                    and the OpenOCD BOARD_CI_OPENOCD_RP2350
+#                    (~/opt/openocd-rpi/bin/openocd), which knows the RP2350.
 set -eu
 STARTED_AS=$(cksum <"$0")   # before the checkout below can replace this very file
 
@@ -271,6 +276,22 @@ if [ "${BOARD_CI_U5:-}" = 1 ] && [ -f "$DIR/fw/soak_u5/SoakU5.elf" ]; then
     fi
 fi
 
+# The Pico 2, on the CI's images.
+pico2=""
+if [ "${BOARD_CI_PICO2:-}" = 1 ] && [ -f "$DIR/fw/pico2/SoakPico2.elf" ]; then
+    status pending "running on the Pico 2" board/pico2
+    if (cd "$SRC" && PROBE=${BOARD_CI_PICO2_PROBE:-probe3} \
+            OPENOCD=${BOARD_CI_OPENOCD_RP2350:-$HOME/opt/openocd-rpi/bin/openocd} \
+            python3 tools/pico2_check.py "$DIR/fw/pico2") >>"$LOG" 2>&1; then
+        pico2=success
+        status success "both slot buffers and the queue across cores, IPC, endurance test, on the CI's images" \
+            board/pico2
+    else
+        pico2=failure
+        status failure "an example that counts in memory failed; see the bench's log" board/pico2
+    fi
+fi
+
 echo "$SHA" >"$DIR/last"
 if [ -n "$failed" ]; then
     status failure "failed:$failed"
@@ -280,4 +301,4 @@ else
     status success "compiled order, 4-slot across cores, round cost, timer events, DVFS"
 fi
 cat "$LOG"
-[ -z "$failed" ] && [ "$u5" != failure ]
+[ -z "$failed" ] && [ "$u5" != failure ] && [ "$pico2" != failure ]

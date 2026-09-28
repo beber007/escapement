@@ -3,7 +3,7 @@
 # LICENSE at the root of this repository.
 #
 # Build the images the board checks run (tools/board_ci.sh), the Pico's and the UNO Q's
-# STM32U5's, into OUT/<check>_<kernel>/, and that of the PPK2's measurement: by the CI, which hands them to the bench as an
+# STM32U5's and the Pico 2's, into OUT/<check>_<kernel>/, and that of the PPK2's measurement: by the CI, which hands them to the bench as an
 # artifact, so that the bench needs no compiler, or by the bench itself.
 #
 #   tools/board_images.sh OUT
@@ -53,6 +53,16 @@ mkdir -p "$OUT/soak_u5"
 cp "$U5/build/SoakU5.elf" "$U5/build/SleepU5.elf" "$OUT/soak_u5/"
 make -s -C "$U5" clean >/dev/null
 echo "soak_u5: SoakU5 SleepU5"
+# The Pico 2: the five examples that count in memory, which tools/pico2_check.py runs.
+PICO2=Escapement/CORTEX-Mx/RP2350/Examples/pico2
+PICO2_IMAGES="FourSlotCoresPico2 ThreeSlotCoresPico2 FIFOCoresPico2 IPCPico2 SoakPico2"
+make -s -C "$PICO2" clean >/dev/null
+# shellcheck disable=SC2046  # one target per image
+make -s -C "$PICO2" $(for i in $PICO2_IMAGES; do echo "build/$i.elf"; done) >/dev/null
+mkdir -p "$OUT/pico2"
+for i in $PICO2_IMAGES; do cp "$PICO2/build/$i.elf" "$OUT/pico2/"; done
+make -s -C "$PICO2" clean >/dev/null
+echo "pico2: $PICO2_IMAGES"
 # Not a check: SleepU5 alternating 30 s in Stop 2 and 30 s in Sleep, for the PPK2
 # (docs/stm32u5.md), built at each commit so that it is known to build, and at hand.
 make -s -C "$U5" PHASES=30 build/SleepU5.elf >/dev/null

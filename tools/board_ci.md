@@ -145,6 +145,16 @@ The long endurance run (`tools/soak.py uno-q`, the user service `escapement-soak
 is stopped for the check. If the check passed, the run starts again on the commit's
 image; otherwise it goes back to the image it had.
 
+### The Pico 2
+
+With `BOARD_CI_PICO2=1` in that line too, the script then runs the five examples of the
+Pico 2 that count in memory (`tools/pico2_check.py`) on the CI's images and posts the
+outcome as the status `board/pico2`: both slot buffers and the queue between the cores,
+`IPCPico2` and the endurance test, each held to the criteria of the Renode suite. The
+Pico 2 hangs on probe3 (`BOARD_CI_PICO2_PROBE`), driven by Raspberry Pi's OpenOCD, built
+as below into `~/opt/openocd-rpi` (`BOARD_CI_OPENOCD_RP2350`). The check takes about
+40 s.
+
 ### A long run on a NUCLEO-U575ZI-Q
 
 The checks of each commit interrupt the long run on the UNO Q. A NUCLEO-U575ZI-Q plugged
