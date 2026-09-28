@@ -14,9 +14,10 @@
 # Stop 2 is the board's to check, Renode never entering it (tools/unoq_sleep.py).
 # SoakU5 checks every part of itself each second (SoakU5.c) and tools/soak.py ends with an
 # error on any error or restart it saw. tools/unoq_drift.py then times its reports for five
-# minutes: shorter windows read up to 180 ppm off on 2026-09-26, Linux's clock itself
-# being pulled by NTP, so the bound is 300 ppm, which a clock left on the MSIS (653 ppm
-# locked, 4,800 free, stm32u5.md) still exceeds.
+# minutes on Linux's raw clock, which NTP does not pull: against the disciplined one,
+# shorter windows read up to 180 ppm off on 2026-09-26, and five minutes over a jittery
+# Wi-Fi +278 and -686 ppm on 2026-09-28. The bound is 300 ppm, which a clock left on the
+# MSIS (653 ppm locked, 4,800 free, stm32u5.md) still exceeds.
 #
 # The long run is the service BOARD_SOAK_SERVICE (escapement-soak-u5), its files in
 # BOARD_SOAK_DIR (~/soak): stopped for the check, then started again on the commit's image

@@ -139,7 +139,8 @@ on the CI's images, so it needs `BOARD_CI_IMAGES=ci`. It has three steps:
    timer event within 20 µs of its time, TIM2 within 20 ppm of LPTIM1, and every byte
    sent to it received;
 2. the endurance test, `SoakU5`, for two minutes, every part without error;
-3. its clock against Linux's over five minutes (`tools/unoq_drift.py`), within 300 ppm.
+3. its clock against Linux's raw clock, which NTP does not pull, over five minutes
+   (`tools/unoq_drift.py`), within 300 ppm.
 
 The long endurance run (`tools/soak.py uno-q`, the user service `escapement-soak-u5`)
 is stopped for the check. If the check passed, the run starts again on the commit's
