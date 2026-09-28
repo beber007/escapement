@@ -29,6 +29,9 @@
 */
 
 #include "Escapement.h"
+#ifdef SLEEP_GATE
+   #include "Escapement_SleepGate.h"
+#endif
 
 #define FLAG1_PIN 25   /* on-board LED */
 #define FLAG2_PIN  2
@@ -77,6 +80,9 @@ int main(void)
   OSInitializeSystemClocks();
   #if defined(ESCAPEMENT_VERSION_HARD_PA)
      OSInitProcessorSpeed();
+  #endif
+  #ifdef SLEEP_GATE
+     OSInitSleepGate(0,0);          // make SLEEP_GATE=1 (Escapement_SleepGate.h)
   #endif
   /* Release the two GPIO blocks from reset. */
   RESETS_RESET &= ~(RESETS_IO_BANK0 | RESETS_PADS_BANK0);

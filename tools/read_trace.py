@@ -18,6 +18,12 @@ draws them); with --csv --absolute, the times as the timer counts them, after a 
 giving the kernel's origin of time, TimeOrigin of Escapement_Timer.c, the instant its
 tasks were first released (tools/response_times.py reads it).
 
+An image whose idle task sleeps in SLEEP (make SLEEP_GATE=1, Escapement_SleepGate.c) gates
+the clocks of the bus and of the SRAM while both cores sleep, and the probe then reads
+zeros throughout (2026-09-28). The tool holds core 1 for each read, which keeps the chip
+out of SLEEP, and leaves core 0 and the kernel running: an image is taken for one of
+those when it has OSInitSleepGate.
+
 Needs OpenOCD and a CMSIS-DAP probe (the Raspberry Pi Debug Probe; PROBE=name picks one
 of the bench's, tools/probe.sh), and the arm-none-eabi binutils for the addresses of the
 symbols.
@@ -45,6 +51,20 @@ def symbols(elf):
         if len(parts) == 3:
             table[parts[2]] = int(parts[0], 16)
     return table
+
+
+def sleep_gated(elf):
+    """Whether the image puts the chip in SLEEP (make SLEEP_GATE=1)."""
+    return "OSInitSleepGate" in symbols(elf)
+
+
+def load(elf):
+    """Loads the image and starts it; core 1 is left held, but for an image that parks it
+    in SLEEP, whose OSLaunchCore1 waits for the bootrom of core 1 to answer."""
+    commands = ["reset halt", f"load_image {elf}", "resume 0x20000000"]
+    if sleep_gated(elf):
+        commands += ["targets rp2040.core1", "resume"]
+    return openocd(commands)
 
 
 def adapter():
@@ -117,6 +137,8 @@ def read(elf, keep_frozen=False):
                 f"echo \"DATA [read_memory {sym['_OSTrace']:#x} 32 {2 * SIZE}]\""]
     if not keep_frozen:
         commands.append(f"write_memory {sym['_OSTraceFrozen']:#x} 32 {{0}}")
+    if "OSInitSleepGate" in sym:
+        commands = ["targets rp2040.core1", "halt"] + commands + ["resume"]
     out = openocd(commands)
     origin = re.search(r"ORIGIN (\S+)", out)
     read.origin = int(origin.group(1), 0) if origin and "TimeOrigin" in sym else None

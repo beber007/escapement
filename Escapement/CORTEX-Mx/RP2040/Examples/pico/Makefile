@@ -71,6 +71,12 @@ endif
 ifdef SLEEP_SPEED
    CFLAGS += -DOS_SLEEP_SPEED=$(SLEEP_SPEED)
 endif
+# make SLEEP_GATE=1 has TaskLEDPico and TestTimerEventPico sleep in SLEEP, every clock
+# but the timer's gated (Escapement_SleepGate.c), for the bench: not built by the CI.
+ifdef SLEEP_GATE
+   CFLAGS += -DSLEEP_GATE
+   SLEEPGATE = build/Escapement_SleepGate.o build/Escapement_Core1.o
+endif
 # make TRACE=1 records a trace of the scheduling in RAM, read over SWD
 # (Escapement_Trace.h, tools/read_trace.py).
 ifdef TRACE
@@ -125,6 +131,8 @@ build/Escapement_TimerEvent.o : ../../Escapement_TimerEvent.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/Escapement_Core1.o : ../../Escapement_Core1.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_SleepGate.o : ../../Escapement_SleepGate.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementHard.o : ../../../../EscapementHard.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementSoft.o : ../../../../EscapementSoft.c
@@ -150,8 +158,8 @@ build/BenchDVFSPico.o : BenchDVFSPico.c
 build/BenchVregPico.o : BenchVregPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
-build/TaskLEDPico.elf : $(COMMON) build/TaskLEDPico.o
-	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/TaskLEDPico.o -T$(LINKERFILE) -lgcc
+build/TaskLEDPico.elf : $(COMMON) $(SLEEPGATE) build/TaskLEDPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(SLEEPGATE) build/TaskLEDPico.o -T$(LINKERFILE) -lgcc
 build/UARTEchoPico.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_UART.o build/UARTEchoPico.o -T$(LINKERFILE) -lgcc
 build/TaskWrapPico.elf : $(COMMON) build/TaskWrapPico.o
@@ -160,8 +168,8 @@ build/IPCPico.elf : $(COMMON) build/IPCPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/IPCPico.o -T$(LINKERFILE) -lgcc
 build/SoakPico.elf : $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakPico.o -T$(LINKERFILE) -lgcc
-build/TestTimerEventPico.elf : $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico.o
-	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico.o -T$(LINKERFILE) -lgcc
+build/TestTimerEventPico.elf : $(COMMON) $(SLEEPGATE) build/Escapement_TimerEvent.o build/TestTimerEventPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(SLEEPGATE) build/Escapement_TimerEvent.o build/TestTimerEventPico.o -T$(LINKERFILE) -lgcc
 build/FourSlotCoresPico.elf : $(COMMON) build/Escapement_Core1.o build/FourSlotCoresPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_Core1.o build/FourSlotCoresPico.o -T$(LINKERFILE) -lgcc
 

@@ -22,7 +22,8 @@ when the second comes before the buffer has turned over, are counted once.
 
 The image is loaded with both cores held and core 1 left so: the example does not use
 it, and a firmware in flash may have armed a watchdog that only pauses while a core is
-held.
+held. Built with make SLEEP_GATE=1, the example parks core 1 itself, which is then
+started too, and each read holds it for a moment (tools/read_trace.py).
 """
 
 import argparse
@@ -40,7 +41,7 @@ def main():
     parser.add_argument("--reads", type=int, default=5)
     args = parser.parse_args()
 
-    out = read_trace.openocd(["reset halt", f"load_image {args.elf}", "resume 0x20000000"])
+    out = read_trace.load(args.elf)
     if "downloaded" not in out and "bytes written" not in out:
         sys.exit("could not load the image:\n" + out)
     periods, highs, late, events, last = {}, {}, [], 0, None

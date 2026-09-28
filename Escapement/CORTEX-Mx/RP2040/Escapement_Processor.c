@@ -44,6 +44,8 @@
 #define CLK_SYS_SELECTED     *((volatile UINT32 *)(CLOCKS_BASE + 0x44))
 #define CLK_PERI_CTRL        *((volatile UINT32 *)(CLOCKS_BASE + 0x48))
 #define CLK_PERI_ENABLE      (1u << 11)
+#define CLOCKS_SLEEP_EN0     *((volatile UINT32 *)(CLOCKS_BASE + 0xA8))
+#define CLOCKS_SLEEP_EN1     *((volatile UINT32 *)(CLOCKS_BASE + 0xAC))
 
 #define CLK_REF_SRC_XOSC     2
 #define CLK_SYS_SRC_REF      0
@@ -73,6 +75,11 @@
 ** anything that depends on time, which includes _OSInitializeTimer and the UART. */
 void OSInitializeSystemClocks(void)
 {
+  /* Every clock on through SLEEP, as after a power-on. A debugger's reset, even through
+  ** the rescue DP, leaves the CLOCKS block alone: an image loaded after one that gated
+  ** them (Escapement_SleepGate.c) found them gated still (2026-09-28). */
+  CLOCKS_SLEEP_EN0 = 0xFFFFFFFF;
+  CLOCKS_SLEEP_EN1 = 0x7FFF;
   /* Start the crystal and wait for it to settle. The startup delay is counted in batches
   ** of 256 cycles; 47 gives the millisecond recommended for a 12 MHz crystal. */
   XOSC_STARTUP = 47;

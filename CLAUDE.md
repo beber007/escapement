@@ -15,6 +15,7 @@ make KERNEL=SOFT                              # (m,k)-firm kernel
 make KERNEL=PA                                # power-aware kernel, DVFS
 make KERNEL=PA UNDERVOLT=1                    # below the specified voltage, bench only
 make KERNEL=PA SLEEP_SPEED=0                  # idle task sleeps at 12 MHz (default 125)
+make SLEEP_GATE=1                             # idle task in SLEEP, clocks gated (bench only)
 make TRACE=1                                  # scheduling trace in RAM (tools/read_trace.py)
 make KERNEL=PA bench                          # BenchDVFSPico, BenchVregPico: board timings
 tools/fourslot_cores.sh                       # FourSlotCoresPico: 4-slot buffer across cores
@@ -130,6 +131,10 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
 - OpenOCD halts both cores and resumes core 0 only. That held core 1 also paused the
   watchdog a flash firmware may have armed: an image that runs core 1 must be loaded
   with `set USE_CORE 0` and disarm the watchdog, or the chip reboots within a second.
+- In SLEEP (`make SLEEP_GATE=1`) the probe reads zeros from the whole bus, without an
+  error: hold core 1, not core 0, for each read, as `tools/read_trace.py` does. The
+  SLEEP_EN registers outlive a debugger's reset, even the rescue DP's; the port sets
+  them back in `OSInitializeSystemClocks`, and an image that does not must be suspected.
 - OpenOCD's cmsis-dap driver asks every Raspberry Pi USB device for its strings, and the
   Pico's own USB, once a flash firmware has enumerated it, may not answer: 3.3 s lost
   per connection, which failed the cost check. The tools select the Debug Probe by its

@@ -57,6 +57,9 @@ on the RP2040. The **STM32L4** is set aside.
    timer with them (§2.11.3). A timed wake-up from it can come only from the RTC, to the
    second, and only on an external clock on a GPIN (§4.8). That is no use to an idle task
    that keeps time to the microsecond. No erratum touches SLEEP, DORMANT or the RTC.
+   The idle task in SLEEP (`make SLEEP_GATE=1`) kept every deadline on the board on
+   2026-09-28 (`rp2040.md`, "SLEEP rather than WFI alone"); what it draws is for the
+   bench to measure.
 
    Built with `SLEEP_SPEED=0`, the power-aware kernel's idle task sleeps at 12 MHz with
    the PLL still locked (`power-aware.md`); the 0.39 mA had it stopped, and the datasheet
