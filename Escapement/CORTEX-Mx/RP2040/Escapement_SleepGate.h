@@ -21,7 +21,7 @@
 ** sleep enabled on both (datasheet, 2.11.5.1): this enables it on core 0, where the idle
 ** task waits, and parks core 1 on it, so that an image calling it cannot run core 1 for
 ** itself. During SLEEP only the clocks of keep0 and keep1 run, and the timer of the
-** kernel and its tick, always kept; an interrupt ends it. */
+** kernel, always kept, whose tick SLEEP leaves alone; an interrupt ends it. */
 void OSInitSleepGate(UINT32 keep0, UINT32 keep1);
 
 #endif /* ESCAPEMENT_SLEEPGATE_H */

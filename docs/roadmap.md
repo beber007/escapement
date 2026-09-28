@@ -65,8 +65,8 @@ on the RP2040. The **STM32L4** is set aside.
    the PLL still locked (`power-aware.md`); the 0.39 mA had it stopped, and the datasheet
    gives no lock time (§2.18). The steps on the bench, then:
    1. the idle task as it is, at 125 and at 12 MHz;
-   2. SLEEP, with the timer, its tick and the interrupts in use left on. Whether the tick
-      also needs CLK_SYS_WATCHDOG is for the board to say;
+   2. SLEEP, with the timer and the interrupts in use left on; the tick, from clk_ref,
+      needs no more (`rp2040.md`, "SLEEP rather than WFI alone");
    3. the PLL's lock time, to decide whether a long sleep pays for stopping it, as the U5
       stops its clocks in Stop 2.
 
