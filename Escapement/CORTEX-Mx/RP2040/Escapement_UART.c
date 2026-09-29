@@ -67,7 +67,7 @@
 #define FUNCSEL_UART         2
 
 #define NVIC_ISER            *((volatile UINT32 *)0xE000E100)
-#define NVIC_ICER            *((volatile UINT32 *)0xE000E180)
+#define NVIC_ISPR            *((volatile UINT32 *)0xE000E200)
 
 /* Clock feeding the UART, fixed by OSInitializeSystemClocks. */
 #define CLK_PERI_HZ          12000000u
@@ -134,8 +134,8 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
   /* 8 bits, no parity, one stop bit, FIFOs enabled. */
   REG(descriptor,UART_LCR_H) = LCR_H_WLEN_8 | LCR_H_FEN;
   REG(descriptor,UART_CR) = CR_UARTEN | CR_TXE | CR_RXE;
-  /* Reception interrupts only; transmission is enabled by OSEnqueueUART when there is
-  ** something to send. */
+  /* Reception interrupts only; the transmit one is enabled by the interrupt itself, once
+  ** OSEnqueueUART has set it pending, while there is something to send. */
   REG(descriptor,UART_ICR) = 0x7FF;
   REG(descriptor,UART_IMSC) = INT_RX | INT_RT;
   OSSetISRDescriptor(interruptIndex,descriptor);
@@ -171,28 +171,20 @@ void OSEnqueueUART(void *buffer, UINT8 dataSize, UINT8 interruptIndex)
   /* Unlike the USART of the STM32, where the transmit interrupt reflects a state and
   ** fires as soon as it is enabled, the one of the PL011 fires on a FIFO threshold being
   ** crossed. Enabling it on an already empty FIFO produces nothing: transmission has to be
-  ** primed by writing the first bytes.
-  ** Priming is the one moment where the fields holding the buffer being emptied are
-  ** touched outside the interrupt. The interrupt of this UART alone is therefore masked
-  ** around it, rather than every interrupt, so that the timer of the kernel keeps its
-  ** latency. A transmit interrupt raised meanwhile stays pending and is taken as soon as
-  ** it is unmasked. */
-  NVIC_ICER = 1u << interruptIndex;
-  asm volatile ("dsb" ::: "memory");   // the mask must hold before the next instruction
-  asm volatile ("isb" ::: "memory");
-  Transmit(descriptor);
-  /* The fields Transmit wrote, before the interrupt that reads them is unmasked: a store
-  ** to a volatile register does not keep the compiler from moving an ordinary one after
-  ** it, were Transmit ever inlined here. */
-  asm volatile ("" ::: "memory");
-  NVIC_ISER = 1u << interruptIndex;
+  ** primed by writing the first bytes. The interrupt primes it, set pending here, so that
+  ** the fields holding the buffer being emptied are only ever touched by it. Primed here
+  ** with only this UART's interrupt masked, a task preempting another inside it, and
+  ** queuing in turn, emptied the same buffer from where the other stood, and unmasked the
+  ** interrupt under it: UARTSendersPico2 saw 179 lines of some 18,600 come out broken
+  ** in 0.3 s (2026-09-29). */
+  NVIC_ISPR = 1u << interruptIndex;
 } /* end of OSEnqueueUART */
 
 
 /* Transmit: Pushes as many bytes as the transmit FIFO accepts, taking the next buffer from
 ** the queue whenever the current one runs out. Leaves the transmit interrupt enabled only
-** while something remains to send. Called by OSEnqueueUART to prime, and by the interrupt
-** to carry on. */
+** while something remains to send. Called by the interrupt alone, to prime and to carry
+** on. */
 static void Transmit(UART_INTERRUPT_DESCRIPTOR *des)
 {
   if (des->CurrentBuffer == NULL)
@@ -228,20 +220,26 @@ static void TakeNextBuffer(UART_INTERRUPT_DESCRIPTOR *des)
 /* InterruptHandler: Single ISR of a UART. On reception it hands each byte to the
 ** application. On transmission it pushes bytes from the current buffer, takes the next one
 ** from the queue when it runs out, and disables the transmit interrupt once everything has
-** been sent — OSEnqueueUART enables it again. */
+** been sent; set pending by OSEnqueueUART, it starts again. */
 static void InterruptHandler(UART_INTERRUPT_DESCRIPTOR *des)
 {
   UINT32 status = REG(des,UART_MIS);
   if (status & (INT_RX | INT_RT)) {
      while ((REG(des,UART_FR) & FR_RXFE) == 0) {
         UINT8 data = (UINT8)REG(des,UART_DR);
-        if (des->UserReceiveInterruptHandler != NULL)
+        if (des->UserReceiveInterruptHandler != NULL) {
            des->UserReceiveInterruptHandler(data);
+           /* What the handler queued goes out now, freeing its buffer before the next
+           ** byte: an echo with a buffer a byte, fed 11 bytes in one interrupt, ran out
+           ** of its 8 buffers waiting for the end of this loop (2026-09-29). */
+           Transmit(des);
+        }
      }
      REG(des,UART_ICR) = INT_RX | INT_RT;
   }
-  if (status & INT_TX) {
+  if (status & INT_TX)
      REG(des,UART_ICR) = INT_TX;
-     Transmit(des);
-  }
+  /* Whatever the cause: OSEnqueueUART sets the interrupt pending to prime the
+  ** transmission, with no cause of the UART's own. */
+  Transmit(des);
 } /* end of InterruptHandler */

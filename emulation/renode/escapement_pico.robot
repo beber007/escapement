@@ -114,6 +114,31 @@ The UART echo answers
     Write Line To Uart        escapement  waitForEcho=false
     Wait For Prompt On Uart   escapement  testerId=${uart}
 
+Two tasks send on the UART at once
+    [Documentation]           UARTSendersPico, as UARTSendersPico2 in escapement_pico2.robot: a
+    ...                       task of 10 ms sends lines of 15 "a" for 6 ms of each period, a
+    ...                       task of 500 us a line of 7 "b", preempting it. Over 0.3 s every
+    ...                       line on UART0 must be whole, and every line queued come out but
+    ...                       those still queued at the end (2026-09-29).
+    Load Escapement           UARTSendersPico
+    ${out}=                   Evaluate  __import__('tempfile').mktemp(suffix='.txt')
+    Execute Command           sysbus.uart0 CreateFileBackend @${out} true
+    Execute Command           emulation RunFor "0.3"
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${a}=                     Execute Command  sysbus ReadDoubleWord ${results + 4}
+    ${b}=                     Execute Command  sysbus ReadDoubleWord ${results + 8}
+    ${a}=                     Convert To Integer  ${a.strip()}
+    ${b}=                     Convert To Integer  ${b.strip()}
+    ${lines}=                 Evaluate  open(r'${out}', 'rb').read().split(b'\\n')[:-1]
+    ${bad}=                   Evaluate  [l for l in $lines if l not in (b'a' * 15, b'b' * 7)]
+    ${na}=                    Evaluate  $lines.count(b'a' * 15)
+    ${nb}=                    Evaluate  $lines.count(b'b' * 7)
+    Log To Console            ${a} lines of a and ${b} of b queued, ${na} and ${nb} whole on the port, ${bad.__len__()} not: ${bad[:3]}
+    Should Be True            ${a} > 100 and ${b} > 100
+    Should Be Empty           ${bad}
+    Should Be True            0 <= ${a} + ${b} - ${na} - ${nb} <= 4
+
 Timer events wake the event-driven tasks
     [Documentation]           TestTimerEventPico pairs each periodic task with an event-driven
     ...                       one, as TestTimerEventF4 does. SetLed1Task raises GPIO 2 every

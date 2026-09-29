@@ -149,6 +149,21 @@ In the compiled code of the Cortex-M0+, three of the five emulated load-linked r
 value before setting the reservation, so an interrupt in between went unseen. A compiler
 barrier now keeps the order.
 
+The RP2350 and STM32U5 ports went through the same audit on 2026-09-29, by two agents
+reading one port each, every finding then checked by hand against the code. Two defects
+were each reproduced under Renode by a test that fails on the code before:
+
+- the STM32U5's idle task in Stop 2 slept past the 2^30 wrap when the next arrival was
+  an event-driven task's beyond it, and the kernel's clock lost the overshoot, up to 2 s
+  on the board, with nothing counted late (`Stop2EventWrapU5`, `stm32u5.md`);
+- `OSEnqueueUART` primed the transmission at task level with only the UART's interrupt
+  masked, so that a task preempting another inside it emptied the same buffer from where
+  the other stood: 179 lines of some 18,600 came out broken in 0.3 s on the Pico 2, 60
+  of some 400 on the Pico, whose senders then all but stopped (`UARTSendersPico2`,
+  `UARTSendersPico`). The RP2040 had it too, from the port the RP2350's was taken from;
+  the first audit had closed the race of the call with its own interrupt, not with
+  another caller.
+
 ### Two fixes that were wrong
 
 The endurance test (`SoakPico`, `tools/soak.py`) showed two of those fixes wrong the
@@ -228,10 +243,9 @@ a quarter.
 
 ### Between the cores
 
-None of the RP2350 port has been audited line by line. Its emulated platform
+The RP2350 port was audited line by line on 2026-09-29 (above). Its emulated platform
 acknowledges its clocks blindly (`emulation.md`); a Pico 2 has run it since 2026-09-28,
-its clocks checked on a frequency counter, but only the examples that count in memory
-(`architecture.md`).
+its clocks checked and its outputs timed on a frequency counter (`architecture.md`).
 
 Between the cores, the models cover the orders of access the architecture allows. That
 the compiled code keeps the order they need is checked by `tools/check_order.py`, in the

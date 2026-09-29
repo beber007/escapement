@@ -148,7 +148,8 @@ say (`test/model/fourslot.py`, two cores). The emulation adds the kernel's own c
 compiled for the Cortex-M33, carrying the mechanism.
 
 `escapement_pico2.robot` runs the checks of the RP2040 suite that the examples allow:
-the 1 ms probe, the three periodic tasks, the UART echo, the timer events, and the
+the 1 ms probe, the three periodic tasks, the UART echo and two tasks sending on the
+UART at once, the timer events, and the
 crossing of the 2^30 boundary by `TaskWrapPico2`, with the timer model raised to 1 GHz
 as on the RP2040. It adds the 4-slot buffer between the cores, and the 3-slot one since
 2026-09-25 (below). It runs on the hard and the soft kernel under both algorithms, in
