@@ -216,8 +216,11 @@ synchronized for hours with a stratum 1 server:
   taking in an offset of a few milliseconds, and +1.19 to +1.42 ppm in the frequency
   systemd-timesyncd had settled on (`adjtimex`).
 
-The raw clock runs slow by some 1 to 1.5 ppm, then, two hundred times less than the
-check's bound of 300 ppm.
+Over a longer span the correction tells the crystal closer, as the offsets NTP takes in
+weigh less: from 17:37 to 20:57 UTC the same day, 11,989 s of the raw clock, the clock
+NTP disciplines gained 21.09 ms on it, 1.76 ppm, within some 0.5 ppm for the few
+milliseconds NTP may be off at either end. The raw clock runs slow by some 1.8 ppm, then,
+a hundred and fifty times less than the check's bound of 300 ppm.
 
 ## The idle task in Stop 2
 

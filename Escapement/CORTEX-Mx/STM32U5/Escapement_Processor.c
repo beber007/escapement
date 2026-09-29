@@ -10,7 +10,8 @@
 ** to 160 MHz, the maximum of the chip, from PLL1 fed by the 16 MHz crystal of the UNO Q,
 ** the HSE (the board's device tree in Arduino's Zephyr): divided by 4, x 80 = 320 MHz at
 ** the VCO, divided by 2. That needs voltage range 1 with the EPOD booster, whose clock is
-** the input of PLL1, between 4 and 16 MHz, and must be selected before the booster is
+** the source of PLL1 before its divider M, divided by PLL1MBOOST, between 4 and 16 MHz
+** (RM0456 rev. 7, RCC_PLL1CFGR), and must be selected before the booster is
 ** enabled, then 4 wait states on the flash, and a first step through an AHB prescaler of
 ** 2, which ST's library takes above 80 MHz to soften the jump in current. The
 ** instruction cache hides the wait states.
@@ -216,8 +217,11 @@ void _OSRaiseSystemClock(void)
      for (i = 0; (RCC_CR & RCC_CR_HSERDY) == 0 && i < HSE_START_TURNS; i += 1);
      NoHSE = (RCC_CR & RCC_CR_HSERDY) == 0;
   }
-  /* The input of PLL1, which is also the booster's clock, before the booster: the HSE
-  ** divided by 4, or the MSIS as it is, 4 MHz either way. */
+  /* The input of PLL1 before the booster, whose clock is the source before the divider M:
+  ** the HSE, 16 MHz, the top of the booster's range, divided by 4 for the VCO; or the
+  ** MSIS as it is, 3.998 MHz locked on the LSE, a little under the 4 MHz both the booster
+  ** and the VCO's input are specified from (RM0456 rev. 7, RCC_PLL1CFGR). Until
+  ** 2026-09-29 this said the booster took 4 MHz from the HSE too. */
   if ((RCC_CR & RCC_CR_HSERDY) != 0)
      RCC_PLL1CFGR = (RCC_PLL1CFGR & ~PLL1CFGR_FIELDS) |
                     PLL1SRC_HSE | PLL1RGE_4_8MHZ | PLL1M(4) | PLL1MBOOST_DIV1 | PLL1REN;

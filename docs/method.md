@@ -174,8 +174,10 @@ to images in SRAM; `OSInitUART` said TRUE with its queue unallocated, and
 ports released blocks from reset by a read-modify-write of `RESETS`, which could put
 back in reset what core 1 had just released; `OSGetStop2Counts` unmasked the interrupts
 whatever the caller's state. Left for later: the MSIS locked on the LSE feeds PLL1 at
-3.998 MHz, under the 4 MHz the audit remembered as its floor, on the NUCLEO-U575ZI-Q,
-which has no HSE, and a comment on the clock of the booster to check against RM0456.
+3.998 MHz, under the 4 MHz RM0456 gives as the floor of both the VCO's input and the
+booster's clock, on the NUCLEO-U575ZI-Q, which has no HSE. The comment on the booster's
+clock, read against RM0456 the same day, was wrong: the booster takes the source of
+PLL1 before its divider M, 16 MHz from the HSE, not 4, still within its 4 to 16 MHz.
 
 ### Two fixes that were wrong
 

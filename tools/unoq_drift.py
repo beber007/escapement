@@ -14,7 +14,7 @@ CLOCK_MONOTONIC, whose rate NTP disciplines, and which is the truer reference on
 NTP is steady: over Wi-Fi answering in 1.5 or 204 ms, on 2026-09-28, NTP pulled it by
 hundreds of ppm, and two runs read +278 and -686 ppm. The check (tools/unoq_check.sh)
 reads the first, then, and its bound of 300 ppm dwarfs the raw clock's own error: some
-1 to 1.5 ppm slow against NTP on 2026-09-29 (docs/stm32u5.md).
+1.8 ppm slow against NTP on 2026-09-29 (docs/stm32u5.md).
 
 Run it on the board with the endurance test's service stopped, which holds the port
 (tools/soak.py stops Arduino's Bridge, which does too).
