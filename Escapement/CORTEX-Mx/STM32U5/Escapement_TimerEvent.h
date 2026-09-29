@@ -36,8 +36,9 @@
 **  (1) (UINT8) nbNode: maximum number of pending events;
 **  (2) (UINT8) priority: priority level of the interrupt, 0 to 13 (14 and 15 are the
 **      kernel's own);
-**  (3) (UINT16) interruptIndex: OS_IO_TIM5, the kernel using TIM2. */
-void OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex);
+**  (3) (UINT16) interruptIndex: OS_IO_TIM5, the kernel using TIM2.
+** Returned value: FALSE if nbNode is 0 or the memory is short, TRUE otherwise. */
+BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex);
 
 /* OSScheduleTimerEvent: Wakes the event-driven task waiting on an event after a delay.
 ** Parameters:

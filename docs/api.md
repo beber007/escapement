@@ -186,7 +186,9 @@ refuses a `wcet` above the workload, or one that would take the whole processor.
 ### Timer events
 
 `Escapement_TimerEvent` signals an event after a delay. `main` calls
-`OSInitTimerEvent(nodes, priority, OS_IO_TIMER_2)`; a task then calls
+`OSInitTimerEvent(nodes, priority, OS_IO_TIMER_2)`, which returns `FALSE` for no node or
+short memory (since 2026-09-29; it returned nothing and wrote past an empty block); a
+task then calls
 `OSScheduleTimerEvent(event, delay, OS_IO_TIMER_2)`, and `OSUnScheduleTimerEvent` takes a
 pending one back. `TestTimerEventPico` raises a pin every 5 ms and has an event-driven
 task lower it 1 ms later.

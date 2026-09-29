@@ -164,6 +164,18 @@ were each reproduced under Renode by a test that fails on the code before:
   the first audit had closed the race of the call with its own interrupt, not with
   another caller.
 
+The smaller findings were fixed the same day without a test of their own, each read
+against the code and the whole suites run again after: the U585's vector table trapped
+as reserved five interrupts it has (SAES, AES, PKA, OTFDEC1 and OTFDEC2), taken from the
+U575's; the flash prefetch was on, the condition of erratum 2.2.26, and served nothing
+to images in SRAM; `OSInitUART` said TRUE with its queue unallocated, and
+`OSInitTimerEvent`, which said nothing, wrote past an empty block for no node; the Pico
+ports released blocks from reset by a read-modify-write of `RESETS`, which could put
+back in reset what core 1 had just released; `OSGetStop2Counts` unmasked the interrupts
+whatever the caller's state. Left for later: the MSIS locked on the LSE feeds PLL1 at
+3.998 MHz, under the 4 MHz the audit remembered as its floor, on the NUCLEO-U575ZI-Q,
+which has no HSE, and a comment on the clock of the booster to check against RM0456.
+
 ### Two fixes that were wrong
 
 The endurance test (`SoakPico`, `tools/soak.py`) showed two of those fixes wrong the

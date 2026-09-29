@@ -37,8 +37,9 @@
 **  (2) (UINT8) priority: priority level of the alarm interrupt, 0 or 1 (2 and 3 are the
 **      kernel's own);
 **  (3) (UINT16) interruptIndex: OS_IO_TIMER_2 or OS_IO_TIMER_3, the kernel using alarms
-**      0 and 1. */
-void OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex);
+**      0 and 1.
+** Returned value: FALSE if nbNode is 0 or the memory is short, TRUE otherwise. */
+BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex);
 
 /* OSScheduleTimerEvent: Wakes the event-driven task waiting on an event after a delay.
 ** Parameters:

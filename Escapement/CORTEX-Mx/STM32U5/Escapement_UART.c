@@ -166,7 +166,8 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
      return FALSE;
   descriptor->InterruptHandler = InterruptHandler;
   descriptor->UserReceiveInterruptHandler = ReceiveHandler;
-  descriptor->FifoArray = OSInitFIFOQueue(maxNodes,maxNodeSize);
+  if ((descriptor->FifoArray = OSInitFIFOQueue(maxNodes,maxNodeSize)) == NULL)
+     return FALSE;                     // TRUE promised the queue too (2026-09-29)
   descriptor->NbTransmit = 0;
   descriptor->CurrentBuffer = NULL;
   descriptor->CurrentBufferIndex = 0;

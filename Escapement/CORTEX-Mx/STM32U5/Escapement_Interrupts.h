@@ -21,10 +21,11 @@
 ** Modifications Copyright (c) 2026 Bertrand Hurst, distributed under the same terms;
 ** see LICENSE and NOTICE at the root of this repository.
 */
-/* File Escapement_Interrupts.h: Indices of the STM32U575 interrupt vector table, usable with
+/* File Escapement_Interrupts.h: Indices of the STM32U585 interrupt vector table, usable with
 ** OSSetISRDescriptor and OSGetISRDescriptor. They are the IRQ numbers of the chip (RM0456,
 ** the reference manual of the STM32U5, table of the NVIC; STMicroelectronics,
-** cmsis-device-u5, stm32u575xx.h), the numbers left out being reserved.
+** cmsis-device-u5, stm32u585xx.h). The U575 has the same but for the five of the U585's
+** cryptography, SAES, AES, PKA, OTFDEC1 and OTFDEC2, reserved there.
 ** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 
@@ -59,6 +60,7 @@
 #define OS_IO_EXTI14                  25
 #define OS_IO_EXTI15                  26
 #define OS_IO_IWDG                    27
+#define OS_IO_SAES                    28
 #define OS_IO_GPDMA1_Channel0         29
 #define OS_IO_GPDMA1_Channel1         30
 #define OS_IO_GPDMA1_Channel2         31
@@ -123,9 +125,11 @@
 #define OS_IO_SAI1                    90
 #define OS_IO_SAI2                    91
 #define OS_IO_TSC                     92
+#define OS_IO_AES                     93
 #define OS_IO_RNG                     94
 #define OS_IO_FPU                     95
 #define OS_IO_HASH                    96
+#define OS_IO_PKA                     97
 #define OS_IO_LPTIM3                  98
 #define OS_IO_SPI3                    99
 #define OS_IO_I2C4_ER                100
@@ -136,6 +140,8 @@
 #define OS_IO_MDF1_FLT3              105
 #define OS_IO_UCPD1                  106
 #define OS_IO_ICACHE                 107
+#define OS_IO_OTFDEC1                108
+#define OS_IO_OTFDEC2                109
 #define OS_IO_LPTIM4                 110
 #define OS_IO_DCACHE1                111
 #define OS_IO_ADF1                   112

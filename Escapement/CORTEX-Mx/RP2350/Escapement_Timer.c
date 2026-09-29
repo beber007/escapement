@@ -61,7 +61,7 @@
 #define TIMER_INTF_CLR      *((volatile UINT32 *)(TIMER_BASE + 0x3000 + 0x44))
 
 #define RESETS_BASE         0x40020000
-#define RESETS_RESET        *((volatile UINT32 *)(RESETS_BASE + 0x00))
+#define RESETS_CLR        *((volatile UINT32 *)(RESETS_BASE + 0x3000))   /* atomic clear alias */
 #define RESETS_RESET_DONE   *((volatile UINT32 *)(RESETS_BASE + 0x08))
 #define RESETS_TIMER_BIT    (1u << 23)   /* TIMER0 */
 
@@ -173,8 +173,11 @@ static void SetIRQPriority(UINT8 irq, UINT8 priority)
 ** starting to count arrivals. The kernel calls _OSStartTimer later, from the idle task. */
 void _OSInitializeTimer(void)
 {
-  /* Release the timer from reset and wait for it to answer. */
-  RESETS_RESET &= ~RESETS_TIMER_BIT;
+  /* Release the timer from reset and wait for it to answer.
+  ** Through the atomic clear alias: core 1 may be running already, and a read-
+  ** modify-write of RESETS put back in reset what it released meanwhile (pico-sdk,
+  ** unreset_block). */
+  RESETS_CLR = RESETS_TIMER_BIT;
   while ((RESETS_RESET_DONE & RESETS_TIMER_BIT) == 0);
   /* Produce the 1 us tick from the 12 MHz reference clock. */
   TICKS_TIMER0_CYCLES = 12;

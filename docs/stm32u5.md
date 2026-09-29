@@ -370,8 +370,9 @@ The MSI may leave its PLL mode on an LSE failure that it detects wrongly, more l
 when cold and at a low core voltage. The MSIS then runs free again, 0.48 % fast on this
 board. The kernel's clock follows it only when PLL1 had to take the MSIS. The port takes
 ST's workaround. The unlock raises line 23 of the EXTI and interrupt 125 (RM0456 rev. 7,
-tables 118, 186 and 189; neither the CMSIS headers of the U575/585 nor Zephyr name
-them). Its handler turns the PLL mode off and on again and counts the event, and
+tables 118, 186 and 189). The CMSIS header of the U585 names the interrupt
+`LSECSSD_IRQn`, after the LSE's clock security, which shares it, and has no name for the
+unlock nor for line 23: this page said until 2026-09-29 that it named neither. Its handler turns the PLL mode off and on again and counts the event, and
 `SoakU5` reports the count. On 2026-09-26, with the core halted, line 23 was raised by
 software on the board. The handler counted it once, cleared the pending flag and turned
 the PLL mode on again. The halt itself cost the link a byte, as a halt alone did
@@ -385,7 +386,7 @@ The others that come near the port do not touch it. The LPTIM1 driver, added on
 | Erratum | Why the port is clear |
 |---|---|
 | 2.2.3, 2.2.16: LSE unusable at the low and medium-low drives | it sets medium-high, as Zephyr |
-| 2.2.26: hang on entering Stop or Standby with the flash prefetching at 4 wait states | the images, the entry into Stop 2 with them, run from SRAM |
+| 2.2.26: hang on entering Stop or Standby with the flash prefetching at 4 wait states | the prefetch is off since 2026-09-29; it was on, the images running from SRAM taken to keep the port clear, which an audit of the port doubted: the condition is the prefetch and the wait states, wherever the code runs from, and the prefetch serves nothing to images that never fetch from the flash |
 | 2.2.1: PC13 toggling disturbs the LSE | neither the port nor Arduino's device tree uses PC13 |
 | 2.22.3: LPUART transmitter jitter with a kernel clock 3 to 4 times the baud rate | HSI16 for 57,600 baud, 278 times |
 | 2.2.2: MSI slow on leaving Standby or Stop 3 | the port enters Stop 2 alone |

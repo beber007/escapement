@@ -50,7 +50,7 @@
 #define TIMER_INTF_SET      *((volatile UINT32 *)(TIMER_BASE + 0x2000 + 0x3C))
 #define TIMER_INTF_CLR      *((volatile UINT32 *)(TIMER_BASE + 0x3000 + 0x3C))
 
-#define RESETS_RESET        *((volatile UINT32 *)(0x4000C000 + 0x00))
+#define RESETS_CLR        *((volatile UINT32 *)(0x4000C000 + 0x3000))   /* atomic clear alias */
 #define RESETS_RESET_DONE   *((volatile UINT32 *)(0x4000C000 + 0x08))
 #define RESETS_TIMER_BIT    (1u << 21)
 
@@ -95,24 +95,33 @@ static void LeaveCritical(UINT32 primask)
 
 
 /* OSInitTimerEvent: Creates the descriptor of an alarm used as an event manager. */
-void OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex)
+BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex)
 {
   TIMER_ISR_DATA *device;
   UINT8 i, shift;
   UINT32 word;
-  device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+  /* No node, the loop below wrote the first beyond an empty block, over the descriptor
+  ** just allocated (an audit of the ports, 2026-09-29). */
+  if (nbNode == 0 ||
+      (device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA))) == NULL)
+     return FALSE;
   device->TimerIntHandler = TimerIntHandler;
   device->AlarmBit = 1u << (interruptIndex - OS_IO_TIMER_0);
   device->Alarm = &TIMER_ALARM(interruptIndex - OS_IO_TIMER_0);
   device->EventQueue = NULL;
-  device->FreeNodes = (TIMER_EVENT_NODE *)OSMalloc(nbNode * sizeof(TIMER_EVENT_NODE));
+  if ((device->FreeNodes =
+        (TIMER_EVENT_NODE *)OSMalloc(nbNode * sizeof(TIMER_EVENT_NODE))) == NULL)
+     return FALSE;
   for (i = 0; i < nbNode - 1; i += 1)
      device->FreeNodes[i].Next = &device->FreeNodes[i+1];
   device->FreeNodes[i].Next = NULL;
   OSSetISRDescriptor(interruptIndex,device);
   /* The kernel releases the timer from reset too, later; enabling the interrupt of the
-  ** alarm needs it now. */
-  RESETS_RESET &= ~RESETS_TIMER_BIT;
+  ** alarm needs it now.
+  ** Through the atomic clear alias: core 1 may be running already, and a read-
+  ** modify-write of RESETS put back in reset what it released meanwhile (pico-sdk,
+  ** unreset_block). */
+  RESETS_CLR = RESETS_TIMER_BIT;
   while ((RESETS_RESET_DONE & RESETS_TIMER_BIT) == 0);
   /* Clear what a previous program may have left on the alarm, see _OSInitializeTimer. */
   TIMER_ARMED = device->AlarmBit;
@@ -125,6 +134,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex)
   NVIC_IPR[interruptIndex >> 2] = word | ((UINT32)((priority << 6) & 0xFF) << shift);
   NVIC_ICPR = 1u << interruptIndex;
   NVIC_ISER = 1u << interruptIndex;
+  return TRUE;
 } /* end of OSInitTimerEvent */
 
 

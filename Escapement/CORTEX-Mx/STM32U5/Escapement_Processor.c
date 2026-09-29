@@ -230,8 +230,11 @@ void _OSRaiseSystemClock(void)
   PWR_VOSR = (PWR_VOSR & ~(3u << 16)) | PWR_VOSR_VOS_RANGE1 | PWR_VOSR_BOOSTEN;
   while ((PWR_VOSR & (PWR_VOSR_VOSRDY | PWR_VOSR_BOOSTRDY)) !=
          (PWR_VOSR_VOSRDY | PWR_VOSR_BOOSTRDY));
-  /* Wait states before the clock rises; read back until they hold. */
-  FLASH_ACR = (FLASH_ACR & ~FLASH_ACR_LATENCY_MASK) | FLASH_WAIT_STATES | FLASH_ACR_PRFTEN;
+  /* Wait states before the clock rises; read back until they hold. The prefetch stays
+  ** off: the images run from SRAM and never fetch from the flash, and it is the condition
+  ** of erratum 2.2.26, a hang entering Stop with 4 wait states (ES0499), which an audit
+  ** of the port read on 2026-09-29 as holding whatever the code runs from. */
+  FLASH_ACR = (FLASH_ACR & ~(FLASH_ACR_LATENCY_MASK | FLASH_ACR_PRFTEN)) | FLASH_WAIT_STATES;
   while ((FLASH_ACR & FLASH_ACR_LATENCY_MASK) != FLASH_WAIT_STATES);
   /* 4 MHz x 80 / 2 = 160 MHz. */
   RCC_PLL1DIVR = (RCC_PLL1DIVR & ~PLL1DIVR_FIELDS) | PLL1N(80) | PLL1R(2);

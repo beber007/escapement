@@ -112,11 +112,16 @@ BOOL OSInitStop2(void)
 } /* end of OSInitStop2 */
 
 
+/* OSGetStop2Counts: The counts at one instant, interrupts masked meanwhile and then left
+** as the caller had them: from main before the kernel starts, or from an interrupt, they
+** were unmasked on the way out before 2026-09-29. */
 void OSGetStop2Counts(OS_STOP2_COUNTS *counts)
 {
+  UINT32 primask;
+  __asm volatile ("MRS %0, PRIMASK" : "=r" (primask) :: "memory");
   _OSDisableInterrupts();
   *counts = Counts;
-  _OSEnableInterrupts();
+  __asm volatile ("MSR PRIMASK, %0" :: "r" (primask) : "memory");
 } /* end of OSGetStop2Counts */
 
 

@@ -57,7 +57,7 @@
 #define INT_TX               (1u << 5)   /* transmit */
 #define INT_RT               (1u << 6)   /* receive timeout */
 
-#define RESETS_RESET         *((volatile UINT32 *)0x4000C000)
+#define RESETS_CLR         *((volatile UINT32 *)(0x4000C000 + 0x3000))   /* atomic clear alias */
 #define RESETS_RESET_DONE    *((volatile UINT32 *)0x4000C008)
 #define RESETS_UART0_BIT     (1u << 22)
 #define RESETS_UART1_BIT     (1u << 23)
@@ -104,7 +104,8 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
      return FALSE;
   descriptor->InterruptHandler = InterruptHandler;
   descriptor->UserReceiveInterruptHandler = ReceiveHandler;
-  descriptor->FifoArray = OSInitFIFOQueue(maxNodes,maxNodeSize);
+  if ((descriptor->FifoArray = OSInitFIFOQueue(maxNodes,maxNodeSize)) == NULL)
+     return FALSE;                     // TRUE promised the queue too (2026-09-29)
   descriptor->NbTransmit = 0;
   descriptor->CurrentBuffer = NULL;
   descriptor->CurrentBufferIndex = 0;
@@ -119,8 +120,11 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
      txPin = 4; rxPin = 5;
   }
   /* Release the UART and the pin block from reset, and wait for both: the pins are
-  ** routed through IO_BANK0 just below. */
-  RESETS_RESET &= ~(resetBit | RESETS_IO_BANK0_BIT);
+  ** routed through IO_BANK0 just below.
+  ** Through the atomic clear alias: core 1 may be running already, and a read-
+  ** modify-write of RESETS put back in reset what it released meanwhile (pico-sdk,
+  ** unreset_block). */
+  RESETS_CLR = resetBit | RESETS_IO_BANK0_BIT;
   while ((RESETS_RESET_DONE & (resetBit | RESETS_IO_BANK0_BIT)) !=
          (resetBit | RESETS_IO_BANK0_BIT));
   /* Route the two pins to the UART. */

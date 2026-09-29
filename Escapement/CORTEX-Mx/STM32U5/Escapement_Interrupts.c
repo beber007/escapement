@@ -34,23 +34,14 @@
 
 extern void _OSIOHandler(void);
 
-#ifdef DEBUG_MODE
-   /* An interrupt was raised for a peripheral that has no descriptor installed. */
-   static void UndefinedInterrupt(void)
-   {
-     _OSDisableInterrupts();
-     while (TRUE);
-   } /* end of UndefinedInterrupt */
-#else
-   #define UndefinedInterrupt _OSIOHandler
-#endif
-
-
-/* STM32U575 vector table, appended to CortexMxVectorTable defined in
+/* STM32U585 vector table, appended to CortexMxVectorTable defined in
 ** Escapement_CortexMx.c. Every interrupt of the chip goes to the dispatcher, so that an
 ** application can take any of them with OSSetISRDescriptor, the port's drivers TIM2,
-** TIM5 and USART1; the dispatcher traps one without a descriptor under DEBUG_MODE. The
-** reserved entries alone go to UndefinedInterrupt. */
+** TIM5 and USART1; the dispatcher traps one without a descriptor under DEBUG_MODE. No
+** entry is reserved on the U585 (stm32u585xx.h): taken from the U575's, the table had
+** SAES, AES, PKA, OTFDEC1 and OTFDEC2, which the U575 lacks, trapped as reserved even
+** with a descriptor installed, until an audit of the port on 2026-09-29. On a U575 those
+** five never fire. */
 __attribute__ ((section(".isr_vector_specific")))
 void (* const STM32U5VectorTable[])(void) = {
   _OSIOHandler,       /*   0  WWDG                  */
@@ -81,7 +72,7 @@ void (* const STM32U5VectorTable[])(void) = {
   _OSIOHandler,       /*  25  EXTI14                */
   _OSIOHandler,       /*  26  EXTI15                */
   _OSIOHandler,       /*  27  IWDG                  */
-  UndefinedInterrupt, /*  28  reserved              */
+  _OSIOHandler,       /*  28  SAES                  */
   _OSIOHandler,       /*  29  GPDMA1_Channel0       */
   _OSIOHandler,       /*  30  GPDMA1_Channel1       */
   _OSIOHandler,       /*  31  GPDMA1_Channel2       */
@@ -146,11 +137,11 @@ void (* const STM32U5VectorTable[])(void) = {
   _OSIOHandler,       /*  90  SAI1                  */
   _OSIOHandler,       /*  91  SAI2                  */
   _OSIOHandler,       /*  92  TSC                   */
-  UndefinedInterrupt, /*  93  reserved              */
+  _OSIOHandler,       /*  93  AES                   */
   _OSIOHandler,       /*  94  RNG                   */
   _OSIOHandler,       /*  95  FPU                   */
   _OSIOHandler,       /*  96  HASH                  */
-  UndefinedInterrupt, /*  97  reserved              */
+  _OSIOHandler,       /*  97  PKA                   */
   _OSIOHandler,       /*  98  LPTIM3                */
   _OSIOHandler,       /*  99  SPI3                  */
   _OSIOHandler,       /* 100  I2C4_ER               */
@@ -161,8 +152,8 @@ void (* const STM32U5VectorTable[])(void) = {
   _OSIOHandler,       /* 105  MDF1_FLT3             */
   _OSIOHandler,       /* 106  UCPD1                 */
   _OSIOHandler,       /* 107  ICACHE                */
-  UndefinedInterrupt, /* 108  reserved              */
-  UndefinedInterrupt, /* 109  reserved              */
+  _OSIOHandler,       /* 108  OTFDEC1               */
+  _OSIOHandler,       /* 109  OTFDEC2               */
   _OSIOHandler,       /* 110  LPTIM4                */
   _OSIOHandler,       /* 111  DCACHE1               */
   _OSIOHandler,       /* 112  ADF1                  */

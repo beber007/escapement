@@ -97,7 +97,7 @@ static void LeaveCritical(UINT32 primask)
 
 /* OSInitTimerEvent: Creates the descriptor of TIM5 used as an event manager, and starts
 ** its counter. */
-void OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex)
+BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex)
 {
   TIMER_ISR_DATA *device;
   UINT8 i;
@@ -105,10 +105,16 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex)
      if (interruptIndex != OS_IO_TIM5)
         while (TRUE);                  // only TIM5 is an event manager on this port
   #endif
-  device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA));
+  /* No node, the loop below wrote the first beyond an empty block, over the descriptor
+  ** just allocated (an audit of the ports, 2026-09-29). */
+  if (nbNode == 0 ||
+      (device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA))) == NULL)
+     return FALSE;
   device->TimerIntHandler = TimerIntHandler;
   device->EventQueue = NULL;
-  device->FreeNodes = (TIMER_EVENT_NODE *)OSMalloc(nbNode * sizeof(TIMER_EVENT_NODE));
+  if ((device->FreeNodes =
+        (TIMER_EVENT_NODE *)OSMalloc(nbNode * sizeof(TIMER_EVENT_NODE))) == NULL)
+     return FALSE;
   for (i = 0; i < nbNode - 1; i += 1)
      device->FreeNodes[i].Next = &device->FreeNodes[i+1];
   device->FreeNodes[i].Next = NULL;
@@ -126,6 +132,7 @@ void OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex)
   NVIC_IPR[interruptIndex] = (UINT8)(priority << 4);
   NVIC_ICPR(interruptIndex) = NVIC_BIT(interruptIndex);
   NVIC_ISER(interruptIndex) = NVIC_BIT(interruptIndex);
+  return TRUE;
 } /* end of OSInitTimerEvent */
 
 
