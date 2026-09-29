@@ -153,8 +153,23 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
   150,000 kHz on the PLL, clk_ref and clk_peri 12,000 kHz on the crystal. On it the six
   examples that count in memory pass the criteria of the Renode suite
   (`tools/pico2_check.py`): both slot buffers and the queue between the cores, `IPCPico2`,
-  the endurance test and the litmus tests. Those that toggle outputs, and the UART echo, wait for a
-  witness on the pins. The power-aware kernel is not ported.
+  the endurance test and the litmus tests. The frequency counter of the Bus Pirate read
+  the outputs on 2026-09-29, loaded as `tools/pico2_check.py` loads, each reading 8 s
+  after the one before, and every one agreed with the next:
+
+  | Output | Example, task | Expected | Measured |
+  |---|---|---:|---:|
+  | `GP4` | `TaskLEDPico2`, 1 ms probe | 500 Hz | 500.01 Hz, 6 readings |
+  | `GP2` | `TaskLEDPico2`, 20 ms task | 50 Hz | 50.0014 to 50.0015 Hz, 4 |
+  | `GP3` | `TaskLEDPico2`, 60 ms task | 16.66667 Hz | 16.66715 Hz, 4 |
+  | `GP2` | `TestTimerEventPico2`, 5 ms event | 200 Hz | 200.007 Hz, 4 |
+  | `GP3` | `TestTimerEventPico2`, 10 ms event | 100 Hz | 100.0031 Hz, 4 |
+
+  Every output is +28 to +35 ppm off, as the Pico's were on the same instrument
+  (`rp2040.md`, 16.66713 and 100.0031 Hz there): two boards the same, it is the Bus
+  Pirate's reference that is some 30 ppm slow rather than either crystal. `TaskWrapPico2`
+  is left out, its periods scaled for Renode, and so is the UART echo, which wants other
+  wires. The power-aware kernel is not ported.
 - **STM32U5** (the STM32U585 of the Arduino UNO Q): Cortex-M33, port under
   `Escapement/CORTEX-Mx/STM32U5/`. It was written anew on 2026-09-25, after the model of
   the RP2350 port. The clocks run at 160 MHz from the board's 16 MHz crystal. TIM2 serves

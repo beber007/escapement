@@ -253,7 +253,8 @@ the Cortex-M0+ emulates for one core only.
 The 4-slot buffer works between the two cores of the Pico, as `FourSlotCoresPico` shows
 on the board (`rp2040.md`), and between those of the Pico 2 under Renode. On the Pico 2
 the 3-slot buffer should work too, since the port makes `LDREX`/`STREX` see both cores.
-Its model says so; no board has shown it yet (`ThreeSlotCoresPico2`). Between the cores
+Its model says so, and a Pico 2 showed it on 2026-09-28: 30 runs of `ThreeSlotCoresPico2`,
+none torn (`architecture.md`). Between the cores
 the buffer takes no event: signalled from core 1, it would pend the kernel's interrupt
 on core 1, where no kernel runs.
 
@@ -336,8 +337,10 @@ There is no `free` and no C library: the code is built freestanding.
 ## On the Pico 2
 
 The Pico 2 takes the same calls, under `RP2350/Examples/pico2`, with its core at
-150 MHz. The power-aware kernel is not ported to it. No board has run the port yet, only
-Renode (`emulation.md`).
+150 MHz. The power-aware kernel is not ported to it. A Pico 2 on the bench has run the
+six examples that count in memory at each commit since 2026-09-28, and the periods of
+the two that toggle outputs were read on a frequency counter on 2026-09-29; the UART
+echo has run under Renode only (`architecture.md`).
 
 ## On the Arduino UNO Q
 

@@ -83,8 +83,10 @@ on the RP2040. The **STM32L4** is set aside.
    and the five examples that count in memory pass (`architecture.md`,
    `tools/pico2_check.py`), and so do litmus tests of the order in which each core sees
    the other's accesses: none reordered (`architecture.md`). The bench checks them at
-   each commit. Left: the three examples that toggle outputs and the UART echo, which
-   need a witness on the pins.
+   each commit. The outputs of `TaskLEDPico2` and `TestTimerEventPico2` were read on
+   the Bus Pirate's frequency counter on 2026-09-29, every period right
+   (`architecture.md`). Left: the UART echo, which wants the probe's UART wired to GP0
+   and GP1, and `TaskWrapPico2`, whose periods are scaled for Renode.
 
 3. **What is left to verify between the cores.** The queue between the cores
    (`Escapement_CoreQueue.c`) had a DMB between any two of its accesses to different

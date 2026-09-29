@@ -228,8 +228,10 @@ a quarter.
 
 ### Between the cores
 
-The RP2350 port has not run on a board, and none of it has been audited line by line.
-The emulated platform acknowledges its clocks blindly (`emulation.md`).
+None of the RP2350 port has been audited line by line. Its emulated platform
+acknowledges its clocks blindly (`emulation.md`); a Pico 2 has run it since 2026-09-28,
+its clocks checked on a frequency counter, but only the examples that count in memory
+(`architecture.md`).
 
 Between the cores, the models cover the orders of access the architecture allows. That
 the compiled code keeps the order they need is checked by `tools/check_order.py`, in the
