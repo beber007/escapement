@@ -180,6 +180,37 @@ The idle task sleeps across the 2^30 wrap of the kernel clock
     Should Be True            ${events} >= ${instances}
     Should Be True            ${eventoff} <= 20000
 
+The idle task sleeps up to the wrap when an arrival lies beyond it
+    [Documentation]           Stop2EventWrapU5: an event-driven task of 300 ms, signalled 10 ms
+    ...                       after each start, waits for the rest of its period in the arrival
+    ...                       queue, its time beyond the 2^30 wrap for the period that crosses
+    ...                       it, which the kernel arms TIM2's compare with. The idle task, in
+    ...                       Stop 2 on LPTIM1, must sleep no further than the wrap: TIM2, the
+    ...                       kernel's time, and TIM5, both moved on by what LPTIM1 counted,
+    ...                       must drift apart by as much over the period across the wrap as
+    ...                       over the others, within 5 us, and every start come one period
+    ...                       after the last. Scaled as SleepWrapU5, in ns. Slept past the wrap,
+    ...                       TIM2 lost 1.5 ms of that period (2026-09-29).
+    Load Escapement           Stop2EventWrapU5  escapement_u5_wrap.repl
+    Execute Command           emulation RunFor "2.5"
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${marker}=                Read Word  ${results}
+    ${instances}=             Read Word  ${results + 4}
+    ${gapoff}=                Read Word  ${results + 8}
+    ${skewmin}=               Read Word  ${results + 12}
+    ${skewmax}=               Read Word  ${results + 16}
+    ${spread}=                Evaluate  ((${skewmax} - ${skewmin}) & 0xFFFFFFFF)
+    ${entries}=               Read Word  ${results + 20}
+    ${late}=                  Read Word  ${results + 24}
+    ${nolse}=                 Read Word  ${results + 28}
+    Log To Console            ${instances} instances, ${late} late, gap off by ${gapoff} ns at most, TIM5 less TIM2 over a period spread over ${spread} ns
+    Should Be Equal As Integers  ${marker}  0x53574556
+    Should Be True            ${instances} >= 6
+    Should Be Equal As Integers  ${nolse}  0
+    Should Be True            ${gapoff} <= 5000
+    Should Be True            ${spread} <= 5000
+
 Scheduling survives the 2^30 wrap of the kernel clock
     [Documentation]           The kernel counts time modulo 2^30 and shifts every temporal
     ...                       variable back when its counter wraps, which TIM2 does at 2^30.

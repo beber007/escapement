@@ -175,9 +175,9 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
   the RP2350 port. The clocks run at 160 MHz from the board's 16 MHz crystal. TIM2 serves
   the kernel and TIM5 the timer events. USART1 goes to the connector and LPUART1 to the
   board's Linux. An idle task can sleep in Stop 2, woken by LPTIM1. The hard and the soft
-  kernel build nine images under `uno-q/`, one of them `SleepWrapU5`, which is `SleepU5`
-  with its times scaled for the wrap. They run from SRAM and leave Arduino's firmware
-  in the flash. All nine run under Renode on a platform of our own. The board has run `TaskLEDU5` and the
+  kernel build ten images under `uno-q/`, two of them for the wrap under Renode:
+  `SleepWrapU5`, which is `SleepU5` with its times scaled, and `Stop2EventWrapU5`. They run from SRAM and leave Arduino's firmware
+  in the flash. All ten run under Renode on a platform of our own. The board has run `TaskLEDU5` and the
   endurance test since 2026-09-26, the latter for hours (`stm32u5.md`). The same sources
   build `SleepU5` for a NUCLEO-U575ZI-Q, to measure the MCU's current, and the endurance
   test, which has run on that board since 2026-09-28 (`tools/board_ci.md`); `SleepU5`

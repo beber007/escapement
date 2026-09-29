@@ -308,4 +308,6 @@ STM32L0 model) joined it, and three tests now cover LPTIM1 on the 32.768 kHz cry
 the idle task sleeping on it, across the 2^30 wrap too, which makes ten (`stm32u5.md`).
 The eleventh, the same day, runs the endurance test built for the NUCLEO-U575ZI-Q and
 reads its reports on USART1; built to report on LPUART1 as on the UNO Q, the image fails
-it.
+it. The twelfth, on 2026-09-29, has the idle task sleep in Stop 2 while an event-driven
+task's arrival lies beyond the wrap (`Stop2EventWrapU5`); before the fix it found, TIM2
+lost 1.5 ms of the period across the wrap (`stm32u5.md`).

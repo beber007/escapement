@@ -139,12 +139,17 @@ static UINT16 NextTick(void)
 ** nothing would be lost, in Sleep otherwise. */
 static void Stop2Idle(void)
 {
-  UINT32 now, target, compare, ticks, micros, event, hsi;
+  UINT32 now, target, compare, limit, ticks, micros, event, hsi;
   UINT16 start, wake, end;
   _OSDisableInterrupts();
   now = TIM_CNT;
   compare = TIM_CCR1;                      // 0 when disarmed (Escapement_Timer.c)
-  target = compare != 0 && compare > now ? compare : TIMER_WRAP;
+  /* The kernel arms the compare with an event-driven task's arrival even beyond the wrap,
+  ** where it never matches (ArrivalQueueInsertTestKey, EscapementHard.c): the wrap comes
+  ** first then. Slept past it, TIM2 was set back to just before it and the kernel's clock
+  ** lost the rest (Stop2EventWrapU5, 2026-09-29). */
+  limit = compare != 0 && compare > now && compare < TIMER_WRAP ? compare : TIMER_WRAP;
+  target = limit;
   if (_OSTimerEventNext(&event) && event < target - now)
      target = now + event;               // the kernel's time of the event, near enough
   if (!Allowed || target - now < OS_STOP2_MIN_US || !_OSUARTIdle()) {
@@ -190,8 +195,7 @@ static void Stop2Idle(void)
   micros = (UINT16)(end - start) * 15625u + Fraction;
   Fraction = micros % 512u;
   micros /= 512u;
-  TIM_CNT = now + micros >= compare && compare > now ? compare - 1 :
-            now + micros >= TIMER_WRAP ? TIMER_WRAP - 1 : now + micros;
+  TIM_CNT = now + micros >= limit ? limit - 1 : now + micros;
   TIM_CR1 |= TIM_CR1_CEN;
   if (!_OSTimerEventResume(micros) || now + micros >= target)
      Counts.Late += 1;

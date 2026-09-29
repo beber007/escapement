@@ -73,7 +73,7 @@ endif
 $(shell mkdir -p build)
 
 EXAMPLES = TaskLEDU5 UARTEchoU5 TestTimerEventU5 TaskWrapU5 IPCU5 SoakU5 TestLPTimerU5 SleepU5 \
-           SleepWrapU5
+           SleepWrapU5 Stop2EventWrapU5
 
 all: $(EXAMPLES:%=build/%.elf)
 
@@ -140,6 +140,13 @@ build/Escapement_Stop2Wrap.o : ../../Escapement_Stop2.c
 build/SleepWrapU5.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2Wrap.o \
                         build/Escapement_UART.o build/Escapement_TimerEvent.o \
                         build/SleepWrapU5.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+# The idle task in Stop 2 while an event-driven task's arrival lies beyond the wrap, scaled
+# as SleepWrapU5 for Renode (Stop2EventWrapU5.c).
+build/Stop2EventWrapU5.o : Stop2EventWrapU5.c
+	$(CC) $(CFLAGS) $(SCALED) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Stop2EventWrapU5.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2Wrap.o \
+                             build/Escapement_TimerEvent.o build/Stop2EventWrapU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/SoakU5.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
                    build/SoakU5.o

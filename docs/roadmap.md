@@ -165,9 +165,9 @@ on the RP2040. The **STM32L4** is set aside.
 
 - **The STM32U5 port, under Renode (2026-09-25).** `Escapement/CORTEX-Mx/STM32U5` runs
   the hard and the soft kernel under both algorithms. It has eight examples with the
-  endurance test, and `SleepWrapU5`, `SleepU5` scaled to cross the 2^30 wrap under
-  Renode. Its Renode platform is our own (`escapement_u5.repl`), and the suite passes its
-  11 tests under each of the four builds, in the CI (`stm32u5.md`).
+  endurance test, and `SleepWrapU5` and `Stop2EventWrapU5`, scaled to cross the 2^30
+  wrap under Renode. Its Renode platform is our own (`escapement_u5.repl`), and the suite
+  passes its 12 tests under each of the four builds, in the CI (`stm32u5.md`).
 
 - **The STM32U5 on the board (2026-09-26).** On the Arduino UNO Q, from SRAM. On the
   first day the clock set-up ran and `SoakU5` ran 22 s without error. The clock has come

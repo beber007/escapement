@@ -121,7 +121,7 @@ counter raises the flag (`Escapement_Timer.c`).
 
 Renode runs the port on a platform of the project's own
 (`emulation/renode/escapement_u5.repl`, see [`emulation.md`](emulation.md)), which has
-the pins of the UNO Q since 2026-09-26. The eleven tests of `escapement_u5.robot` pass
+the pins of the UNO Q since 2026-09-26. The twelve tests of `escapement_u5.robot` pass
 under each of the four builds, hard and soft kernel under EDF and deadline-monotonic.
 They cover:
 
@@ -131,7 +131,8 @@ They cover:
 - tasks preempting one another inside the FIFO queue and a slot buffer, R8-R11 kept
   across;
 - 3.5 s of the endurance test with every part active and none in error;
-- LPTIM1's count against TIM2's, and the idle task sleeping on LPTIM1;
+- LPTIM1's count against TIM2's, and the idle task sleeping on LPTIM1, up to the wrap
+  when the next arrival lies beyond it;
 - the endurance test built for the NUCLEO-U575ZI-Q reporting on USART1, the ST-LINK's
   virtual COM port, and not on LPUART1 (`escapement_u5_nucleo.repl`, which adds the
   ports A and F of that board's pins).
@@ -143,6 +144,18 @@ TIM2, TIM5 and LPTIM1 clocked a thousand times faster. It crosses the wrap twice
 2.5 s with no instance late (2026-09-27). Every start came within 0.5 µs of its period
 and every timer event within 10.5 µs of its time, the start of the event task not being
 a thousand times faster.
+
+An audit of the port found on 2026-09-29 that the idle task could sleep past the wrap.
+An event-driven task signalled before its period is over waits for the period's end in
+the arrival queue, its time kept whole, which may lie beyond the wrap; the kernel arms
+TIM2's compare with it, above the counter's range, where it never matches. The idle task
+took that compare for the next event, slept on past the wrap in steps of LPTIM1, then
+set TIM2 back to just before it: the kernel's clock lost the overshoot, up to a whole
+sleep, 2 s on the board, and counted nothing late. `Stop2EventWrapU5` shows it under
+Renode: TIM2 and TIM5, both moved on by LPTIM1 after each sleep, drift apart by some
+46 µs a period there, the same within 1.5 µs every period, but by 1.55 ms more over the
+one across the wrap. The idle task now sleeps no further than the wrap when the compare
+lies beyond it (`Escapement_Stop2.c`), and that period falls in with the others.
 
 The endurance test found that the port routed to the dispatcher only the interrupts of
 its own drivers, and sent TIM3's to the trap for an undefined one. Every interrupt of
