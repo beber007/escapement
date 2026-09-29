@@ -37,9 +37,19 @@ for instance in "$@"; do
                 > /out/$name.log 2>&1; echo \"exit \$?\" >> /out/$name.log" >/dev/null
     echo "soak-$name: make $make, seed $seed -> $OUT/$name.log"
 done
-if command -v systemd-inhibit >/dev/null; then
+# Over SSH, polkit refuses systemd-inhibit the interactive authentication it asks for
+# (pc-bertrand, 2026-09-29), and the machine slept anyway; the desktop's own session
+# takes an inhibitor without it.
+WAIT='while podman ps -q --filter name=soak- | grep -q .; do sleep 60; done'
+export DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}
+if command -v systemd-inhibit >/dev/null &&
+        systemd-inhibit --what=sleep:idle --who=escapement --why=probe true 2>/dev/null; then
     nohup systemd-inhibit --what=sleep:idle --who=escapement --why="emulated soak" \
-        sh -c 'while podman ps -q --filter name=soak- | grep -q .; do sleep 60; done' \
-        >/dev/null 2>&1 &
-    echo "sleep inhibited while the instances run"
+        sh -c "$WAIT" >/dev/null 2>&1 &
+    echo "sleep inhibited while the instances run (systemd-inhibit)"
+elif command -v kde-inhibit >/dev/null; then
+    nohup kde-inhibit --power sh -c "$WAIT" >/dev/null 2>&1 &
+    echo "sleep inhibited while the instances run (kde-inhibit)"
+else
+    echo "WARNING: nothing keeps this machine from sleeping while the instances run" >&2
 fi
