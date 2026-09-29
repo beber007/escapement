@@ -126,10 +126,10 @@ and serves any number of producers and consumers on either core. Its model
   the other core wrote in its granule, or for no reason at all. The SC that advances
   Tail or Head after an operation is therefore tried again while the index has not
   moved.
-- Eight `DMB` order each core's accesses where the queue needs it. The first version had
-  fifteen; a model of weakly ordered cores cut them down to six, then showed two more
-  needed once it let a store pass an SC ahead of it, as Armv8-M allows (2026-09-29,
-  `method.md`).
+- Seven `DMB` order each core's accesses where the queue needs it, each shown needed.
+  The first version had fifteen; a model of weakly ordered cores cut them down to six,
+  then showed two more needed once it let a store pass an SC ahead of it, as Armv8-M
+  allows, and one of the six superfluous (2026-09-29, `method.md`).
 
 The hardware spinlocks of the SIO were no alternative: they are unreliable on that chip
 (erratum RP2350-E2 of the

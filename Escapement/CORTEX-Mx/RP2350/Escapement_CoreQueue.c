@@ -18,13 +18,14 @@
 **     SC also fails when the other core wrote anywhere in the granule of 16 bytes, or for
 **     no visible reason, and the index would stay behind an operation that returned;
 **   - DMB barriers, which Armv8-M needs for each core's accesses to reach the other in
-**     an order the queue can bear (DDI0553B.y, B7): eight of them, where a first version
+**     an order the queue can bear (DDI0553B.y, B7): seven of them, where a first version
 **     had one between any two accesses to different words, fifteen. The model of weakly
-**     ordered cores (explore_weak) finds seven needed, each caught when left out: after
-**     E5, E9, E15, D5, D6, D9 and D15. With those and the one before a dequeue returns,
-**     every run is linearizable and every dequeuer finds its item's contents, the model
-**     free to reorder any run of accesses between two barriers (test/model/fifo_mp.py;
-**     in the CI's window only a part). The ones after E15 and D15 came on 2026-09-29:
+**     ordered cores (explore_weak) finds each needed, caught when left out: after E5, E9,
+**     E15, D5, D6, D9 and D15. With those every run is linearizable and every dequeuer
+**     finds its item's contents, the model free to reorder any run of accesses between
+**     two barriers (test/model/fifo_mp.py; in the CI's window only a part). One before a
+**     dequeue returned went on 2026-09-29, shown superfluous at the full windows. The
+**     ones after E15 and D15 came the same day:
 **     nothing in Armv8-M orders an SC's write before later writes elsewhere (B7.2.3), and
 **     without them Tail could be seen advanced before its item was in place, a dequeuer
 **     then helping Head past the empty place and the item lost. The model had assumed
@@ -103,10 +104,10 @@ BOOL OSEnqueueCoreQueue(void *queue, void *item)
 } /* end of OSEnqueueCoreQueue */
 
 
-/* OSDequeueCoreQueue: Dequeue of Figure 3. Five barriers, after the reads of Head and of
-** Tail, after the LL of the place, after the SC that takes the item out, and before
-** returning, which puts the item's contents read by the caller after the item was
-** taken. */
+/* OSDequeueCoreQueue: Dequeue of Figure 3. Four barriers, after the reads of Head and of
+** Tail, after the LL of the place and after the SC that takes the item out. The item's
+** contents the caller reads need none of their own: their address comes from the LL of
+** the place, which saw the item, and the enqueuer wrote them before a barrier. */
 void *OSDequeueCoreQueue(void *queue)
 {
   CORE_QUEUE *q = (CORE_QUEUE *)queue;
@@ -132,7 +133,6 @@ void *OSDequeueCoreQueue(void *queue)
         while (OSUINT32_LL((UINT32 *)&q->Head) == h)           // D16
            if (OSUINT32_SC((UINT32 *)&q->Head,h + 1))          // D17, again if it fails
               break;
-        _OSMemoryBarrier();
         return (void *)slot;                                   // D18
      }
   }

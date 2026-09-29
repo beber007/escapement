@@ -95,10 +95,11 @@ on the RP2040. The **STM32L4** is set aside.
    enough within the model's bounds, on a machine of 30 GB; the CI explores only a part.
    On 2026-09-29 the model stopped assuming that a store is never performed before an
    SC ahead of it, which Armv8-M does not promise (DDI0553B.y, B7.2.3): two more DMB,
-   after E15 and D15, were needed, and the queue has eight, seven of them shown needed
-   and the eight enough at their full windows. Whether the one before a dequeue returns
-   can go is left to its proof at a full window. `threeslot.py` makes the same
-   assumption for the 3-slot buffer and waits for the same change. Since 2026-09-26
+   after E15 and D15, were needed, and the one before a dequeue returns was shown
+   superfluous at the full windows: the queue has seven, each shown needed and the seven
+   enough (`fifo_mp.py --wide`, some 40 minutes). The 3-slot buffer holds under the
+   same model (`threeslot.py`, 2026-09-29): after its SC each core reads Reading again,
+   and what it stores next takes its slot from that read. Since 2026-09-26
    each core of `FIFOCoresPico2` is both producer and consumer of the same queues, as in
    the model. A Pico 2 ran it four times on 2026-09-28, each record taken once, whole
    and in order, the two consumers sharing the records the same way each time. That

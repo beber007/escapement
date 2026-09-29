@@ -236,10 +236,15 @@ def explore_two_cores(retry=True, global_monitor=True, next_table=NEXT, writer_r
 # orders everything before it before everything after. Two things are added here.
 #
 # The LL/SC loops branch. A core may perform the loads after a branch before the branch
-# is decided, but no store (a control dependency): so each call is explored along every
-# path its loop can take — the LL finds a request or not, the SC succeeds or fails — up
-# to RETRIES attempts, and a path is dropped as soon as a load or SC it guessed turns out
-# otherwise, which is how a mispredicted branch leaves no trace.
+# is decided, but no store after a branch on what an LL read (a control dependency): so
+# each call is explored along every path its loop can take — the LL finds a request or
+# not, the SC succeeds or fails — up to RETRIES attempts, and a path is dropped as soon
+# as a load or SC it guessed turns out otherwise, which is how a mispredicted branch
+# leaves no trace. A branch on an SC's status orders nothing (DDI0553B.y, B7.2.3), and a
+# store may be performed before the SC ahead of it (sc_orders), which the model forbade
+# until 2026-09-29, when it proved wrong for the queue between the cores (fifo_mp.py).
+# The buffer holds either way: after its SC each core reads Reading again, which waits
+# for the SC at the same Location, and the stores that follow take their slot from it.
 #
 # The exclusive monitor is the RP2350's (datasheet 2.1.6): a reservation per core, taken
 # by its LL, lost to its own SC and to any store of the other core to the 16-byte
@@ -358,7 +363,7 @@ def weak_stored(side, op, regs, latest_first):
     return regs[("LLat", k, 0 if latest_first else attempt)]
 
 
-def weak_performable(side, pending, j, regs, latest_first):
+def weak_performable(side, pending, j, regs, latest_first, sc_orders=False):
     """None if the access cannot be performed yet, else (the pending store of its own
     core it takes its value from, or None)."""
     op = pending[j]
@@ -376,7 +381,7 @@ def weak_performable(side, pending, j, regs, latest_first):
     for earlier in pending[:j]:
         if earlier[0] == "DMB":
             return None
-        if name in STORES and earlier[0] in ("LX", "SX"):
+        if name in STORES and (earlier[0] == "LX" or (earlier[0] == "SX" and sc_orders)):
             return None                                # no store past an open branch
         evariable, ewhere = weak_location(earlier, regs)
         if evariable != variable:
@@ -391,8 +396,14 @@ def weak_performable(side, pending, j, regs, latest_first):
 
 
 def explore_weak(barriers=KERNEL_BARRIERS, latest_first=False, writer_spurious=True,
-                 global_monitor=True, writer_retries=True):
-    """Every execution of the two cores under weak ordering; None, or what went wrong."""
+                 global_monitor=True, writer_retries=True, sc_orders=False, granule=False):
+    """Every execution of the two cores under weak ordering; None, or what went wrong.
+
+    sc_orders False, the default, lets a store be performed before an SC ahead of it: a
+    branch on an SC's status is no control dependency in Armv8-M (DDI0553B.y, B7.2.3), as
+    fifo_mp.py found on 2026-09-29. granule False, the default, has a store end the other
+    core's reservation only on Reading, the Location reserved, the architecture's least,
+    where the RP2350's monitor covers the granule, Latest with it."""
     wbarriers, rbarriers = barriers
     memory = {("Latest", 0): 0, ("Reading", 0): ASKING}
     memory.update({("Slot", (slot, b)): 0 for slot in range(3) for b in range(BYTES)})
@@ -429,7 +440,7 @@ def explore_weak(barriers=KERNEL_BARRIERS, latest_first=False, writer_spurious=T
             pending, regs = (wp, dict(wregs)) if side == "w" else (rp, dict(rregs))
             own, other = (wres, rres) if side == "w" else (rres, wres)
             for j, op in enumerate(pending):
-                verdict = weak_performable(side, pending, j, regs, latest_first)
+                verdict = weak_performable(side, pending, j, regs, latest_first, sc_orders)
                 if verdict is None:
                     continue
                 source = verdict[0]
@@ -451,7 +462,7 @@ def explore_weak(barriers=KERNEL_BARRIERS, latest_first=False, writer_spurious=T
                 elif name in STORES:
                     where = weak_location(op, regs)
                     memory[where] = weak_stored(side, op, regs, latest_first)
-                    in_granule = where[0] in ("Reading", "Latest")
+                    in_granule = where[0] in (("Reading", "Latest") if granule else ("Reading",))
                     outcomes.append((memory, newregs, own,
                                      other and not (in_granule and global_monitor)))
                 else:

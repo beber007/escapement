@@ -55,9 +55,8 @@ once its word was written.
 
 explore takes each core's accesses in program order. explore_weak lets each core
 perform them in any order Armv8-M allows instead, with DMB barriers at chosen points:
-it finds seven needed, each caught when it is left out, and the eight of
-Escapement_CoreQueue.c enough, those seven and one before a dequeue returns (see its
-bounds, below explore).
+it finds the seven of Escapement_CoreQueue.c each needed, caught when it is left out,
+and enough (see its bounds, below explore).
 
 Faulty variants must be caught: Figure 3's single SC, an enqueuer without the check of
 E10, a dequeuer without that of D10 — both caught with SCs that fail only for a reason
@@ -65,8 +64,7 @@ too — and monitors local to each core, which do not see the other core's write
 the RP2350's are without ACTLR.EXTEXCLALL.
 
     python3 test/model/fifo_mp.py      # some 100 s, 2.3 GB at most; --jobs N in parallel
-    python3 test/model/fifo_mp.py --wide   # the eight barriers proven, in parallel
-    python3 test/model/fifo_mp.py --sixth  # the seven without the one before a return
+    python3 test/model/fifo_mp.py --wide   # the seven barriers proven: some 40 min
 """
 import hashlib
 import marshal
@@ -331,7 +329,9 @@ def explore(programs, faults=(), global_monitor=True, prefill=(), spurious=True,
 # dequeuer then found the place empty, helped Head past it, and the item was lost, in each
 # of the three scenarios. Two more barriers close it, after E15 and D15, each needed; the
 # eight hold at their full windows, 5, 6 and 4 (2026-09-29, pc-bertrand, minutes), and
-# seven are needed, "D6 exit" alone found superfluous within 3. Even the RP2350's monitor,
+# seven are needed. "D6 exit", found superfluous within 3, was then left out: the seven
+# hold at their full windows, 5, 6 and 7, the last in some 40 minutes, and the queue has
+# them alone (--wide). Even the RP2350's monitor,
 # whose granule would fail the late SC, lets one run through. The chip itself likely
 # never shows it, its SC waiting for the bus's answer, but the architecture allows it.
 POINTS = ("E0 entry", "E1 after E5", "E2 after E6", "E3 after E9", "E4 after E10",
@@ -340,7 +340,7 @@ POINTS = ("E0 entry", "E1 after E5", "E2 after E6", "E3 after E9", "E4 after E10
           "D5 after D15", "D6 exit")
 # The barriers of Escapement_CoreQueue.c.
 KERNEL_BARRIERS = ("E1 after E5", "E3 after E9", "E6 after E15", "D1 after D5",
-                   "D2 after D6", "D3 after D9", "D5 after D15", "D6 exit")
+                   "D2 after D6", "D3 after D9", "D5 after D15")
 # The barriers each shown needed, with the scenario (below) that shows it soonest.
 NEEDED = (("E1 after E5", 2), ("E3 after E9", 0), ("E6 after E15", 0), ("D1 after D5", 0),
           ("D2 after D6", 1), ("D3 after D9", 2), ("D5 after D15", 2))
@@ -761,8 +761,8 @@ SCENARIOS = [
 
 
 def wide(jobs):
-    """The eight barriers of the queue with the window their runs need, every scenario,
-    states kept compact: minutes (2026-09-29). In parallel on jobs processes."""
+    """The seven barriers of the queue with the window their runs need, every scenario,
+    states kept compact: some 40 minutes (2026-09-29). In parallel on jobs processes."""
     with multiprocessing.Pool(jobs) as pool:
         runs = [(what, longest_run(programs, KERNEL_BARRIERS),
                  pool.apply_async(explore_sized, (programs, KERNEL_BARRIERS, prefill,
@@ -773,25 +773,6 @@ def wide(jobs):
             result = run.get()
             print(f"  {what}, window {window}: {'holds' if result is None else result}",
                   flush=True)
-            ok &= result is None
-    sys.exit(0 if ok else 1)
-
-
-def sixth(jobs):
-    """The seven barriers shown needed without the one before a dequeue returns, each
-    scenario with the window its runs need, states kept compact: whether that one is
-    needed. In parallel on jobs processes."""
-    seven = tuple(b for b in KERNEL_BARRIERS if b != "D6 exit")
-    with multiprocessing.Pool(jobs) as pool:
-        runs = [(what, longest_run(programs, seven),
-                 pool.apply_async(explore_sized, (programs, seven, prefill,
-                                                  longest_run(programs, seven))))
-                for what, programs, prefill in SCENARIOS]
-        ok = True
-        for what, window, run in runs:
-            result = run.get()
-            print(f"  {what}, window {window}, without the DMB before a dequeue returns: "
-                  f"{'holds' if result is None else result}", flush=True)
             ok &= result is None
     sys.exit(0 if ok else 1)
 
@@ -818,8 +799,6 @@ def main():
     args = sys.argv[1:]
     if args == ["--wide"]:
         wide(len(SCENARIOS))
-    if args == ["--sixth"]:
-        sixth(len(SCENARIOS))
     jobs = int(args[args.index("--jobs") + 1]) if "--jobs" in args else 1
     pool = multiprocessing.Pool(jobs) if jobs > 1 else None
     # Every exploration asked for first, the longest first, so that a pool keeps busy;
@@ -863,7 +842,7 @@ def main():
           f"{WINDOW} pending:")
     for (what, _, _), result in zip(SCENARIOS, weak):
         result = result.get()
-        print(f"  {what}, the queue's eight DMB: {'holds' if result is None else result}")
+        print(f"  {what}, the queue's seven DMB: {'holds' if result is None else result}")
         ok &= result is None
     for point, result in needed:
         caught = result.get()
