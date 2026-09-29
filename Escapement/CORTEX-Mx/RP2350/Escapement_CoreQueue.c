@@ -24,10 +24,11 @@
 **     E5, E9, D5, D6 and D9. With those and the one before a dequeue returns, every run
 **     is linearizable and every dequeuer finds its item's contents, the model free to
 **     reorder any run of accesses between two barriers (2026-09-26, on a machine of
-**     30 GB; in the CI's window only a part, test/model/fifo_mp.py). That last one could
-**     not be shown superfluous: without it, one case outgrew 26 GB. The proof holds
-**     within the model's bounds: a queue of two places, two operations a core, two
-**     rounds of each loop.
+**     30 GB; in the CI's window only a part, test/model/fifo_mp.py). That last one the
+**     model showed superfluous on 2026-09-29, and it stays: the model assumes a store is
+**     never performed before an SC ahead of it, which Armv8-M may not promise (see
+**     fifo_mp.py, above POINTS). The proof holds within the model's bounds: a queue of
+**     two places, two operations a core, two rounds of each loop.
 **
 ** Head and Tail count up without end and wrap at 2^32, which the length, a power of 2,
 ** divides: the place of an index is its remainder, and Tail - Head the items held.

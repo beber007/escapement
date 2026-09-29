@@ -66,7 +66,10 @@ the RP2350's are without ACTLR.EXTEXCLALL.
 
     python3 test/model/fifo_mp.py      # some 100 s, 2.3 GB at most; --jobs N in parallel
     python3 test/model/fifo_mp.py --wide   # the six barriers proven: 30 GB of memory
+    python3 test/model/fifo_mp.py --sixth  # the five without the sixth: 55 min, compact
 """
+import hashlib
+import marshal
 import multiprocessing
 import sys
 from collections import deque
@@ -317,8 +320,15 @@ def explore(programs, faults=(), global_monitor=True, prefill=(), spurious=True,
 # Escapement_CoreQueue.c that is 8, which a machine of 30 GB explored on 2026-09-26,
 # every scenario holding, each case at most some 25 minutes and 16 GB. The CI explores
 # them within 3, a part of that. Of the fifteen points below, the other nine were each
-# shown superfluous so, one at a time, and "D6 exit" could not be: without it, a case
-# outgrew 26 GB, and it stays.
+# shown superfluous so, one at a time. "D6 exit" outgrew 26 GB on 2026-09-26; kept as a
+# fingerprint (compact), each state 16 bytes where it took some 1.7 KB, the five others
+# held without it on 2026-09-29, each scenario at its full window, the longest 9 and
+# some 35 million states in 55 minutes (--sixth). It stays all the same: every bound here
+# assumes a store is never performed before an SC ahead of it (weak_performable), and an
+# audit of the port asked the same day whether Armv8-M promises that, a control
+# dependency on an SC's status ordering nothing. Were it not so, Tail could be seen
+# advanced before the item it counts is in its place, and the queue would want a DMB
+# after E15 and D15, points the model found superfluous under that assumption.
 POINTS = ("E0 entry", "E1 after E5", "E2 after E6", "E3 after E9", "E4 after E10",
           "E5 after helping", "E6 after E15", "E7 exit",
           "D0 loop", "D1 after D5", "D2 after D6", "D3 after D9", "D4 after D10",
@@ -494,9 +504,17 @@ def weak_performable(window, j, regs):
     return source
 
 
-def explore_weak(programs, barriers=POINTS, prefill=()):
+def fingerprint(state):
+    """128 bits of state, for compact: marshal's version 2 writes no references, so
+    equal states give equal bytes."""
+    return hashlib.blake2b(marshal.dumps(state, 2), digest_size=16).digest()
+
+
+def explore_weak(programs, barriers=POINTS, prefill=(), compact=False):
     """None if every run that ends is linearizable and every dequeuer finds its item's
-    contents, else what went wrong."""
+    contents, else what went wrong. compact keeps a fingerprint of each state seen rather
+    than the state, some 1.7 KB, as SPIN's hash compaction does: two states of n sharing
+    one, which would leave a part unexplored, has a chance of some n^2 / 2^129."""
     memory = {("Head",): 0, ("Tail",): len(prefill)}
     memory.update({("Q", i): prefill[i] if i < len(prefill) else NULL for i in range(LEN)})
     for p in programs:
@@ -566,7 +584,8 @@ def explore_weak(programs, barriers=POINTS, prefill=()):
     fresh = ((0, "start", (), 0, 0, 0), (), (), (), ())
     starts = [(frozen(memory), (None, None), (a, b), ())
               for a in refill(fresh, 0) for b in refill(fresh, 1)]
-    seen, todo = set(starts), list(starts)
+    key = fingerprint if compact else (lambda state: state)
+    seen, todo = {key(s) for s in starts}, list(starts)
     while todo:
         mem, res, cores, history = todo.pop()
         if all(not core[1] and core[0][0] >= len(programs[c]) for c, core in enumerate(cores)):
@@ -635,9 +654,13 @@ def explore_weak(programs, barriers=POINTS, prefill=()):
                         both = list(cores)
                         both[c] = topped
                         state = (frozen(memory2), res2, tuple(both), h2)
-                        if state not in seen:
-                            seen.add(state)
+                        k = key(state)
+                        if k not in seen:
+                            seen.add(k)
                             todo.append(state)
+                            if compact and len(seen) % 10_000_000 == 0:
+                                print(f"    {len(seen) // 1_000_000}M states seen, "
+                                      f"{len(todo)} to do", file=sys.stderr, flush=True)
     return None
 
 
@@ -723,6 +746,32 @@ def wide():
     sys.exit(0 if ok else 1)
 
 
+def sixth(jobs):
+    """The five barriers shown needed without the one before a dequeue returns, each
+    scenario with the window its runs need, states kept compact: whether that sixth one
+    is needed. In parallel on jobs processes."""
+    five = tuple(b for b in KERNEL_BARRIERS if b != "D6 exit")
+    with multiprocessing.Pool(jobs) as pool:
+        runs = [(what, longest_run(programs, five),
+                 pool.apply_async(explore_sized, (programs, five, prefill,
+                                                  longest_run(programs, five))))
+                for what, programs, prefill in SCENARIOS]
+        ok = True
+        for what, window, run in runs:
+            result = run.get()
+            print(f"  {what}, window {window}, without the DMB before a dequeue returns: "
+                  f"{'holds' if result is None else result}", flush=True)
+            ok &= result is None
+    sys.exit(0 if ok else 1)
+
+
+def explore_sized(programs, barriers, prefill, window):
+    """explore_weak within window pending, states kept compact, in a process of its own."""
+    global WINDOW
+    WINDOW = window
+    return explore_weak(programs, barriers, prefill, compact=True)
+
+
 def later(pool, fn, *args, **kwargs):
     """fn(*args, **kwargs) on the pool, or here when it is read, with no pool."""
     if pool:
@@ -738,6 +787,8 @@ def main():
     args = sys.argv[1:]
     if args == ["--wide"]:
         wide()
+    if args == ["--sixth"]:
+        sixth(len(SCENARIOS))
     jobs = int(args[args.index("--jobs") + 1]) if "--jobs" in args else 1
     pool = multiprocessing.Pool(jobs) if jobs > 1 else None
     # Every exploration asked for first, the longest first, so that a pool keeps busy;
