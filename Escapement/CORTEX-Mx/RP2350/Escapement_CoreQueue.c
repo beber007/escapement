@@ -18,17 +18,19 @@
 **     SC also fails when the other core wrote anywhere in the granule of 16 bytes, or for
 **     no visible reason, and the index would stay behind an operation that returned;
 **   - DMB barriers, which Armv8-M needs for each core's accesses to reach the other in
-**     an order the queue can bear (DDI0553B.y, B7): six of them, where a first version
+**     an order the queue can bear (DDI0553B.y, B7): eight of them, where a first version
 **     had one between any two accesses to different words, fifteen. The model of weakly
-**     ordered cores (explore_weak) finds five needed, each caught when left out: after
-**     E5, E9, D5, D6 and D9. With those and the one before a dequeue returns, every run
-**     is linearizable and every dequeuer finds its item's contents, the model free to
-**     reorder any run of accesses between two barriers (2026-09-26, on a machine of
-**     30 GB; in the CI's window only a part, test/model/fifo_mp.py). That last one the
-**     model showed superfluous on 2026-09-29, and it stays: the model assumes a store is
-**     never performed before an SC ahead of it, which Armv8-M may not promise (see
-**     fifo_mp.py, above POINTS). The proof holds within the model's bounds: a queue of
-**     two places, two operations a core, two rounds of each loop.
+**     ordered cores (explore_weak) finds seven needed, each caught when left out: after
+**     E5, E9, E15, D5, D6, D9 and D15. With those and the one before a dequeue returns,
+**     every run is linearizable and every dequeuer finds its item's contents, the model
+**     free to reorder any run of accesses between two barriers (test/model/fifo_mp.py;
+**     in the CI's window only a part). The ones after E15 and D15 came on 2026-09-29:
+**     nothing in Armv8-M orders an SC's write before later writes elsewhere (B7.2.3), and
+**     without them Tail could be seen advanced before its item was in place, a dequeuer
+**     then helping Head past the empty place and the item lost. The model had assumed
+**     that order until an audit of the port questioned it. The proof holds within the
+**     model's bounds: a queue of two places, two operations a core, two rounds of each
+**     loop.
 **
 ** Head and Tail count up without end and wrap at 2^32, which the length, a power of 2,
 ** divides: the place of an index is its remainder, and Tail - Head the items held.
@@ -66,8 +68,9 @@ void *OSInitCoreQueue(UINT32 length)
 
 
 /* OSEnqueueCoreQueue: Enqueue of Figure 3; the paper's line numbers are in the comments.
-** Two barriers, after the read of Tail and after the LL of the place: the first also puts
-** what the item points to before the item is seen in the queue. */
+** Three barriers, after the read of Tail, after the LL of the place and after the SC that
+** puts the item in: the first also puts what the item points to before the item is seen
+** in the queue. */
 BOOL OSEnqueueCoreQueue(void *queue, void *item)
 {
   CORE_QUEUE *q = (CORE_QUEUE *)queue;
@@ -90,6 +93,7 @@ BOOL OSEnqueueCoreQueue(void *queue, void *item)
            OSUINT32_SC((UINT32 *)&q->Tail,t + 1);              // E13
      }
      else if (OSUINTPTR_SC(place,(UINTPTR)item)) {             // E15
+        _OSMemoryBarrier();       // the item seen in its place before Tail moved past it
         while (OSUINT32_LL((UINT32 *)&q->Tail) == t)           // E16
            if (OSUINT32_SC((UINT32 *)&q->Tail,t + 1))          // E17, again if it fails
               break;
@@ -99,9 +103,10 @@ BOOL OSEnqueueCoreQueue(void *queue, void *item)
 } /* end of OSEnqueueCoreQueue */
 
 
-/* OSDequeueCoreQueue: Dequeue of Figure 3. Four barriers, after the reads of Head and of
-** Tail, after the LL of the place, and before returning, which puts the item's contents
-** read by the caller after the item was taken. */
+/* OSDequeueCoreQueue: Dequeue of Figure 3. Five barriers, after the reads of Head and of
+** Tail, after the LL of the place, after the SC that takes the item out, and before
+** returning, which puts the item's contents read by the caller after the item was
+** taken. */
 void *OSDequeueCoreQueue(void *queue)
 {
   CORE_QUEUE *q = (CORE_QUEUE *)queue;
@@ -123,6 +128,7 @@ void *OSDequeueCoreQueue(void *queue)
            OSUINT32_SC((UINT32 *)&q->Head,h + 1);              // D13
      }
      else if (OSUINTPTR_SC(place,(UINTPTR)NULL)) {             // D15
+        _OSMemoryBarrier();       // the place seen free before Head moved past it
         while (OSUINT32_LL((UINT32 *)&q->Head) == h)           // D16
            if (OSUINT32_SC((UINT32 *)&q->Head,h + 1))          // D17, again if it fails
               break;

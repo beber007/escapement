@@ -55,8 +55,8 @@ once its word was written.
 
 explore takes each core's accesses in program order. explore_weak lets each core
 perform them in any order Armv8-M allows instead, with DMB barriers at chosen points:
-it finds five needed, each caught when it is left out, and the six of
-Escapement_CoreQueue.c enough, those five and one before a dequeue returns (see its
+it finds seven needed, each caught when it is left out, and the eight of
+Escapement_CoreQueue.c enough, those seven and one before a dequeue returns (see its
 bounds, below explore).
 
 Faulty variants must be caught: Figure 3's single SC, an enqueuer without the check of
@@ -65,8 +65,8 @@ too — and monitors local to each core, which do not see the other core's write
 the RP2350's are without ACTLR.EXTEXCLALL.
 
     python3 test/model/fifo_mp.py      # some 100 s, 2.3 GB at most; --jobs N in parallel
-    python3 test/model/fifo_mp.py --wide   # the six barriers proven: 30 GB of memory
-    python3 test/model/fifo_mp.py --sixth  # the five without the sixth: 55 min, compact
+    python3 test/model/fifo_mp.py --wide   # the eight barriers proven, in parallel
+    python3 test/model/fifo_mp.py --sixth  # the seven without the one before a return
 """
 import hashlib
 import marshal
@@ -300,7 +300,8 @@ def explore(programs, faults=(), global_monitor=True, prefill=(), spurious=True,
 # needs:
 #   - a DMB orders everything before it before everything after;
 #   - a load may be performed before the branches ahead of it are decided, a store not
-#     (a control dependency), nor before the SC ahead of it has succeeded or failed;
+#     (a control dependency); a store may be performed before an SC ahead of it, since
+#     a branch on an SC's status is no control dependency (sc_orders, below);
 #   - an access whose address a load gives waits for that load (the place of an index);
 #   - accesses to one location stay in program order, but a load may take its value
 #     from a store of its own core the other does not see yet.
@@ -316,29 +317,33 @@ def explore(programs, faults=(), global_monitor=True, prefill=(), spurious=True,
 # execution the architecture allows, and removing further barriers only allows more: a
 # barrier found needed with all the others in place is needed. A run held within the
 # window is held for good once the window is as long as the longest run of accesses
-# between two barriers of the set, since no access crosses a barrier: for the six of
-# Escapement_CoreQueue.c that is 8, which a machine of 30 GB explored on 2026-09-26,
-# every scenario holding, each case at most some 25 minutes and 16 GB. The CI explores
-# them within 3, a part of that. Of the fifteen points below, the other nine were each
-# shown superfluous so, one at a time. "D6 exit" outgrew 26 GB on 2026-09-26; kept as a
-# fingerprint (compact), each state 16 bytes where it took some 1.7 KB, the five others
-# held without it on 2026-09-29, each scenario at its full window, the longest 9 and
-# some 35 million states in 55 minutes (--sixth). It stays all the same: every bound here
-# assumes a store is never performed before an SC ahead of it (weak_performable), and an
-# audit of the port asked the same day whether Armv8-M promises that, a control
-# dependency on an SC's status ordering nothing. Were it not so, Tail could be seen
-# advanced before the item it counts is in its place, and the queue would want a DMB
-# after E15 and D15, points the model found superfluous under that assumption.
+# between two barriers of the set, since no access crosses a barrier.
+#
+# Until 2026-09-29 the model kept a store from being performed before an SC ahead of it,
+# and gave each core one reservation, set when its LL was performed. Under those, six
+# barriers were enough, found on a machine of 30 GB on 2026-09-26 at their full windows,
+# and the one before a dequeue returns shown superfluous on 2026-09-29, its states kept
+# as fingerprints. An audit of the port asked that day whether Armv8-M orders an SC's
+# write before later ones: it does not (DDI0553B.y, B7.2.3), a control dependency starts
+# from a read, and atomic-ordered-before orders an SC after its own LL alone. With a store
+# free to pass an SC, and a reservation per Location that the monitor keeps in program
+# order, the six let Tail be seen advanced before the item it counts is in its place: a
+# dequeuer then found the place empty, helped Head past it, and the item was lost, in each
+# of the three scenarios. Two more barriers close it, after E15 and D15, each needed; the
+# eight hold at their full windows, 5, 6 and 4 (2026-09-29, pc-bertrand, minutes), and
+# seven are needed, "D6 exit" alone found superfluous within 3. Even the RP2350's monitor,
+# whose granule would fail the late SC, lets one run through. The chip itself likely
+# never shows it, its SC waiting for the bus's answer, but the architecture allows it.
 POINTS = ("E0 entry", "E1 after E5", "E2 after E6", "E3 after E9", "E4 after E10",
           "E5 after helping", "E6 after E15", "E7 exit",
           "D0 loop", "D1 after D5", "D2 after D6", "D3 after D9", "D4 after D10",
           "D5 after D15", "D6 exit")
 # The barriers of Escapement_CoreQueue.c.
-KERNEL_BARRIERS = ("E1 after E5", "E3 after E9", "D1 after D5", "D2 after D6",
-                   "D3 after D9", "D6 exit")
+KERNEL_BARRIERS = ("E1 after E5", "E3 after E9", "E6 after E15", "D1 after D5",
+                   "D2 after D6", "D3 after D9", "D5 after D15", "D6 exit")
 # The barriers each shown needed, with the scenario (below) that shows it soonest.
-NEEDED = (("E1 after E5", 2), ("E3 after E9", 0), ("D1 after D5", 0), ("D2 after D6", 1),
-          ("D3 after D9", 2))
+NEEDED = (("E1 after E5", 2), ("E3 after E9", 0), ("E6 after E15", 0), ("D1 after D5", 0),
+          ("D2 after D6", 1), ("D3 after D9", 2), ("D5 after D15", 2))
 WINDOW = 3
 ITERATIONS = 2
 SC_TRIES = 2
@@ -473,9 +478,10 @@ def weak_fetch(frame, kind, arg, barriers):
     return out
 
 
-def weak_performable(window, j, regs):
+def weak_performable(window, j, regs, sc_orders=False):
     """None if window[j] cannot be performed now, else the pending store of its own
-    core a load takes its value from, or ()."""
+    core a load takes its value from, or (). sc_orders: no store before an SC ahead of
+    it, which Armv8-M does not promise (see explore_weak)."""
     op = window[j]
     kind = op[0]
     if kind == "DMB":
@@ -489,7 +495,8 @@ def weak_performable(window, j, regs):
     for earlier in window[:j]:
         if earlier[0] == "DMB":
             return None
-        if kind in ("ST", "SX") and earlier[0] in ("CHK", "SX"):
+        if kind in ("ST", "SX") and (earlier[0] == "CHK" or
+                                     (earlier[0] == "SX" and sc_orders)):
             return None                       # no store past an undecided branch
         if earlier[0] not in MEMORY:
             continue
@@ -510,11 +517,22 @@ def fingerprint(state):
     return hashlib.blake2b(marshal.dumps(state, 2), digest_size=16).digest()
 
 
-def explore_weak(programs, barriers=POINTS, prefill=(), compact=False):
+def explore_weak(programs, barriers=POINTS, prefill=(), compact=False, sc_orders=False,
+                 granule=False):
     """None if every run that ends is linearizable and every dequeuer finds its item's
     contents, else what went wrong. compact keeps a fingerprint of each state seen rather
     than the state, some 1.7 KB, as SPIN's hash compaction does: two states of n sharing
-    one, which would leave a part unexplored, has a chance of some n^2 / 2^129."""
+    one, which would leave a part unexplored, has a chance of some n^2 / 2^129.
+
+    sc_orders False, the default, lets a store be performed before an SC ahead of it, as
+    Armv8-M allows:
+    nothing in its memory model orders an SC's write before later writes to other
+    Locations without a DMB (DDI0553B.y, B7.2.3: dependencies start from reads, and
+    atomic-ordered-before orders the SC after its own LL only). The SC is then decided
+    when it is performed, against the Locations its core's LLs reserved. granule False,
+    the default, has a write end the other core's reservation on its Location alone, the
+    architecture's least; the RP2350's monitor covers the queue's granule, which fails
+    more late SCs. True for both is the model before 2026-09-29."""
     memory = {("Head",): 0, ("Tail",): len(prefill)}
     memory.update({("Q", i): prefill[i] if i < len(prefill) else NULL for i in range(LEN)})
     for p in programs:
@@ -582,7 +600,11 @@ def explore_weak(programs, barriers=POINTS, prefill=(), compact=False):
         return (frame, window, regs, tuple(still), begun), history
 
     fresh = ((0, "start", (), 0, 0, 0), (), (), (), ())
-    starts = [(frozen(memory), (None, None), (a, b), ())
+    # A core's reservation: one Location, or with sc_orders False the set of those its
+    # LLs performed and its SCs not yet, since its monitor follows program order while
+    # its accesses are performed in any order.
+    none = None if sc_orders else frozenset()
+    starts = [(frozen(memory), (none, none), (a, b), ())
               for a in refill(fresh, 0) for b in refill(fresh, 1)]
     key = fingerprint if compact else (lambda state: state)
     seen, todo = {key(s) for s in starts}, list(starts)
@@ -597,7 +619,7 @@ def explore_weak(programs, barriers=POINTS, prefill=(), compact=False):
         for c, (frame, window, regs, ended, begun) in enumerate(cores):
             known = dict(regs)
             for j, op in enumerate(window):
-                source = weak_performable(window, j, known)
+                source = weak_performable(window, j, known, sc_orders)
                 if source is None:
                     continue
                 kind, where = op[0], weak_location(op[1], known) if op[1] else None
@@ -610,19 +632,25 @@ def explore_weak(programs, barriers=POINTS, prefill=(), compact=False):
                     after[op[3]] = weak_value(source[2], known) if source else memory[where]
                     r = list(res)
                     if kind == "LX":
-                        r[c] = where
+                        r[c] = where if sc_orders else r[c] | {where}
                     outcomes.append((memory, tuple(r), after))
                 else:                          # ST, SX: the queue fills one granule
                     r = list(res)
-                    succeeded = kind == "ST" or (op[3] and res[c] == where)
+                    held = res[c] == where if sc_orders else where in res[c]
+                    succeeded = kind == "ST" or (op[3] and held)
                     if kind == "SX":
-                        r[c] = None
+                        r[c] = None if sc_orders else res[c] - {where}
                         if op[3] != succeeded and op[3]:
                             continue           # guessed a success the monitor denies
-                    if succeeded:
+                    if succeeded and where[0] != "D":
                         memory[where] = weak_value(op[2], known)
-                        if where[0] != "D":
-                            r[1 - c] = None
+                        if sc_orders:
+                            if granule or res[1 - c] == where:
+                                r[1 - c] = None
+                        else:
+                            r[1 - c] = none if granule else res[1 - c] - {where}
+                    elif succeeded:
+                        memory[where] = weak_value(op[2], known)
                     outcomes.append((memory, tuple(r), known))
                 for memory2, res2, known2 in outcomes:
                     rest, wrong = [], False
@@ -732,29 +760,32 @@ SCENARIOS = [
 ]
 
 
-def wide():
-    """The six barriers of the queue with the window their runs need, every scenario:
-    some 25 minutes and 16 GB each at most (2026-09-26)."""
-    global WINDOW
-    ok = True
-    for what, programs, prefill in SCENARIOS:
-        WINDOW = longest_run(programs, KERNEL_BARRIERS)
-        result = explore_weak(programs, KERNEL_BARRIERS, prefill)
-        print(f"  {what}, window {WINDOW}: {'holds' if result is None else result}",
-              flush=True)
-        ok &= result is None
+def wide(jobs):
+    """The eight barriers of the queue with the window their runs need, every scenario,
+    states kept compact: minutes (2026-09-29). In parallel on jobs processes."""
+    with multiprocessing.Pool(jobs) as pool:
+        runs = [(what, longest_run(programs, KERNEL_BARRIERS),
+                 pool.apply_async(explore_sized, (programs, KERNEL_BARRIERS, prefill,
+                                                  longest_run(programs, KERNEL_BARRIERS))))
+                for what, programs, prefill in SCENARIOS]
+        ok = True
+        for what, window, run in runs:
+            result = run.get()
+            print(f"  {what}, window {window}: {'holds' if result is None else result}",
+                  flush=True)
+            ok &= result is None
     sys.exit(0 if ok else 1)
 
 
 def sixth(jobs):
-    """The five barriers shown needed without the one before a dequeue returns, each
-    scenario with the window its runs need, states kept compact: whether that sixth one
-    is needed. In parallel on jobs processes."""
-    five = tuple(b for b in KERNEL_BARRIERS if b != "D6 exit")
+    """The seven barriers shown needed without the one before a dequeue returns, each
+    scenario with the window its runs need, states kept compact: whether that one is
+    needed. In parallel on jobs processes."""
+    seven = tuple(b for b in KERNEL_BARRIERS if b != "D6 exit")
     with multiprocessing.Pool(jobs) as pool:
-        runs = [(what, longest_run(programs, five),
-                 pool.apply_async(explore_sized, (programs, five, prefill,
-                                                  longest_run(programs, five))))
+        runs = [(what, longest_run(programs, seven),
+                 pool.apply_async(explore_sized, (programs, seven, prefill,
+                                                  longest_run(programs, seven))))
                 for what, programs, prefill in SCENARIOS]
         ok = True
         for what, window, run in runs:
@@ -786,7 +817,7 @@ def later(pool, fn, *args, **kwargs):
 def main():
     args = sys.argv[1:]
     if args == ["--wide"]:
-        wide()
+        wide(len(SCENARIOS))
     if args == ["--sixth"]:
         sixth(len(SCENARIOS))
     jobs = int(args[args.index("--jobs") + 1]) if "--jobs" in args else 1
@@ -832,7 +863,7 @@ def main():
           f"{WINDOW} pending:")
     for (what, _, _), result in zip(SCENARIOS, weak):
         result = result.get()
-        print(f"  {what}, the queue's six DMB: {'holds' if result is None else result}")
+        print(f"  {what}, the queue's eight DMB: {'holds' if result is None else result}")
         ok &= result is None
     for point, result in needed:
         caught = result.get()

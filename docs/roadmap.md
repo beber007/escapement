@@ -93,12 +93,12 @@ on the RP2040. The **STM32L4** is set aside.
    words, fifteen in all. A model of weakly ordered cores (`test/model/fifo_mp.py`,
    2026-09-26) kept six (a6f8b6e, 2026-09-27). Five of them were shown needed, and the six
    enough within the model's bounds, on a machine of 30 GB; the CI explores only a part.
-   The sixth, before a dequeue returns, the model showed superfluous on 2026-09-29, its
-   states kept as fingerprints. It stays: the model assumes a store is never performed
-   before an SC ahead of it, which an audit of the port questioned the same day and
-   Armv8-M may not promise. Left: to read what the architecture says, and if the order
-   is not promised, to model an SC decided before it is seen; the queue may then want a
-   DMB after E15 and D15, found superfluous under that assumption. Since 2026-09-26
+   On 2026-09-29 the model stopped assuming that a store is never performed before an
+   SC ahead of it, which Armv8-M does not promise (DDI0553B.y, B7.2.3): two more DMB,
+   after E15 and D15, were needed, and the queue has eight, seven of them shown needed
+   and the eight enough at their full windows. Whether the one before a dequeue returns
+   can go is left to its proof at a full window. `threeslot.py` makes the same
+   assumption for the 3-slot buffer and waits for the same change. Since 2026-09-26
    each core of `FIFOCoresPico2` is both producer and consumer of the same queues, as in
    the model. A Pico 2 ran it four times on 2026-09-28, each record taken once, whole
    and in order, the two consumers sharing the records the same way each time. That
