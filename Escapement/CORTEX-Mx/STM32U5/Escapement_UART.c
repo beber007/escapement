@@ -47,7 +47,8 @@
 ** 8 bytes that come while the clock of the chip is raised again, interrupts masked, up to
 ** some 900 us. The first byte is sampled while HSI16 starts, up to 3.6 us (DS13086,
 ** table 82): at 115,200 baud that is 3.8 % of the frame, past the 3.41 % the receiver
-** tolerates (RM0456, 67.4.15), hence 57,600 baud on LPUART1; USART1 stays at 115,200.
+** tolerates (RM0456, 67.4.15), hence 57,600 baud on LPUART1; USART1 stays at 115,200,
+** with its FIFO too.
 ** Platform version: STM32U585 (Arduino UNO Q).
 */
 
@@ -229,6 +230,10 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
      ** the baud rate, rounded. */
      REG(descriptor,USART_CR1) = 0;
      REG(descriptor,USART_BRR) = (OS_SYSTEM_CLOCK_HZ + BAUD_RATE / 2) / BAUD_RATE;
+     /* FIFOEN while the USART is disabled. Without it, a byte had to be read within one
+     ** frame, 87 us at 115,200 baud: SoakU5 on a NUCLEO-U575ZI-Q lost one after 17 h, on
+     ** 2026-09-29, every count of the kernel at 0. The 8 bytes of the FIFO give 700 us. */
+     REG(descriptor,USART_CR1) = CR1_FIFOEN;
   }
   /* Reception interrupt only; transmission is enabled by OSEnqueueUART when there is
   ** something to send. */

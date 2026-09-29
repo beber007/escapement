@@ -35,7 +35,7 @@ was read, not copied into the repository.
 | Clocks | `Escapement_Processor.c` | the board's 16 MHz crystal (HSE) to 160 MHz through PLL1, or the MSIS of reset locked on the LSE if the HSE does not start; voltage range 1 with the EPOD booster, 4 flash wait states, a first step through an AHB prescaler of 2, the instruction cache on |
 | Kernel timer | `Escapement_Timer.c` | TIM2, 32 bits, counting microseconds and wrapping at 2^30, compare channel 1 on the next arrival; the 32-bit path of the STM32 port |
 | Timer events | `Escapement_TimerEvent.c` | TIM5, 32 bits, free-running, compare channel 1 on the next event; the logic of the RP2350 port, an event already due forced through CC1G |
-| UART | `Escapement_UART.c` | USART1 on PB6 and PB7 (D1 and D0 of the connector) at 115,200 baud; LPUART1 on PG7 and PG8 to the board's Linux (`/dev/ttyHS1`) at 57,600 baud, receiving through Stop 2, and PG6, the CTS of the Linux side, held low: left floating, it read high on 2026-09-28. The RP2350 driver without its priming, since the transmit interrupt of these UARTs reflects a state. Bytes lost to an overrun are counted |
+| UART | `Escapement_UART.c` | USART1 on PB6 and PB7 (D1 and D0 of the connector) at 115,200 baud, with its receive FIFO; LPUART1 on PG7 and PG8 to the board's Linux (`/dev/ttyHS1`) at 57,600 baud, receiving through Stop 2, and PG6, the CTS of the Linux side, held low: left floating, it read high on 2026-09-28. The RP2350 driver without its priming, since the transmit interrupt of these UARTs reflects a state. Bytes lost to an overrun are counted |
 | Interrupts | `Escapement_Interrupts.c` | the 126 entries of the STM32U575/U585, all but the reserved ones routed to the kernel's dispatcher, so that an application can take any interrupt with `OSSetISRDescriptor` |
 | Low-power timer | `Escapement_LPTimer.c` | LPTIM1 on the 32.768 kHz crystal (LSE), which counts through Stop 2 |
 | Stop 2 | `Escapement_Stop2.c` | the idle task in Stop 2, woken by LPTIM1 (below) |
@@ -87,6 +87,14 @@ the one before it. On 2026-09-26 a halt of 4.5 s, longer than the watchdog's 3 s
 restarted the board. The image, loaded again, reported `pin+IWDG` (the watchdog, and the
 reset of the load), and the link went on without an error. The script now waits for the
 new image's first report before it sends again.
+
+On a NUCLEO-U575ZI-Q, the link goes over USART1 to the ST-LINK at 115,200 baud. At
+00adc77, USART1 ran without its FIFO, so each byte had to be read within one frame,
+87 µs. On 2026-09-29, after 62,768 s (17 h 26 min), the run lost one byte to an overrun
+and counted the next as out of the count: 1 overrun, 1 error of the link, while every
+count of the kernel stayed at 0. What delayed the interrupt that once cannot be told
+afterwards. LPUART1 on the UNO Q, with its FIFO of 8 bytes at 57,600 baud, had lost none
+in 69,000 s. USART1 now runs with its FIFO too, which allows some 700 µs.
 
 ## What is verified
 
