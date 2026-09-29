@@ -189,6 +189,23 @@ clock, kept by systemd-timesyncd, was itself 61 ms off NTP with 54 ms of jitter.
 those 25 ppm the U5's clock and Linux's cannot be told apart. Should the HSE not start,
 the MSIS remains PLL1's input.
 
+Since 2026-09-28 the board check times the U5 against `CLOCK_MONOTONIC_RAW`, the crystal
+of the board's Qualcomm processor as it is, which NTP does not pull (`tools/unoq_drift.py`).
+That crystal was measured against NTP on 2026-09-29, from 16:50 to 17:35 UTC, NTP
+synchronized for hours with a stratum 1 server:
+
+- straight against the server, 266 SNTP exchanges timed on the raw clock, the shortest
+  of each minute kept: the raw clock 0.2 ppm fast, with a standard error of 6.3 ppm, too
+  wide to tell a rate that small. The Wi-Fi limits it, with round trips of 8 to 470 ms,
+  210 ms the median;
+- through the correction NTP applies, which is the rate of `CLOCK_MONOTONIC` against the
+  raw clock and needs no network: +0.73 ppm over those 45 minutes, which includes NTP
+  taking in an offset of a few milliseconds, and +1.19 to +1.42 ppm in the frequency
+  systemd-timesyncd had settled on (`adjtimex`).
+
+The raw clock runs slow by some 1 to 1.5 ppm, then, two hundred times less than the
+check's bound of 300 ppm.
+
 ## The idle task in Stop 2
 
 ### The plan, as read on 2026-09-26
