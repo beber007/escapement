@@ -7,7 +7,7 @@ whose code last changed in 2014 and was published in 2016.
 This page separates what is open from what is done. Open items are plans, each with the
 date its facts were read. Done items say where the result is measured or checked, and a
 result counts as measured only where a page gives its date and conditions. Last revised
-on 2026-09-27.
+on 2026-09-29.
 
 ## Direction
 
@@ -31,10 +31,18 @@ on the RP2040. The **STM32L4** is set aside.
 ## Open work, in order
 
 0. **Two weeks of endurance on a board** (`rp2040.md`, "The endurance test"). `SoakPico`
-   is to run on the Pico W from the week of 2026-09-28, a week under the hard kernel and a
-   week under the power-aware one. The Pico and the Pico 2 ordered for the board CI free
-   the Pico W for it. Instances under Renode run alongside on another machine, each with
-   its own build and seed.
+   runs on the Pico W, on a probe of its own, since 2026-09-28 at 20:03 UTC: a week under
+   the hard kernel, EDF, at 69825e4, then a week under the power-aware one. On 2026-09-29
+   at 16:37 UTC it had run 20 h 34 min across 68 wraps of the kernel clock, with no error
+   and no restart. The script that reads it was stopped once for 7 s, to be updated, and
+   took the run over, the image having run on.
+   Two STM32U5 run alongside, until stopped, reading their counts on a UART
+   (`stm32u5.md`, "The endurance test"): the UNO Q's own U585, which each board check
+   restarts on its commit (19 h without error at 34d86a4), and a NUCLEO-U575ZI-Q on the
+   bench since 2026-09-28. The NUCLEO's run failed after 17 h 26 min on 2026-09-29, at
+   00adc77, on one byte its USART1 lost to an overrun, every count of the kernel at 0; it
+   runs again at 73a6d83, the USART's FIFO enabled. Instances under Renode, each with
+   its own build and seed, are not started.
 
 1. **The energy verdict on the RP2040.** Build the bench of `power-aware.md`: a plain Pico
    rather than a Pico W, powered and measured by a Power Profiler Kit II, chosen on
@@ -106,7 +114,8 @@ on the RP2040. The **STM32L4** is set aside.
    shares a rail with the rest of the board, with no jumper to measure it alone
    (`stm32u5.md`, 2026-09-27). The absolute currents are for a NUCLEO-U575ZI-Q, borrowed
    for it. `Examples/nucleo-u575` builds `SleepU5` for that board, on the LDO or, with
-   `make SMPS=1`, on its SMPS (bf447b8); neither the board nor the image has been tried.
+   `make SMPS=1`, on its SMPS (bf447b8). The board is on the bench since 2026-09-28,
+   running the endurance test (item 0); `SleepU5` has not been tried on it yet.
    Then the margin of the wake-up, 3 ms, where the longest wake-up measured is 885 µs:
    the Sleep it leaves after waking may cost more than Stop 2 saves, which the PPK2 will
    price.

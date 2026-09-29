@@ -323,8 +323,9 @@ retained at 25 °C, by the datasheet (DS13737 rev. 4, tables 54 and 56). The por
 the LDO, as reset leaves it, unless built with `make SMPS=1`. That option selects the
 SMPS before the voltage range is raised (PWR_CR3.REGSEL), so that both can be measured
 on the same board. The CI builds both images at each commit
-(`ppk2_u5/SleepU5-nucleo-phases30.elf` and `SleepU5-nucleo-smps-phases30.elf`). Neither
-the board nor the images have been tried yet.
+(`ppk2_u5/SleepU5-nucleo-phases30.elf` and `SleepU5-nucleo-smps-phases30.elf`). The
+board has run the endurance test on the bench since 2026-09-28; these two images have
+not been tried on it yet.
 
 ## Errata
 
