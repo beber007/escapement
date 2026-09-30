@@ -71,9 +71,13 @@ for unit in $(systemctl --user list-unit-files 'escapement-soak*' --no-legend | 
         echo "  marked:  $n lines of restart, interruption, take-over or error, the last:"
     fi
     tail -n +"$run" "$log" | grep -E "$marks" | tail -3 | cut -c1-110 | sed 's/^/    /'
-    tail -1 "$log" | cut -c1-110 | sed 's/^/  last:    /'
-    # the end of that reading, which the cut above drops: lateness, stack, load, link
-    tail -1 "$log" | sed -n 's/.*, late max /           late max /p'
+    # the whole reading, folded between its fields at 110 columns
+    tail -1 "$log" | awk '{
+        n = split($0, f, ", "); line = "  last:    " f[1]
+        for (i = 2; i <= n; i++)
+            if (length(line) + length(f[i]) + 2 > 110) { print line ","; line = "           " f[i] }
+            else line = line ", " f[i]
+        print line }'
 done
 
 echo

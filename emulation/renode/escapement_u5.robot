@@ -355,3 +355,46 @@ The endurance test of the NUCLEO-U575ZI-Q reports on USART1
         Should Be True        ${activity} > 0
         Should Be Equal As Integers  ${errors}  0
     END
+
+Without the HSE, PLL1 takes the MSIS within its input ranges
+    [Documentation]           SoakU5 of Examples/nucleo-u575 on a platform whose HSE never starts
+    ...                       (escapement_u5_nohse.repl), as the NUCLEO-U575ZI-Q ships: PLL1
+    ...                       takes the MSIS in range 2, 16.0017 MHz locked on the LSE, its
+    ...                       booster through a prescaler of 2 and its VCO through M = 3, both
+    ...                       within their ranges, x 60 / 2; the wait states raised before the
+    ...                       MSIS; the HSE left off; and the test runs as with it. Until
+    ...                       2026-09-30 PLL1 took the MSIS of range 4, 3.998 MHz, under the
+    ...                       4 MHz of both. The platform does not check the clocks: this says
+    ...                       what the port writes, the board what the chip does.
+    [Timeout]                 10 minutes
+    Load Escapement           SoakU5  escapement_u5_nohse.repl  ${NUCLEO}
+
+    ${usart1}=                Create Terminal Tester  sysbus.usart1  defaultPauseEmulation=true
+    Wait For Line On Uart     SOAK  timeout=2.5  testerId=${usart1}
+
+    # RCC: CR, ICSCR1, PLL1CFGR, PLL1DIVR, and the wait states the platform saw as the
+    # MSIS's range was set.
+    ${cr}=                    Read Word  0x46020C00
+    ${icscr1}=                Read Word  0x46020C08
+    ${cfgr}=                  Read Word  0x46020C28
+    ${divr}=                  Read Word  0x46020C34
+    ${latency}=               Read Word  0x46020FF0
+    Should Be Equal As Integers  ${{ (${cr} >> 16) & 1 }}  0
+    Should Be Equal As Integers  ${{ (${icscr1} >> 28) & 0xF }}  2
+    Should Be Equal As Integers  ${{ (${icscr1} >> 23) & 1 }}  1
+    Should Be Equal As Integers  ${{ ${cfgr} & 3 }}  1
+    Should Be Equal As Integers  ${{ (${cfgr} >> 2) & 3 }}  0
+    Should Be Equal As Integers  ${{ (${cfgr} >> 8) & 0xF }}  2
+    Should Be Equal As Integers  ${{ (${cfgr} >> 12) & 0xF }}  1
+    Should Be Equal As Integers  ${{ (${divr} & 0x1FF) + 1 }}  60
+    Should Be Equal As Integers  ${{ ((${divr} >> 24) & 0x7F) + 1 }}  2
+    Should Be Equal As Integers  ${latency}  4
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    FOR  ${part}  IN RANGE  8
+        ${activity}=          Read Word  ${results + 12 + 4 * ${part}}
+        ${errors}=            Read Word  ${results + 44 + 4 * ${part}}
+        Should Be True        ${activity} > 0
+        Should Be Equal As Integers  ${errors}  0
+    END

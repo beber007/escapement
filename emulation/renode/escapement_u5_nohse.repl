@@ -1,0 +1,29 @@
+// Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+// LICENSE at the root of this repository.
+//
+// escapement_u5_nucleo.repl without the HSE, as the NUCLEO-U575ZI-Q ships (UM2861, 6.7):
+// HSERDY never set, so that PLL1 takes the MSIS (Escapement_Processor.c). The RCC keeps
+// what the port writes as the platform's does, and, at the first write that sets the
+// MSIS's range, the wait states of FLASH_ACR at that moment, at offset 0x3F0, which no
+// register uses: voltage range 4 runs 16 MHz from one only (RM0456, table 54).
+using "escapement_u5_nucleo.repl"
+
+rcc:
+    script: '''
+if request.IsInit:
+    regs = {0x00: 0x00000035}
+elif request.IsRead:
+    r = request.Offset
+    v = regs.get(r, 0)
+    if r == 0x00:
+        v |= (1 << 2) | (1 << 10) | (1 << 25)
+    elif r == 0x1C:
+        v = (v & ~0xC) | ((v & 3) << 2)
+    elif r == 0xF0:
+        v |= (1 << 1) | (1 << 11)
+    request.Value = v
+else:
+    if request.Offset == 0x08 and (request.Value >> 23) & 1 and 0x3F0 not in regs:
+        regs[0x3F0] = self.GetMachine().SystemBus.ReadDoubleWord(0x40022000) & 0xF
+    regs[request.Offset] = request.Value & 0xFFFFFFFF
+'''

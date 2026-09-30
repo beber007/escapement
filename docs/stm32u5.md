@@ -32,7 +32,7 @@ was read, not copied into the repository.
 
 | Part | File | What it does |
 |---|---|---|
-| Clocks | `Escapement_Processor.c` | the board's 16 MHz crystal (HSE) to 160 MHz through PLL1, or the MSIS of reset locked on the LSE if the HSE does not start; voltage range 1 with the EPOD booster, 4 flash wait states, a first step through an AHB prescaler of 2, the instruction cache on |
+| Clocks | `Escapement_Processor.c` | the board's 16 MHz crystal (HSE) to 160 MHz through PLL1, or the MSIS locked on the LSE, raised to its 16 MHz range, if the HSE does not start; voltage range 1 with the EPOD booster, 4 flash wait states, a first step through an AHB prescaler of 2, the instruction cache on |
 | Kernel timer | `Escapement_Timer.c` | TIM2, 32 bits, counting microseconds and wrapping at 2^30, compare channel 1 on the next arrival; the 32-bit path of the STM32 port |
 | Timer events | `Escapement_TimerEvent.c` | TIM5, 32 bits, free-running, compare channel 1 on the next event; the logic of the RP2350 port, an event already due forced through CC1G |
 | UART | `Escapement_UART.c` | USART1 on PB6 and PB7 (D1 and D0 of the connector) at 115,200 baud, with its receive FIFO; LPUART1 on PG7 and PG8 to the board's Linux (`/dev/ttyHS1`) at 57,600 baud, receiving through Stop 2, and PG6, the CTS of the Linux side, held low: left floating, it read high on 2026-09-28. The RP2350 driver without its priming, since the transmit interrupt of these UARTs reflects a state. Bytes lost to an overrun are counted |
@@ -201,7 +201,17 @@ night, the seconds `SoakU5` counted matched Linux's to the second. A line throug
 543 readings gives 21 ppm slow, with a standard error of 1.7 ppm. That morning Linux's
 clock, kept by systemd-timesyncd, was itself 61 ms off NTP with 54 ms of jitter. Within
 those 25 ppm the U5's clock and Linux's cannot be told apart. Should the HSE not start,
-the MSIS remains PLL1's input.
+the MSIS remains PLL1's input. Until 2026-09-30 that was its range 4, 3.998 MHz, under
+the 4 MHz RM0456 gives as the floor of both the VCO's input and the booster's clock
+(RCC_PLL1CFGR). The port now raises it to range 2, whose MSIRC0 runs at 1,465 periods of
+the LSE, 48.00512 MHz, divided by 3: 16.0017 MHz, the booster's clock 8.0009 through its
+prescaler of 2, the VCO's input 5.3339 through M = 3, and 160.017 MHz after x 60 / 2,
+107 ppm fast by the datasheet's figures where range 4 gave 576 ppm slow. Both inputs
+stay within their ranges through the 1 % the MSI may be off during the 0.8 ms it takes
+to lock again after each wake-up (DS13086 rev. 10, table 83); range 3 divided by 3,
+4.0004 MHz, would not. `escapement_u5.robot` checks the registers on a platform without
+the HSE (`escapement_u5_nohse.repl`); the NUCLEO-U575ZI-Q, the one board without it, has
+not run the change yet: its endurance run holds it.
 
 Since 2026-09-28 the board check times the U5 against `CLOCK_MONOTONIC_RAW`, the crystal
 of the board's Qualcomm processor as it is, which NTP does not pull (`tools/unoq_drift.py`).

@@ -9,8 +9,9 @@
 ** event at least OS_STOP2_MIN_US off, the compare of TIM2 for the next arrival, its wrap
 ** at 2^30, or the next timer event of TIM5, arms the compare of LPTIM1 OS_STOP2_WAKE_US
 ** before it and enters Stop 2, where PLL1, the HSE, TIM2 and TIM5 stop and LPTIM1 counts
-** on. On waking the chip runs on the MSIS in range 4 (RM0456, 10.7.8); _OSRaiseSystemClock
-** takes it back to 160 MHz, and TIM2 and TIM5 are moved on by the time LPTIM1 counted
+** on. On waking the chip runs on the MSIS in the range it had, 4, or 2 on a board without
+** the HSE (RM0456, 10.7.8, RCC_ICSCR1); _OSRaiseSystemClock takes it back to 160 MHz,
+** and TIM2 and TIM5 are moved on by the time LPTIM1 counted
 ** (Escapement_TimerEvent.c). Both are stopped and started again on an edge of LPTIM1, so
 ** that the time between is whole ticks, 15625/512 us each, the fraction carried to the
 ** next sleep. The idle task then sleeps in Sleep until the event. Interrupts stay masked

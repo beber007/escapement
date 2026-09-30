@@ -179,6 +179,10 @@ whatever the caller's state. Left for later: the MSIS locked on the LSE feeds PL
 booster's clock, on the NUCLEO-U575ZI-Q, which has no HSE. The comment on the booster's
 clock, read against RM0456 the same day, was wrong: the booster takes the source of
 PLL1 before its divider M, 16 MHz from the HSE, not 4, still within its 4 to 16 MHz.
+Done on 2026-09-30: PLL1 takes the MSIS of range 2, 16.0017 MHz, whose booster clock
+(8.0009) and VCO input (5.3339) stay within their ranges through the 1 % the MSI may be
+off while it locks again after a wake-up. A Renode test checks what the port writes, and
+fails on the code before; the board has not run it yet (`stm32u5.md`).
 
 ### Two fixes that were wrong
 

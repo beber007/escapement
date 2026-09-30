@@ -45,6 +45,7 @@
 
 #define RCC_BASE             0x46020C00
 #define RCC_CR               *((volatile UINT32 *)(RCC_BASE + 0x00))
+#define RCC_ICSCR1           *((volatile UINT32 *)(RCC_BASE + 0x08))
 #define RCC_CFGR1            *((volatile UINT32 *)(RCC_BASE + 0x1C))
 #define RCC_CFGR2            *((volatile UINT32 *)(RCC_BASE + 0x20))
 #define RCC_PLL1CFGR         *((volatile UINT32 *)(RCC_BASE + 0x28))
@@ -52,8 +53,12 @@
 #define RCC_AHB3ENR          *((volatile UINT32 *)(RCC_BASE + 0x94))
 #define RCC_BDCR             *((volatile UINT32 *)(RCC_BASE + 0xF0))
 
+#define RCC_CR_MSISRDY       (1u << 2)
 #define RCC_CR_MSIPLLEN      (1u << 3)
 #define RCC_CR_MSIPLLSEL     (1u << 6)    /* the PLL mode applies to the MSIS, not the MSIK */
+#define RCC_ICSCR1_MSISRANGE_MASK (0xFu << 28)
+#define RCC_ICSCR1_MSISRANGE_16MHZ (2u << 28)
+#define RCC_ICSCR1_MSIRGSEL  (1u << 23)   /* the range from MSISRANGE, not RCC_CSR */
 #define RCC_BDCR_LSEON       (1u << 0)
 #define RCC_BDCR_LSERDY      (1u << 1)
 #define RCC_BDCR_LSEDRV_MASK (3u << 3)
@@ -80,13 +85,13 @@
 #define RCC_CFGR2_HPRE_DIV2  0x8u
 #define RCC_AHB3ENR_PWREN    (1u << 2)
 
-/* PLL1CFGR: source MSIS, input range 4 to 8 MHz, M = 1, booster prescaler 1, output R
-** enabled. */
+/* PLL1CFGR: source, input range 4 to 8 MHz, M, booster prescaler, output R enabled. */
 #define PLL1SRC_MSIS         (1u << 0)
 #define PLL1SRC_HSE          (3u << 0)
 #define PLL1RGE_4_8MHZ       (0u << 2)
 #define PLL1M(m)             (((m) - 1u) << 8)
 #define PLL1MBOOST_DIV1      (0u << 12)
+#define PLL1MBOOST_DIV2      (1u << 12)
 #define PLL1REN              (1u << 18)
 #define PLL1CFGR_FIELDS      (0x3u | (0x3u << 2) | (0xFu << 8) | (0xFu << 12) | (1u << 18))
 
@@ -212,23 +217,42 @@ void OSInitializeSystemClocks(void)
 void _OSRaiseSystemClock(void)
 {
   volatile UINT32 i;
+  UINT32 n;
   if (!NoHSE) {
      RCC_CR |= RCC_CR_HSEON;
      for (i = 0; (RCC_CR & RCC_CR_HSERDY) == 0 && i < HSE_START_TURNS; i += 1);
      NoHSE = (RCC_CR & RCC_CR_HSERDY) == 0;
   }
-  /* The input of PLL1 before the booster, whose clock is the source before the divider M:
-  ** the HSE, 16 MHz, the top of the booster's range, divided by 4 for the VCO; or the
-  ** MSIS as it is, 3.998 MHz locked on the LSE, a little under the 4 MHz both the booster
-  ** and the VCO's input are specified from (RM0456 rev. 7, RCC_PLL1CFGR). Until
-  ** 2026-09-29 this said the booster took 4 MHz from the HSE too. */
-  if ((RCC_CR & RCC_CR_HSERDY) != 0)
+  /* The input of PLL1 before the booster, whose clock is the source before the divider M,
+  ** must be 4 to 16 MHz, and the VCO's input after M 4 to 8 (RM0456 rev. 7, RCC_PLL1CFGR):
+  ** the HSE, 16 MHz, the top of the booster's range, divided by 4 for the VCO. */
+  if ((RCC_CR & RCC_CR_HSERDY) != 0) {
      RCC_PLL1CFGR = (RCC_PLL1CFGR & ~PLL1CFGR_FIELDS) |
                     PLL1SRC_HSE | PLL1RGE_4_8MHZ | PLL1M(4) | PLL1MBOOST_DIV1 | PLL1REN;
+     n = 80;
+  }
   else {
+     /* The MSIS of its range 4, 3.998 MHz locked on the LSE, is under both 4 MHz; PLL1
+     ** took it until 2026-09-30. Its range 3 divided by 3, 4.0004, would be under them too
+     ** within the 1 % the MSI may be off for the 0.8 ms it takes to lock again after each
+     ** wake-up (DS13086 rev. 10, table 83). Range 2, 16.0017 MHz locked (48.00512 / 3,
+     ** 48.00512 being 1,465 periods of the LSE), gives the booster 8.0009 through its
+     ** prescaler of 2 and the VCO 5.3339 through M = 3, then x 60 / 2 = 160.017 MHz,
+     ** 107 ppm fast, where the MSIS of range 4 gave 576 ppm slow. Voltage range 4 runs
+     ** 16 MHz from one wait state (RM0456, table 54): the 4 of range 1 are set first. Stop
+     ** keeps the MSIS's range (RM0456, RCC_ICSCR1), so it is changed once. */
      RCC_CR &= ~RCC_CR_HSEON;
+     if ((RCC_ICSCR1 & (RCC_ICSCR1_MSIRGSEL | RCC_ICSCR1_MSISRANGE_MASK)) !=
+         (RCC_ICSCR1_MSIRGSEL | RCC_ICSCR1_MSISRANGE_16MHZ)) {
+        FLASH_ACR = (FLASH_ACR & ~FLASH_ACR_LATENCY_MASK) | FLASH_WAIT_STATES;
+        while ((FLASH_ACR & FLASH_ACR_LATENCY_MASK) != FLASH_WAIT_STATES);
+        RCC_ICSCR1 = (RCC_ICSCR1 & ~RCC_ICSCR1_MSISRANGE_MASK) |
+                     RCC_ICSCR1_MSIRGSEL | RCC_ICSCR1_MSISRANGE_16MHZ;
+        while ((RCC_CR & RCC_CR_MSISRDY) == 0);
+     }
      RCC_PLL1CFGR = (RCC_PLL1CFGR & ~PLL1CFGR_FIELDS) |
-                    PLL1SRC_MSIS | PLL1RGE_4_8MHZ | PLL1M(1) | PLL1MBOOST_DIV1 | PLL1REN;
+                    PLL1SRC_MSIS | PLL1RGE_4_8MHZ | PLL1M(3) | PLL1MBOOST_DIV2 | PLL1REN;
+     n = 60;
   }
   /* Range 1 and the booster, then wait for both. */
   PWR_VOSR = (PWR_VOSR & ~(3u << 16)) | PWR_VOSR_VOS_RANGE1 | PWR_VOSR_BOOSTEN;
@@ -240,8 +264,8 @@ void _OSRaiseSystemClock(void)
   ** of the port read on 2026-09-29 as holding whatever the code runs from. */
   FLASH_ACR = (FLASH_ACR & ~(FLASH_ACR_LATENCY_MASK | FLASH_ACR_PRFTEN)) | FLASH_WAIT_STATES;
   while ((FLASH_ACR & FLASH_ACR_LATENCY_MASK) != FLASH_WAIT_STATES);
-  /* 4 MHz x 80 / 2 = 160 MHz. */
-  RCC_PLL1DIVR = (RCC_PLL1DIVR & ~PLL1DIVR_FIELDS) | PLL1N(80) | PLL1R(2);
+  /* 4 MHz x 80 / 2 = 160 MHz from the HSE. */
+  RCC_PLL1DIVR = (RCC_PLL1DIVR & ~PLL1DIVR_FIELDS) | PLL1N(n) | PLL1R(2);
   RCC_CR |= RCC_CR_PLL1ON;
   while ((RCC_CR & RCC_CR_PLL1RDY) == 0);
   /* Onto PLL1 through an AHB prescaler of 2 first, then 1. */
