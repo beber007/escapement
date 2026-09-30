@@ -206,10 +206,17 @@ the 4 MHz RM0456 gives as the floor of both the VCO's input and the booster's cl
 (RCC_PLL1CFGR). The port now raises it to range 2, whose MSIRC0 runs at 1,465 periods of
 the LSE, 48.00512 MHz, divided by 3: 16.0017 MHz, the booster's clock 8.0009 through its
 prescaler of 2, the VCO's input 5.3339 through M = 3, and 160.017 MHz after x 60 / 2,
-107 ppm fast by the datasheet's figures where range 4 gave 576 ppm slow. Both inputs
-stay within their ranges through the 1 % the MSI may be off during the 0.8 ms it takes
-to lock again after each wake-up (DS13086 rev. 10, table 83); range 3 divided by 3,
-4.0004 MHz, would not. `escapement_u5.robot` checks the registers on a platform without
+107 ppm fast by the datasheet's figures where range 4 gave 576 ppm slow. After each
+wake-up the MSI takes up to 0.8 ms to come within 1 % of its frequency again, running
+meanwhile as in MSI mode, within some 1.4 % at 30 °C and 3 V and a further −4 to +2 %
+over temperature (DS13086 rev. 10, table 83): at 5.4 % slow both inputs stay within
+their ranges, 7.6 and 5.05 MHz; range 3 divided by 3, 4.0004 MHz, would not. The SRAM
+the images run from reads at 0 wait states up to 16 MHz only in voltage range 4 (RM0456,
+table 47), where the chip starts and wakes from Stop 2; one is set before the MSIS goes
+to 16 MHz and before each Stop 2, and taken off in range 1. This commit read the 1 % as a
+bound during the lock and missed the SRAM; an independent review found both the same
+day. The system clock itself may run a few % above its 160 MHz until the MSI is locked,
+as it could with range 4. `escapement_u5.robot` checks the registers on a platform without
 the HSE (`escapement_u5_nohse.repl`); the NUCLEO-U575ZI-Q, the one board without it, has
 not run the change yet: its endurance run holds it.
 

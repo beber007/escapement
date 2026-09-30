@@ -180,8 +180,11 @@ booster's clock, on the NUCLEO-U575ZI-Q, which has no HSE. The comment on the bo
 clock, read against RM0456 the same day, was wrong: the booster takes the source of
 PLL1 before its divider M, 16 MHz from the HSE, not 4, still within its 4 to 16 MHz.
 Done on 2026-09-30: PLL1 takes the MSIS of range 2, 16.0017 MHz, whose booster clock
-(8.0009) and VCO input (5.3339) stay within their ranges through the 1 % the MSI may be
-off while it locks again after a wake-up. A Renode test checks what the port writes, and
+(8.0009) and VCO input (5.3339) stay within their ranges even at the few % the MSI may be
+off before it locks again after a wake-up. An independent review of that change found
+the same day that it had missed the SRAM's wait state in voltage range 4 above 16 MHz,
+and read the datasheet's 1 % as a bound during the lock where it is its end; both
+fixed. A Renode test checks what the port writes, and
 fails on the code before; the board has not run it yet (`stm32u5.md`).
 
 ### Two fixes that were wrong
@@ -276,7 +279,13 @@ There are nine since the status of a buffer, which the models leave out, is set 
 its slot is handed over (2026-09-25). The queue between the cores had no such check
 until 2026-09-30: only its source and its model named its seven barriers. The check now
 follows the queue through its LL and SC, which are calls, and each barrier removed from
-the source is caught, each by the pair of accesses it stands between.
+the source is caught, each by the pair of accesses it stands between. An independent
+review found two holes in it the same day, both closed: a path went on past a return GCC
+writes as `ldmia.w sp!, {..., pc}`, which the check took for an ordinary load, and the
+pairs let the E5 of the next round stand for the E10 that must follow the LL of the
+place, so that a queue without E10, or with it before the LL, passed. Changes to the
+algorithm that keep its order, as a test turned around at E11, are not the check's to
+find.
 
 The check cannot see a reordering by the processor that the architecture does not
 allow, which is the models' premise. Nor can it see code the compiler might emit for

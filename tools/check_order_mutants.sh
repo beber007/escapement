@@ -61,10 +61,13 @@ if [ -n "$QUEUE_COMMAND" ]; then
         awk -v k="$k" '/_OSMemoryBarrier\(\);/ { if (++n == k) next } { print }' \
             "$QUEUE" > "$WORK/Escapement_CoreQueue.c"
         compile_queue "$WORK/Escapement_CoreQueue.c" "$WORK/mutant.o"
-        if python3 "$ROOT/tools/check_order.py" "$WORK/mutant.o" >/dev/null; then
-            echo "queue barrier $k removed: NOT CAUGHT"; missed=$((missed + 1))
-        else
+        # Caught for the missing barrier itself, not for an access the check lost track
+        # of ("was not found") or a failure of the script.
+        if python3 "$ROOT/tools/check_order.py" "$WORK/mutant.o" | grep -q "no DMB between"
+        then
             echo "queue barrier $k removed: caught"
+        else
+            echo "queue barrier $k removed: NOT CAUGHT"; missed=$((missed + 1))
         fi
         k=$((k + 1))
     done

@@ -50,6 +50,7 @@
 #define RCC_CFGR2            *((volatile UINT32 *)(RCC_BASE + 0x20))
 #define RCC_PLL1CFGR         *((volatile UINT32 *)(RCC_BASE + 0x28))
 #define RCC_PLL1DIVR         *((volatile UINT32 *)(RCC_BASE + 0x34))
+#define RCC_AHB1ENR          *((volatile UINT32 *)(RCC_BASE + 0x88))
 #define RCC_AHB3ENR          *((volatile UINT32 *)(RCC_BASE + 0x94))
 #define RCC_BDCR             *((volatile UINT32 *)(RCC_BASE + 0xF0))
 
@@ -83,6 +84,7 @@
 #define RCC_CFGR1_SWS_PLL1   (3u << 2)
 #define RCC_CFGR2_HPRE_MASK  0xFu
 #define RCC_CFGR2_HPRE_DIV2  0x8u
+#define RCC_AHB1ENR_RAMCFGEN (1u << 17)
 #define RCC_AHB3ENR_PWREN    (1u << 2)
 
 /* PLL1CFGR: source, input range 4 to 8 MHz, M, booster prescaler, output R enabled. */
@@ -123,6 +125,12 @@
 #define FLASH_ACR_PRFTEN     (1u << 8)
 #define FLASH_WAIT_STATES    4u   /* range 1, 128 to 160 MHz */
 
+/* RAMCFG_MxCR of SRAM1, 2 and 3, the 768 KB the images run from (STM32U5_SRAM.ld). */
+#define RAMCFG_MCR(x)        *((volatile UINT32 *)(0x40026000 + 0x40 * ((x) - 1)))
+#define RAMCFG_WSC_MASK      (7u << 16)
+#define RAMCFG_WSC(n)        ((n) << 16)
+#define SRAMS                3u
+
 #define ICACHE_CR            *((volatile UINT32 *)(0x40030400 + 0x00))
 #define ICACHE_CR_EN         (1u << 0)
 
@@ -147,6 +155,29 @@ static void UnlockHandler(UNLOCK_ISR_DATA *descriptor)
   RCC_CR |= RCC_CR_MSIPLLEN;
   MSIRelocks += 1;
 } /* end of UnlockHandler */
+
+
+/* SRAMWaitStates: The wait states of the three SRAMs, read back until they hold. */
+static void SRAMWaitStates(UINT32 n)
+{
+  UINT32 x;
+  for (x = 1; x <= SRAMS; x += 1) {
+     RAMCFG_MCR(x) = (RAMCFG_MCR(x) & ~RAMCFG_WSC_MASK) | RAMCFG_WSC(n);
+     while ((RAMCFG_MCR(x) & RAMCFG_WSC_MASK) != RAMCFG_WSC(n));
+  }
+} /* end of SRAMWaitStates */
+
+
+/* _OSSRAMBeforeStop2: Without the HSE, the MSIS keeps its 16 MHz range through Stop 2 and
+** the chip wakes in voltage range 4 (RM0456, 10.7.8), where the SRAM reads at 0 wait
+** states up to 16 MHz only (table 47): one is set before, as the MSIS of range 2 runs at
+** 16.0017 MHz locked, and farther from it before the lock is back. _OSRaiseSystemClock
+** takes it off again in range 1; with the HSE the chip wakes on the MSIS of range 4. */
+void _OSSRAMBeforeStop2(BOOL stopping)
+{
+  if (NoHSE)
+     SRAMWaitStates(stopping ? 1u : 0u);
+} /* end of _OSSRAMBeforeStop2 */
 
 
 /* OSGetMSIRelocks: The times UnlockHandler locked the MSIS again. */
@@ -196,6 +227,8 @@ void OSInitializeSystemClocks(void)
   *((volatile UINT32 *)0xE000ED08) = (UINT32)CortexMxVectorTable;   // SCB->VTOR
   RCC_AHB3ENR |= RCC_AHB3ENR_PWREN;
   (void)RCC_AHB3ENR;                       // the enable takes effect before PWR is written
+  RCC_AHB1ENR |= RCC_AHB1ENR_RAMCFGEN;     // RAMCFG, for the SRAM's wait states
+  (void)RCC_AHB1ENR;
   #ifdef OS_SMPS
      /* The SMPS rather than the LDO, on a package that has one (the "Q" of the
      ** STM32U575ZIT6Q; REGSEL is reserved without it, RM0456, PWR_CR3), chosen before the
@@ -234,18 +267,23 @@ void _OSRaiseSystemClock(void)
   else {
      /* The MSIS of its range 4, 3.998 MHz locked on the LSE, is under both 4 MHz; PLL1
      ** took it until 2026-09-30. Its range 3 divided by 3, 4.0004, would be under them too
-     ** within the 1 % the MSI may be off for the 0.8 ms it takes to lock again after each
-     ** wake-up (DS13086 rev. 10, table 83). Range 2, 16.0017 MHz locked (48.00512 / 3,
-     ** 48.00512 being 1,465 periods of the LSE), gives the booster 8.0009 through its
-     ** prescaler of 2 and the VCO 5.3339 through M = 3, then x 60 / 2 = 160.017 MHz,
+     ** after each wake-up, before the MSI is locked again: it takes up to 0.8 ms to come
+     ** within 1 % of its frequency, and runs meanwhile as in MSI mode, within some 1.4 %
+     ** at 30 degrees and 3 V and a further -4 to +2 % over temperature (DS13086 rev. 10,
+     ** table 83). Range 2, 16.0017 MHz locked (48.00512 / 3, 48.00512 being 1,465 periods
+     ** of the LSE), gives the booster 8.0009 through its prescaler of 2 and the VCO 5.3339
+     ** through M = 3, still 7.6 and 5.05 at 5.4 % slow; then x 60 / 2 = 160.017 MHz,
      ** 107 ppm fast, where the MSIS of range 4 gave 576 ppm slow. Voltage range 4 runs
-     ** 16 MHz from one wait state (RM0456, table 54): the 4 of range 1 are set first. Stop
-     ** keeps the MSIS's range (RM0456, RCC_ICSCR1), so it is changed once. */
+     ** 16 MHz from one wait state on the flash (RM0456, table 54), the 4 of range 1 set
+     ** first, and above 16 MHz from one on the SRAM (table 47), set until range 1. Stop
+     ** keeps the MSIS's range (RM0456, RCC_ICSCR1), so it is changed once;
+     ** _OSSRAMBeforeStop2 sets the SRAM's wait state again before each Stop 2. */
      RCC_CR &= ~RCC_CR_HSEON;
      if ((RCC_ICSCR1 & (RCC_ICSCR1_MSIRGSEL | RCC_ICSCR1_MSISRANGE_MASK)) !=
          (RCC_ICSCR1_MSIRGSEL | RCC_ICSCR1_MSISRANGE_16MHZ)) {
         FLASH_ACR = (FLASH_ACR & ~FLASH_ACR_LATENCY_MASK) | FLASH_WAIT_STATES;
         while ((FLASH_ACR & FLASH_ACR_LATENCY_MASK) != FLASH_WAIT_STATES);
+        SRAMWaitStates(1);
         RCC_ICSCR1 = (RCC_ICSCR1 & ~RCC_ICSCR1_MSISRANGE_MASK) |
                      RCC_ICSCR1_MSIRGSEL | RCC_ICSCR1_MSISRANGE_16MHZ;
         while ((RCC_CR & RCC_CR_MSISRDY) == 0);
@@ -258,6 +296,9 @@ void _OSRaiseSystemClock(void)
   PWR_VOSR = (PWR_VOSR & ~(3u << 16)) | PWR_VOSR_VOS_RANGE1 | PWR_VOSR_BOOSTEN;
   while ((PWR_VOSR & (PWR_VOSR_VOSRDY | PWR_VOSR_BOOSTRDY)) !=
          (PWR_VOSR_VOSRDY | PWR_VOSR_BOOSTRDY));
+  /* Range 1 reads the SRAM at 0 wait states up to 160 MHz (RM0456, table 47). */
+  if (NoHSE)
+     SRAMWaitStates(0);
   /* Wait states before the clock rises; read back until they hold. The prefetch stays
   ** off: the images run from SRAM and never fetch from the flash, and it is the condition
   ** of erratum 2.2.26, a hang entering Stop with 4 wait states (ES0499), which an audit

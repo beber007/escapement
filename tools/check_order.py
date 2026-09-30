@@ -55,6 +55,11 @@ the first kind and each of the second:
     dequeue   D5 Head, DMB, D6 Tail      D6 Tail, DMB, D9 LL(place)
               D9 LL(place), DMB, D10 Head      D15 SC(place), DMB, D16 LL(Head)
 
+The accesses of E6 and E10, D6 and D10 are of the same kinds as those of E5 and D5:
+the pairs alone would take the E5 of the next round for the E10 that should follow the
+LL of the place. After each LL of a place, therefore, the next access of the queue must
+be the read of E10 (Tail) or D10 (Head), with a DMB before it.
+
 LL and SC are calls there (Escapement_Atomic.c), recognised by what r0 points to: the
 queue, received in r0, its Head or Tail, or a place of its array, reached through its
 first field.
@@ -455,7 +460,8 @@ def paths(body, start=None, visits=2, queue=False):
             op = insn[1].split(".")[0]
             t = re.search(r"^([0-9a-f]+) <", insn[2])
             branch = op.startswith("b") and op not in ("bl", "blx", "bic", "bics") and t
-            if op in ("pop",) and "pc" in insn[2] or op == "bx":
+            # a return: pop or ldm into pc (GCC restores r8 and pc with ldmia.w sp!)
+            if op in ("pop", "ldmia", "ldm") and "pc" in insn[2] or op == "bx":
                 i = len(body)
                 break
             if branch or op.startswith("cb"):
@@ -514,10 +520,42 @@ QUEUE_PAIRS = {
 }
 
 
+# After each LL of a place, the access that must come next, a DMB before it.
+QUEUE_NEXT = {
+    "OSEnqueueCoreQueue": ("enqueue, E10 after E9", "LL place", "Tail load"),
+    "OSDequeueCoreQueue": ("dequeue, D10 after D9", "LL place", "Head load"),
+}
+
+
+def check_next(events, first, then):
+    """On one path: after each first, the next access other than a DMB is then, with a
+    DMB between. Returns an error, None if fine, or "absent" without a first."""
+    found = False
+    for k, e in enumerate(events):
+        if e != first:
+            continue
+        found = True
+        rest = events[k + 1:]
+        nxt = next((j for j, x in enumerate(rest) if x != "DMB"), None)
+        if nxt is None:
+            continue            # the path ends there: an LL at the end of a round
+        if rest[nxt] != then:
+            return f"{rest[nxt]} next after {first}, not {then}"
+        if "DMB" not in rest[:nxt]:
+            return f"no DMB between {first} and {then}"
+    return None if found else "absent"
+
+
 def check_queue(path, functions):
     errors, covered = [], set()
     for name, pairs in QUEUE_PAIRS.items():
+        rule_name, first, then = QUEUE_NEXT[name]
         for events in paths(functions[name], queue=True):
+            result = check_next(events, first, then)
+            if result != "absent":
+                covered.add(rule_name)
+                if result:
+                    errors.append(f"{path}: {name}, {rule_name}: {result}")
             for pair_name, pair in pairs.items():
                 result = check_pair(events, pair)
                 if result == "absent":
@@ -525,7 +563,7 @@ def check_queue(path, functions):
                 covered.add(pair_name)
                 if result:
                     errors.append(f"{path}: {name}, {pair_name}: {result}")
-        for pair_name in pairs:
+        for pair_name in list(pairs) + [rule_name]:
             if pair_name not in covered:
                 errors.append(f"{path}: the {pair_name} was not found")
     return sorted(set(errors))

@@ -180,6 +180,7 @@ static void Stop2Idle(void)
   NVIC_ISER(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
   PWR_SR = PWR_SR_CSSF;
   hsi = RCC_CR & RCC_CR_HSION;           // cleared entering Stop (RM0456, RCC_CR)
+  _OSSRAMBeforeStop2(TRUE);              // the SRAM's wait state for the wake-up, if any
   SCB_SCR |= SCB_SCR_SLEEPDEEP;
   __asm volatile ("DSB\n\tWFI\n\tISB" ::: "memory");
   SCB_SCR &= ~SCB_SCR_SLEEPDEEP;
@@ -196,8 +197,10 @@ static void Stop2Idle(void)
      if ((UINT16)(end - wake) > Counts.WakeMaxTicks)
         Counts.WakeMaxTicks = (UINT16)(end - wake);
   }
-  else
+  else {
+     _OSSRAMBeforeStop2(FALSE);
      end = NextTick();
+  }
   micros = (UINT16)(end - start) * 15625u + Fraction;
   Fraction = micros % 512u;
   micros /= 512u;

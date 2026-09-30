@@ -361,8 +361,9 @@ Without the HSE, PLL1 takes the MSIS within its input ranges
     ...                       (escapement_u5_nohse.repl), as the NUCLEO-U575ZI-Q ships: PLL1
     ...                       takes the MSIS in range 2, 16.0017 MHz locked on the LSE, its
     ...                       booster through a prescaler of 2 and its VCO through M = 3, both
-    ...                       within their ranges, x 60 / 2; the wait states raised before the
-    ...                       MSIS; the HSE left off; and the test runs as with it. Until
+    ...                       within their ranges, x 60 / 2; the wait states of the flash and
+    ...                       of the SRAM raised before the MSIS, the SRAM's taken off again
+    ...                       once in range 1; the HSE left off; and the test runs as with it. Until
     ...                       2026-09-30 PLL1 took the MSIS of range 4, 3.998 MHz, under the
     ...                       4 MHz of both. The platform does not check the clocks: this says
     ...                       what the port writes, the board what the chip does.
@@ -379,6 +380,8 @@ Without the HSE, PLL1 takes the MSIS within its input ranges
     ${cfgr}=                  Read Word  0x46020C28
     ${divr}=                  Read Word  0x46020C34
     ${latency}=               Read Word  0x46020FF0
+    ${sram_then}=             Read Word  0x46020FF4
+    ${sram_now}=              Read Word  0x40026000
     Should Be Equal As Integers  ${{ (${cr} >> 16) & 1 }}  0
     Should Be Equal As Integers  ${{ (${icscr1} >> 28) & 0xF }}  2
     Should Be Equal As Integers  ${{ (${icscr1} >> 23) & 1 }}  1
@@ -389,6 +392,8 @@ Without the HSE, PLL1 takes the MSIS within its input ranges
     Should Be Equal As Integers  ${{ (${divr} & 0x1FF) + 1 }}  60
     Should Be Equal As Integers  ${{ ((${divr} >> 24) & 0x7F) + 1 }}  2
     Should Be Equal As Integers  ${latency}  4
+    Should Be Equal As Integers  ${sram_then}  1
+    Should Be Equal As Integers  ${{ (${sram_now} >> 16) & 7 }}  0
 
     ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
     ${results}=               Convert To Integer  ${results.strip()}
