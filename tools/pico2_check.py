@@ -14,7 +14,8 @@ Evéquoz across the two cores, IPCPico2, SoakPico2 and the litmus tests of Litmu
 which the board holds to more than Renode can: the outcome that needs the two cores
 within a cycle of each other must show. The criteria that count what only
 the emulator sees (SCs failed, reservations cleared, helpers entered on another stack)
-are left out; the tests of the outputs and of the UART need a witness on the pins.
+are left out; the tests of the outputs need a witness on the pins, and those of the UART
+are tools/pico2_uart.py's.
 
 Needs the GNU Arm binutils and an OpenOCD that knows the RP2350 (Raspberry Pi's fork, in
 $OPENOCD), and a CMSIS-DAP probe: PROBE=name picks one of the bench's (tools/probe.sh).

@@ -7,7 +7,7 @@ whose code last changed in 2014 and was published in 2016.
 This page separates what is open from what is done. Open items are plans, each with the
 date its facts were read. Done items say where the result is measured or checked, and a
 result counts as measured only where a page gives its date and conditions. Last revised
-on 2026-09-29.
+on 2026-09-30.
 
 ## Direction
 
@@ -32,17 +32,20 @@ on the RP2040. The **STM32L4** is set aside.
 
 0. **Two weeks of endurance on a board** (`rp2040.md`, "The endurance test"). `SoakPico`
    runs on the Pico W, on a probe of its own, since 2026-09-28 at 20:03 UTC: a week under
-   the hard kernel, EDF, at 69825e4, then a week under the power-aware one. On 2026-09-29
-   at 16:37 UTC it had run 20 h 34 min across 68 wraps of the kernel clock, with no error
-   and no restart. The script that reads it was stopped once for 7 s, to be updated, and
-   took the run over, the image having run on.
+   the hard kernel, EDF, at 69825e4, then a week under the power-aware one. On 2026-09-30
+   at 16:10 UTC it had run 44 h 07 min across 147 wraps of the kernel clock, with no error
+   and no restart, the pulse at most 126 µs late and the timer events 133. The script
+   that reads it was stopped once for 7 s, to be updated, and took the run over, the
+   image having run on.
    Two STM32U5 run alongside, until stopped, reading their counts on a UART
    (`stm32u5.md`, "The endurance test"): the UNO Q's own U585, which each board check
-   restarts on its commit (19 h without error at 34d86a4), and a NUCLEO-U575ZI-Q on the
-   bench since 2026-09-28. The NUCLEO's run failed after 17 h 26 min on 2026-09-29, at
-   00adc77, on one byte its USART1 lost to an overrun, every count of the kernel at 0; it
-   runs again at 73a6d83, the USART's FIFO enabled. Instances under Renode, each with
-   its own build and seed, are not started.
+   restarts on its commit (19 h without error at 34d86a4, and again at 81a08ff on
+   2026-09-30), and a NUCLEO-U575ZI-Q on the bench since 2026-09-28. The NUCLEO's run
+   failed after 17 h 26 min on 2026-09-29, at 00adc77, on one byte its USART1 lost to an
+   overrun, every count of the kernel at 0; it runs again at 73a6d83, the USART's FIFO
+   enabled, and on 2026-09-30 at 16:10 UTC had run 23 h 23 min across 78 wraps with no
+   error and no overrun. Instances under Renode, each with its own build and seed, are
+   not started.
 
 1. **The energy verdict on the RP2040.** Build the bench of `power-aware.md`: a plain Pico
    rather than a Pico W, powered and measured by a Power Profiler Kit II, chosen on
@@ -85,8 +88,12 @@ on the RP2040. The **STM32L4** is set aside.
    the other's accesses: none reordered (`architecture.md`). The bench checks them at
    each commit. The outputs of `TaskLEDPico2` and `TestTimerEventPico2` were read on
    the Bus Pirate's frequency counter on 2026-09-29, every period right
-   (`architecture.md`). Left: the UART echo, which wants the probe's UART wired to GP0
-   and GP1, and `TaskWrapPico2`, whose periods are scaled for Renode.
+   (`architecture.md`). On 2026-09-30 the UART echo and the two senders passed through
+   the probe's UART, and `SoakPico2` crossed the 2^30 wrap twice in 40 minutes without
+   an error (`tools/pico2_uart.py`, `tools/pico2_soak.py`). Every example of the Pico 2
+   has now run on the board, but `TaskWrapPico2`, whose periods are scaled for Renode.
+   Left: the power-aware kernel and DVFS (item 4), and the UART and the wrap in the
+   checks of each commit, which run neither.
 
 3. **What is left to verify between the cores.** The queue between the cores
    (`Escapement_CoreQueue.c`) had a DMB between any two of its accesses to different

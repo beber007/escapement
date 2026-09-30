@@ -42,7 +42,7 @@ must agree with it.
 |---|---|---|---|
 | probe1 | Pico | the checks of each commit, `board/pico` | `board_ci.sh`, some 10 min a commit |
 | probe2 | Pico W | the endurance test, a week per kernel, `board/soak` | `escapement-soak-pico` |
-| probe3 | Pico 2 | the checks of each commit, `board/pico2` | `board_ci.sh` |
+| probe3 | Pico 2, the probe's UART on GP0 and GP1 | the checks of each commit, `board/pico2` | `board_ci.sh` |
 | STLINK-V3 | NUCLEO-U575ZI-Q | a run until stopped, `board/soak-nucleo` | `escapement-soak-nucleo` |
 | the UNO Q's own SWD | STM32U585 | the checks of each commit, `board/u5`, then a run until the next | `board_ci.sh`, then `escapement-soak-u5` |
 | Bus Pirate v4 | — | none yet; `tools/pico_reset.py` is untried | — |

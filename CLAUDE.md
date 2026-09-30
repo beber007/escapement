@@ -37,6 +37,9 @@ make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
 renode-test emulation/renode/escapement_pico2.robot
 OPENOCD=~/opt/openocd-rpi/bin/openocd PROBE=probe3 tools/pico2_check.py DIR   # on the UNO Q:
                                               # the six examples that count in memory
+PROBE=probe3 tools/pico2_uart.py DIR          # the UART echo and senders, on the probe's UART
+PROBE=probe3 tools/pico2_soak.py DIR          # SoakPico2 for 40 min: two 2^30 wraps
+                                              # (both with OPENOCD as above, holding the lock)
 
 # STM32U5 (Arduino UNO Q, STM32U585, Cortex-M33) — eight examples, run from SRAM, which
 # leaves Arduino's firmware in the flash; its Renode suite runs on a platform of our own

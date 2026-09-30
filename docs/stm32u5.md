@@ -94,7 +94,8 @@ On a NUCLEO-U575ZI-Q, the link goes over USART1 to the ST-LINK at 115,200 baud. 
 and counted the next as out of the count: 1 overrun, 1 error of the link, while every
 count of the kernel stayed at 0. What delayed the interrupt that once cannot be told
 afterwards. LPUART1 on the UNO Q, with its FIFO of 8 bytes at 57,600 baud, had lost none
-in 69,000 s. USART1 now runs with its FIFO too, which allows some 700 µs.
+in 69,000 s. USART1 now runs with its FIFO too, which allows some 700 µs: at 73a6d83, on
+2026-09-30, it had carried 54 MB in 84,218 s (23 h 23 min) with no overrun and no error.
 
 ## What is verified
 

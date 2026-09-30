@@ -163,7 +163,8 @@ were each reproduced under Renode by a test that fails on the code before:
   of some 400 on the Pico, whose senders then all but stopped (`UARTSendersPico2`,
   `UARTSendersPico`). The RP2040 had it too, from the port the RP2350's was taken from;
   the first audit had closed the race of the call with its own interrupt, not with
-  another caller.
+  another caller. On the Pico 2 itself, on 2026-09-30, 18,106 lines in 20 s came out
+  whole (`tools/pico2_uart.py`).
 
 The smaller findings were fixed the same day without a test of their own, each read
 against the code and the whole suites run again after: the U585's vector table trapped

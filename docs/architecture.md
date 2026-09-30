@@ -169,9 +169,21 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
 
   Every output is +28 to +35 ppm off, as the Pico's were on the same instrument
   (`rp2040.md`, 16.66713 and 100.0031 Hz there): two boards the same, it is the Bus
-  Pirate's reference that is some 30 ppm slow rather than either crystal. `TaskWrapPico2`
-  is left out, its periods scaled for Renode, and so is the UART echo, which wants other
-  wires. The power-aware kernel is not ported.
+  Pirate's reference that is some 30 ppm slow rather than either crystal.
+
+  The UART, through the Debug Probe's own on GP0 and GP1, on 2026-09-30
+  (`tools/pico2_uart.py`, the CI's images of 3c141ca): `UARTEchoPico2` sent back the
+  suite's line, the 256 byte values and 1,408 bytes of lines sent back to back, each
+  byte once and in order. `UARTSendersPico2` put 18,106 lines on the port in 20 s, the
+  line full, none broken. The lines its tasks had queued when their counts were read,
+  17,658, lay between the 17,553 on the port just before and the 17,661 just after.
+
+  The 2^30 wrap on the board, the same day: `TaskWrapPico2` has its periods scaled for
+  Renode, a thousand times too long here, so `SoakPico2` crossed it instead, as the
+  Pico's endurance test did (`rp2040.md`). It ran 2,400 s across two wraps, read every
+  minute over SWD without stopping a core (`tools/pico2_soak.py`): no error in any of
+  its eight parts, no restart, the pulse at most 46 µs late and the timer events 40, at
+  least 952 bytes of core 1's stack never used. The power-aware kernel is not ported.
 - **STM32U5** (the STM32U585 of the Arduino UNO Q): Cortex-M33, port under
   `Escapement/CORTEX-Mx/STM32U5/`. It was written anew on 2026-09-25, after the model of
   the RP2350 port. The clocks run at 160 MHz from the board's 16 MHz crystal. TIM2 serves
