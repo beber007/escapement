@@ -91,6 +91,9 @@ Description=Escapement: board checks on the newest main
 
 [Service]
 Type=oneshot
+# A check takes some 20 minutes; one stuck on a probe's USB is stopped at the hour,
+# its locks then taken over by the next run.
+TimeoutStartSec=1h
 ExecStart=/bin/sh %h/escapement-rp2040/board-ci/src/tools/board_ci.sh
 EOF
 cat > ~/.config/systemd/user/escapement-board-ci.timer <<'EOF'

@@ -154,8 +154,13 @@ class Pico:
                 "-f", "target/rp2040.cfg", "-c", "init"]
         for command in commands:
             args += ["-c", command]
-        out = subprocess.run(args + ["-c", "exit"], capture_output=True, text=True,
-                             check=False)
+        # Bounded: an OpenOCD stuck on the USB held the probe's lock and left the status
+        # pending for good (a review, 2026-09-30). Its output then counts as no reading.
+        try:
+            out = subprocess.run(args + ["-c", "exit"], capture_output=True, text=True,
+                                 check=False, timeout=60)
+        except subprocess.TimeoutExpired:
+            return "Error: OpenOCD did not answer within 60 s"
         return out.stdout + out.stderr
 
     def words_at(self, address, n):

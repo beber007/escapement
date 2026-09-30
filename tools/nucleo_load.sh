@@ -15,7 +15,7 @@
 set -eu
 
 if [ "${1:-}" = --reset ]; then
-    COMMANDS="init; reset; shutdown"
+    COMMANDS="init; reset; echo ESCAPEMENT-DONE; shutdown"
 else
     ELF=${1:?usage: tools/nucleo_load.sh ELF | --reset}
     [ -f "$ELF" ] || { echo "no image $ELF" >&2; exit 1; }
@@ -24,11 +24,12 @@ else
     # stopped while the core is halted (DBGMCU_APB1FZR1, RM0456), then started at the
     # entry code at the head of the image (Escapement_RamEntry.S).
     COMMANDS="init; reset halt; mww 0xE0044008 0xb; load_image $image; \
-resume 0x20000000; shutdown"
+resume 0x20000000; echo ESCAPEMENT-DONE; shutdown"
 fi
 # Connected with the reset held, as on the UNO Q: an image idle in Stop 2 leaves the
 # debug port unpowered most of the time. The ST-LINK drives NRST (UM2861). An error from
-# OpenOCD fails the load. Its ports for gdb, telnet and Tcl are closed, as in
+# OpenOCD fails the load, and so does the end of the commands not reached, as in
+# tools/unoq_load.sh. Its ports for gdb, telnet and Tcl are closed, as in
 # tools/probe.sh: another OpenOCD may be running on the bench.
 SERIAL=${NUCLEO_SERIAL:+adapter serial $NUCLEO_SERIAL;}
 openocd -f interface/stlink-dap.cfg \
@@ -37,4 +38,4 @@ openocd -f interface/stlink-dap.cfg \
         -c "reset_config srst_only srst_nogate connect_assert_srst; $COMMANDS" 2>&1 |
     { out=$(cat)
       echo "$out" | grep -E "^(Error|Warn)|downloaded|bytes" || true
-      ! echo "$out" | grep -q "^Error"; }
+      ! echo "$out" | grep -q "^Error" && echo "$out" | grep -q "^ESCAPEMENT-DONE"; }
