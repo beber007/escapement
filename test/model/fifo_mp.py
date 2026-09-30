@@ -318,7 +318,11 @@ def explore(programs, faults=(), global_monitor=True, prefill=(), spurious=True,
 # execution the architecture allows, and removing further barriers only allows more: a
 # barrier found needed with all the others in place is needed. A run held within the
 # window is held for good once the window is as long as the longest run of accesses
-# between two barriers of the set, since no access crosses a barrier.
+# between two barriers of the set, since no access crosses a barrier. The rounds are a
+# stricter bound than they read: a run in which an operation would begin a round past
+# ITERATIONS is dropped whole, with what the other core did, so that an operation failing
+# its SC, helping, then succeeding in a third round is never seen. ITERATIONS = 3 and
+# SC_TRIES = 3 at a window of 3 hold as well (an audit of the models, 2026-09-30).
 #
 # Until 2026-09-29 the model kept a store from being performed before an SC ahead of it,
 # and gave each core one reservation, set when its LL was performed. Under those, six

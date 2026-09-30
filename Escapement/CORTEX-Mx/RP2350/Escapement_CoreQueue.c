@@ -31,7 +31,10 @@
 **     then helping Head past the empty place and the item lost. The model had assumed
 **     that order until an audit of the port questioned it. The proof holds within the
 **     model's bounds: a queue of two places, two operations a core, two rounds of each
-**     loop. tools/check_order.py checks each barrier in the compiled code.
+**     loop, a run whose operation would begin a third dropped whole, so that one that
+**     fails its SC, helps, then succeeds is not seen; with three rounds at a window of 3
+**     the queue holds too (an audit of the models, 2026-09-30). tools/check_order.py
+**     checks each barrier in the compiled code.
 **
 ** Head and Tail count up without end and wrap at 2^32, which the length, a power of 2,
 ** divides: the place of an index is its remainder, and Tail - Head the items held.

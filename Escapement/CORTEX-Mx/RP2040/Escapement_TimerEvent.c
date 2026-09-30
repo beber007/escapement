@@ -185,15 +185,18 @@ BOOL OSUnScheduleTimerEvent(void *event, UINT16 interruptIndex)
 
 /* ArmAlarm: Arms the alarm on the event at the head of the queue, interrupts masked. An
 ** alarm fires when the counter equals it, never on a time already past: such an event is
-** handed to the handler by forcing the interrupt. */
+** handed to the handler by forcing the interrupt, the alarm disarmed, since armed on a
+** time past it would fire 2^32 us later for nothing (a review, 2026-09-30). */
 static void ArmAlarm(TIMER_ISR_DATA *device)
 {
   TIMER_EVENT_NODE *head = device->EventQueue;
   if (head == NULL)
      return;
   *device->Alarm = head->Time;
-  if ((INT32)(head->Time - TIMER_TIMERAWL) <= 0)
+  if ((INT32)(head->Time - TIMER_TIMERAWL) <= 0) {
+     TIMER_ARMED = device->AlarmBit;
      TIMER_INTF_SET = device->AlarmBit;
+  }
 } /* end of ArmAlarm */
 
 

@@ -272,9 +272,10 @@ BOOL _OSSetTimer(INT32 nextArrivalTime)
      }
   }
   OSTrace(OS_TRACE_SET_TIMER,0,0);
-  /* Disarm, then drop any cause the alarm may have raised while it was being set:
-  ** the caller is told the deadline has passed and processes the arrival itself, so
-  ** a pending interrupt would only buy a second, redundant scheduling round. */
+  /* Disarm, then drop any cause the alarm may have raised while it was being set: the
+  ** caller is told the deadline has passed and processes the arrival itself. The NVIC
+  ** may hold the interrupt pending already; the handler then finds nothing due and
+  ** only runs a round for nothing. */
   TIMER_ARMED = ALARM0_BIT;
   TIMER_INTR = ALARM0_BIT;
   return FALSE;
