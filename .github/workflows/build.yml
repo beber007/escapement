@@ -67,10 +67,12 @@ jobs:
 
       - name: Check that the rebuild is reproducible
         working-directory: ${{ env.DIR }}
+        # The same images, byte for byte: sizes alone could not fail (a review, 2026-09-30).
         run: |
+          sha256sum build/*.elf > "$RUNNER_TEMP/first.sha256"
           make clean
           make
-          arm-none-eabi-size build/*.elf
+          sha256sum -c --quiet "$RUNNER_TEMP/first.sha256"
 
       - uses: actions/upload-artifact@v7
         with:

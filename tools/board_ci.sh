@@ -54,16 +54,28 @@ SRC=$DIR/src
 PICO=Escapement/CORTEX-Mx/RP2040/Examples/pico
 
 mkdir -p "$DIR/logs"
-# One run at a time. A directory, since mkdir is atomic everywhere and flock is not on
-# macOS; a lock whose run has died is taken over.
+# take <lock>: makes the lock directory ours, our pid in it, and takes over one whose
+# process is gone; returns 1 while a live one holds it. A directory, since mkdir is
+# atomic everywhere; the taking over is not, and two processes finding one stale lock
+# both held it, 6 times in 300 (a review, 2026-09-30): it runs under flock where there is
+# one, Linux but not macOS, as tools/soak.py takes its probe's lock.
+take() {
+    (
+        if command -v flock >/dev/null; then flock 8; fi
+        if ! mkdir "$1" 2>/dev/null; then
+            kill -0 "$(cat "$1/pid" 2>/dev/null)" 2>/dev/null && exit 1
+            rm -rf "$1" && mkdir "$1" || exit 1
+        fi
+        echo $$ >"$1/pid"
+    ) 8>"$DIR/lock-take"
+}
+
+# One run at a time.
 LOCK=$DIR/lock
 if [ "${BOARD_CI_RESTARTED:-}" = yes ]; then
     :   # started again by itself, below: the lock is already ours
-elif ! mkdir "$LOCK" 2>/dev/null; then
-    if kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
-        echo "another run holds $LOCK"; exit 0
-    fi
-    rm -rf "$LOCK" && mkdir "$LOCK"
+elif ! take "$LOCK"; then
+    echo "another run holds $LOCK"; exit 0
 fi
 echo $$ >"$LOCK/pid"
 held=""
@@ -74,11 +86,7 @@ trap 'rm -rf "$LOCK" $held' EXIT
 # A probe, not the bench: a run of two weeks on one board leaves the others checked.
 hold() {
     probe_lock=$DIR/lock-$1
-    if ! mkdir "$probe_lock" 2>/dev/null; then
-        kill -0 "$(cat "$probe_lock/pid" 2>/dev/null)" 2>/dev/null && return 1
-        rm -rf "$probe_lock" && mkdir "$probe_lock"
-    fi
-    echo $$ >"$probe_lock/pid"
+    take "$probe_lock" || return 1
     held="$held $probe_lock"
 }
 
@@ -126,19 +134,25 @@ api() {   # path: a GET on the repository's API
 }
 
 # ci_images: the images the CI built for $SHA into $DIR/fw. Returns 1 while its run is
-# not over, which the next run of this script waits for, 2 if there are none.
+# not over, which the next run of this script waits for; 2 if there are none; 3 if the
+# run failed, its images then vouching for nothing (a review, 2026-09-30: the board posted
+# its statuses on the images of a run whose checks had failed), with $attempt set; 4 if
+# GitHub did not answer or the download broke, which the next run tries again.
 ci_images() {
     run=$(api "actions/workflows/build.yml/runs?head_sha=$SHA&event=push" |
-          jq -r '.workflow_runs[0] | "\(.status) \(.id)"') || return 2
+          jq -r '.workflow_runs[0] | "\(.status) \(.conclusion) \(.id) \(.run_attempt)"') ||
+        return 4
     set -- $run
     [ "$1" = completed ] || return 1
-    url=$(api "actions/runs/$2/artifacts" |
+    attempt="$3 $4"
+    [ "$2" = success ] || return 3
+    url=$(api "actions/runs/$3/artifacts" |
           jq -r '.artifacts[] | select(.name == "board-images") | .archive_download_url') ||
-        return 2
+        return 4
     [ -n "$url" ] || return 2
     rm -rf "$DIR/fw" "$DIR/fw.zip" && mkdir -p "$DIR/fw"
     curl --silent --show-error --fail --location -H "Authorization: Bearer $(cat "$TOKEN")" \
-        --output "$DIR/fw.zip" "$url" && unzip -q -o "$DIR/fw.zip" -d "$DIR/fw" || return 2
+        --output "$DIR/fw.zip" "$url" && unzip -q -o "$DIR/fw.zip" -d "$DIR/fw" || return 4
 }
 
 # build <name> <image> <make arguments>: one image into $DIR/fw/<name>.
@@ -227,6 +241,15 @@ if [ "$IMAGES" = ci ]; then
     ci_images || got=$?
     if [ $got -eq 1 ]; then
         echo "the CI has not finished with $SHA"; exit 0
+    elif [ $got -eq 3 ]; then
+        # Posted once per attempt of the run: one run again and passing is then checked.
+        if [ "$(cat "$DIR/ci-failed" 2>/dev/null)" != "$SHA $attempt" ]; then
+            echo "$SHA $attempt" >"$DIR/ci-failed"
+            status error "the CI failed on this commit: not checked on the board"
+        fi
+        echo "the CI failed on $SHA (run $attempt)"; exit 0
+    elif [ $got -eq 4 ]; then
+        echo "no answer from GitHub for $SHA: tried again at the next run"; exit 0
     elif [ $got -ne 0 ]; then
         echo "$SHA" >"$DIR/last"
         status error "no images from the CI for this commit"

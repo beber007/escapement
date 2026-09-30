@@ -111,8 +111,13 @@ while IFS=: read -r kernel scheduler name; do
     case $kernel in Hard) flags="" ;; Soft) flags="KERNEL=SOFT" ;; HardPA) flags="KERNEL=PA" ;; esac
     [ "$scheduler" = DM ] && flags="$flags SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING"
     # shellcheck disable=SC2086
-    COMMAND=$(make -s -C "$EXAMPLE" -n -B "build/Escapement$kernel.o" $flags 2>/dev/null |
-        grep -m1 "Escapement$kernel\.c") || continue      # a kernel the port lacks
+    # Only the power-aware kernel may be missing, on the ports that have none yet; the
+    # hard and the soft kernels skipped would have let a failing make pass for a catch.
+    if ! COMMAND=$(make -s -C "$EXAMPLE" -n -B "build/Escapement$kernel.o" $flags 2>/dev/null |
+            grep -m1 "Escapement$kernel\.c"); then
+        [ "$kernel" = HardPA ] && continue
+        echo "$kernel $scheduler, $name: NOT BUILT"; missed=$((missed + 1)); continue
+    fi
     mutant() {
         (cd "$EXAMPLE" && eval "$(printf '%s' "$COMMAND" |
             sed "s|[^ ]*Escapement$kernel\.c|$1|; s|-o [^ ]*|-o $2|") -I$ROOT/Escapement")

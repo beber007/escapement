@@ -59,6 +59,7 @@ Pico it holds the lock of its probe (BOARD_CI_LOCK, board-ci/lock-$PROBE) while 
 so that the board CI loads no other image there; it checks the other boards meanwhile.
 """
 import atexit
+import fcntl
 import hashlib
 import json
 import glob
@@ -123,20 +124,25 @@ class Pico:
         lock = os.environ.get("BOARD_CI_LOCK", os.path.expanduser(
             "~/escapement-rp2040/board-ci/lock-" + os.environ.get("PROBE", "probe1")))
         os.makedirs(os.path.dirname(lock), exist_ok=True)
-        try:
-            os.mkdir(lock)
-        except FileExistsError:
-            # Taken over if its process is gone, as the board CI does: a run as a service
-            # is started again after the board rebooted, which left the lock behind.
+        # Under the flock the board CI takes its locks under (tools/board_ci.sh, take):
+        # two processes taking over one stale lock at once would both hold it.
+        with open(os.path.join(os.path.dirname(lock), "lock-take"), "w") as serial:
+            fcntl.flock(serial, fcntl.LOCK_EX)
             try:
-                with open(os.path.join(lock, "pid")) as f:
-                    os.kill(int(f.read()), 0)
-                sys.exit(f"the board is in use ({lock})")
-            except (OSError, ValueError):
-                shutil.rmtree(lock, True)
                 os.mkdir(lock)
-        with open(os.path.join(lock, "pid"), "w") as f:
-            f.write(str(os.getpid()))
+            except FileExistsError:
+                # Taken over if its process is gone, as the board CI does: a run as a
+                # service is started again after the board rebooted, which left the lock
+                # behind.
+                try:
+                    with open(os.path.join(lock, "pid")) as f:
+                        os.kill(int(f.read()), 0)
+                    sys.exit(f"the board is in use ({lock})")
+                except (OSError, ValueError):
+                    shutil.rmtree(lock, True)
+                    os.mkdir(lock)
+            with open(os.path.join(lock, "pid"), "w") as f:
+                f.write(str(os.getpid()))
         atexit.register(shutil.rmtree, lock, True)
         # systemd stops a service with SIGTERM, which would skip the line above.
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))

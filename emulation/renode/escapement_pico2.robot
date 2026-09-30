@@ -269,6 +269,7 @@ Tasks preempt one another inside the FIFO queue and a slot buffer
     ...                       pointer, that is, on the stack of the preempted task, and some
     ...                       must be.
     Load Escapement           IPCPico2
+    Execute Command           python "import System; System.AppDomain.CurrentDomain.SetData('helped', 0)"
     FOR  ${helper}  ${reg}  IN  FIFOEnqueueHelper  1  FIFODequeueHelper  2
         ${address}=           Execute Command  sysbus GetSymbolAddress "${helper}"
         Execute Command       sysbus.cpu0 AddHook ${address.strip()} "import System; d = System.AppDomain.CurrentDomain; des = int(str(self.GetRegisterUnsafe(${reg})), 0); sp = int(str(self.GetRegisterUnsafe(13)), 0); d.SetData('helped', (d.GetData('helped') or 0) + (1 if des - sp > 64 else 0))"

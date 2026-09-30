@@ -50,7 +50,21 @@ def count(key):
     put(key, get(key, 0) + 1)
 
 
+# Every key the monitor keeps: the AppDomain outlives the machine, which Reset Emulation
+# makes anew for each test, and renode-test runs a whole suite in one Renode.
+KEYS = ("ll0", "ll1", "sc0.ok", "sc0.failed", "sc1.ok", "sc1.failed", "sc1.spurious",
+        "sc1.attempts", "cleared.write0", "cleared.write1", "kept.write0", "kept.write1",
+        "cleared.exception0", "cleared.exception1", "reservation0", "reservation1",
+        "watched")
+
+
 def setup(monitor="global", spurious=0):
+    """For each test, before its machine runs: the counts start at 0, no reservation is
+    held, and no granule is watched, the watchpoints of the machine before gone with it.
+    Kept, a test found counts of the test before and passed on them (a review,
+    2026-09-30), and a granule the test before watched got no watchpoint in this one."""
+    for key in KEYS:
+        put(key, None)
     put("lock", System.Object())
     put("monitor", monitor)
     put("every", spurious)

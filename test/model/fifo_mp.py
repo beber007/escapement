@@ -30,7 +30,10 @@ model gives what it does (datasheet 2.1.6, Armv8-M B9): each core holds one
 reservation, which any write of the other core to the same granule clears, whatever
 the value, and which its own SC clears; an SC may also fail for no visible reason, an
 interrupt between it and its LL. The array, Head and Tail all sit in one granule of
-16 bytes here, the worst case: every write of one core ends the other's reservation.
+16 bytes here: every write of one core ends the other's reservation. That only takes
+successes away, the SCs failing more often, so it is not the worst case, whatever this
+said until 2026-09-30; explore() with shared_granule=False holds as well (an audit of the
+models, the three scenarios, and three operations a core).
 
 Two cores each run a few operations, one step per line above that touches the shared
 memory, and every interleaving is explored. Every run must be linearizable — some

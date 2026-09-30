@@ -10,11 +10,12 @@ clock: 17 min 54 s at the chip's 1 us tick.
 
 The image is loaded as tools/pico2_check.py loads it, whose functions this uses, and
 every reading is printed as tools/soak.py logs the Pico's. It fails on a restart (the
-marker gone or the seconds going back), on any error of the eight parts, and on a part
-or the seconds that did not move between two readings, which is how a hung kernel shows
-should the watchdog not restart the chip (SoakPico2 sets what it resets since
-2026-09-30; before, it reset nothing). Unlike tools/soak.py it posts no status and keeps
-no state: a run by hand, holding the probe's lock (tools/board_ci.md, "The bench").
+marker gone or the seconds going back), on any error of the eight parts, on a reading
+missed, and on a part or the seconds that did not move between two readings, which is
+how a hung kernel shows should the watchdog not restart the chip (SoakPico2 sets what it
+resets since 2026-09-30; before, it reset nothing). Unlike tools/soak.py it posts no
+status and keeps no state: a run by hand, holding the probe's lock (tools/board_ci.md,
+"The bench").
 """
 
 import argparse
@@ -82,7 +83,8 @@ def main():
         show(r)
     print(f"end: {last} s, {wraps} wraps, {errors} errors, {stalls} stalls, "
           f"{missed} readings missed", flush=True)
-    sys.exit(1 if errors or stalls else 0)
+    # A reading missed is a run not watched: a bench that no longer reads passed as clean.
+    sys.exit(1 if errors or stalls or missed else 0)
 
 
 if __name__ == "__main__":

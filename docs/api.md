@@ -275,6 +275,14 @@ The queue carries pointers and owns nothing. Nodes go round through a second suc
 queue, as in `FIFOCoresPico2`. It signals no event, so a task on core 0 polls it. It is
 lock-free, not wait-free: an operation retries while the other core keeps winning.
 
+What the node points to is ordered with the queue: the enqueuer's stores before it,
+seen by the dequeuer after it. The caller's other accesses are not. An enqueue is no
+barrier for what follows it, nor a dequeue for what comes before it. A caller telling
+the other core "enqueued" through a flag of its own puts `_OSMemoryBarrier()` before
+storing the flag, and the other core one after reading it and before its dequeue.
+Otherwise the flag may be seen before the item, and the queue found empty (an audit of
+the models, 2026-09-30).
+
 ## Interrupts
 
 The kernel owns the vector table and routes every peripheral interrupt through a
