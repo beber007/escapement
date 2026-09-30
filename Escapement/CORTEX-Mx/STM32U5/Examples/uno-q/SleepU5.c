@@ -52,7 +52,7 @@
 #define PERIOD      (100000 * TIME_SCALE)  /* us */
 #define WORK        4000                 /* loop turns, some 100 us at 160 MHz */
 #define EVENT_DELAY (40000 * TIME_SCALE)   /* us */
-#define REPORT_SIZE 96
+#define REPORT_SIZE 123                /* SLEEP and 13 numbers of 8 digits at most, spaced */
 
 volatile struct {
   UINT32 Marker, Instances, Ticks, Micros, JitterMax, Entries, WakeMaxTicks, Late, NoLSE;

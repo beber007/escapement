@@ -130,6 +130,10 @@ static void CountLate(volatile UINT32 *bins, UINT32 late);
 #define WATCHDOG_CTRL     *((volatile UINT32 *)(0x40058000 + 0x00))
 #define WATCHDOG_LOAD     *((volatile UINT32 *)(0x40058000 + 0x04))
 #define WATCHDOG_ENABLE   (1u << 30)
+/* What the watchdog resets when it fires: every block but the oscillators, as the pico-sdk
+** has it (watchdog_enable); at reset nothing, and a hung kernel would stay hung. */
+#define PSM_WDSEL         *((volatile UINT32 *)(0x40010000 + 0x08))
+#define PSM_WDSEL_ALL     (0x0001FFFFu & ~0x3u)
 /* The RP2040 decrements the watchdog twice per tick of 1 us (erratum RP2040-E1): 3 s. */
 #define WATCHDOG_TICKS    (2u * 3000000u)
 /* Priority of alarm 3, in the 2 most significant bits of its byte: that of the timer
@@ -397,8 +401,10 @@ static void HeartbeatTask(void *argument)
   UINT32 i;
   (void)argument;
   WATCHDOG_LOAD = WATCHDOG_TICKS;   // loaded before it is enabled: at 0, it fires at once
-  if (Results.Seconds == 0)
+  if (Results.Seconds == 0) {
+     PSM_WDSEL = PSM_WDSEL_ALL;
      WATCHDOG_CTRL |= WATCHDOG_ENABLE;
+  }
   if (Results.Seconds > 0)
      for (i = 0; i < PARTS; i += 1)
         if (i != HEARTBEAT && i != MEMORY && Results.Activity[i] == seen[i])

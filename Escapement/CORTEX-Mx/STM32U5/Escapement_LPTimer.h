@@ -23,8 +23,9 @@ BOOL OSInitLPTimer(void);
 ** are taken for it (RM0456, LPTIM_CNT). */
 UINT16 OSGetLPTimer(void);
 
-/* OSSetLPTimerCompare: The count at which the compare flag of LPTIM1 rises; the write
-** takes some cycles of the LSE to reach the counter, which this waits for. */
+/* OSSetLPTimerCompare: The count at which the compare flag of LPTIM1 rises, 0xFFFF taken
+** as 0xFFFE; the write takes some cycles of the LSE to reach the counter, which this
+** waits for. */
 void OSSetLPTimerCompare(UINT16 count);
 
 /* OSLPTimerCompared: TRUE once the count has reached the compare set last, the flag then

@@ -51,6 +51,10 @@ void OSLaunchCore1(void (*entry)(void), UINT32 *stackTop)
                              (UINT32)Core1Start};
   UINT32 i = 0;
   Core1Entry = entry;
+  /* What core 0 stored for core 1, the entry and the structures it will use, before the
+  ** FIFO's writes that start it: Armv8-M does not order a store to memory before a later
+  ** one to a device without a barrier. */
+  _OSMemoryBarrier();
   PSM_FRCE_OFF_SET = PSM_PROC1;
   while ((PSM_FRCE_OFF & PSM_PROC1) == 0);
   PSM_FRCE_OFF_CLR = PSM_PROC1;

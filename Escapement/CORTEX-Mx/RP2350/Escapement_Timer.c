@@ -179,7 +179,10 @@ void _OSInitializeTimer(void)
   ** unreset_block). */
   RESETS_CLR = RESETS_TIMER_BIT;
   while ((RESETS_RESET_DONE & RESETS_TIMER_BIT) == 0);
-  /* Produce the 1 us tick from the 12 MHz reference clock. */
+  /* Produce the 1 us tick from the 12 MHz reference clock, the generator stopped while its
+  ** count changes (RP2350 datasheet, 8.5.1): an image started without a reset of the
+  ** chip finds it running. */
+  TICKS_TIMER0_CTRL = 0;
   TICKS_TIMER0_CYCLES = 12;
   TICKS_TIMER0_CTRL = TICKS_ENABLE;
   /* The RP2350, like the RP2040, freezes its timer as soon as a core is halted by the
@@ -195,7 +198,8 @@ void _OSInitializeTimer(void)
   #ifdef ESCAPEMENT_MEASURE_SCHEDULING_COST
      TIMER_DBGPAUSE = 0x0;   /* wall time, including across debugger halts */
   #else
-     TIMER_DBGPAUSE = 0x7;   /* its reset value: paused while either core is halted */
+     TIMER_DBGPAUSE = 0x6;   /* its reset value: paused while either core is halted;
+                                bit 0, set on the RP2040, is reserved here */
   #endif
   /* Disarm both alarms and clear any pending cause. */
   TIMER_INTE_CLR = ALARM0_BIT | ALARM1_BIT;

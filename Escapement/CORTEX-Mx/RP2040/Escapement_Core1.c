@@ -40,6 +40,10 @@ void OSLaunchCore1(void (*entry)(void), UINT32 *stackTop)
   const UINT32 sequence[] = {0, 0, 1, (UINT32)CortexMxVectorTable, (UINT32)stackTop,
                              (UINT32)entry};
   UINT32 i = 0;
+  /* What core 0 stored for core 1, the structures it will use, before the FIFO's writes
+  ** that start it: the architecture does not order a store to memory before a later one
+  ** to a device without a barrier (the RP2350's port, the same). */
+  _OSMemoryBarrier();
   PSM_FRCE_OFF_SET = PSM_PROC1;
   while ((PSM_FRCE_OFF & PSM_PROC1) == 0);
   PSM_FRCE_OFF_CLR = PSM_PROC1;

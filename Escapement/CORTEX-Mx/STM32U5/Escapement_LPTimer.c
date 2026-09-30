@@ -83,6 +83,10 @@ UINT16 OSGetLPTimer(void)
 
 void OSSetLPTimerCompare(UINT16 count)
 {
+  /* ARR, 0xFFFF, must stay strictly above the compare (RM0456 rev. 7, LPTIM_ARR): at
+  ** 0xFFFF it comes one tick sooner, which a caller asking for a time ahead can bear. */
+  if (count == 0xFFFFu)
+     count = 0xFFFEu;
   LPTIM_ICR = LPTIM_CMP1OK | LPTIM_CC1IF;
   LPTIM_CCR1 = count;
   while ((LPTIM_ISR & LPTIM_CMP1OK) == 0);

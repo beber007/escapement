@@ -72,6 +72,8 @@
 
 #define IO_BANK0_CTRL(p)     *((volatile UINT32 *)(0x40028000 + 0x04 + 8 * (p)))
 #define PADS_BANK0_GPIO(p)   *((volatile UINT32 *)(0x40038000 + 0x04 + 4 * (p)))
+#define PADS_PUE_BIT         (1u << 3)
+#define PADS_PDE_BIT         (1u << 2)
 #define PADS_ISO_BIT         (1u << 8)
 #define PADS_IE_BIT          (1u << 6)
 #define FUNCSEL_UART         2
@@ -140,7 +142,10 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
          (resetBit | RESETS_IO_BANK0_BIT | RESETS_PADS_BANK0_BIT));
   /* Route the two pins to the UART, then lift their isolation, in the order of
   ** gpio_set_function in the pico-sdk; the input of RX has to be enabled. */
-  PADS_BANK0_GPIO(rxPin) |= PADS_IE_BIT;
+  /* RX pulled up rather than down: with its input enabled and the pull-down on, a pin no
+  ** one drives floats near 2.2 V instead of low (RP2350-E9), and a UART idles high. */
+  PADS_BANK0_GPIO(rxPin) = (PADS_BANK0_GPIO(rxPin) & ~PADS_PDE_BIT) | PADS_PUE_BIT |
+                           PADS_IE_BIT;
   IO_BANK0_CTRL(txPin) = FUNCSEL_UART;
   IO_BANK0_CTRL(rxPin) = FUNCSEL_UART;
   PADS_BANK0_GPIO(txPin) &= ~PADS_ISO_BIT;
