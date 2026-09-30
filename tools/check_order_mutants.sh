@@ -42,6 +42,34 @@ while [ "$k" -le "$BARRIERS" ]; do
 done
 [ "$missed" -eq 0 ] && echo "all $BARRIERS removals caught"
 
+# The queue between the cores, on a port that has one: the same, one mutant per barrier.
+QUEUE_COMMAND=$(make -s -C "$EXAMPLE" -n -B build/Escapement_CoreQueue.o 2>/dev/null |
+    grep -m1 'Escapement_CoreQueue\.c') || QUEUE_COMMAND=""
+if [ -n "$QUEUE_COMMAND" ]; then
+    QUEUE=$(cd "$EXAMPLE" && cd "$(dirname "$(printf '%s' "$QUEUE_COMMAND" |
+        sed 's|.* \([^ ]*Escapement_CoreQueue\.c\).*|\1|')")" && pwd)/Escapement_CoreQueue.c
+    compile_queue() {   # compile_queue SOURCE OBJECT
+        (cd "$EXAMPLE" && eval "$(printf '%s' "$QUEUE_COMMAND" |
+            sed "s|[^ ]*Escapement_CoreQueue\.c|$1|; s|-o [^ ]*|-o $2|") -I$(dirname "$QUEUE")")
+    }
+    compile_queue "$QUEUE" "$WORK/queue.o"
+    python3 "$ROOT/tools/check_order.py" "$WORK/queue.o" >/dev/null ||
+        { echo "the queue as it is fails the check"; exit 1; }
+    QUEUE_BARRIERS=$(grep -c '_OSMemoryBarrier();' "$QUEUE")
+    k=1
+    while [ "$k" -le "$QUEUE_BARRIERS" ]; do
+        awk -v k="$k" '/_OSMemoryBarrier\(\);/ { if (++n == k) next } { print }' \
+            "$QUEUE" > "$WORK/Escapement_CoreQueue.c"
+        compile_queue "$WORK/Escapement_CoreQueue.c" "$WORK/mutant.o"
+        if python3 "$ROOT/tools/check_order.py" "$WORK/mutant.o" >/dev/null; then
+            echo "queue barrier $k removed: NOT CAUGHT"; missed=$((missed + 1))
+        else
+            echo "queue barrier $k removed: caught"
+        fi
+        k=$((k + 1))
+    done
+fi
+
 # The task-level stores (check_order.py): each mutant turns an order around, or takes a
 # store out, in the source, where the compiler cannot restore it; each must be caught.
 # KERNEL SCHEDULER NAME: the kernel, its scheduling (EDF or DM), then the mutation

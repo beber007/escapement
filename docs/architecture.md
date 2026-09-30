@@ -77,7 +77,8 @@ For use between two cores, each slot buffer orders its accesses with four calls 
 `_OSMemoryBarrier()`. That is a `DMB` on the RP2040, the RP2350 and the STM32U5, and a
 compiler barrier alone in the host build. On every build of the Pico, the Pico 2 and the
 STM32U5, `tools/check_order.py` reads the compiled code and checks that the accesses and
-the barriers keep the order of the models. It also checks the order of the stores a task
+the barriers keep the order of the models, and on the Pico 2 so do the seven of the
+queue between the cores (2026-09-30). It also checks the order of the stores a task
 makes that the timer interrupt may find half done (`method.md`).
 
 Each mechanism has an exhaustive model in `test/model`, run by the CI. The queue model

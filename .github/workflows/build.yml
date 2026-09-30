@@ -125,7 +125,8 @@ jobs:
             dir=$1 opt=$2; shift 2
             make -s -C "$dir" clean
             make -s -C "$dir" "$@" >/dev/null
-            python3 tools/check_order.py $opt $(ls "$dir"/build/Escapement*.o | grep -v _)
+            python3 tools/check_order.py $opt $(ls "$dir"/build/Escapement*.o |
+                grep -E '/Escapement[A-Za-z]*\.o$|/Escapement_CoreQueue\.o$')
           }
           P=Escapement/CORTEX-Mx/RP2040/Examples/pico
           for v in "" SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING KERNEL=SOFT \
@@ -285,8 +286,8 @@ jobs:
       - name: Build the examples
         run: make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2 ${{ matrix.make }}
 
-      - name: Check the compiled order of the slot buffers and the task-level stores
-        run: python3 tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement{Hard,Soft,HardPA}.o
+      - name: Check the compiled order of the slot buffers, the queue between the cores and the task-level stores
+        run: python3 tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement{Hard,Soft,HardPA,_CoreQueue}.o
 
       - name: Show that the check fails without each barrier
         if: strategy.job-index == 0

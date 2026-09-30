@@ -45,7 +45,21 @@ The variables are recognised by the relocations of the literals that hold their
 addresses, the TCBs as what _OSActiveTask, _OSQueueHead and _OSQueueTail point to, and
 the values stored from the constants moved or or-ed into a register.
 
-    tools/check_order.py [--tasks] build/EscapementHard.o [...]
+The queue between the cores of the RP2350 (Escapement_CoreQueue.c) needs a DMB after each
+of the seven accesses test/model/fifo_mp.py found it needed after, before the access
+that follows it in the paper's order; on every path, a DMB between the last access of
+the first kind and each of the second:
+
+    enqueue   E5 Tail, DMB, E6 Head      E9 LL(place), DMB, E10 Tail
+              E15 SC(place), DMB, E16 LL(Tail)
+    dequeue   D5 Head, DMB, D6 Tail      D6 Tail, DMB, D9 LL(place)
+              D9 LL(place), DMB, D10 Head      D15 SC(place), DMB, D16 LL(Head)
+
+LL and SC are calls there (Escapement_Atomic.c), recognised by what r0 points to: the
+queue, received in r0, its Head or Tail, or a place of its array, reached through its
+first field.
+
+    tools/check_order.py [--tasks] build/EscapementHard.o [build/Escapement_CoreQueue.o] [...]
 
 --tasks checks the task-level stores only, for a port of one core whose buffers carry no
 barrier, as the STM32F4's did until its removal on 2026-09-26. An object without a
@@ -67,6 +81,8 @@ DATA = ("d", 0, 0, 0)               # Buffer->CurrentWriter->Data
 MAX_PATHS = 20000
 TASK_FUNCTIONS = ("OSEndTask", "OSSuspendSynchronousTask", "ScheduleNextTask")
 STATE, ZOMBIE, ACTIVATE = 8, 0x02, 0x10     # TaskState in the TCB, and its bits
+HEAD, TAIL = 4, 8                   # in CORE_QUEUE (Escapement_CoreQueue.c)
+PLACES = ("d", 0)                   # queue->Q, the array of places
 
 
 def disassemble(path):
@@ -183,6 +199,19 @@ def event_of(kind, addr):
     return None
 
 
+def queue_event(kind, addr):
+    """Name an access of the queue between the cores: a load of Head or Tail, or an LL or
+    SC ("LL", "SC") of Head, Tail or a place."""
+    if addr is None or addr.base is None:
+        return None
+    if addr.base == PLACES and kind in ("LL", "SC"):
+        return f"{kind} place"
+    if addr.base == ("d",) and not addr.var and addr.off in (HEAD, TAIL):
+        field = "Head" if addr.off == HEAD else "Tail"
+        return f"{field} load" if kind == "load" else f"{kind} {field}"
+    return None
+
+
 def task_event(addr, value):
     """Name a store to a variable, or to what one of them points to, with the value
     stored: "_OSNoSaveContext+0=1", "*_OSActiveTask+8|2", "*_OSQueueHead+0?"."""
@@ -287,8 +316,9 @@ def check_task_order(path, functions):
     return errors
 
 
-def step(insn, regs):
-    """Apply one instruction to the register state; return the events it makes."""
+def step(insn, regs, queue=False):
+    """Apply one instruction to the register state; return the events it makes, those of
+    the queue between the cores if queue."""
     _, op, args, target = insn
     op = op.split(".")[0]
     events = []
@@ -300,7 +330,10 @@ def step(insn, regs):
         if target == "OSUINT8_LL" and r0 and r0.base == BUFFER and r0.off == READING3 \
                 and not r0.var:
             events.append("LL Reading3")
-
+        if queue and target in ("OSUINT32_LL", "OSUINT32_SC"):
+            e = queue_event(target[-2:], r0)
+            if e:
+                events.append(e)
         for r in ("r0", "r1", "r2", "r3", "r12", "lr"):
             regs.pop(r, None)
         return events
@@ -340,7 +373,7 @@ def step(insn, regs):
                 and addr.off == READING3:
             events.append("LL Reading3")
         else:
-            e = event_of(kind, addr)
+            e = queue_event(kind, addr) if queue else event_of(kind, addr)
             if e:
                 events.append(e)
             if kind == "store":
@@ -364,6 +397,15 @@ def step(insn, regs):
         regs[parts[0]] = v
         if v is None:
             regs.pop(parts[0])
+        return events
+    if op in ("add", "adds") and len(parts) == 4 and parts[3].startswith(("lsl", "lsr")):
+        # a place plus a shifted index, the index unknown
+        va = regs.get(parts[1])
+        v = va.plus(None) if va else None
+        if v is None:
+            regs.pop(parts[0], None)
+        else:
+            regs[parts[0]] = v
         return events
     if op in ("add", "adds", "addw", "sub", "subs", "subw") and len(parts) in (2, 3):
         a, b = (parts[0], parts[1]) if len(parts) == 2 else (parts[1], parts[2])
@@ -392,10 +434,10 @@ def step(insn, regs):
     return events
 
 
-def paths(body, start=None, visits=2):
+def paths(body, start=None, visits=2, queue=False):
     """Every path through the function, as its list of events, each instruction taken
     at most visits times. The registers start as given, by default r0 the
-    descriptor."""
+    descriptor (or the queue)."""
     index = {a: i for i, (a, *_) in enumerate(body)}
     start = {"r0": Value(base=("d",))} if start is None else start
     result, stack = [], [(0, dict(start), [], {})]
@@ -409,7 +451,7 @@ def paths(body, start=None, visits=2):
                 break
             insn = body[i]
             regs.pop("compared", None) if i and body[i - 1][1] != "cmp" else None
-            events = events + step(insn, regs)
+            events = events + step(insn, regs, queue)
             op = insn[1].split(".")[0]
             t = re.search(r"^([0-9a-f]+) <", insn[2])
             branch = op.startswith("b") and op not in ("bl", "blx", "bic", "bics") and t
@@ -455,6 +497,38 @@ PAIRS = {
     "4-slot writer, status": (("Latest4 store",), ("Status store",)),
     "3-slot writer, status": (("LL Reading3",), ("Status store",)),
 }
+
+
+QUEUE_PAIRS = {
+    "OSEnqueueCoreQueue": {
+        "enqueue, after E5": (("Tail load",), ("Head load",)),
+        "enqueue, after E9": (("LL place",), ("Tail load",)),
+        "enqueue, after E15": (("SC place",), ("LL Tail",)),
+    },
+    "OSDequeueCoreQueue": {
+        "dequeue, after D5": (("Head load",), ("Tail load",)),
+        "dequeue, after D6": (("Tail load",), ("LL place",)),
+        "dequeue, after D9": (("LL place",), ("Head load",)),
+        "dequeue, after D15": (("SC place",), ("LL Head",)),
+    },
+}
+
+
+def check_queue(path, functions):
+    errors, covered = [], set()
+    for name, pairs in QUEUE_PAIRS.items():
+        for events in paths(functions[name], queue=True):
+            for pair_name, pair in pairs.items():
+                result = check_pair(events, pair)
+                if result == "absent":
+                    continue
+                covered.add(pair_name)
+                if result:
+                    errors.append(f"{path}: {name}, {pair_name}: {result}")
+        for pair_name in pairs:
+            if pair_name not in covered:
+                errors.append(f"{path}: the {pair_name} was not found")
+    return sorted(set(errors))
 
 
 def check_pair(events, pair):
@@ -508,6 +582,8 @@ def check_path(events, rule):
 
 def check(path, tasks_only=False):
     functions = disassemble(path)
+    if all(name in functions for name in QUEUE_PAIRS):
+        return check_queue(path, functions)
     if "OSEndTask" not in functions:
         return None       # a kernel the build did not select compiles to nothing
     if tasks_only:

@@ -93,32 +93,13 @@ on the RP2040. The **STM32L4** is set aside.
    an error (`tools/pico2_uart.py`, `tools/pico2_soak.py`). Every example of the Pico 2
    has now run on the board, but `TaskWrapPico2`, whose periods are scaled for Renode.
    The checks of each commit run the UART's two since then; the wrap, 18 minutes a time,
-   stays out of them. Left: the power-aware kernel and DVFS (item 4).
+   stays out of them. Left: the power-aware kernel and DVFS (item 3).
 
-3. **What is left to verify between the cores.** The queue between the cores
-   (`Escapement_CoreQueue.c`) had a DMB between any two of its accesses to different
-   words, fifteen in all. A model of weakly ordered cores (`test/model/fifo_mp.py`,
-   2026-09-26) kept six (a6f8b6e, 2026-09-27). Five of them were shown needed, and the six
-   enough within the model's bounds, on a machine of 30 GB; the CI explores only a part.
-   On 2026-09-29 the model stopped assuming that a store is never performed before an
-   SC ahead of it, which Armv8-M does not promise (DDI0553B.y, B7.2.3): two more DMB,
-   after E15 and D15, were needed, and the one before a dequeue returns was shown
-   superfluous at the full windows: the queue has seven, each shown needed and the seven
-   enough (`fifo_mp.py --wide`, some 40 minutes). The 3-slot buffer holds under the
-   same model (`threeslot.py`, 2026-09-29): after its SC each core reads Reading again,
-   and what it stores next takes its slot from that read. Since 2026-09-26
-   each core of `FIFOCoresPico2` is both producer and consumer of the same queues, as in
-   the model. A Pico 2 ran it four times on 2026-09-28, each record taken once, whole
-   and in order, the two consumers sharing the records the same way each time. That
-   shows the queue working there, not that each barrier is needed nor that they suffice
-   in every interleaving: neither the board nor Renode, whose cores keep program order,
-   shows them at work.
-
-4. **DVFS on the RP2350**, if the verdict of item 1 is for it. Its regulator and its
+3. **DVFS on the RP2350**, if the verdict of item 1 is for it. Its regulator and its
    power manager differ from the RP2040's, and the driver is to be written from the
    pico-sdk headers.
 
-5. **The STM32U5's energy.** The idle task sleeps in Stop 2 on the board since 2026-09-27
+4. **The STM32U5's energy.** The idle task sleeps in Stop 2 on the board since 2026-09-27
    (see Done). Its current is not measured yet. The datasheet, read on 2026-09-26
    (`power-aware.md`), puts it at some four times less current than Sleep at light load,
    some 5.3 against 1.4 mA with a tenth of the processor busy. The UNO Q's U585 has no
@@ -138,7 +119,7 @@ on the RP2040. The **STM32L4** is set aside.
    The plan for Stop 2, as read on 2026-09-26, and the two parts of it that changed the
    next day are in `stm32u5.md`, "The plan, as read on 2026-09-26".
 
-6. **A deeper sleep on the RP2350.** Its idle task sleeps by WFI with every clock
+5. **A deeper sleep on the RP2350.** Its idle task sleeps by WFI with every clock
    running. The RP2350 datasheet was read on 2026-09-27:
    - DORMANT stops every oscillator and keeps the state, the code going on after the
      instruction that entered it (§6.5.3, p. 489-490), as Stop 2 does on the U5;
@@ -165,6 +146,26 @@ on the RP2040. The **STM32L4** is set aside.
       on GPIO 12, 14, 20 or 22 (§12.10.7), which is hardware for the bench.
 
 ## Done
+
+- **The order between the cores, as far as it can be verified (closed 2026-09-30).** The
+  queue between the cores (`Escapement_CoreQueue.c`) had a DMB between any two of its
+  accesses to different words, fifteen in all. A model of weakly ordered cores
+  (`test/model/fifo_mp.py`, 2026-09-26) kept six (a6f8b6e, 2026-09-27). On 2026-09-29 it
+  stopped assuming that a store is never performed before an SC ahead of it, which
+  Armv8-M does not promise (DDI0553B.y, B7.2.3): two more were needed, after E15 and D15,
+  and the one before a dequeue returns went. The queue has seven, each shown needed and
+  the seven enough at the full windows (`fifo_mp.py --wide`, some 40 minutes; the CI
+  explores a part). The 3-slot buffer holds under the same model (`threeslot.py`): after
+  its SC each core reads Reading again, and what it stores next takes its slot from that
+  read. Since 2026-09-30 the CI holds the queue's compiled code to the same seven, as it
+  did the slot buffers', each barrier's removal caught (`tools/check_order.py`,
+  `tools/check_order_mutants.sh`). On the Pico 2 the queue ran with each core both
+  producer and consumer (`FIFOCoresPico2`, four runs on 2026-09-28), every record taken
+  once, whole and in order, and the checks of each commit run it. No
+  instrument can show more: the litmus tests found no reordering between the RP2350's
+  cores in 69.4 million rounds each (`architecture.md`), and Renode's cores keep program
+  order. The barriers stay because the architecture allows what the chip did not show;
+  the models are what shows each one needed.
 
 - **Response times against their analysis, on the Pico (2026-09-27, 42db832).** The
   bound of ZottaOS's manual (eq. 2.3), the kernel's costs taken from the trace (7 to
@@ -198,7 +199,7 @@ on the RP2040. The **STM32L4** is set aside.
     same day. On the board: 388 entries in 43 s, every start one period after the last
     to the microsecond, the longest wake-up 885 µs, TIM2 2.1 ppm ahead of LPTIM1
     (`stm32u5.md`). Since that day TIM5 is carried through Stop 2 and LPUART1 receives
-    through it (item 5).
+    through it (item 4).
 
 - **The kernel runs, and is run in CI.** The Makefiles were repaired. Every example is
   built on each push to `main` and executed under Renode as a regression test (`emulation.md`,

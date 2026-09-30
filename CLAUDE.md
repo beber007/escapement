@@ -70,8 +70,8 @@ python3 test/model/threeslot.py      # ~1 min, up to 1.2 GB; --jobs N in paralle
 python3 test/model/fifo.py           # ~35 s
 python3 test/model/fifo_mp.py        # the queue between the cores, ~100 s, 2.3 GB
 
-# The compiled order of the slot buffers against the models, and of the task-level
-# stores the timer interrupt relies on (run by the CI)
+# The compiled order of the slot buffers and of the queue between the cores against the
+# models, and of the task-level stores the timer interrupt relies on (run by the CI)
 tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement*.o
 tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2   # every one caught
 

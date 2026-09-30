@@ -273,7 +273,10 @@ CI, on every build of the Pico and the Pico 2, and of the STM32U5 since its port
 (2026-09-25), on every path through the buffers' functions.
 `tools/check_order_mutants.sh` shows the check failing without any one of the barriers.
 There are nine since the status of a buffer, which the models leave out, is set after
-its slot is handed over (2026-09-25).
+its slot is handed over (2026-09-25). The queue between the cores had no such check
+until 2026-09-30: only its source and its model named its seven barriers. The check now
+follows the queue through its LL and SC, which are calls, and each barrier removed from
+the source is caught, each by the pair of accesses it stands between.
 
 The check cannot see a reordering by the processor that the architecture does not
 allow, which is the models' premise. Nor can it see code the compiler might emit for
