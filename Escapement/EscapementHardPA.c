@@ -1332,6 +1332,7 @@ void DMSlackCalculateSlack(TCB *task)
         DMTmpRemaindingWork = 0;
      DMTmpLastRemainingWorkUpdate = newTime;
      DMTmpPriority = task->Priority;
+     CompilerBarrier();    // the three stored before the SC that hands them over
   } while (!OSUINT8_SC(&DMSlackInterrupt,TRUE));
 } /* end of DMSlackCalculateSlack */
 #endif
@@ -1456,23 +1457,36 @@ void DRASimUpdateElapseTime(INT32 newTime)
 ** complete a pending pair (check = TRUE) instead of undoing it: the caller, a timer
 ** interrupt or a task in OSEndTask or OSSuspendSynchronousTask, may never resume. The
 ** pair is not indivisible. Code that uses the variables of a pair must first complete
-** any pending one. */
+** any pending one.
+** The operands and the step live in memory in program order, which the variables being
+** volatile and a CompilerBarrier() after each store make the compiler keep: at -O2 GCC
+** kept the step in a register and wrote it only at the end, so that code completing a
+** pair found none pending (a review, 2026-09-30). The step moves on to the one after the
+** step just done, not by one from what it holds: code preempting the caller may have
+** completed the pair meanwhile, and the caller resuming took it past its end. At worst it
+** takes the step back from 2 to the last, whose compare then fails, the pair done. */
 void InterruptibleINT32CAS2(INT32 *m1, INT32 e1, INT32 v1, INT32 *m2, INT32 e2, INT32 v2, BOOL check)
 {
-  static INT32 *memory[2];
-  static INT32 expected[2];
-  static INT32 newValue[2];
-  static UINT8 phase = 2;
+  static INT32 * volatile memory[2];
+  static volatile INT32 expected[2];
+  static volatile INT32 newValue[2];
+  static volatile UINT8 phase = 2;
+  UINT8 step;
   if (phase == 2) {
      if (check) return;
      memory[0] = m1; memory[1] = m2;
      expected[0] = e1; expected[1] = e2;
      newValue[0] = v1; newValue[1] = v2;
+     CompilerBarrier();
      phase = 0;
+     CompilerBarrier();
   }
-  for ( ; phase < 2; phase += 1)
-     if (*memory[phase] == expected[phase])
-        *memory[phase] = newValue[phase];
+  while ((step = phase) < 2) {
+     if (*memory[step] == expected[step])
+        *memory[step] = newValue[step];
+     CompilerBarrier();
+     phase = step + 1;
+  }
 } /* end of InterruptibleINT32CAS2 */
 #endif
 
@@ -1482,25 +1496,31 @@ void InterruptibleINT32CAS2(INT32 *m1, INT32 e1, INT32 v1, INT32 *m2, INT32 e2, 
 ** an address. */
 void InterruptibleMixCAS2(INT32 *m1, INT32 e1, INT32 v1, TCB **m2, TCB *e2, TCB *v2, BOOL check)
 {
-  static INT32 *memInt, expectedInt, newInt;
-  static TCB **memTCB, *expectedTCB, *newTCB;
-  static UINT8 phase = 2;
+  static INT32 * volatile memInt;
+  static volatile INT32 expectedInt, newInt;
+  static TCB ** volatile memTCB;
+  static TCB * volatile expectedTCB;
+  static TCB * volatile newTCB;
+  static volatile UINT8 phase = 2;
+  UINT8 step;
   if (phase == 2) {
      if (check) return;
      memInt = m1; memTCB = m2;
      expectedInt = e1; expectedTCB = e2;
      newInt = v1; newTCB = v2;
+     CompilerBarrier();
      phase = 0;
+     CompilerBarrier();
   }
-  if (phase == 0) {
-     if (*memInt == expectedInt)
-        *memInt = newInt;
-     phase = 1;
-  }
-  if (phase == 1) {
-     if (*memTCB == expectedTCB)
+  while ((step = phase) < 2) {
+     if (step == 0) {
+        if (*memInt == expectedInt)
+           *memInt = newInt;
+     }
+     else if (*memTCB == expectedTCB)
         *memTCB = newTCB;
-     phase = 2;
+     CompilerBarrier();
+     phase = step + 1;
   }
 } /* end of InterruptibleMixCAS2 */
 #endif

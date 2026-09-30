@@ -1958,6 +1958,63 @@ static void TestFirmEventWait(void)
   Check(label, optional->Misses == 0);
 }
 
+#if defined(ESCAPEMENT_VERSION_SOFT) && BY_DEADLINE
+/* TestFirmDiscount: An optional instance that cannot fit beside the mandatory instances
+** released before its deadline, while an event-driven task, signalled earlier, holds a
+** server deadline far beyond that of the optional instance. The event cannot interfere
+** (its deadline is later), so the answer must come from the mandatory work alone: 400 of
+** the optional instance plus 300 of the periodic task at 1500, 700 ticks in the 690 left
+** at 1310: the instance must be dropped. */
+static void TestFirmDiscount(INT32 workload, INT32 duration)
+{
+  TimedTask *periodic = &Timed[0], *optional = &Timed[1], *events = &Timed[2];
+  unsigned j, twice = 0, missingMandatory = 0;
+  char label[96];
+
+  TimedRun = TIMED_FIRMWAIT;
+  periodic->WCET = 300; periodic->Period = periodic->Deadline = 500;
+  periodic->Takes = 300; periodic->Only = -1;
+  periodic->Work = periodic->WCET * 256;
+  optional->WCET = 400; optional->Period = optional->Deadline = 1000;
+  optional->Takes = 400; optional->Only = -1;
+  optional->Work = optional->WCET * 256;
+  events->WCET = 10; events->Takes = 10; events->Only = -1;
+  events->Work = events->WCET * 256;
+  events->Event = SignalEvent = OSCreateEventDescriptor();
+  NbTimed = 3;
+  OSCreateTask(TimedTaskCode, periodic->WCET, 0, periodic->Period, periodic->Deadline, 1, 1, 0, periodic);
+  OSCreateTask(TimedTaskCode, optional->WCET, 0, optional->Period, optional->Deadline, 1, 2, 0, optional);
+  Check("  an event-driven task with a bandwidth of 128/256 and a long workload",
+        OSCreateSynchronousTask(TimedTaskCode, events->WCET, workload, 128, SignalEvent, events));
+  SignalAt[0] = 1000;
+  NbSignals = 1;
+  StartKernel(NULL, NULL);
+  RunTimed(duration);
+
+  printf("\n%d ticks of simulated time, an optional instance that cannot fit, an event due in %d\n\n",
+         duration, workload);
+  for (j = 0; j < (unsigned)(duration / optional->Period); j += 1) {
+     if (optional->Ran[j] > 1)
+        twice += 1;
+     if (Mandatory(j, 1, 2) && optional->Ran[j] == 0)
+        missingMandatory += 1;
+  }
+  snprintf(label, sizeof label, "  the periodic task: %u of %d instances", periodic->Instance,
+           duration / periodic->Period);
+  Check(label, periodic->Instance == (unsigned)(duration / periodic->Period));
+  snprintf(label, sizeof label, "  the event-driven task ran once: %u", events->Instance);
+  Check(label, events->Instance == 1);
+  snprintf(label, sizeof label, "  every mandatory instance of the (1,2) task ran, %u missing", missingMandatory);
+  Check(label, missingMandatory == 0);
+  snprintf(label, sizeof label, "  optional instance 1 (1000-2000) not started: ran %u", optional->Ran[1]);
+  Check(label, optional->Ran[1] == 0);
+  Check("  no instance ran twice", twice == 0);
+  Check("  the ready queue stays whole", QueueBreaks == 0);
+  snprintf(label, sizeof label, "  no deadline missed: %u", periodic->Misses + optional->Misses);
+  Check(label, periodic->Misses + optional->Misses == 0);
+}
+#endif
+
 static void TestFirmWrap(void)
 {
   long long duration = 3LL * 0x40000000 + 1000000;
@@ -2053,6 +2110,12 @@ int main(int argc, char *argv[])
         TestFirmWait();
      else if (argc > 1 && strcmp(argv[1], "firmeventwait") == 0)
         TestFirmEventWait();
+     #if BY_DEADLINE
+        else if (argc > 1 && strcmp(argv[1], "firmdiscount") == 0)
+           TestFirmDiscount(20000, 6000);
+        else if (argc > 1 && strcmp(argv[1], "firmdiscountnear") == 0)
+           TestFirmDiscount(1500, 6000);
+     #endif
   #endif
   else
      TestTaskSet();

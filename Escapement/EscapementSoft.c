@@ -639,20 +639,25 @@ BOOL IsTaskSchedulable(void)
      ** as totalWork + AperiodicUtilization * (totalWork - that part) / (256 - Aperiodic-
      ** Utilization): shifted or multiplied whole, a WCET of 2^23 ticks or events due as
      ** far ahead left 32 bits. */
+     /* Only while the events are due before that work would end: events due later wait
+     ** for the instance under EDF, but take nothing from the work it and the mandatory
+     ** instances need. The formula, negative there, lowered that work below them, and let
+     ** an instance start that could not end in time (a review, 2026-09-30,
+     ** test/host firmdiscount). */
      if (AperiodicUtilization > 0) {
         partial = _OSGetActualTime();
         tmp = totalWork - (SynchronousTaskDeadlines > partial ?
                                                    SynchronousTaskDeadlines - partial : 0);
-        partial = 256 - AperiodicUtilization;
-        fullInstances = tmp / partial;
-        if (fullInstances > 0x3FFFFFFF / AperiodicUtilization)
-           return FALSE;  // more than 2^30 ticks of work
-        if (fullInstances < -(totalWork / AperiodicUtilization) - 1)
-           return TRUE;   // less than none: the events already take the time needed
-        totalWork += fullInstances * AperiodicUtilization +
-                     tmp % partial * AperiodicUtilization / partial;
-        if (totalWork > 0x3FFFFFFF)
-           return FALSE;
+        if (tmp > 0) {
+           partial = 256 - AperiodicUtilization;
+           fullInstances = tmp / partial;
+           if (fullInstances > 0x3FFFFFFF / AperiodicUtilization)
+              return FALSE;  // more than 2^30 ticks of work
+           totalWork += fullInstances * AperiodicUtilization +
+                        tmp % partial * AperiodicUtilization / partial;
+           if (totalWork > 0x3FFFFFFF)
+              return FALSE;
+        }
      }
   #endif
   return totalWork + _OSGetActualTime() < _OSActiveTask->NextDeadline;

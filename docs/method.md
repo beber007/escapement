@@ -314,6 +314,24 @@ M33 and the M4, and the promotion on all three. The mutants script shows each ru
 failing on a source whose order is turned around. An audit of the ports found no other
 such sequence, apart from one latent in the UART, which is now ordered as well.
 
+An independent review of the kernels found one more on 2026-09-30, in the power-aware
+kernel under DRA and DR_OTE. Two compare-and-stores that a task makes as it ends keep
+their operands and the step they reached in static variables, so that the timer
+interrupt can complete a pair the task left half done. GCC kept the step in a register
+and wrote only its last value: the disassembly held no store of step 0 or 1, and an
+interrupt between the two stores found no pair pending, leaving the simulation of DRA
+behind and its choice of speed too low. The variables are now volatile, a compiler
+barrier follows each store, and the step moves to the one after the step done, not by
+one from what it holds, since a task resuming after the interrupt completed its pair
+took it past its end. The host test takes an interrupt at each of those barriers.
+
+The same review found the soft kernel admitting under EDF an optional instance that
+could not end in time. With an event-driven task whose server deadline lay far ahead,
+`IsTaskSchedulable` subtracted from the work the instance and the mandatory ones need,
+where events due later take nothing from it. The instance started, was still in the
+ready queue at its next arrival, and was inserted again: the queue looped. The host
+test `firmdiscount` reproduces it and fails on the code before.
+
 ### What else -O2 could take
 
 What else -O2 could take was checked the same day. The host tests pass at -O2 under the

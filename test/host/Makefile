@@ -89,6 +89,8 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(BUILD)/test_ipc_hard $(BUILD)/test_
 	                      ./$(BUILD)/test_scheduler_$$b firmevents && \
 	                      ./$(BUILD)/test_scheduler_$$b firmwait && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventwait || exit 1;; esac; \
+	   case $$b in soft_edf) ./$(BUILD)/test_scheduler_$$b firmdiscount && \
+	                         ./$(BUILD)/test_scheduler_$$b firmdiscountnear || exit 1;; esac; \
 	done
 	@echo; echo "=== hard"; ./$(BUILD)/test_ipc_hard
 	@echo; echo "=== soft"; ./$(BUILD)/test_ipc_soft
