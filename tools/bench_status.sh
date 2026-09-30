@@ -72,6 +72,8 @@ for unit in $(systemctl --user list-unit-files 'escapement-soak*' --no-legend | 
     fi
     tail -n +"$run" "$log" | grep -E "$marks" | tail -3 | cut -c1-110 | sed 's/^/    /'
     tail -1 "$log" | cut -c1-110 | sed 's/^/  last:    /'
+    # the end of that reading, which the cut above drops: lateness, stack, load, link
+    tail -1 "$log" | sed -n 's/.*, late max /           late max /p'
 done
 
 echo
