@@ -189,9 +189,11 @@ Pico 2 that count in memory (`tools/pico2_check.py`) on the CI's images and post
 outcome as the status `board/pico2`: both slot buffers and the queue between the cores,
 `IPCPico2` and the endurance test, each held to the criteria of the Renode suite, and
 the litmus tests of `LitmusPico2`, no weak outcome and the two cores seen within a cycle
-of each other in each. The Pico 2 hangs on probe3 (`BOARD_CI_PICO2_PROBE`), driven by
-Raspberry Pi's OpenOCD, built as below into `~/opt/openocd-rpi`
-(`BOARD_CI_OPENOCD_RP2350`). The check takes about a minute.
+of each other in each. Then, through the probe's UART wired to GP0 and GP1, the UART
+echo and two tasks sending at once (`tools/pico2_uart.py`), for images from 2026-09-30
+on. The Pico 2 hangs on probe3 (`BOARD_CI_PICO2_PROBE`), driven by Raspberry Pi's
+OpenOCD, built as below into `~/opt/openocd-rpi` (`BOARD_CI_OPENOCD_RP2350`). The check
+takes about a minute and a half.
 
 ### A long run on a NUCLEO-U575ZI-Q
 

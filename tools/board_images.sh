@@ -53,9 +53,11 @@ mkdir -p "$OUT/soak_u5"
 cp "$U5/build/SoakU5.elf" "$U5/build/SleepU5.elf" "$OUT/soak_u5/"
 make -s -C "$U5" clean >/dev/null
 echo "soak_u5: SoakU5 SleepU5"
-# The Pico 2: the six examples that count in memory, which tools/pico2_check.py runs.
+# The Pico 2: the six examples that count in memory, which tools/pico2_check.py runs, and
+# the two of the UART, which tools/pico2_uart.py runs.
 PICO2=Escapement/CORTEX-Mx/RP2350/Examples/pico2
 PICO2_IMAGES="FourSlotCoresPico2 ThreeSlotCoresPico2 FIFOCoresPico2 IPCPico2 SoakPico2 LitmusPico2"
+PICO2_IMAGES="$PICO2_IMAGES UARTEchoPico2 UARTSendersPico2"
 make -s -C "$PICO2" clean >/dev/null
 # shellcheck disable=SC2046  # one target per image
 make -s -C "$PICO2" $(for i in $PICO2_IMAGES; do echo "build/$i.elf"; done) >/dev/null

@@ -92,8 +92,8 @@ on the RP2040. The **STM32L4** is set aside.
    the probe's UART, and `SoakPico2` crossed the 2^30 wrap twice in 40 minutes without
    an error (`tools/pico2_uart.py`, `tools/pico2_soak.py`). Every example of the Pico 2
    has now run on the board, but `TaskWrapPico2`, whose periods are scaled for Renode.
-   Left: the power-aware kernel and DVFS (item 4), and the UART and the wrap in the
-   checks of each commit, which run neither.
+   The checks of each commit run the UART's two since then; the wrap, 18 minutes a time,
+   stays out of them. Left: the power-aware kernel and DVFS (item 4).
 
 3. **What is left to verify between the cores.** The queue between the cores
    (`Escapement_CoreQueue.c`) had a DMB between any two of its accesses to different

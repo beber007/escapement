@@ -33,8 +33,9 @@
 #                    the status "board/u5"; the endurance run it holds goes on with the
 #                    commit if it passes.
 #   BOARD_CI_PICO2   1 when a Pico 2 is wired too: its six examples that count in memory
-#                    are run on the CI's images (tools/pico2_check.py) and posted as the
-#                    status "board/pico2", through the probe BOARD_CI_PICO2_PROBE (probe3)
+#                    (tools/pico2_check.py) and its two of the UART, through the probe's
+#                    own (tools/pico2_uart.py), are run on the CI's images and posted as
+#                    the status "board/pico2", through the probe BOARD_CI_PICO2_PROBE (probe3)
 #                    and the OpenOCD BOARD_CI_OPENOCD_RP2350
 #                    (~/opt/openocd-rpi/bin/openocd), which knows the RP2350.
 set -eu
@@ -307,15 +308,22 @@ if [ "$pico2" = held ]; then
     echo "the Pico 2 is not checked: its probe is held ($DIR/lock-$PICO2_PROBE)" >>"$LOG"
 elif [ "${BOARD_CI_PICO2:-}" = 1 ] && [ -f "$DIR/fw/pico2/SoakPico2.elf" ]; then
     status pending "running on the Pico 2" board/pico2
-    if (cd "$SRC" && PROBE=$PICO2_PROBE \
-            OPENOCD=${BOARD_CI_OPENOCD_RP2350:-$HOME/opt/openocd-rpi/bin/openocd} \
+    OPENOCD_RP2350=${BOARD_CI_OPENOCD_RP2350:-$HOME/opt/openocd-rpi/bin/openocd}
+    # The UART's images come with the commits from 2026-09-30 on.
+    uart=""
+    if [ -f "$DIR/fw/pico2/UARTEchoPico2.elf" ]; then uart=", UART echo and senders"; fi
+    if ! (cd "$SRC" && PROBE=$PICO2_PROBE OPENOCD=$OPENOCD_RP2350 \
             python3 tools/pico2_check.py "$DIR/fw/pico2") >>"$LOG" 2>&1; then
-        pico2=success
-        status success "slot buffers and queue across cores, IPC, endurance test, litmus tests, on the CI's images" \
-            board/pico2
-    else
         pico2=failure
         status failure "an example that counts in memory failed; see the bench's log" board/pico2
+    elif [ -n "$uart" ] && ! (cd "$SRC" && PROBE=$PICO2_PROBE OPENOCD=$OPENOCD_RP2350 \
+            python3 tools/pico2_uart.py "$DIR/fw/pico2") >>"$LOG" 2>&1; then
+        pico2=failure
+        status failure "the UART echo or senders failed; see the bench's log" board/pico2
+    else
+        pico2=success
+        status success "slot buffers and queue across cores, IPC, endurance test, litmus tests$uart, on the CI's images" \
+            board/pico2
     fi
 fi
 
