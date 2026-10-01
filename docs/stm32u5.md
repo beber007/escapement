@@ -88,6 +88,11 @@ restarted the board. The image, loaded again, reported `pin+IWDG` (the watchdog,
 reset of the load), and the link went on without an error. The script now waits for the
 new image's first report before it sends again.
 
+An image taken over has counted the bytes sent to it before. Each board check runs the
+endurance test for 2 min, then the long run takes the image over, and until 2026-10-01
+its log read some 78,000 bytes more received than sent, the same offset all along. The
+script now starts its count of bytes sent from the image's at each take-over.
+
 On a NUCLEO-U575ZI-Q, the link goes over USART1 to the ST-LINK at 115,200 baud. At
 00adc77, USART1 ran without its FIFO, so each byte had to be read within one frame,
 87 µs. On 2026-09-29, after 62,768 s (17 h 26 min), the run lost one byte to an overrun
@@ -217,8 +222,11 @@ to 16 MHz and before each Stop 2, and taken off in range 1. This commit read the
 bound during the lock and missed the SRAM; an independent review found both the same
 day. The system clock itself may run a few % above its 160 MHz until the MSI is locked,
 as it could with range 4. `escapement_u5.robot` checks the registers on a platform without
-the HSE (`escapement_u5_nohse.repl`); the NUCLEO-U575ZI-Q, the one board without it, has
-not run the change yet: its endurance run holds it.
+the HSE (`escapement_u5_nohse.repl`); the NUCLEO-U575ZI-Q, the one board without it, runs
+its endurance test on the change since 2026-09-30 at 20:46 UTC (7d069ea), 10 h 45 min
+without an error on 2026-10-01. `SoakU5` does not enter Stop 2, so this checks the MSIS of
+range 2 and the wait states at start, not the wake-up without the HSE, which `SleepU5`
+would on that board; it has not run there.
 
 Since 2026-09-28 the board check times the U5 against `CLOCK_MONOTONIC_RAW`, the crystal
 of the board's Qualcomm processor as it is, which NTP does not pull (`tools/unoq_drift.py`).

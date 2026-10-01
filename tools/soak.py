@@ -320,8 +320,11 @@ class UnoQ:
                         pass
             self.pending = self.pending[-4096:]   # what is no report never piles up
             if newest is not None and self.value is None:
+                # An image taken over has counted what was sent to it before, by the
+                # board's check of 2 min among others: 78,000 bytes more received than
+                # sent on the U5 (2026-10-01).
                 with self.lock:
-                    self.value = newest[25]
+                    self.value, self.sent = newest[25], newest[18]
 
     def read(self):
         r = self.report(self.silent)

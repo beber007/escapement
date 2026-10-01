@@ -32,18 +32,20 @@ on the RP2040. The **STM32L4** is set aside.
 
 0. **Two weeks of endurance on a board** (`rp2040.md`, "The endurance test"). `SoakPico`
    runs on the Pico W, on a probe of its own, since 2026-09-28 at 20:03 UTC: a week under
-   the hard kernel, EDF, at 69825e4, then a week under the power-aware one. On 2026-09-30
-   at 16:10 UTC it had run 44 h 07 min across 147 wraps of the kernel clock, with no error
+   the hard kernel, EDF, at 69825e4, then a week under the power-aware one. On 2026-10-01
+   at 07:30 UTC it had run 59 h 28 min across 199 wraps of the kernel clock, with no error
    and no restart, the pulse at most 126 µs late and the timer events 133. The script
    that reads it was stopped once for 7 s, to be updated, and took the run over, the
    image having run on.
    Two STM32U5 run alongside, until stopped, reading their counts on a UART
    (`stm32u5.md`, "The endurance test"): the UNO Q's own U585, which each board check
-   restarts on its commit (19 h without error at 34d86a4, and again at 81a08ff on
-   2026-09-30), and a NUCLEO-U575ZI-Q on the bench since 2026-09-28. The NUCLEO's run
-   failed after 17 h 26 min on 2026-09-29, at 00adc77, on one byte its USART1 lost to an
-   overrun, every count of the kernel at 0; it runs again at 73a6d83, the USART's FIFO
-   enabled, and on 2026-09-30 at 16:10 UTC had run 23 h 23 min across 78 wraps with no
+   restarts on its commit (19 h without error at 34d86a4, again at 81a08ff on 2026-09-30,
+   and 10 h 19 min at 452328d on 2026-10-01 at 07:30 UTC), and a NUCLEO-U575ZI-Q on the
+   bench since 2026-09-28. The NUCLEO's run failed after 17 h 26 min on 2026-09-29, at
+   00adc77, on one byte its USART1 lost to an overrun, every count of the kernel at 0; it
+   ran again at 73a6d83, the USART's FIFO enabled, 27 h 58 min across 93 wraps with no
+   error and no overrun, then was moved on 2026-09-30 at 20:46 UTC to 7d069ea, whose PLL1
+   takes the MSIS of range 2: 10 h 45 min across 36 wraps on 2026-10-01 at 07:30 UTC, no
    error and no overrun. Instances under Renode, each with its own build and seed, are
    not started.
 

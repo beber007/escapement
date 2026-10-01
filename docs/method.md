@@ -185,7 +185,8 @@ off before it locks again after a wake-up. An independent review of that change 
 the same day that it had missed the SRAM's wait state in voltage range 4 above 16 MHz,
 and read the datasheet's 1 % as a bound during the lock where it is its end; both
 fixed. A Renode test checks what the port writes, and
-fails on the code before; the board has not run it yet (`stm32u5.md`).
+fails on the code before; the NUCLEO has run it since without error, though not yet
+through a wake-up from Stop 2 (`stm32u5.md`).
 
 ### Two fixes that were wrong
 
