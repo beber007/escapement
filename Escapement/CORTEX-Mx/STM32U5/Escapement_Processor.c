@@ -35,8 +35,11 @@
 ** which reaches the kernel's clock only when PLL1 had to take it, the HSE not starting.
 ** ST's workaround is taken: the unlock raises line 23 of the EXTI, shared with the CSS
 ** of the LSE, which the port does not enable, and interrupt 125 (RM0456 rev. 7, tables
-** 118, 186 and 189; not on revision X), whose handler turns the PLL mode off and on
-** again and counts it; the lock is back within about 1 ms, says the erratum.
+** 118, 186 and 189), whose handler turns the PLL mode off and on again and counts it;
+** the lock is back within about 1 ms, says the erratum. Revision X has neither the line
+** nor the interrupt, both reserved there (tables 118 and 186, notes 2), though the erratum
+** touches it too: the NUCLEO-U575ZI-Q's chip is one (DBGMCU_IDCODE 0x20016482), and goes
+** without the workaround.
 **
 ** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
@@ -72,6 +75,8 @@
 #define EXTI_RPR1            *((volatile UINT32 *)(EXTI_BASE + 0x0C))
 #define EXTI_IMR1            *((volatile UINT32 *)(EXTI_BASE + 0x80))
 #define EXTI_MSI_PLL_UNLOCK  (1u << 23)   /* LSECSS or MSI_PLL_UNLOCK */
+#define DBGMCU_IDCODE        *((volatile UINT32 *)0xE0044000)
+#define REV_ID_X             0x2001u      /* DBGMCU_IDCODE[31:16] (ES0499, table 2) */
 #define NVIC_ISER(irq)       ((volatile UINT32 *)0xE000E100)[(irq) >> 5]
 #define NVIC_BIT(irq)        (1u << ((irq) & 0x1F))
 
@@ -212,12 +217,14 @@ static void LockMSIS(void)
      /* MSIPLLSEL is written while MSIPLLEN is 0, as a reset leaves it. */
      RCC_CR |= RCC_CR_MSIPLLSEL;
      RCC_CR |= RCC_CR_MSIPLLEN;
-     /* An unlock to interrupt 125, on its rising edge. */
-     UnlockDescriptor.UnlockHandler = UnlockHandler;
-     OSSetISRDescriptor(OS_IO_LSECSSD,&UnlockDescriptor);
-     EXTI_RTSR1 |= EXTI_MSI_PLL_UNLOCK;
-     EXTI_IMR1 |= EXTI_MSI_PLL_UNLOCK;
-     NVIC_ISER(OS_IO_LSECSSD) = NVIC_BIT(OS_IO_LSECSSD);
+     /* An unlock to interrupt 125, on its rising edge, but on revision X. */
+     if (DBGMCU_IDCODE >> 16 != REV_ID_X) {
+        UnlockDescriptor.UnlockHandler = UnlockHandler;
+        OSSetISRDescriptor(OS_IO_LSECSSD,&UnlockDescriptor);
+        EXTI_RTSR1 |= EXTI_MSI_PLL_UNLOCK;
+        EXTI_IMR1 |= EXTI_MSI_PLL_UNLOCK;
+        NVIC_ISER(OS_IO_LSECSSD) = NVIC_BIT(OS_IO_LSECSSD);
+     }
   }
   PWR_DBPR &= ~PWR_DBPR_DBP;
 } /* end of LockMSIS */

@@ -513,14 +513,23 @@ and 61 to 66 with DBG_STOP set, against 19 on the UNO Q: near the 64 the wake-up
 for an HSE (`Escapement_Processor.c`), on a board said to have none fitted; not yet
 explained. The chip being revision X, the MSI PLL's unlock line, 23 of the EXTI, and
 interrupt 125, which the port enables for erratum 2.2.27, are reserved there (RM0456,
-tables 118 and 186): harmless so far, not yet guarded.
+tables 118 and 186, notes 2), though the erratum touches revision X too. The port reads
+DBGMCU_IDCODE and leaves both alone on revision X, which therefore goes without the
+workaround; a Renode test on a platform whose IDCODE reads revision X
+(`escapement_u5_nucleo_revx.repl`) checks it, and fails when they are enabled regardless.
+
+Both loaders, `tools/nucleo_load.sh` and `tools/unoq_load.sh`, now refuse a load when the
+core is in an exception after their "reset halt" (ICSR.VECTACTIVE not 0): the reset did
+not reach it, as with JP2 off, and the image would start inside a handler.
 
 ## Errata
 
 The errata sheet of the chip, ES0499 (rev. 12, June 2026), was read against the port on
 2026-09-26. The UNO Q's STM32U585 is revision U (DBGMCU_IDCODE 0x30076482). One erratum
 touches the port, and only the accuracy of its clock, and that only should the HSE not
-start.
+start. The NUCLEO-U575ZI-Q's STM32U575 is revision X (0x20016482); its errata were read on
+2026-10-02: none of those it adds touches the port, but 2.2.27's workaround is not
+available there (`SleepU5 on the NUCLEO-U575ZI-Q` above).
 
 ### 2.2.27, spurious MSI PLL unlock
 

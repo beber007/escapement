@@ -22,9 +22,12 @@ else
     image=$(cd "$(dirname "$ELF")" && pwd)/$(basename "$ELF")
     # As tools/unoq_load.sh: halted at reset, the timers of the kernel and the examples
     # stopped while the core is halted (DBGMCU_APB1FZR1, RM0456), then started at the
-    # entry code at the head of the image (Escapement_RamEntry.S).
-    COMMANDS="init; reset halt; mww 0xE0044008 0xb; load_image $image; \
-resume 0x20000000; echo ESCAPEMENT-DONE; shutdown"
+    # entry code at the head of the image (Escapement_RamEntry.S). A reset that did not
+    # reach the MCU, JP2 off on 2026-10-02 (UM2861), left the core in its HardFault
+    # handler, where the image was started and locked up, the load reported done: the
+    # core must be in no exception after it (ICSR.VECTACTIVE).
+    COMMANDS="init; reset halt; if {[mrw 0xE000ED04] & 0x1FF} { error \"Error: the core is in an exception after the reset, which did not reach it\" }; mww 0xE0044008 0xb; \
+load_image $image; resume 0x20000000; echo ESCAPEMENT-DONE; shutdown"
 fi
 # Connected with the reset held, as on the UNO Q: an image idle in Stop 2 leaves the
 # debug port unpowered most of the time. The ST-LINK drives NRST (UM2861). An error from

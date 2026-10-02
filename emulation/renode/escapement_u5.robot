@@ -583,6 +583,26 @@ SleepU5 of the NUCLEO-U575ZI-Q reports on USART1 and still sleeps in Stop 2
     Should Be True            ${events} >= ${instances}
     Should Not Be Equal As Integers  ${compare}  0
 
+The MSI PLL unlock interrupt is left alone on revision X
+    [Documentation]           Line 23 of the EXTI and interrupt 125, which the port takes for the
+    ...                       MSI PLL unlock (erratum 2.2.27), are reserved on revision X of the
+    ...                       STM32U575/585 (RM0456, tables 118 and 186), the NUCLEO-U575ZI-Q's.
+    ...                       DBGMCU_IDCODE reading revision X (escapement_u5_nucleo_revx.repl), SoakU5 runs and interrupt 125 stays
+    ...                       disabled; reading anything else, here the platform's 0, it is
+    ...                       enabled, as on the UNO Q's revision U.
+    Load Escapement           SoakU5  escapement_u5_nucleo_revx.repl  ${NUCLEO}
+    Execute Command           emulation RunFor "1.5"
+    ${seconds}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${seconds}=               Read Word  ${{ int(${seconds.strip()}) + 4 }}
+    ${iser3}=                 Read Word  0xE000E10C
+    Should Be True            ${seconds} >= 1
+    Should Be Equal As Integers  ${{ (${iser3} >> 29) & 1 }}  0
+    Reset Emulation
+    Load Escapement           SoakU5  escapement_u5_nucleo.repl  ${NUCLEO}
+    Execute Command           emulation RunFor "0.2"
+    ${iser3}=                 Read Word  0xE000E10C
+    Should Be Equal As Integers  ${{ (${iser3} >> 29) & 1 }}  1
+
 The endurance test of the NUCLEO-U575ZI-Q reports on USART1
     [Documentation]           SoakU5 of Examples/nucleo-u575 (escapement_u5_nucleo.repl), whose
     ...                       reports go on USART1, the ST-LINK's virtual COM port, which

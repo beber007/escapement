@@ -1,0 +1,13 @@
+// Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+// LICENSE at the root of this repository.
+//
+// escapement_u5_nucleo.repl whose DBGMCU_IDCODE reads revision X, the NUCLEO-U575ZI-Q's
+// chip (0x20016482, read on the board on 2026-10-02), on which line 23 of the EXTI and
+// interrupt 125 are reserved (RM0456, tables 118 and 186). The rest of DBGMCU reads 0 and
+// takes its writes.
+using "escapement_u5_nucleo.repl"
+
+dbgmcu: Python.PythonPeripheral @ sysbus 0xE0044000
+    size: 0x10
+    initable: true
+    script: "request.Value = 0x20016482 if request.IsRead and request.Offset == 0 else 0"

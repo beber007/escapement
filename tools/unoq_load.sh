@@ -30,8 +30,11 @@ else
     # kernel stops on its overload check. The bit of the independent watchdog in that
     # register reads back 0 on the UNO Q: the watchdog runs on, and a halt must stay well
     # under its period, 3 s in SoakU5.
-    COMMANDS="init; reset halt; mww 0xE0044008 0xb; load_image IMAGE; \
-resume 0x20000000; echo ESCAPEMENT-DONE; shutdown"
+    # The core must be in no exception after the reset (ICSR.VECTACTIVE), as in
+    # tools/nucleo_load.sh: a reset that did not reach the MCU left it in its HardFault
+    # handler there, and the image started inside it.
+    COMMANDS="init; reset halt; if {[mrw 0xE000ED04] & 0x1FF} { error \"Error: the core is in an exception after the reset, which did not reach it\" }; mww 0xE0044008 0xb; \
+load_image IMAGE; resume 0x20000000; echo ESCAPEMENT-DONE; shutdown"
 fi
 # The board's OpenOCD, with the configuration Arduino's own scripts use (arduino-flash.sh).
 # It connects with the reset held: an image whose idle task sleeps in Stop 2 with DBG_STOP
