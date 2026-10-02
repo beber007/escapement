@@ -102,6 +102,18 @@ afterwards. LPUART1 on the UNO Q, with its FIFO of 8 bytes at 57,600 baud, had l
 in 69,000 s. USART1 now runs with its FIFO too, which allows some 700 µs: at 73a6d83, on
 2026-09-30, it had carried 54 MB in 84,218 s (23 h 23 min) with no overrun and no error.
 
+LPUART1 lost its first byte on 2026-10-01, at 1b67f30, after 2 h 20 min: 1 overrun, 1
+error of the link, every count of the kernel at 0, some 300,000 s of endurance on the UNO
+Q before it without one. Its FIFO allows 1.4 ms, yet the pulse, due every millisecond,
+was never more than 47 µs late: no interrupt was held off that long. Nothing halted the
+core either, no OpenOCD nor login on the board at that minute. What the counts do not
+rule out is the core and its timers stopped together, as under a debugger's halt, while
+the LPUART, on HSI16, went on receiving. Since then `SoakU5` keeps the longest burst of
+the link, the bytes read within 5 µs of each other, with the time the kernel's clock
+counted since the byte before them. n bytes waiting came over at least n − 1 byte times,
+174 µs each at 57,600 baud; less on the clock, and `tools/soak.py` says how much the
+clock lost.
+
 ## What is verified
 
 ### On the board

@@ -330,6 +330,32 @@ Every part of the endurance test runs without error
     Should Be Equal As Integers  ${{ (${moder} >> 12) & 3 }}  1
     Should Be Equal As Integers  ${{ (${odr} >> 6) & 1 }}  0
 
+The endurance test counts the bursts of the link
+    [Documentation]           SoakU5 handed three bytes of the link at once, the emulation
+    ...                       paused: read one after the other, they are a burst of three, which
+    ...                       word 94 of the results keeps in its top byte, and the bytes come
+    ...                       in order. Each report ends with that word: 28 numbers after SOAK,
+    ...                       which tools/soak.py reads.
+    [Timeout]                 10 minutes
+    Load Escapement           SoakU5
+
+    ${lpuart1}=               Create Terminal Tester  sysbus.lpuart1  defaultPauseEmulation=true
+    Wait For Line On Uart     SOAK  timeout=1.5  testerId=${lpuart1}
+    Execute Command           sysbus.lpuart1 WriteChar 0
+    Execute Command           sysbus.lpuart1 WriteChar 1
+    Execute Command           sysbus.lpuart1 WriteChar 2
+    ${line}=                  Wait For Line On Uart  SOAK  timeout=1.5  testerId=${lpuart1}
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${bytes}=                 Read Word  ${results + 88 * 4}
+    ${errors}=                Read Word  ${results + 89 * 4}
+    ${burst}=                 Read Word  ${results + 94 * 4}
+    Should Be Equal As Integers  ${bytes}  3
+    Should Be Equal As Integers  ${errors}  0
+    Should Be Equal As Integers  ${{ ${burst} >> 24 }}  3
+    Should Be Equal As Integers  ${{ len($line.Line.split()) }}  29
+
 The endurance test of the NUCLEO-U575ZI-Q reports on USART1
     [Documentation]           SoakU5 of Examples/nucleo-u575 (escapement_u5_nucleo.repl), whose
     ...                       reports go on USART1, the ST-LINK's virtual COM port, which

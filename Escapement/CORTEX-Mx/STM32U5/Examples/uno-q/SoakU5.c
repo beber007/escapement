@@ -33,7 +33,12 @@
 **                 interrupt, one that is not the one after the last is an error, and
 **                 so is a byte lost to an overrun. Linux may send nothing, so the
 **                 heartbeat does not count it among the parts that must move; the
-**                 script on the Linux side does (tools/soak.py).
+**                 script on the Linux side does (tools/soak.py). Bytes read within
+**                 5 us of each other, a burst, waited in the FIFO: the longest
+**                 burst is kept with the time the kernel's clock counted since the byte
+**                 before it. A burst of n bytes came over at least n - 1 byte times;
+**                 less on the clock means that the clock stopped, as under a debugger's
+**                 halt, while the UART, on its own clock, went on receiving.
 **
 ** The load comes in phases of 5 to 60 s, drawn at random, each with a work of its own for
 ** the long task, from its own 500 to 1500 us of each 10 ms to 6 ms, drawn at random too:
@@ -46,7 +51,8 @@
 ** its phase, the byte the link expects next, from which a script started anew goes on
 ** counting, and the causes of reset the board met before this run, with, in its low bits,
 ** the times the MSIS was locked again on the LSE (OSGetMSIRelocks) — one number for both,
-** a line of the UART holding 255 bytes at most.
+** a line of the UART holding 255 bytes at most. The longest burst of the link ends the
+** line, from a second buffer of the UART.
 **
 ** Built for a NUCLEO-U575ZI-Q (Examples/nucleo-u575, BOARD_NUCLEO_U575), the reports and
 ** the link go over USART1 instead, to the virtual COM port of the board's ST-LINK, at
@@ -61,7 +67,9 @@
 **   24-55 lateness of the pulse by 10 us, the last for 310 us or more   56-87 the same
 **   for the timer events   88-90 bytes received on the link, its errors and overruns
 **   91 the byte it expects next   92 the flags of reset of RCC_CSR, bits 25 to 31, as
-**   this run found them   93 the times the MSIS was locked again.
+**   this run found them   93 the times the MSIS was locked again   94 the longest burst
+**   of the link, its bytes in bits 24 to 31, in the others the us the kernel's clock
+**   counted since the byte before it.
 ** The counts only grow: a probe reading them twice and finding them smaller, or the
 ** marker gone, has seen the board restart. The independent watchdog restarts it within
 ** 3 s of the heartbeat stopping, which is how a kernel that hangs shows; the image being
@@ -91,6 +99,7 @@
 #define REPORT_SIZE 248                /* SOAK and 27 numbers of 8 digits at most, spaced */
 #define FILL_TIME   1000               /* per instance of the Filler, without a seed */
 #define FILL_HIGH   6000               /* the most a phase of load gives it */
+#define BURST_TIME  5                  /* us between two bytes of one call of the interrupt */
 #define EVENT_DELAY 1000               /* of the timer events, without a seed */
 #define STACK_FILL  0x5AC05AC0u        /* what unused stack holds */
 #define GUARD       0x6A7D6A7Du
@@ -117,6 +126,7 @@ volatile struct {
   UINT32 PulseLate[BINS], EventLate[BINS];
   UINT32 LinkBytes, LinkErrors, LinkOverruns, LinkNext;
   UINT32 Resets, MSIRelocks;
+  UINT32 LinkBurst;
 } Results;
 
 typedef struct {
@@ -479,10 +489,26 @@ static void HeartbeatTask(void *argument)
 ** the first after a start being expected to be 0. */
 static void LinkReceive(UINT8 data)
 {
+  static UINT32 last, gap, burst;
+  UINT32 now = (UINT32)_OSGetActualTime(), elapsed = (now - last) & 0x3FFFFFFF;
   if (data != Results.LinkNext)
      Results.LinkErrors += 1;
   Results.LinkNext = (UINT8)(data + 1);
   Results.LinkBytes += 1;
+  if (elapsed > BURST_TIME) {
+     burst = 1;
+     gap = elapsed < 0xFFFFFF ? elapsed : 0xFFFFFF;
+  }
+  else if (burst < 0xFF) {
+     burst += 1;
+     /* One word, which the heartbeat reads whole: the longest burst, the shortest time on
+     ** the clock among those as long. */
+     if (burst << 24 > Results.LinkBurst ||
+         (burst << 24 == (Results.LinkBurst & 0xFF000000) &&
+          gap < (Results.LinkBurst & 0xFFFFFF)))
+        Results.LinkBurst = burst << 24 | gap;
+  }
+  last = now;
 } /* end of LinkReceive */
 
 
@@ -503,10 +529,14 @@ static UINT8 *PutHex(UINT8 *p, UINT32 value)
 ** still being sent, which Linux sees as a second without a report. */
 static void Report(void)
 {
-  UINT8 *line = (UINT8 *)OSGetFreeNodeUART(LINK_UART), *p;
+  UINT8 *line = (UINT8 *)OSGetFreeNodeUART(LINK_UART), *end, *p;
   UINT32 i;
   if (line == NULL)
      return;
+  if ((end = (UINT8 *)OSGetFreeNodeUART(LINK_UART)) == NULL) {
+     OSReleaseNodeUART(line,LINK_UART);
+     return;
+  }
   Results.LinkOverruns = OSGetUARTOverruns(LINK_UART);
   p = line;
   *p++ = 'S'; *p++ = 'O'; *p++ = 'A'; *p++ = 'K'; *p++ = ' ';
@@ -525,8 +555,10 @@ static void Report(void)
   p = PutHex(p,Results.Load);
   p = PutHex(p,Results.LinkNext);
   p = PutHex(p,Results.Resets | (Results.MSIRelocks & 0xFFFFFF));
-  p[-1] = '\n';
   OSEnqueueUART(line,(UINT8)(p - line),LINK_UART);
+  p = PutHex(end,Results.LinkBurst);
+  p[-1] = '\n';
+  OSEnqueueUART(end,(UINT8)(p - end),LINK_UART);
 } /* end of Report */
 
 
