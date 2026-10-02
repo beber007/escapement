@@ -324,6 +324,24 @@ the next instance. Each event came within 5 µs of the time it was due, the long
 wake-up took 19 ticks, and none was late. The board check runs this image
 (`tools/unoq_sleep.py`).
 
+### A bound on the HSE's start
+
+Until 2026-10-02 the wake-up waited for the HSE as reset does, some 20 ms with
+interrupts masked, then gave it up for good, PLL1 on the MSIS from then on. DS13086 gives
+its start 2 ms typical and no maximum (table 80); on the board the whole wake-up took at
+most 29 ticks, 885 µs. The wake-up now waits 64 ticks of LPTIM1, 1.95 ms
+(`Escapement_Processor.c`). Past that, PLL1 takes the MSIS of range 2 for that wake-up
+only, 160.017 MHz, some 100 ppm fast, and the next tries the HSE again; `SleepU5` counts
+these wake-ups in word 14 of its results and `tools/unoq_sleep.py` shows them. The SRAM's
+wait state before Stop 2 follows the MSIS's range rather than the HSE's absence, since a
+miss leaves the MSIS in range 2.
+
+Under Renode, on a platform that enters Stop 2 (`escapement_u5_stop2.repl`), every
+wake-up of `SleepU5` took PLL1 back to the HSE when it started within the bound, and,
+when it never started, every one went on the MSIS in 70 ticks at most, none late of the
+98 allowed, and the first wake-up after the HSE started again took it. The old wait fails
+that test. On the board no wake-up has missed the HSE yet: the count is new.
+
 ### Loading an image while the core sleeps
 
 An image that sleeps in Stop 2 with DBG_STOP cleared leaves the debug port unpowered

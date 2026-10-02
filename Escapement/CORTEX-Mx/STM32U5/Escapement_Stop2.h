@@ -35,12 +35,14 @@ BOOL OSInitStop2(void);
 void OSAllowStop2(BOOL allowed);
 
 /* The counts of the idle task, for the examples: the times it entered Stop 2, the largest
-** wake-up it took, in ticks of LPTIM1, and the times it woke past the next event, whose
-** kernel time it then set just before it. */
+** wake-up it took, in ticks of LPTIM1, the times it woke past the next event, whose
+** kernel time it then set just before it, and the wake-ups the HSE missed, PLL1 then on
+** the MSIS, some 100 ppm off, until the next (Escapement_Processor.c). */
 typedef struct OS_STOP2_COUNTS {
   UINT32 Entries;
   UINT32 WakeMaxTicks;
   UINT32 Late;
+  UINT32 HSEMissed;
 } OS_STOP2_COUNTS;
 
 void OSGetStop2Counts(OS_STOP2_COUNTS *counts);

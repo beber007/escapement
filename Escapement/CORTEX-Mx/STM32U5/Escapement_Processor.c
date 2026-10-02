@@ -116,9 +116,12 @@
 #define PWR_DBPR_DBP         (1u << 0)
 
 /* Some seconds at 4 MHz, a few cycles a turn, for the LSE to start; the HSE takes 2 ms
-** (DS13086, table 80), given ten times as long. */
+** (DS13086, table 80), given ten times as long at reset. On waking from Stop 2 it is given
+** 64 ticks of the caller's clock, LPTIM1, 1.95 ms: it took less than 0.9 ms on the board,
+** and the table gives it no maximum, varying "significantly with the crystal". */
 #define LSE_START_TURNS      2000000u
 #define HSE_START_TURNS      20000u
+#define HSE_WAKE_TICKS       64u
 
 #define FLASH_ACR            *((volatile UINT32 *)(0x40022000 + 0x00))
 #define FLASH_ACR_LATENCY_MASK 0xFu
@@ -168,14 +171,16 @@ static void SRAMWaitStates(UINT32 n)
 } /* end of SRAMWaitStates */
 
 
-/* _OSSRAMBeforeStop2: Without the HSE, the MSIS keeps its 16 MHz range through Stop 2 and
-** the chip wakes in voltage range 4 (RM0456, 10.7.8), where the SRAM reads at 0 wait
-** states up to 16 MHz only (table 47): one is set before, as the MSIS of range 2 runs at
-** 16.0017 MHz locked, and farther from it before the lock is back. _OSRaiseSystemClock
-** takes it off again in range 1; with the HSE the chip wakes on the MSIS of range 4. */
+/* _OSSRAMBeforeStop2: The MSIS keeps its range through Stop 2 and the chip wakes on it in
+** voltage range 4 (RM0456, 10.7.8), where the SRAM reads at 0 wait states up to 16 MHz
+** only (table 47): one is set before if PLL1 ever took the MSIS of range 2, without the
+** HSE or after a wake-up the HSE missed, as it runs at 16.0017 MHz locked, and farther
+** from it before the lock is back. _OSRaiseSystemClock takes it off again in range 1;
+** an MSIS left in range 4 needs none. */
 void _OSSRAMBeforeStop2(BOOL stopping)
 {
-  if (NoHSE)
+  if ((RCC_ICSCR1 & (RCC_ICSCR1_MSIRGSEL | RCC_ICSCR1_MSISRANGE_MASK)) ==
+      (RCC_ICSCR1_MSIRGSEL | RCC_ICSCR1_MSISRANGE_16MHZ))
      SRAMWaitStates(stopping ? 1u : 0u);
 } /* end of _OSSRAMBeforeStop2 */
 
@@ -239,27 +244,42 @@ void OSInitializeSystemClocks(void)
   #endif
   /* The MSIS locked, should PLL1 have to take it; then the HSE. */
   LockMSIS();
-  _OSRaiseSystemClock();
+  (void)_OSRaiseSystemClock(NULL);
 } /* end of OSInitializeSystemClocks */
 
 
 /* _OSRaiseSystemClock: From the MSIS, as reset or a wake-up from Stop leaves the system
-** clock, in range 4, to 160 MHz on PLL1. The HSE, given up once, is not waited for again
-** at each wake-up from Stop 2: a board without it fitted, the NUCLEO-U575ZI-Q as shipped
-** (UM2861, 6.7), would otherwise spend its time-out there every time. */
-void _OSRaiseSystemClock(void)
+** clock, in range 4, to 160 MHz on PLL1. The HSE, missing at reset, is not waited for
+** again: a board without it fitted, the NUCLEO-U575ZI-Q as shipped (UM2861, 6.7), would
+** otherwise spend its time-out there at every wake-up from Stop 2. On waking, clock
+** names the caller's, and the HSE missing after HSE_WAKE_TICKS of it, PLL1 takes the MSIS
+** for this once, the HSE tried again at the next: interrupts stay masked meanwhile, and
+** the wait had no bound but the 20 ms of reset, after which the chip gave the HSE up for
+** good (2026-10-02). TRUE if the HSE missed so. */
+BOOL _OSRaiseSystemClock(UINT16 (*clock)(void))
 {
   volatile UINT32 i;
   UINT32 n;
+  UINT16 start;
+  BOOL hse = FALSE, missed = FALSE;
   if (!NoHSE) {
      RCC_CR |= RCC_CR_HSEON;
-     for (i = 0; (RCC_CR & RCC_CR_HSERDY) == 0 && i < HSE_START_TURNS; i += 1);
-     NoHSE = (RCC_CR & RCC_CR_HSERDY) == 0;
+     if (clock == NULL) {
+        for (i = 0; (RCC_CR & RCC_CR_HSERDY) == 0 && i < HSE_START_TURNS; i += 1);
+        NoHSE = (RCC_CR & RCC_CR_HSERDY) == 0;
+     }
+     else {
+        start = clock();
+        while ((RCC_CR & RCC_CR_HSERDY) == 0 &&
+               (UINT16)(clock() - start) < HSE_WAKE_TICKS);
+        missed = (RCC_CR & RCC_CR_HSERDY) == 0;
+     }
+     hse = !NoHSE && !missed;            // read once: a late HSERDY changes nothing now
   }
   /* The input of PLL1 before the booster, whose clock is the source before the divider M,
   ** must be 4 to 16 MHz, and the VCO's input after M 4 to 8 (RM0456 rev. 7, RCC_PLL1CFGR):
   ** the HSE, 16 MHz, the top of the booster's range, divided by 4 for the VCO. */
-  if ((RCC_CR & RCC_CR_HSERDY) != 0) {
+  if (hse) {
      RCC_PLL1CFGR = (RCC_PLL1CFGR & ~PLL1CFGR_FIELDS) |
                     PLL1SRC_HSE | PLL1RGE_4_8MHZ | PLL1M(4) | PLL1MBOOST_DIV1 | PLL1REN;
      n = 80;
@@ -296,9 +316,10 @@ void _OSRaiseSystemClock(void)
   PWR_VOSR = (PWR_VOSR & ~(3u << 16)) | PWR_VOSR_VOS_RANGE1 | PWR_VOSR_BOOSTEN;
   while ((PWR_VOSR & (PWR_VOSR_VOSRDY | PWR_VOSR_BOOSTRDY)) !=
          (PWR_VOSR_VOSRDY | PWR_VOSR_BOOSTRDY));
-  /* Range 1 reads the SRAM at 0 wait states up to 160 MHz (RM0456, table 47). */
-  if (NoHSE)
-     SRAMWaitStates(0);
+  /* Range 1 reads the SRAM at 0 wait states up to 160 MHz (RM0456, table 47): the one
+  ** set for the MSIS of range 2 is taken off, should the chip have woken on it, whichever
+  ** source PLL1 takes now. */
+  SRAMWaitStates(0);
   /* Wait states before the clock rises; read back until they hold. The prefetch stays
   ** off: the images run from SRAM and never fetch from the flash, and it is the condition
   ** of erratum 2.2.26, a hang entering Stop with 4 wait states (ES0499), which an audit
@@ -316,4 +337,5 @@ void _OSRaiseSystemClock(void)
   for (i = 0; i < 100; i += 1);            // some microseconds at 80 MHz
   RCC_CFGR2 &= ~RCC_CFGR2_HPRE_MASK;
   ICACHE_CR |= ICACHE_CR_EN;
+  return missed;
 } /* end of _OSRaiseSystemClock */

@@ -1,0 +1,77 @@
+// Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+// LICENSE at the root of this repository.
+//
+// escapement_u5.repl where Stop 2 is entered, so that the wake-up takes the clock back
+// (Escapement_Processor.c, _OSRaiseSystemClock): PWR_SR.STOPF reads 1 once the port has
+// cleared it before its WFI, and the RCC then stops what Stop 2 stops, the HSE, PLL1 and
+// the system clock's switch to it, as RM0456 has it (10.7.8). The HSE starts at once at
+// reset, then, on waking, after as many reads of RCC_CR as written at 0x3FC of the RCC
+// once HSEON is set again (a million if none: never within the port's wait), an offset
+// no register uses: the start the datasheet gives no maximum (DS13086, table 80). Reads,
+// not time: the script reading LPTIM1 over the bus saw it stand still while the core
+// ran. PWR writes 0x3F8 of the RCC to say the chip stopped, an offset no register uses
+// either.
+using "escapement_u5.repl"
+
+rcc:
+    script: '''
+if request.IsInit:
+    # The state lives in regs: a name the script assigns does not outlive the request.
+    regs = {0x00: 0x00000035}
+elif request.IsRead:
+    r = request.Offset
+    v = regs.get(r, 0)
+    if r == 0x00:
+        v |= (1 << 2) | (1 << 10)
+        if (v >> 16) & 1:
+            if 'stopped' not in regs:
+                v |= 1 << 17
+            else:
+                regs['reads'] += 1
+                if regs['reads'] > regs.get(0x3FC, 1000000):
+                    v |= 1 << 17
+        if (v >> 24) & 1:
+            v |= 1 << 25
+    elif r == 0x1C:
+        v = (v & ~0xC) | ((v & 3) << 2)
+    elif r == 0xF0:
+        v |= (1 << 1) | (1 << 11)
+    request.Value = v
+else:
+    r = request.Offset
+    if r == 0x3F8:
+        regs['stopped'] = True
+        regs[0x00] = regs.get(0x00, 0) & ~((1 << 16) | (1 << 24))
+        regs[0x1C] = regs.get(0x1C, 0) & ~3
+    else:
+        rising = (request.Value >> 16) & 1 and not (regs.get(0x00, 0) >> 16) & 1
+        if r == 0x00 and 'stopped' in regs and rising:
+            regs['reads'] = 0
+        regs[r] = request.Value & 0xFFFFFFFF
+        if r == 0x00:
+            # The ready flags are the RCC's: a read-modify-write of the port wrote back
+            # the HSERDY of before Stop 2, which then never cleared.
+            regs[r] &= ~((1 << 2) | (1 << 10) | (1 << 17) | (1 << 25))
+'''
+
+// PWR: VOSR reads its voltage range and the booster ready; SR reads STOPF once CSSF was
+// written, the port's last step before its WFI, which then tells the RCC.
+pwr:
+    script: '''
+if request.IsInit:
+    regs = {}
+elif request.IsRead:
+    r = request.Offset
+    v = regs.get(r, 0)
+    if r == 0x0C:
+        v |= (1 << 15) | (1 << 14)
+    request.Value = v
+else:
+    r = request.Offset
+    if r == 0x38:
+        if request.Value & 1:
+            regs[0x38] = 1 << 1
+            self.GetMachine().SystemBus.WriteDoubleWord(0x46020FF8, 1)
+    else:
+        regs[r] = request.Value & 0xFFFFFFFF
+'''

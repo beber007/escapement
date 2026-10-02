@@ -55,12 +55,14 @@
 void OSInitializeSystemClocks(void);
 
 /* _OSRaiseSystemClock: The second half of OSInitializeSystemClocks, from the MSIS to
-** PLL1, which Escapement_Stop2.c calls again on waking from Stop 2. */
-void _OSRaiseSystemClock(void);
+** PLL1, clock NULL; Escapement_Stop2.c calls it again on waking from Stop 2 with the count
+** of LPTIM1, which bounds the wait for the HSE. TRUE if the HSE missed that bound, PLL1
+** then on the MSIS until the next wake-up. */
+BOOL _OSRaiseSystemClock(UINT16 (*clock)(void));
 
 /* _OSSRAMBeforeStop2: Sets the SRAM's wait state the chip needs on waking from Stop 2
-** (stopping TRUE), or takes it off should the chip not have stopped (FALSE); a board with
-** the HSE needs none. Escapement_Stop2.c calls it around its WFI. */
+** (stopping TRUE), or takes it off should the chip not have stopped (FALSE); an MSIS
+** left in range 4, as on a board whose HSE never missed, needs none. Escapement_Stop2.c calls it around its WFI. */
 void _OSSRAMBeforeStop2(BOOL stopping);
 
 /* The idle task sleeps through _OSIdleHook once OSInitStop2 has set it, so that an image

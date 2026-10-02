@@ -10,7 +10,8 @@
 ** at 2^30, or the next timer event of TIM5, arms the compare of LPTIM1 OS_STOP2_WAKE_US
 ** before it and enters Stop 2, where PLL1, the HSE, TIM2 and TIM5 stop and LPTIM1 counts
 ** on. On waking the chip runs on the MSIS in the range it had, 4, or 2 on a board without
-** the HSE (RM0456, 10.7.8, RCC_ICSCR1); _OSRaiseSystemClock takes it back to 160 MHz,
+** the HSE or once the HSE missed a wake-up (RM0456, 10.7.8, RCC_ICSCR1);
+** _OSRaiseSystemClock takes it back to 160 MHz, waiting at most 1.95 ms for the HSE,
 ** and TIM2 and TIM5 are moved on by the time LPTIM1 counted
 ** (Escapement_TimerEvent.c). Both are stopped and started again on an edge of LPTIM1, so
 ** that the time between is whole ticks, 15625/512 us each, the fraction carried to the
@@ -190,7 +191,8 @@ static void Stop2Idle(void)
   /* An interrupt already pending leaves the WFI at once, the chip still on PLL1. */
   if (PWR_SR & PWR_SR_STOPF) {
      wake = OSGetLPTimer();
-     _OSRaiseSystemClock();
+     if (_OSRaiseSystemClock(OSGetLPTimer))
+        Counts.HSEMissed += 1;           // PLL1 on the MSIS until the next wake-up
      RCC_CR |= hsi;                      // HSI16 back for LPUART1 (Escapement_UART.c)
      end = NextTick();
      Counts.Entries += 1;

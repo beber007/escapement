@@ -150,6 +150,85 @@ The idle task sleeps in Stop 2 on LPTIM1
     Should Be True            ${eventoff} <= 20
     Should Be True            abs(${ticks} * 1000000 - ${micros} * 32768) <= ${micros} * 32768 / 10000
 
+The wake-up from Stop 2 takes PLL1 back to the HSE
+    [Documentation]           SleepU5 on a platform that enters Stop 2 (escapement_u5_stop2.repl),
+    ...                       the HSE starting at the tenth read of RCC_CR after each wake-up,
+    ...                       within the 64 ticks of LPTIM1 the port waits: every wake-up takes
+    ...                       PLL1 back to the HSE, none missed it, none is late, and the MSIS
+    ...                       stays in range 4.
+    Load Escapement           SleepU5  escapement_u5_stop2.repl
+    Execute Command           sysbus WriteDoubleWord 0x46020FFC 10
+    Execute Command           emulation RunFor "3"
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${instances}=             Read Word  ${results + 4}
+    ${jitter}=                Read Word  ${results + 16}
+    ${entries}=               Read Word  ${results + 20}
+    ${wake}=                  Read Word  ${results + 24}
+    ${late}=                  Read Word  ${results + 28}
+    ${missed}=                Read Word  ${results + 56}
+    ${cfgr}=                  Read Word  0x46020C28
+    ${icscr1}=                Read Word  0x46020C08
+    Log To Console            ${instances} instances, ${entries} into Stop 2, longest wake-up ${wake} ticks, ${missed} the HSE missed
+    Should Be True            ${instances} >= 25
+    Should Be True            ${entries} >= ${instances}
+    Should Be Equal As Integers  ${missed}  0
+    Should Be Equal As Integers  ${late}  0
+    Should Be True            ${jitter} <= 5
+    Should Be True            ${wake} < 64
+    Should Be Equal As Integers  ${{ ${cfgr} & 3 }}  3
+    Should Be Equal As Integers  ${{ (${icscr1} >> 28) & 0xF }}  0
+
+A wake-up the HSE misses goes on the MSIS, and the next tries the HSE again
+    [Documentation]           The same, the HSE never starting after a wake-up: the port waits
+    ...                       64 ticks of LPTIM1, 1.95 ms, then takes PLL1 onto the MSIS of range 2
+    ...                       for that wake-up, its wait states for the SRAM set before each
+    ...                       Stop 2 from then on, and tries the HSE again at the next, which
+    ...                       takes it once it starts; no wake-up comes late of the 3 ms
+    ...                       allowed. Until 2026-10-02 the wait
+    ...                       had no bound but the 20 ms of reset, interrupts masked, after
+    ...                       which the chip gave the HSE up for good.
+    Load Escapement           SleepU5  escapement_u5_stop2.repl
+    Execute Command           emulation RunFor "3"
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${instances}=             Read Word  ${results + 4}
+    ${jitter}=                Read Word  ${results + 16}
+    ${entries}=               Read Word  ${results + 20}
+    ${wake}=                  Read Word  ${results + 24}
+    ${late}=                  Read Word  ${results + 28}
+    ${missed}=                Read Word  ${results + 56}
+    ${cr}=                    Read Word  0x46020C00
+    ${cfgr}=                  Read Word  0x46020C28
+    ${icscr1}=                Read Word  0x46020C08
+    ${sram}=                  Read Word  0x40026000
+    Log To Console            ${instances} instances, ${entries} into Stop 2, longest wake-up ${wake} ticks, ${missed} the HSE missed
+    Should Be True            ${instances} >= 25
+    Should Be True            ${entries} >= ${instances}
+    # Every wake-up tried the HSE again, and missed it.
+    Should Be Equal As Integers  ${missed}  ${entries}
+    Should Be Equal As Integers  ${late}  0
+    Should Be True            ${jitter} <= 5
+    Should Be True            64 <= ${wake} < 98
+    # Running on PLL1 from the MSIS of range 2, M = 3, the HSE left off, the SRAM at 0
+    # wait states in range 1.
+    Should Be Equal As Integers  ${{ ${cfgr} & 3 }}  1
+    Should Be Equal As Integers  ${{ (${cfgr} >> 8) & 0xF }}  2
+    Should Be Equal As Integers  ${{ (${cr} >> 16) & 1 }}  0
+    Should Be Equal As Integers  ${{ (${icscr1} >> 28) & 0xF }}  2
+    Should Be Equal As Integers  ${{ (${sram} >> 16) & 7 }}  0
+    # The HSE starting again, the next wake-up takes it: before 2026-10-02 the chip gave
+    # it up for good after one miss. The MSIS stays in range 2, and the SRAM's wait state
+    # is still set before each Stop 2, then taken off in range 1.
+    Execute Command           sysbus WriteDoubleWord 0x46020FFC 10
+    Execute Command           emulation RunFor "0.5"
+    ${late}=                  Read Word  ${results + 28}
+    ${cfgr}=                  Read Word  0x46020C28
+    ${sram}=                  Read Word  0x40026000
+    Should Be Equal As Integers  ${late}  0
+    Should Be Equal As Integers  ${{ ${cfgr} & 3 }}  3
+    Should Be Equal As Integers  ${{ (${sram} >> 16) & 7 }}  0
+
 The idle task sleeps across the 2^30 wrap of the kernel clock
     [Documentation]           SleepWrapU5, SleepU5 with its times a thousand times longer, on
     ...                       TIM2, TIM5 and LPTIM1 a thousand times faster: 2.5 s cross the
