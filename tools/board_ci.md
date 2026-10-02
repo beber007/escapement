@@ -192,7 +192,11 @@ on the CI's images, so it needs `BOARD_CI_IMAGES=ci`. It has three steps:
 
 The long endurance run (`tools/soak.py uno-q`, the user service `escapement-soak-u5`)
 is stopped for the check. If the check passed, the run starts again on the commit's
-image; otherwise it goes back to the image it had.
+image; otherwise it goes back to the image it had. The run of the commit before then
+ends: its status `board/soak-u5`, if still pending, is posted again from the state
+`soak.py` kept until it was stopped, a failure if it restarted or found errors, a
+success otherwise. Its last status, posted at most once an hour, could be that much
+behind, and pending after a failure whose post was lost.
 
 ### The Pico 2
 

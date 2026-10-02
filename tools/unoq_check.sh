@@ -24,7 +24,10 @@
 # and tools if the check passed, on the image it had otherwise, loaded again, since the
 # check left the board running another. Carried on to another commit, the run of the
 # commit before ends: its last status "board/soak-u5", still pending, is posted again as
-# ended, a success, or left as it is if it was a failure, with the token of the board CI.
+# ended, with the token of the board CI, or left as it is if it was not pending. The verdict
+# and the counts are those of the state soak.py kept until it was stopped, not of that
+# status: posted once an hour, it was up to an hour behind, and a failure whose post was
+# lost left it pending, which the end then turned into a success (a review, 2026-09-30).
 set -u
 
 ELF=$1
@@ -37,20 +40,37 @@ LIMIT_PPM=300
 TOKEN=${BOARD_CI_TOKEN:-$HOME/.config/escapement-board-ci/token}
 REPO=${BOARD_CI_REPO:-beber007/escapement}
 
-# close <sha>: the run of the commit sha, carried on to $SHA, ended; otherwise its status
-# stayed pending for good (2026-09-28).
+# close <state> <sha>: the run whose state soak.py kept in the file state, of the commit
+# sha if the state does not name it, carried on to $SHA, ended; otherwise its status
+# stayed pending for good (2026-09-28). Failed if it restarted or found errors, as soak.py
+# posts it; its interruptions, which the board did not cause, are only counted.
 close() {
-    [ -r "$TOKEN" ] && [ -n "$1" ] && [ "$1" != "$SHA" ] || return 0
+    sha=$2 summary="" state=success
+    if jq -e .start "$1" >/dev/null 2>&1; then
+        sha=$(jq -r '.sha // empty' "$1")
+        [ -n "$sha" ] || sha=$2
+        # As soak.py's elapsed(): 0d05h12m.
+        summary=$(jq -r 'def two: tostring | if length < 2 then "0" + . else . end;
+            ((.at - .start) / 60 | floor) as $m |
+            "\($m / 1440 | floor)d\($m % 1440 / 60 | floor | two)h\($m % 60 | two)m: " +
+            "\(.restarts) restarts, \(.errors) errors, \(.wraps) wraps" +
+            if .interruptions > 0 then ", \(.interruptions) interrupted" else "" end' "$1") ||
+            summary=""
+        [ "$(jq '.restarts + .errors' "$1")" = 0 ] || state=failure
+    fi
+    [ -r "$TOKEN" ] && [ -n "$sha" ] && [ "$sha" != "$SHA" ] || return 0
     auth="Authorization: Bearer $(cat "$TOKEN")"
     # The combined status, the last of each context: a list of them all has the minute's
     # of every endurance run first.
-    last=$(curl -fsS -H "$auth" "https://api.github.com/repos/$REPO/commits/$1/status" |
+    last=$(curl -fsS --retry 3 -H "$auth" \
+        "https://api.github.com/repos/$REPO/commits/$sha/status" |
         jq -c '[.statuses[] | select(.context == "board/soak-u5")][0] // empty') || return 0
     [ "$(echo "$last" | jq -r .state)" = pending ] || return 0
-    jq -n --arg d "ended, carried on to $(echo "$SHA" | cut -c1-7): $(echo "$last" | jq -r .description)" \
-        '{state: "success", context: "board/soak-u5", description: $d[:140]}' |
-    curl -fsS -o /dev/null -X POST -H "$auth" -H "Accept: application/vnd.github+json" \
-        --data @- "https://api.github.com/repos/$REPO/statuses/$1" || true
+    [ -n "$summary" ] || summary=$(echo "$last" | jq -r .description)
+    jq -n --arg s "$state" --arg d "ended, carried on to $(echo "$SHA" | cut -c1-7): $summary" \
+        '{state: $s, context: "board/soak-u5", description: $d[:140]}' |
+    curl -fsS --retry 3 -o /dev/null -X POST -H "$auth" -H "Accept: application/vnd.github+json" \
+        --data @- "https://api.github.com/repos/$REPO/statuses/$sha" || true
 }
 
 systemctl --user stop "$SERVICE" 2>/dev/null
@@ -79,12 +99,12 @@ if [ -n "$ok" ] && [ -f "$UNIT" ]; then
     # The long run goes on with this commit: its image, its tools, a log of its own.
     cp "$ELF" "$SOAK/SoakU5.elf"
     cp "$HERE/soak.py" "$HERE/unoq_load.sh" "$SOAK/"
+    old=$SOAK/soak-u5-$(date +%Y%m%d-%H%M%S).log
     if [ -f "$SOAK/soak-u5.log" ]; then
-        old=$SOAK/soak-u5-$(date +%Y%m%d-%H%M%S).log
         mv "$SOAK/soak-u5.log" "$old"
         [ -f "$SOAK/soak-u5.log.state" ] && mv "$SOAK/soak-u5.log.state" "$old.state"
     fi
-    close "$(sed -n 's/.*BOARD_SOAK_SHA=\([0-9a-f]*\).*/\1/p' "$UNIT")"
+    close "$old.state" "$(sed -n 's/.*BOARD_SOAK_SHA=\([0-9a-f]*\).*/\1/p' "$UNIT")"
     sed "s/BOARD_SOAK_SHA=[0-9a-f]*/BOARD_SOAK_SHA=$SHA/" "$UNIT" >"$UNIT.new" &&
         mv "$UNIT.new" "$UNIT"
     systemctl --user daemon-reload
