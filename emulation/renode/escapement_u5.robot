@@ -16,6 +16,7 @@ Test Teardown                 Test Teardown
 # than holding the job until its own timeout.
 Test Timeout                  2 minutes
 Resource                      ${RENODEKEYWORDS}
+Library                       link_frame.py
 
 *** Variables ***
 ${EXAMPLE}                    ${CURDIR}/../../Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
@@ -35,6 +36,13 @@ Load Escapement
     Execute Command           sysbus LoadELF @${example}/build/${binary}.elf
     ${table}=                 Execute Command  sysbus GetSymbolAddress "CortexMxVectorTable"
     Execute Command           sysbus.cpu VectorTableOffset ${table.strip()}
+
+Send On LPUART1
+    [Documentation]           Bytes into LPUART1 as Linux sends them, all at once.
+    [Arguments]               @{bytes}
+    FOR  ${byte}  IN  @{bytes}
+        Execute Command       sysbus.lpuart1 WriteChar ${byte}
+    END
 
 Read Word
     [Documentation]           One 32-bit word of the emulated memory, as an integer.
@@ -230,14 +238,14 @@ A wake-up the HSE misses goes on the MSIS, and the next tries the HSE again
     Should Be Equal As Integers  ${{ (${sram} >> 16) & 7 }}  0
 
 A byte on LPUART1 keeps the idle task out of Stop 2 for the window
-    [Documentation]           SleepU5 on a platform that enters Stop 2: a byte sent 50 ms into a
-    ...                       period, the chip in Stop 2 since the event at 40 ms, wakes it,
-    ...                       and the idle task stays in Sleep for the window after it, 20 ms,
-    ...                       TIM2 running, for the bytes of a message to come on a running
-    ...                       clock (docs/roadmap.md, item 6); LPTIM1 ends the window and the
-    ...                       idle task enters Stop 2 again before the next period, TIM2
-    ...                       standing still. Without the window it went back into Stop 2 as
-    ...                       soon as the byte was read.
+    [Documentation]           SleepU5 on a platform that enters Stop 2: a wake-up byte sent 50 ms
+    ...                       into a period, the chip in Stop 2 since the event at 40 ms, wakes
+    ...                       it, and the idle task stays in Sleep for the window after it,
+    ...                       20 ms, TIM2 running, for the bytes of a message to come on a
+    ...                       running clock (docs/roadmap.md, item 6); LPTIM1 ends the window
+    ...                       and the idle task enters Stop 2 again before the next period,
+    ...                       TIM2 standing still. Without the window it went back into Stop 2
+    ...                       as soon as the byte was read.
     Load Escapement           SleepU5  escapement_u5_stop2.repl
     Execute Command           sysbus WriteDoubleWord 0x46020FFC 10
     ${counts}=                Execute Command  sysbus GetSymbolAddress "Counts"
@@ -246,7 +254,7 @@ A byte on LPUART1 keeps the idle task out of Stop 2 for the window
     ${results}=               Convert To Integer  ${results.strip()}
     Execute Command           emulation RunFor "1.05"
     ${entries}=               Read Word  ${counts}
-    Execute Command           sysbus.lpuart1 WriteChar 0x55
+    Execute Command           sysbus.lpuart1 WriteChar 0
     # Within the window: TIM2 runs.
     Execute Command           emulation RunFor "0.014"
     ${a}=                     Read Word  0x40000024
@@ -260,9 +268,7 @@ A byte on LPUART1 keeps the idle task out of Stop 2 for the window
     ${b}=                     Read Word  0x40000024
     Should Be Equal As Integers  ${a}  ${b}
     ${held}=                  Read Word  ${counts + 16}
-    ${received}=              Read Word  ${results + 44}
     Should Be True            ${held} >= 1
-    Should Be Equal As Integers  ${received}  1
     # The entry into Stop 2 is counted on waking, before the next period.
     Execute Command           emulation RunFor "0.030"
     ${after}=                 Read Word  ${counts}
@@ -271,39 +277,77 @@ A byte on LPUART1 keeps the idle task out of Stop 2 for the window
     Should Be Equal As Integers  ${late}  0
 
 Bytes on LPUART1 every 10 ms keep the idle task out of Stop 2
-    [Documentation]           SleepU5 on a platform that enters Stop 2, sent a byte every 10 ms for
-    ...                       half a second, less than the window apart: the idle task never
-    ...                       enters Stop 2 meanwhile and every byte is received in order; once
-    ...                       they stop, it enters Stop 2 again, and no period was late.
+    [Documentation]           SleepU5 on a platform that enters Stop 2, sent a wake-up byte then a
+    ...                       frame of 47 bytes, a byte every 10 ms, half a second, less than
+    ...                       the window apart: the idle task never enters Stop 2 meanwhile and
+    ...                       every byte is received in order, none dropped; once they stop,
+    ...                       it enters Stop 2 again, and no period was late.
     Load Escapement           SleepU5  escapement_u5_stop2.repl
     Execute Command           sysbus WriteDoubleWord 0x46020FFC 10
     ${counts}=                Execute Command  sysbus GetSymbolAddress "Counts"
     ${counts}=                Convert To Integer  ${counts.strip()}
     ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
     ${results}=               Convert To Integer  ${results.strip()}
+    ${frame}=                 Link Frame  0  47
     Execute Command           emulation RunFor "1.003"
     Execute Command           sysbus.lpuart1 WriteChar 0
     Execute Command           emulation RunFor "0.001"
     ${entries}=               Read Word  ${counts}
-    FOR  ${i}  IN RANGE  1  50
+    FOR  ${byte}  IN  @{frame}
         Execute Command       emulation RunFor "0.010"
-        Execute Command       sysbus.lpuart1 WriteChar ${i}
+        Execute Command       sysbus.lpuart1 WriteChar ${byte}
     END
     Execute Command           emulation RunFor "0.001"
     ${during}=                Read Word  ${counts}
     ${held}=                  Read Word  ${counts + 16}
     ${received}=              Read Word  ${results + 44}
     ${errors}=                Read Word  ${results + 48}
+    ${dropped}=               Read Word  ${results + 64}
     Log To Console            ${during} - ${entries} entries into Stop 2 during the bytes, ${held} sleeps held, ${received} bytes received
     Should Be Equal As Integers  ${during}  ${entries}
     Should Be True            ${held} >= 10
-    Should Be Equal As Integers  ${received}  50
+    Should Be Equal As Integers  ${received}  47
     Should Be Equal As Integers  ${errors}  0
+    Should Be Equal As Integers  ${dropped}  0
     Execute Command           emulation RunFor "0.5"
     ${after}=                 Read Word  ${counts}
     ${late}=                  Read Word  ${counts + 8}
     Should Be True            ${after} >= ${entries} + 8
     Should Be Equal As Integers  ${late}  0
+
+A wake-up byte that comes out wrong is dropped with the frames it spoils
+    [Documentation]           SleepU5's link at 115,200 baud: the byte that wakes the chip from
+    ...                       Stop 2 is sampled while HSI16 starts and may come out as anything
+    ...                       (Escapement_UART.c). Sent as 0x5A instead of 0x00, 50 ms into a
+    ...                       period, it ends as a frame of its own at the 0x00 that opens the
+    ...                       next, too short, and is dropped; the frame after it 5 ms later is
+    ...                       received whole, one with its CRC wrong is dropped, and the count
+    ...                       goes on in the frame after, none out of it.
+    Load Escapement           SleepU5  escapement_u5_stop2.repl
+    Execute Command           sysbus WriteDoubleWord 0x46020FFC 10
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${first}=                 Link Frame  0  10
+    ${bad}=                   Link Frame  10  10  bad_crc=True
+    ${second}=                Link Frame  10  20
+    Execute Command           emulation RunFor "1.05"
+    Execute Command           sysbus.lpuart1 WriteChar 0x5A
+    Execute Command           emulation RunFor "0.005"
+    Send On LPUART1           @{first}
+    Execute Command           emulation RunFor "0.005"
+    Send On LPUART1           @{bad}
+    Execute Command           emulation RunFor "0.005"
+    Send On LPUART1           @{second}
+    Execute Command           emulation RunFor "0.005"
+    ${received}=              Read Word  ${results + 44}
+    ${errors}=                Read Word  ${results + 48}
+    ${overruns}=              Read Word  ${results + 52}
+    ${dropped}=               Read Word  ${results + 64}
+    Log To Console            ${received} bytes received, ${errors} out of the count, ${dropped} frames dropped
+    Should Be Equal As Integers  ${received}  30
+    Should Be Equal As Integers  ${errors}  0
+    Should Be Equal As Integers  ${overruns}  0
+    Should Be Equal As Integers  ${dropped}  2
 
 The idle task sleeps across the 2^30 wrap of the kernel clock
     [Documentation]           SleepWrapU5, SleepU5 with its times a thousand times longer, on

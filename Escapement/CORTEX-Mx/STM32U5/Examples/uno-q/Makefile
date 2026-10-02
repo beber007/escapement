@@ -127,8 +127,12 @@ build/IPCU5.elf : $(COMMON) build/IPCU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/TestLPTimerU5.elf : $(COMMON) build/Escapement_LPTimer.o build/TestLPTimerU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+# SleepU5's link wakes the chip with a byte before each frame, which lets LPUART1 run at
+# 115,200 baud (SleepU5.c); the other images keep 57,600.
+build/Escapement_UARTLink.o : ../../Escapement_UART.c
+	$(CC) $(CFLAGS) -DOS_LPUART1_BAUD_RATE=115200u $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SleepU5.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2.o \
-                    build/Escapement_UART.o build/Escapement_TimerEvent.o build/SleepU5.o
+                    build/Escapement_UARTLink.o build/Escapement_TimerEvent.o build/SleepU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 # SleepU5 with its times a thousand times longer, for the wrap under Renode (SleepU5.c),
 # the margins of the idle task in Stop 2 with them.
@@ -138,7 +142,7 @@ build/SleepWrapU5.o : SleepU5.c
 build/Escapement_Stop2Wrap.o : ../../Escapement_Stop2.c
 	$(CC) $(CFLAGS) $(SCALED) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SleepWrapU5.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2Wrap.o \
-                        build/Escapement_UART.o build/Escapement_TimerEvent.o \
+                        build/Escapement_UARTLink.o build/Escapement_TimerEvent.o \
                         build/SleepWrapU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 # The idle task in Stop 2 while an event-driven task's arrival lies beyond the wrap, scaled

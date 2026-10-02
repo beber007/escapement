@@ -199,9 +199,10 @@ on the RP2040. The **STM32L4** is set aside.
    slow start from leaving the chip on the MSIS for good, testable under Renode, done on
    2026-10-02 (`stm32u5.md`, "A bound on the HSE's start") and seen on the board the same
    day; then the window W, done under Renode on 2026-10-02 (`stm32u5.md`, "The window
-   after a byte"), not yet seen on the board; then the link of `SleepU5` and
-   `tools/unoq_sleep.py`, a raw count of bytes today, framed or with the byte after each
-   wake-up dropped.
+   after a byte"); then the link of `SleepU5` and `tools/unoq_sleep.py` framed, at
+   115,200 baud, done under Renode on 2026-10-02 (`stm32u5.md`, "The wake-up byte"),
+   neither yet seen on the board. `SoakU5` and its tools stay at 57,600: moving them
+   means redeploying the U5's endurance run.
 
 ## Done
 

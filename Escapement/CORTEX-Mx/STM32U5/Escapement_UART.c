@@ -47,8 +47,10 @@
 ** 8 bytes that come while the clock of the chip is raised again, interrupts masked, up to
 ** some 900 us. The first byte is sampled while HSI16 starts, up to 3.6 us (DS13086,
 ** table 82): at 115,200 baud that is 3.8 % of the frame, past the 3.41 % the receiver
-** tolerates (RM0456, 67.4.15), hence 57,600 baud on LPUART1; USART1 stays at 115,200,
-** with its FIFO too.
+** tolerates (RM0456, 67.4.15), hence 57,600 baud on LPUART1 by default; USART1 stays at
+** 115,200, with its FIFO too. An image whose client wakes the chip with a byte of its own
+** before each message, the rest coming in the window that byte opens (Escapement_Stop2.h),
+** may take 115,200 on LPUART1 too, with OS_LPUART1_BAUD_RATE (SleepU5).
 ** Platform version: STM32U585 (Arduino UNO Q).
 */
 
@@ -129,7 +131,10 @@
 /* USART1 is clocked by PCLK2, the system clock with the APB prescaler at 1 (USART1SEL left
 ** at its reset value); LPUART1 by HSI16. */
 #define BAUD_RATE            115200u
-#define LP_BAUD_RATE         57600u
+#ifndef OS_LPUART1_BAUD_RATE
+   #define OS_LPUART1_BAUD_RATE 57600u
+#endif
+#define LP_BAUD_RATE         OS_LPUART1_BAUD_RATE
 #define HSI16_HZ             16000000u
 
 

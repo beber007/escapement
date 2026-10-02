@@ -13,11 +13,16 @@ with an error unless, at the last report:
     report stay in Sleep);
   - the longest wake-up took less than the OS_STOP2_WAKE_US allowed, 3 ms;
   - each instance's timer event came, within MAX_EVENT_OFF_US of when it was due;
-  - every byte of a count this sends, in bursts of 1 to 32 bytes 0.1 to 0.5 s apart,
+  - every byte of a count this sends, in frames of 1 to 32 bytes 0.1 to 0.5 s apart,
     came through Stop 2, none out of the count or lost to an overrun;
   - TIM2 and LPTIM1 agree within MAX_PPM over the run.
 The wake-ups the HSE missed, PLL1 then on the MSIS until the next, are shown but not
 checked: a fallback, not an error (Escapement_Processor.c), though none was ever seen.
+LPUART1 runs at 115,200 baud for SleepU5, the byte that wakes the chip sampled while its
+clock starts: each frame goes after a wake-up byte, 0x00, and WAKE_WAIT_S, in the window
+that byte opens (Escapement_Stop2.h); 0x00, the count and its CRC-16 encoded with COBS,
+0x00 (SleepU5.c). The frames SleepU5 dropped, at most one a wake-up byte that came out
+wrong, are shown; a frame of the count dropped would show as bytes missing.
 A line through the arrival of each report on CLOCK_MONOTONIC gives the rate of a second
 of the kernel's against Linux's, shown but not checked: over a minute it read from -37 to
 +543 ppm on 2026-09-27, a report some 30 ms late being enough; tools/unoq_drift.py
@@ -26,6 +31,7 @@ Run on the board, the endurance test's service stopped (tools/unoq_check.sh).
 
     tools/unoq_sleep.py SECONDS
 """
+import binascii
 import os
 import random
 import select
@@ -39,6 +45,7 @@ MAX_EVENT_OFF_US = 20
 MIN_ENTRIES = 0.8
 WAKE_TICKS = 3000 * 32768 // 1000000
 MAX_PPM = 20
+WAKE_WAIT_S = 0.005    # the wake-up's 3 ms at most (OS_STOP2_WAKE_US), well inside the window
 BRIDGE = ["arduino-router-serial.path", "arduino-router-serial", "arduino-router"]
 
 subprocess.run(["sudo", "-n", "systemctl", "stop"] + BRIDGE, capture_output=True,
@@ -47,9 +54,31 @@ fd = os.open("/dev/ttyHS1", os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
 attrs = termios.tcgetattr(fd)
 attrs[0] = attrs[1] = attrs[3] = 0                        # raw
 attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL   # no flow control
-attrs[4] = attrs[5] = termios.B57600                      # LPUART1 (Escapement_UART.c)
+attrs[4] = attrs[5] = termios.B115200                     # SleepU5's LPUART1 (Makefile)
 termios.tcsetattr(fd, termios.TCSANOW, attrs)
 termios.tcflush(fd, termios.TCIOFLUSH)
+
+
+def cobs(data):
+    """data with its 0x00 taken out: each code byte gives the distance to the next."""
+    out, block = bytearray(), bytearray()
+    for b in data:
+        if b == 0:
+            out += bytes([len(block) + 1]) + block
+            block = bytearray()
+        else:
+            block.append(b)
+            if len(block) == 254:
+                out += b"\xff" + block
+                block = bytearray()
+    return bytes(out + bytes([len(block) + 1]) + block)
+
+
+def frame(data):
+    """The count's bytes, their CRC-16 big-endian, COBS, between two 0x00."""
+    crc = binascii.crc_hqx(data, 0xFFFF).to_bytes(2, "big")
+    return b"\x00" + cobs(data + crc) + b"\x00"
+
 
 seconds = float(sys.argv[1])
 end = time.monotonic() + seconds
@@ -60,7 +89,11 @@ while time.monotonic() < end:
     if burst <= time.monotonic() < quiet:
         data = bytes((sent + i) & 0xFF for i in range(random.randint(1, 32)))
         try:
-            sent += os.write(fd, data)
+            os.write(fd, b"\x00")
+            time.sleep(WAKE_WAIT_S)
+            framed = frame(data)
+            if os.write(fd, framed) == len(framed):   # else dropped whole by SleepU5
+                sent += len(data)
         except BlockingIOError:
             pass
         burst = time.monotonic() + random.uniform(0.1, 0.5)
@@ -70,9 +103,8 @@ while time.monotonic() < end:
         while b"\n" in pending:
             line, pending = pending.split(b"\n", 1)
             words = line.split()
-            # SLEEP and 15 numbers; 14 before the sleeps the window of LPUART1 held,
-            # 13 before the wake-ups the HSE missed
-            if len(words) in (14, 15, 16) and words[0] == b"SLEEP":
+            # SLEEP and 16 numbers
+            if len(words) == 17 and words[0] == b"SLEEP":
                 try:
                     last = [int(w, 16) for w in words[1:]]
                 except ValueError:
@@ -83,8 +115,7 @@ if last is None or len(points) < 3:
     sys.exit("SleepU5: no report")
 (instances, ticks, micros, jitter, entries, wake, late, nolse, events, event_off,
  received, link_errors, overruns) = last[:13]
-hse_missed = f", the HSE missed {last[13]}" if len(last) > 13 else ""
-held = f", {last[14]} sleeps held by the link's window" if len(last) > 14 else ""
+hse_missed, held, dropped = last[13:16]
 n = len(points)
 mx = sum(p[0] for p in points) / n
 my = sum(p[1] for p in points) / n
@@ -93,9 +124,10 @@ slope = sum((p[0] - mx) * (p[1] - my) for p in points) / \
 rate = (slope * 1e6 - 1) * 1e6                  # ppm a second of the kernel's lasts longer
 ppm = (micros - ticks * 1e6 / 32768) / micros * 1e6
 print(f"SleepU5: {instances} instances, {entries} into Stop 2, gap off by {jitter} us "
-      f"at most, longest wake-up {wake} ticks{hse_missed}{held}, {late} late, {events} events off by "
+      f"at most, longest wake-up {wake} ticks, the HSE missed {hse_missed}, {held} sleeps "
+      f"held by the link's window, {late} late, {events} events off by "
       f"{event_off} us at most, {received} bytes of {sent} received, {link_errors} out "
-      f"of the count, {overruns} overruns, TIM2 {ppm:+.1f} ppm against "
+      f"of the count, {overruns} overruns, {dropped} frames dropped, TIM2 {ppm:+.1f} ppm against "
       f"LPTIM1, a second lasts {rate:+.1f} ppm against Linux's over {n} reports")
 failures = []
 if instances < (seconds - 3) * 10:

@@ -35,7 +35,7 @@ was read, not copied into the repository.
 | Clocks | `Escapement_Processor.c` | the board's 16 MHz crystal (HSE) to 160 MHz through PLL1, or the MSIS locked on the LSE, raised to its 16 MHz range, if the HSE does not start; voltage range 1 with the EPOD booster, 4 flash wait states, a first step through an AHB prescaler of 2, the instruction cache on |
 | Kernel timer | `Escapement_Timer.c` | TIM2, 32 bits, counting microseconds and wrapping at 2^30, compare channel 1 on the next arrival; the 32-bit path of the STM32 port |
 | Timer events | `Escapement_TimerEvent.c` | TIM5, 32 bits, free-running, compare channel 1 on the next event; the logic of the RP2350 port, an event already due forced through CC1G |
-| UART | `Escapement_UART.c` | USART1 on PB6 and PB7 (D1 and D0 of the connector) at 115,200 baud, with its receive FIFO; LPUART1 on PG7 and PG8 to the board's Linux (`/dev/ttyHS1`) at 57,600 baud, receiving through Stop 2, and PG6, the CTS of the Linux side, held low: left floating, it read high on 2026-09-28. The RP2350 driver without its priming, since the transmit interrupt of these UARTs reflects a state. Bytes lost to an overrun are counted |
+| UART | `Escapement_UART.c` | USART1 on PB6 and PB7 (D1 and D0 of the connector) at 115,200 baud, with its receive FIFO; LPUART1 on PG7 and PG8 to the board's Linux (`/dev/ttyHS1`) at 57,600 baud, 115,200 for `SleepU5` behind a wake-up byte, receiving through Stop 2, and PG6, the CTS of the Linux side, held low: left floating, it read high on 2026-09-28. The RP2350 driver without its priming, since the transmit interrupt of these UARTs reflects a state. Bytes lost to an overrun are counted |
 | Interrupts | `Escapement_Interrupts.c` | the 126 entries of the STM32U575/U585, all but the reserved ones routed to the kernel's dispatcher, so that an application can take any interrupt with `OSSetISRDescriptor` |
 | Low-power timer | `Escapement_LPTimer.c` | LPTIM1 on the 32.768 kHz crystal (LSE), which counts through Stop 2 |
 | Stop 2 | `Escapement_Stop2.c` | the idle task in Stop 2, woken by LPTIM1 (below) |
@@ -386,10 +386,24 @@ ticks with interrupts masked, and the bytes of a message come every 87 µs at 11
 Under Renode, on the platform that enters Stop 2, a byte sent 50 ms into a period woke the
 chip from Stop 2; TIM2 ran for the 20 ms after it, then stood still again in Stop 2 before
 the next period, none late. A byte every 10 ms for half a second kept the idle task out
-of Stop 2 throughout, all 50 bytes received in order. Without the window both tests fail;
-without the compare at its end the first does. Not yet seen on the board, and LPUART1
-still runs at 57,600 baud: the link of `SleepU5` and `tools/unoq_sleep.py` has to send
-its wake-up byte first.
+of Stop 2 throughout, all its bytes received in order. Without the window both tests
+fail; without the compare at its end the first does.
+
+### The wake-up byte
+
+`SleepU5`'s link runs at 115,200 baud since 2026-10-02 (`OS_LPUART1_BAUD_RATE`, set by
+the UNO Q's Makefile for it alone; `SoakU5` and its tools stay at 57,600). Before each
+message `tools/unoq_sleep.py` sends a wake-up byte, 0x00, waits 5 ms, more than the 3 ms a
+wake-up is allowed (`OS_STOP2_WAKE_US`), then the message as a frame: 0x00, the bytes and
+their CRC-16 (CCITT, from 0xFFFF) encoded with COBS, 0x00. Sampled while HSI16 starts,
+the wake-up byte may come out as anything: 0x00, it is an empty frame, ignored; any
+other value, it ends at the 0x00 that opens the message as a frame too short, dropped and
+counted in word 16 of `SleepU5`'s results. A frame of the message dropped would show as
+bytes missing from the count.
+
+Under Renode, a wake-up byte sent as 0x5A into Stop 2 was dropped, the frame 5 ms after it
+received whole, a frame with its CRC off by one dropped, and the count went on in the
+next, none out of it. Accepting any CRC fails that test. Not yet seen on the board.
 
 ### Three hours
 

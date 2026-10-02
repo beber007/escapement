@@ -20,10 +20,19 @@
 ** its digital input on D13 telling the phases apart in the one record.
 **
 ** Every ten instances a line of text goes to Linux on LPUART1: "SLEEP" and, in
-** hexadecimal, the words 1 to 15 of Results. Linux may send back a count, one byte after
+** hexadecimal, the words 1 to 16 of Results. Linux may send back a count, one byte after
 ** the other modulo 256, which LPUART1 receives through Stop 2 (Escapement_UART.c) and the
 ** handler checks. The idle task stays in Sleep for the few milliseconds of a line's
 ** sending, and for the window that follows each byte received (Escapement_Stop2.h).
+**
+** LPUART1 runs at 115,200 baud in the UNO Q's build (Makefile; 57,600 on the NUCLEO, where
+** nothing sends), the byte that wakes the chip sampled while HSI16 starts, which may make
+** it anything (Escapement_UART.c). Linux therefore sends a
+** wake-up byte, 0x00, waits some 5 ms for the chip's clock, then its count in a frame:
+** 0x00, the bytes of the count and a CRC-16 encoded with COBS, 0x00 (docs/roadmap.md,
+** item 6). Whatever the wake-up byte became ends in an empty frame, ignored, or in an
+** invalid one, dropped and counted: a frame of the count dropped would show as bytes
+** missing from it.
 **
 ** Results, in words: 0 marker, 1 instances measured, 2 ticks of LPTIM1 summed, 3 us of
 ** TIM2 summed, 4 largest gap between two starts off the period, in us, 5 entries into
@@ -31,7 +40,8 @@
 ** could not be set up (no LSE), 9 timer events come, 10 largest gap between the time an
 ** event was due and the time it came, in us, early or late, 11 bytes received from Linux,
 ** 12 bytes out of the count, 13 bytes lost to an overrun, 14 wake-ups the HSE missed,
-** PLL1 then on the MSIS until the next, 15 sleeps held in Sleep by the window of LPUART1.
+** PLL1 then on the MSIS until the next, 15 sleeps held in Sleep by the window of LPUART1,
+** 16 frames dropped, too short, too long or their CRC wrong.
 ** Platform version: STM32U585 (Arduino UNO Q).
 */
 
@@ -53,20 +63,25 @@
 #define PERIOD      (100000 * TIME_SCALE)  /* us */
 #define WORK        4000                 /* loop turns, some 100 us at 160 MHz */
 #define EVENT_DELAY (40000 * TIME_SCALE)   /* us */
-#define REPORT_SIZE 141                /* SLEEP and 15 numbers of 8 digits at most, spaced */
+#define REPORT_SIZE 150                /* SLEEP and 16 numbers of 8 digits at most, spaced */
+#define FRAME_SIZE  64                 /* a frame as received, before decoding */
 
 volatile struct {
   UINT32 Marker, Instances, Ticks, Micros, JitterMax, Entries, WakeMaxTicks, Late, NoLSE;
   UINT32 Events, EventOffMax, LinkBytes, LinkErrors, LinkOverruns, HSEMissed, LinkHeld;
+  UINT32 LinkDropped;
 } Results;
 
 static UINT8 LinkNext;                   // the byte of the count expected next
+static UINT8 Frame[FRAME_SIZE];          // the frame being received, then decoded in place
+static UINT32 FrameLength;               // bytes received since the last 0x00
 
 static INT32 EventDue;                   // TIM2's time the event is due at
 
 static void SleepTask(void *argument);
 static void EventTask(void *argument);
 static void LinkReceive(UINT8 byte);
+static void LinkFrame(void);
 static void Report(void);
 
 
@@ -166,15 +181,69 @@ static void EventTask(void *argument)
 } /* end of EventTask */
 
 
-/* LinkReceive: A byte from Linux, from the interrupt of LPUART1: the one after the last,
-** or an error, the count then taken up from it. */
+/* LinkReceive: A byte from Linux, from the interrupt of LPUART1: one more of the frame,
+** or the 0x00 that ends it. A frame longer than the buffer is kept counting, to be
+** dropped at its end. */
 static void LinkReceive(UINT8 byte)
 {
-  if (Results.LinkBytes > 0 && byte != LinkNext)
-     Results.LinkErrors += 1;
-  LinkNext = (UINT8)(byte + 1);
-  Results.LinkBytes += 1;
+  if (byte != 0) {
+     if (FrameLength < FRAME_SIZE)
+        Frame[FrameLength] = byte;
+     FrameLength += 1;
+  }
+  else if (FrameLength > 0) {
+     LinkFrame();
+     FrameLength = 0;
+  }
 } /* end of LinkReceive */
+
+
+/* LinkFrame: Decodes the frame received, COBS: each code byte gives the distance to the
+** next 0x00 the encoding took out, none after a code of 0xFF or at the end. The bytes of
+** a frame whose CRC-16 (CCITT, 0x1021 from 0xFFFF, as Python's binascii.crc_hqx) holds
+** are each to be the one after the last, else an error, the count then taken up from
+** it. */
+static void LinkFrame(void)
+{
+  UINT32 in = 0, out = 0, code, k;
+  UINT16 crc = 0xFFFF;
+  if (FrameLength > FRAME_SIZE) {
+     Results.LinkDropped += 1;
+     return;
+  }
+  while (in < FrameLength) {
+     code = Frame[in++];
+     for (k = 1; k < code; k += 1) {
+        if (in == FrameLength) {
+           Results.LinkDropped += 1;     // a code pointing past the end
+           return;
+        }
+        Frame[out++] = Frame[in++];
+     }
+     if (code < 0xFF && in < FrameLength)
+        Frame[out++] = 0;
+  }
+  if (out < 3) {                         // a byte of the count and the CRC at least
+     Results.LinkDropped += 1;
+     return;
+  }
+  for (k = 0; k < out; k += 1) {
+     UINT32 bit;
+     crc ^= (UINT16)(Frame[k] << 8);
+     for (bit = 0; bit < 8; bit += 1)
+        crc = crc & 0x8000 ? (UINT16)(crc << 1 ^ 0x1021) : (UINT16)(crc << 1);
+  }
+  if (crc != 0) {                        // the CRC over the data and itself, big-endian
+     Results.LinkDropped += 1;
+     return;
+  }
+  for (k = 0; k < out - 2; k += 1) {
+     if (Results.LinkBytes > 0 && Frame[k] != LinkNext)
+        Results.LinkErrors += 1;
+     LinkNext = (UINT8)(Frame[k] + 1);
+     Results.LinkBytes += 1;
+  }
+} /* end of LinkFrame */
 
 
 /* PutHex: A number in hexadecimal, without leading zeros, and a space after it. */
@@ -190,7 +259,7 @@ static UINT8 *PutHex(UINT8 *p, UINT32 value)
 } /* end of PutHex */
 
 
-/* Report: Words 1 to 15 of Results as a line of text to Linux; none if the line before is
+/* Report: Words 1 to 16 of Results as a line of text to Linux; none if the line before is
 ** still being sent. */
 static void Report(void)
 {
@@ -214,6 +283,7 @@ static void Report(void)
   p = PutHex(p,Results.LinkOverruns);
   p = PutHex(p,Results.HSEMissed);
   p = PutHex(p,Results.LinkHeld);
+  p = PutHex(p,Results.LinkDropped);
   p[-1] = '\n';
   OSEnqueueUART(line,(UINT8)(p - line),OS_IO_LPUART1);
 } /* end of Report */
