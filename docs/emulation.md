@@ -97,7 +97,9 @@ Antmicro) with two fixes: a test on the value written guards the `UG` callback, 
 is nothing to rebuild. The F4's platform was derived from Renode's to change the type of
 TIM2 and TIM14. The STM32U5's platform, our own, uses the copy for TIM2, TIM3 and TIM5.
 Both fixes stay in this copy, which the CI loads, so no test waits for a Renode release
-that carries them. Proposing them upstream, once planned, was dropped on 2026-09-24.
+that carries them. Proposing them upstream, dropped on 2026-09-24, was taken up again on
+2026-10-02, the defects still in Renode's `master` and reproduced on 1.17.0 by the
+sequence above: renode/renode#1023.
 
 QEMU was tried first (`-machine netduinoplus2`). The kernel started, but its timer never
 woke it, and it took two exceptions in 60 seconds.

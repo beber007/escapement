@@ -314,9 +314,11 @@ on the RP2040. The **STM32L4** is set aside.
 - **A user guide**, `api.md`, written from the headers and checked against the code where
   they disagree. For instance, on Cortex-M the kernel does not mask the source of an
   interrupt, as the headers say of the original port.
-- **Dropped (2026-09-24): proposing the two fixes to Renode's STM32 timer upstream.** The
-  fixed copy lives in `emulation/renode`, where the CI loads it, now for the U5 platform,
-  so nothing waits on it. The older STM32 port was kept at the time because, until the
+- **Reported upstream (2026-10-02): the two defects of Renode's STM32 timer**, as
+  renode/renode#1023, with the reproducer of `emulation.md`; dropped on 2026-09-24, taken
+  up again once the defects were found still in Renode's `master`. The fixed copy lives in
+  `emulation/renode`, where the CI loads it, now for the U5 platform, so nothing waits on
+  the issue. The older STM32 port was kept at the time because, until the
   RP2350 port, it was the only one to run `LDREX`, `STREX` and `CLREX`.
 
 ## The MSP430 port was removed
