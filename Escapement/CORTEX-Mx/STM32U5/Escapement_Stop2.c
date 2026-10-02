@@ -19,6 +19,12 @@
 ** from the reading of TIM2 to its start again: one that comes meanwhile wakes the chip and
 ** is taken after, late by the start of the HSE should it have come during Stop 2.
 **
+** A byte received on LPUART1, or a wake-up from Stop 2 that LPTIM1 did not cause, keeps
+** the idle task in Sleep for OS_STOP2_LINK_WINDOW_US after it, so that the bytes that
+** follow are sampled on a running HSI16, at 115,200 baud: the first byte of a silence only
+** wakes the chip (docs/roadmap.md, item 6). The window is counted on LPTIM1, whose compare
+** wakes the chip at its end if nothing else does, for Stop 2 to resume then.
+**
 ** LPTIM1 wakes the chip from Stop 2 with its clock enabled in Run, in Sleep and Stop (the
 ** reset value of RCC_APB3SMENR) and in autonomous mode (RCC_SRDAMR), and its interrupt
 ** enabled in the NVIC (RM0456, 10.7.8 and 11.4.24): enabled only across the WFI, since it
@@ -68,10 +74,23 @@
 /* The longest sleep, in ticks, short of the 2^16 of the counter of LPTIM1: 1.83 s. */
 #define MAX_TICKS            60000u
 
+/* The window in ticks of LPTIM1, under half its counter to tell a window open from one
+** long closed; and the ticks it must still have to be armed: the compare is written into
+** the clock domain of LPTIM1 in some two ticks (OSSetLPTimerCompare), and one written past
+** its count would never match. A window nearer its end is taken as closed. */
+#define WINDOW_TICKS         ((UINT32)OS_STOP2_LINK_WINDOW_US * 512u / 15625u)
+#define WINDOW_MIN_TICKS     4u
+#if OS_STOP2_LINK_WINDOW_US > 900000
+   #error "OS_STOP2_LINK_WINDOW_US: LPTIM1 counts 2 s at most"
+#endif
+
 
 static OS_STOP2_COUNTS Counts;
 static volatile BOOL Allowed = TRUE;
 static UINT32 Fraction;                    // of a microsecond, in 512ths, carried over
+static BOOL WindowOpen;                    // the window of LPUART1, and its end on LPTIM1
+static UINT16 WindowEnd;
+static BOOL WindowArmed;                   // the compare of LPTIM1 set at WindowEnd
 
 static void Stop2Idle(void);
 
@@ -82,6 +101,11 @@ static void Stop2Idle(void);
 __attribute__((weak)) BOOL _OSUARTIdle(void)
 {
   return TRUE;
+}
+
+__attribute__((weak)) BOOL _OSUARTReceived(void)
+{
+  return FALSE;
 }
 
 __attribute__((weak)) BOOL _OSTimerEventNext(UINT32 *delay)
@@ -142,13 +166,64 @@ static UINT16 NextTick(void)
 } /* end of NextTick */
 
 
+/* OpenWindow: The window of LPUART1 from now on. A compare already armed for an earlier
+** end stays: it ends that sleep, and the next arms the new end. */
+static void OpenWindow(void)
+{
+  WindowOpen = TRUE;
+  WindowEnd = (UINT16)(OSGetLPTimer() + WINDOW_TICKS);
+} /* end of OpenWindow */
+
+
+/* WindowHolds: TRUE while the window of LPUART1 is open, its end not passed as long as
+** the ticks left are fewer than the window. The idle task kept from running for 2 s, the
+** counter of LPTIM1 gone round, may take a closed window for open: a Sleep for nothing,
+** no more. Closed, the compare is free for Stop 2, which sets its own. */
+static BOOL WindowHolds(void)
+{
+  UINT16 left;
+  if (_OSUARTReceived())
+     OpenWindow();
+  if (WindowOpen) {
+     left = (UINT16)(WindowEnd - OSGetLPTimer());
+     if (left < WINDOW_MIN_TICKS || left > WINDOW_TICKS) {
+        WindowOpen = FALSE;
+        WindowArmed = FALSE;
+     }
+  }
+  return WindowOpen;
+} /* end of WindowHolds */
+
+
+/* WindowSleep: One sleep in Sleep while the window holds, Stop 2 otherwise due: LPTIM1
+** ends it at the window's end, armed once a window, since its write waits some two ticks,
+** interrupts masked, and the bytes of a message come every 87 us at 115,200 baud. */
+static void WindowSleep(void)
+{
+  if (!WindowArmed) {
+     OSSetLPTimerCompare(WindowEnd);
+     WindowArmed = TRUE;
+  }
+  NVIC_ICPR(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
+  NVIC_ISER(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
+  __asm volatile ("DSB\n\tWFI\n\tISB" ::: "memory");
+  NVIC_ICER(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
+  if (OSLPTimerCompared())
+     WindowArmed = FALSE;                // ended, or a window opened since: armed anew
+  NVIC_ICPR(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
+  Counts.LinkHeld += 1;
+} /* end of WindowSleep */
+
+
 /* Stop2Idle: One sleep of the idle task, in Stop 2 if the next event is far enough off and
 ** nothing would be lost, in Sleep otherwise. */
 static void Stop2Idle(void)
 {
   UINT32 now, target, compare, limit, ticks, micros, event, hsi;
   UINT16 start, wake, end;
+  BOOL holds, woken;
   _OSDisableInterrupts();
+  holds = WindowHolds();
   now = TIM_CNT;
   compare = TIM_CCR1;                      // 0 when disarmed (Escapement_Timer.c)
   /* The kernel arms the compare with an event-driven task's arrival even beyond the wrap,
@@ -161,6 +236,11 @@ static void Stop2Idle(void)
      target = now + event;               // the kernel's time of the event, near enough
   if (!Allowed || target - now < OS_STOP2_MIN_US || !_OSUARTIdle()) {
      __asm volatile ("WFI" ::: "memory");
+     _OSEnableInterrupts();
+     return;
+  }
+  if (holds) {
+     WindowSleep();
      _OSEnableInterrupts();
      return;
   }
@@ -186,7 +266,7 @@ static void Stop2Idle(void)
   __asm volatile ("DSB\n\tWFI\n\tISB" ::: "memory");
   SCB_SCR &= ~SCB_SCR_SLEEPDEEP;
   NVIC_ICER(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
-  (void)OSLPTimerCompared();
+  woken = !OSLPTimerCompared();
   NVIC_ICPR(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
   /* An interrupt already pending leaves the WFI at once, the chip still on PLL1. */
   if (PWR_SR & PWR_SR_STOPF) {
@@ -194,6 +274,8 @@ static void Stop2Idle(void)
      if (_OSRaiseSystemClock(OSGetLPTimer))
         Counts.HSEMissed += 1;           // PLL1 on the MSIS until the next wake-up
      RCC_CR |= hsi;                      // HSI16 back for LPUART1 (Escapement_UART.c)
+     if (woken)
+        OpenWindow();                    // LPUART1 woke it, its byte read or not
      end = NextTick();
      Counts.Entries += 1;
      if ((UINT16)(end - wake) > Counts.WakeMaxTicks)

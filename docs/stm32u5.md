@@ -340,7 +340,9 @@ Under Renode, on a platform that enters Stop 2 (`escapement_u5_stop2.repl`), eve
 wake-up of `SleepU5` took PLL1 back to the HSE when it started within the bound, and,
 when it never started, every one went on the MSIS in 70 ticks at most, none late of the
 98 allowed, and the first wake-up after the HSE started again took it. The old wait fails
-that test. On the board no wake-up has missed the HSE yet: the count is new.
+that test. On the board, in the check of 3faaf23 on 2026-10-02, `SleepU5` entered Stop 2
+2,239 times in 60 s; the longest wake-up took 19 ticks, the HSE missed none, and all
+3,085 bytes sent from Linux were received.
 
 ### Loading an image while the core sleeps
 
@@ -368,6 +370,26 @@ On the board the same day, `SleepU5` received over 60 s all 2,761 bytes that
 `tools/unoq_sleep.py` sent in bursts of 1 to 32. None was out of the count and there was
 no overrun, with 2,444 entries into Stop 2. `SoakU5` at 57,600 baud ran 2 min without
 error, its link included.
+
+### The window after a byte
+
+Since 2026-10-02 a byte received on LPUART1, or a wake-up from Stop 2 that LPTIM1 did not
+cause, keeps the idle task in Sleep for `OS_STOP2_LINK_WINDOW_US` after it, 20 ms by
+default (`Escapement_Stop2.c`). It is the second step of the wake-up byte
+([`roadmap.md`](roadmap.md), item 6): the bytes that follow the first come while HSI16
+runs, so that they could be sampled at 115,200 baud. The window is counted on LPTIM1,
+whose compare ends it if nothing else wakes the chip, so that Stop 2 resumes then rather
+than at the next event. The compare is written once a window: its write waits some two
+ticks with interrupts masked, and the bytes of a message come every 87 µs at 115,200 baud.
+`SleepU5` counts the sleeps the window held in word 15 of its results.
+
+Under Renode, on the platform that enters Stop 2, a byte sent 50 ms into a period woke the
+chip from Stop 2; TIM2 ran for the 20 ms after it, then stood still again in Stop 2 before
+the next period, none late. A byte every 10 ms for half a second kept the idle task out
+of Stop 2 throughout, all 50 bytes received in order. Without the window both tests fail;
+without the compare at its end the first does. Not yet seen on the board, and LPUART1
+still runs at 57,600 baud: the link of `SleepU5` and `tools/unoq_sleep.py` has to send
+its wake-up byte first.
 
 ### Three hours
 

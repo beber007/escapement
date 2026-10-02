@@ -70,8 +70,9 @@ while time.monotonic() < end:
         while b"\n" in pending:
             line, pending = pending.split(b"\n", 1)
             words = line.split()
-            # SLEEP and 14 numbers; 13 before the wake-ups the HSE missed
-            if len(words) in (14, 15) and words[0] == b"SLEEP":
+            # SLEEP and 15 numbers; 14 before the sleeps the window of LPUART1 held,
+            # 13 before the wake-ups the HSE missed
+            if len(words) in (14, 15, 16) and words[0] == b"SLEEP":
                 try:
                     last = [int(w, 16) for w in words[1:]]
                 except ValueError:
@@ -83,6 +84,7 @@ if last is None or len(points) < 3:
 (instances, ticks, micros, jitter, entries, wake, late, nolse, events, event_off,
  received, link_errors, overruns) = last[:13]
 hse_missed = f", the HSE missed {last[13]}" if len(last) > 13 else ""
+held = f", {last[14]} sleeps held by the link's window" if len(last) > 14 else ""
 n = len(points)
 mx = sum(p[0] for p in points) / n
 my = sum(p[1] for p in points) / n
@@ -91,7 +93,7 @@ slope = sum((p[0] - mx) * (p[1] - my) for p in points) / \
 rate = (slope * 1e6 - 1) * 1e6                  # ppm a second of the kernel's lasts longer
 ppm = (micros - ticks * 1e6 / 32768) / micros * 1e6
 print(f"SleepU5: {instances} instances, {entries} into Stop 2, gap off by {jitter} us "
-      f"at most, longest wake-up {wake} ticks{hse_missed}, {late} late, {events} events off by "
+      f"at most, longest wake-up {wake} ticks{hse_missed}{held}, {late} late, {events} events off by "
       f"{event_off} us at most, {received} bytes of {sent} received, {link_errors} out "
       f"of the count, {overruns} overruns, TIM2 {ppm:+.1f} ppm against "
       f"LPTIM1, a second lasts {rate:+.1f} ppm against Linux's over {n} reports")

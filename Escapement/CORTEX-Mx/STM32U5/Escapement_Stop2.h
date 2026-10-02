@@ -21,11 +21,21 @@
    #define OS_STOP2_MIN_US  5000u
 #endif
 
+/* The window after a byte received on LPUART1, or a wake-up it caused, during which the
+** idle task stays in Sleep, so that a client may wake the chip with one byte and send its
+** message at 115,200 baud once the clock is up (docs/roadmap.md, item 6). It covers the
+** wake-up, the jitter of a Linux process and the gaps in a message. In microseconds,
+** counted on LPTIM1: SleepWrapU5 leaves it unscaled, which LPTIM1's 16 bits would not
+** hold. */
+#ifndef OS_STOP2_LINK_WINDOW_US
+   #define OS_STOP2_LINK_WINDOW_US 20000u
+#endif
+
 /* OSInitStop2: Starts LPTIM1 and lets the idle task enter Stop 2. To be called from main,
 ** after OSInitializeSystemClocks and before OSStartMultitasking; returns FALSE, the idle
 ** task left in Sleep, if the LSE does not run. The idle task enters Stop 2 only when no
 ** UART sends and USART1 does not receive (Escapement_UART.c), LPUART1 receiving through
-** it, and wakes before the next timer event (Escapement_TimerEvent.c) as before the next
+** it, the window above passed, and wakes before the next timer event (Escapement_TimerEvent.c) as before the next
 ** arrival; any other clock the application uses stops with it. */
 BOOL OSInitStop2(void);
 
@@ -37,12 +47,14 @@ void OSAllowStop2(BOOL allowed);
 /* The counts of the idle task, for the examples: the times it entered Stop 2, the largest
 ** wake-up it took, in ticks of LPTIM1, the times it woke past the next event, whose
 ** kernel time it then set just before it, and the wake-ups the HSE missed, PLL1 then on
-** the MSIS, some 100 ppm off, until the next (Escapement_Processor.c). */
+** the MSIS, some 100 ppm off, until the next (Escapement_Processor.c), and the sleeps
+** held in Sleep by the window of LPUART1 when Stop 2 was otherwise due. */
 typedef struct OS_STOP2_COUNTS {
   UINT32 Entries;
   UINT32 WakeMaxTicks;
   UINT32 Late;
   UINT32 HSEMissed;
+  UINT32 LinkHeld;
 } OS_STOP2_COUNTS;
 
 void OSGetStop2Counts(OS_STOP2_COUNTS *counts);

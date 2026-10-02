@@ -197,9 +197,11 @@ on the RP2040. The **STM32L4** is set aside.
    This keeps 115,200 baud, 20 µA in Stop 2, the UART waking the chip in some 5 ms, and
    relies on no flow control. The order: the cap on the HSE first, which also keeps one
    slow start from leaving the chip on the MSIS for good, testable under Renode, done on
-   2026-10-02 (`stm32u5.md`, "A bound on the HSE's start"), not yet seen on the board;
-   then the window W; then the link of `SleepU5` and `tools/unoq_sleep.py`, a raw count
-   of bytes today, framed or with the byte after each wake-up dropped.
+   2026-10-02 (`stm32u5.md`, "A bound on the HSE's start") and seen on the board the same
+   day; then the window W, done under Renode on 2026-10-02 (`stm32u5.md`, "The window
+   after a byte"), not yet seen on the board; then the link of `SleepU5` and
+   `tools/unoq_sleep.py`, a raw count of bytes today, framed or with the byte after each
+   wake-up dropped.
 
 ## Done
 

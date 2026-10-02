@@ -146,6 +146,10 @@ typedef struct UART_INTERRUPT_DESCRIPTOR { // Interrupt handler opaque descripto
 
 #define REG(des,off) *((volatile UINT32 *)((des)->Base + (off)))
 
+/* A byte came on LPUART1 since _OSUARTReceived last asked: set by the interrupt, read and
+** cleared by the idle task, interrupts masked. */
+static volatile BOOL LinkReceived;
+
 static void InterruptHandler(UART_INTERRUPT_DESCRIPTOR *descriptor);
 static void Transmit(UART_INTERRUPT_DESCRIPTOR *descriptor);
 static void TakeNextBuffer(UART_INTERRUPT_DESCRIPTOR *descriptor);
@@ -270,6 +274,17 @@ BOOL _OSUARTIdle(void)
 } /* end of _OSUARTIdle */
 
 
+/* _OSUARTReceived: TRUE once LPUART1 has received a byte since the last call, for the
+** idle task to stay out of Stop 2 a while after it (Escapement_Stop2.c). Called with
+** interrupts masked. */
+BOOL _OSUARTReceived(void)
+{
+  BOOL received = LinkReceived;
+  LinkReceived = FALSE;
+  return received;
+} /* end of _OSUARTReceived */
+
+
 /* OSGetFreeNodeUART: Returns a free buffer to be filled by the application. */
 void *OSGetFreeNodeUART(UINT8 interruptIndex)
 {
@@ -347,6 +362,8 @@ static void InterruptHandler(UART_INTERRUPT_DESCRIPTOR *des)
   UINT32 status = REG(des,USART_ISR);
   while (status & ISR_RXNE) {
      UINT8 data = (UINT8)REG(des,USART_RDR);
+     if (des->Base == LPUART1_BASE)
+        LinkReceived = TRUE;
      if (des->UserReceiveInterruptHandler != NULL)
         des->UserReceiveInterruptHandler(data);
      if ((REG(des,USART_CR1) & CR1_FIFOEN) == 0)

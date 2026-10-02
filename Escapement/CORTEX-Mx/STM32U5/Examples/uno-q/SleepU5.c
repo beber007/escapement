@@ -20,10 +20,10 @@
 ** its digital input on D13 telling the phases apart in the one record.
 **
 ** Every ten instances a line of text goes to Linux on LPUART1: "SLEEP" and, in
-** hexadecimal, the words 1 to 14 of Results. Linux may send back a count, one byte after
+** hexadecimal, the words 1 to 15 of Results. Linux may send back a count, one byte after
 ** the other modulo 256, which LPUART1 receives through Stop 2 (Escapement_UART.c) and the
 ** handler checks. The idle task stays in Sleep for the few milliseconds of a line's
-** sending.
+** sending, and for the window that follows each byte received (Escapement_Stop2.h).
 **
 ** Results, in words: 0 marker, 1 instances measured, 2 ticks of LPTIM1 summed, 3 us of
 ** TIM2 summed, 4 largest gap between two starts off the period, in us, 5 entries into
@@ -31,7 +31,7 @@
 ** could not be set up (no LSE), 9 timer events come, 10 largest gap between the time an
 ** event was due and the time it came, in us, early or late, 11 bytes received from Linux,
 ** 12 bytes out of the count, 13 bytes lost to an overrun, 14 wake-ups the HSE missed,
-** PLL1 then on the MSIS until the next.
+** PLL1 then on the MSIS until the next, 15 sleeps held in Sleep by the window of LPUART1.
 ** Platform version: STM32U585 (Arduino UNO Q).
 */
 
@@ -53,11 +53,11 @@
 #define PERIOD      (100000 * TIME_SCALE)  /* us */
 #define WORK        4000                 /* loop turns, some 100 us at 160 MHz */
 #define EVENT_DELAY (40000 * TIME_SCALE)   /* us */
-#define REPORT_SIZE 132                /* SLEEP and 14 numbers of 8 digits at most, spaced */
+#define REPORT_SIZE 141                /* SLEEP and 15 numbers of 8 digits at most, spaced */
 
 volatile struct {
   UINT32 Marker, Instances, Ticks, Micros, JitterMax, Entries, WakeMaxTicks, Late, NoLSE;
-  UINT32 Events, EventOffMax, LinkBytes, LinkErrors, LinkOverruns, HSEMissed;
+  UINT32 Events, EventOffMax, LinkBytes, LinkErrors, LinkOverruns, HSEMissed, LinkHeld;
 } Results;
 
 static UINT8 LinkNext;                   // the byte of the count expected next
@@ -122,6 +122,7 @@ static void SleepTask(void *argument)
         Results.WakeMaxTicks = counts.WakeMaxTicks;
         Results.Late = counts.Late;
         Results.HSEMissed = counts.HSEMissed;
+        Results.LinkHeld = counts.LinkHeld;
         Results.LinkOverruns = OSGetUARTOverruns(OS_IO_LPUART1);
         Report();
      }
@@ -189,7 +190,7 @@ static UINT8 *PutHex(UINT8 *p, UINT32 value)
 } /* end of PutHex */
 
 
-/* Report: Words 1 to 14 of Results as a line of text to Linux; none if the line before is
+/* Report: Words 1 to 15 of Results as a line of text to Linux; none if the line before is
 ** still being sent. */
 static void Report(void)
 {
@@ -212,6 +213,7 @@ static void Report(void)
   p = PutHex(p,Results.LinkErrors);
   p = PutHex(p,Results.LinkOverruns);
   p = PutHex(p,Results.HSEMissed);
+  p = PutHex(p,Results.LinkHeld);
   p[-1] = '\n';
   OSEnqueueUART(line,(UINT8)(p - line),OS_IO_LPUART1);
 } /* end of Report */
