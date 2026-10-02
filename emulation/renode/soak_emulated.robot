@@ -6,7 +6,9 @@
 # by side, each with its own build and seed (tools/soak_emulated.sh); the seed sets the
 # time the Filler works and the delay of the timer events (SoakPico.c). Core 1 cannot be
 # launched under the models, so the part between the cores is left out, as in
-# escapement_pico.robot.
+# escapement_pico.robot; its list of dirty addresses is emptied after every interval,
+# which Renode would otherwise let grow until it ran out of memory
+# (drop_halted_core_dirty.py).
 #
 #   renode-test --variable SEED:7 --variable INTERVAL:60 --variable READINGS:1440 \
 #       emulation/renode/soak_emulated.robot
@@ -56,6 +58,7 @@ SoakPico runs without error
     ${seconds_before}=        Set Variable  0
     FOR  ${reading}  IN RANGE  1  ${READINGS} + 1
         Execute Command       emulation RunFor "${INTERVAL}"
+        Execute Command       include @${CURDIR}/drop_halted_core_dirty.py
         ${marker}=            Read Counter  ${results}
         ${seconds}=           Read Counter  ${results + 4}
         ${wraps}=             Read Counter  ${results + 8}

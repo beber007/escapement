@@ -280,6 +280,15 @@ delay of the timer events (`soak_emulated.robot`). The models run close to real 
 scheduling was seen to hang there on 2026-09-25, once an interrupt had joined the
 firmware (`method.md`).
 
+The first run meant to last a day, four instances started on 2026-10-01, ended after
+41 min to 1 h 47 min of virtual time with every count of the firmware at 0 errors:
+Renode stopped on "Array dimensions exceeded" in `Machine.AppendDirtyAddresses`, and
+the machine's memory was gone. Renode 1.16.1 adds each address a core writes to a list
+kept for every other core, which takes it when it runs, to flush the code it translated
+from there. Core 1, left halted, never took its own: after 5 s of virtual time it held
+some 2 million addresses, core 0's a few dozen. The robot empties it after every interval
+(`drop_halted_core_dirty.py`).
+
 ## A platform of our own for the STM32U5
 
 Renode models no STM32U5 either (checked 2026-09-25: no platform in 1.17.0, nor in the
