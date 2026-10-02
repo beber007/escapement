@@ -45,8 +45,9 @@ on the RP2040. The **STM32L4** is set aside.
    00adc77, on one byte its USART1 lost to an overrun, every count of the kernel at 0; it
    ran again at 73a6d83, the USART's FIFO enabled, 27 h 58 min across 93 wraps with no
    error and no overrun, then was moved on 2026-09-30 at 20:46 UTC to 7d069ea, whose PLL1
-   takes the MSIS of range 2: 10 h 45 min across 36 wraps on 2026-10-01 at 07:30 UTC, no
-   error and no overrun. Instances under Renode, each with its own build and seed, are
+   takes the MSIS of range 2 without an HSE: 10 h 45 min across 36 wraps on 2026-10-01 at
+   07:30 UTC, no error and no overrun. That board has its HSE, found on 2026-10-02, so the
+   run did not go through the MSIS. Instances under Renode, each with its own build and seed, are
    not started.
 
 1. **The energy verdict on the RP2040.** Build the bench of `power-aware.md`: a plain Pico
@@ -115,7 +116,8 @@ on the RP2040. The **STM32L4** is set aside.
    `make SMPS=1`, on its SMPS (bf447b8). The board is on the bench since 2026-09-28,
    running the endurance test (item 0). `SleepU5` ran on it on 2026-10-02, once the port
    cleared DBG_STANDBY too, which Debian's OpenOCD sets (`stm32u5.md`, "SleepU5 on the
-   NUCLEO-U575ZI-Q"); its longest wake-up, some 60 ticks of LPTIM1, is still to explain.
+   NUCLEO-U575ZI-Q"); its longest wake-up, some 60 ticks of LPTIM1, is its HSE starting
+   in some 1.8 ms, the board having one after all.
    Then the margin of the wake-up, 3 ms, where the longest wake-up measured is 885 µs:
    the Sleep it leaves after waking may cost more than Stop 2 saves, which the PPK2 will
    price.

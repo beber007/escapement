@@ -234,11 +234,11 @@ to 16 MHz and before each Stop 2, and taken off in range 1. This commit read the
 bound during the lock and missed the SRAM; an independent review found both the same
 day. The system clock itself may run a few % above its 160 MHz until the MSI is locked,
 as it could with range 4. `escapement_u5.robot` checks the registers on a platform without
-the HSE (`escapement_u5_nohse.repl`); the NUCLEO-U575ZI-Q, the one board without it, runs
-its endurance test on the change since 2026-09-30 at 20:46 UTC (7d069ea), 10 h 45 min
-without an error on 2026-10-01. `SoakU5` does not enter Stop 2, so this checks the MSIS of
-range 2 and the wait states at start, not the wake-up without the HSE, which `SleepU5`
-would on that board; it has not run there.
+the HSE (`escapement_u5_nohse.repl`). The NUCLEO-U575ZI-Q was taken for a board without
+it, and its endurance runs since 2026-09-30 (7d069ea) for a check of this path on the
+board. On 2026-10-02 its RCC read the HSE ready and PLL1 on it, M = 4: its crystal X3 is
+fitted (UM2861, 6.7, leaves it to the variant). Those runs checked the HSE, and the MSIS
+of range 2 has run under Renode only, on no board.
 
 Since 2026-09-28 the board check times the U5 against `CLOCK_MONOTONIC_RAW`, the crystal
 of the board's Qualcomm processor as it is, which NTP does not pull (`tools/unoq_drift.py`).
@@ -464,9 +464,10 @@ period in both. D13 itself has not yet been observed.
 The absolute currents are for a NUCLEO-U575ZI-Q, whose board has a jumper for the MCU's
 current, JP5 (UM2861, 6.4.5). `Examples/nucleo-u575` builds `SleepU5` for it from the
 same sources. Its outputs are on pins that drive no LED, since the LEDs sit on the rail
-that jumper measures. The board ships without an HSE fitted (UM2861, 6.7). The port
-falls back to the MSIS locked on the LSE, and now gives the HSE up after one failed
-start instead of waiting for it at every wake-up from Stop 2. The board's STM32U575ZIT6Q
+that jumper measures. This one has its HSE crystal, X3, fitted, which this page denied
+until 2026-10-02 on a reading of UM2861 (6.7), that leaves it to the variant: its RCC
+read the HSE ready and PLL1 on it. A board without it would have the port fall back to
+the MSIS locked on the LSE, the HSE given up after one failed start. The board's STM32U575ZIT6Q
 has the SMPS that the UNO Q's U585 lacks: 8.2 against 20.5 µA in Stop 2 with every SRAM
 retained at 25 °C, by the datasheet (DS13737 rev. 4, tables 54 and 56). The port keeps
 the LDO, as reset leaves it, unless built with `make SMPS=1`. That option selects the
@@ -509,9 +510,11 @@ On the board on 2026-10-02 it first never sent a report. Two causes, found in tu
 instances, 1,141 entries into Stop 2, every start on its period to the microsecond, the
 events within 5 µs, TIM2 within 5.6 ppm of LPTIM1, none late; and the reset held got the
 core back while it slept, its SRAM intact. Its longest wake-up took 58 ticks of LPTIM1,
-and 61 to 66 with DBG_STOP set, against 19 on the UNO Q: near the 64 the wake-up waits
-for an HSE (`Escapement_Processor.c`), on a board said to have none fitted; not yet
-explained. The chip being revision X, the MSI PLL's unlock line, 23 of the EXTI, and
+and 61 to 66 with DBG_STOP set, against 19 on the UNO Q. The wake-up waits for the HSE,
+which this board has (above), and its HSE starts in some 1.8 ms where the UNO Q's takes
+under 0.6: under the 64 ticks, 1.95 ms, the wake-up allows it before PLL1 goes on the MSIS
+(`Escapement_Processor.c`), with little to spare. None missed in these runs; the count
+of `SleepU5` would show one that did. The chip being revision X, the MSI PLL's unlock line, 23 of the EXTI, and
 interrupt 125, which the port enables for erratum 2.2.27, are reserved there (RM0456,
 tables 118 and 186, notes 2), though the erratum touches revision X too. The port reads
 DBGMCU_IDCODE and leaves both alone on revision X, which therefore goes without the

@@ -4,8 +4,9 @@
 # The NUCLEO-U575ZI-Q (STM32U575, Cortex-M33), borrowed to measure the MCU's current, which
 # the UNO Q cannot show alone (docs/stm32u5.md): SleepU5 of Examples/uno-q, its outputs on
 # pins of this board that are no LED (BoardU5.h, BOARD_NUCLEO_U575), built from the same
-# sources and run from SRAM as there. The board has no HSE fitted as shipped (UM2861,
-# 6.7): PLL1 takes the MSIS locked on the LSE, which the port falls back to by itself.
+# sources and run from SRAM as there. The board on the bench has its HSE crystal, X3,
+# fitted (read on 2026-10-02; UM2861, 6.7, leaves it to the variant): PLL1 runs on it as
+# on the UNO Q, and the port falls back to the MSIS locked on the LSE by itself without.
 # Loaded through the board's ST-LINK V3E with the reset held, as for the UNO Q:
 #
 #   openocd -f interface/stlink-dap.cfg -c 'transport select dapdirect_swd' \

@@ -59,6 +59,7 @@ wrong with confidence, and the record has to show how each conclusion was reache
 | DRA, DR_OTE and DM_SLACK compile, and only running them is left — the roadmap, from reading the build | Building the power-aware kernel with each of them, on the target and on the host (2026-09-24) | None compiled. DRA and DR_OTE called an interrupt intrinsic of the MSP430 and gave the task control block a third link where the context switch reads its fields; DM_SLACK read a clock variable that no longer exists. Once built, the host test found four defects: the speed computation multiplied a time by a ratio and overflowed past 21 s, which OTE shares; DRA shifted a time that nothing updates without event-driven tasks and overflowed at the third wraparound; DRA looked for the running task in its simulation queue and read through a null link when the task had outlived its WCET there; and DM_SLACK gave the time a task left unused to tasks of higher priority, which never counted it in their response time — a hand-built task set shows the first task missing its deadline, and the time now goes to tasks of lower priority, as the kernel's own comment said |
 | `SleepU5`, loaded on the NUCLEO-U575ZI-Q without an error from OpenOCD, was running there and failing on its own | Halting the core after the load: it was in its HardFault handler before the image started (2026-10-02) | JP2, which carries the ST-LINK's reset to the MCU, was off. The "reset halt" reset nothing, the image was started inside the handler, and the loader reported success |
 | `SleepU5` hanging in Stop 2 on the NUCLEO came from the board: its revision X silicon, or its supply, VDD at 1.8 V on the LDO — stated by the assistant after the first trials | The same hang on the SMPS and at 3.3 V, then a second agent, started afresh, comparing the two boards' loaders down to their OpenOCD scripts (2026-10-02) | The loader. Debian's OpenOCD sets DBG_STOP and DBG_STANDBY at each connection, the UNO Q's own clears them; the port cleared DBG_STOP alone, and the chip entered Stop 2 with DBG_STANDBY set, which holds off the reset. Clearing both, it ran |
+| The NUCLEO-U575ZI-Q has no HSE, so its endurance runs since 2026-09-30 checked PLL1 on the MSIS of range 2 — from the board's user manual (UM2861, 6.7), as the assistant read it | Its RCC, read over SWD while its run was redeployed, prompted by a wake-up of some 60 ticks of LPTIM1, near the 64 the port waits for an HSE (2026-10-02) | HSE ready and PLL1 on it, M = 4: its crystal X3 is fitted. The manual leaves the HSE to the variant. The runs checked the HSE path, and the MSIS of range 2 has run under Renode only |
 | The kernel schedules by earliest deadline first — the first line of the README, and what sets the project apart | Running the scheduler on the host, where a mirror of the task control block read a pointer where a deadline belonged | Every example shipped was scheduling deadline-monotonic. `EscapementHard.h` set the algorithm itself, with no `#ifndef`, and no configuration file overrode it |
 
 One more mistake was of a different kind. An early rebranding pass deleted a comment
@@ -178,7 +179,8 @@ ports released blocks from reset by a read-modify-write of `RESETS`, which could
 back in reset what core 1 had just released; `OSGetStop2Counts` unmasked the interrupts
 whatever the caller's state. Left for later: the MSIS locked on the LSE feeds PLL1 at
 3.998 MHz, under the 4 MHz RM0456 gives as the floor of both the VCO's input and the
-booster's clock, on the NUCLEO-U575ZI-Q, which has no HSE. The comment on the booster's
+booster's clock, on a board without the HSE, which the NUCLEO-U575ZI-Q was then taken
+for. The comment on the booster's
 clock, read against RM0456 the same day, was wrong: the booster takes the source of
 PLL1 before its divider M, 16 MHz from the HSE, not 4, still within its 4 to 16 MHz.
 Done on 2026-09-30: PLL1 takes the MSIS of range 2, 16.0017 MHz, whose booster clock
@@ -187,8 +189,8 @@ off before it locks again after a wake-up. An independent review of that change 
 the same day that it had missed the SRAM's wait state in voltage range 4 above 16 MHz,
 and read the datasheet's 1 % as a bound during the lock where it is its end; both
 fixed. A Renode test checks what the port writes, and
-fails on the code before; the NUCLEO has run it since without error, though not yet
-through a wake-up from Stop 2 (`stm32u5.md`).
+fails on the code before. The NUCLEO was said to have run it since without error: it
+runs on its HSE (the hypotheses above), and no board has run that path.
 
 ### Two fixes that were wrong
 

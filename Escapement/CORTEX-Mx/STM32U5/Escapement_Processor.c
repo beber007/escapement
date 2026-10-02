@@ -257,8 +257,8 @@ void OSInitializeSystemClocks(void)
 
 /* _OSRaiseSystemClock: From the MSIS, as reset or a wake-up from Stop leaves the system
 ** clock, in range 4, to 160 MHz on PLL1. The HSE, missing at reset, is not waited for
-** again: a board without it fitted, the NUCLEO-U575ZI-Q as shipped (UM2861, 6.7), would
-** otherwise spend its time-out there at every wake-up from Stop 2. On waking, clock
+** again: a board without it fitted would otherwise spend its time-out there at every
+** wake-up from Stop 2. On waking, clock
 ** names the caller's, and the HSE missing after HSE_WAKE_TICKS of it, PLL1 takes the MSIS
 ** for this once, the HSE tried again at the next: interrupts stay masked meanwhile, and
 ** the wait had no bound but the 20 ms of reset, after which the chip gave the HSE up for
