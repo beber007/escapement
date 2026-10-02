@@ -201,8 +201,9 @@ on the RP2040. The **STM32L4** is set aside.
    day; then the window W, done under Renode on 2026-10-02 (`stm32u5.md`, "The window
    after a byte"); then the link of `SleepU5` and `tools/unoq_sleep.py` framed, at
    115,200 baud, done under Renode on 2026-10-02 (`stm32u5.md`, "The wake-up byte"),
-   neither yet seen on the board. `SoakU5` and its tools stay at 57,600: moving them
-   means redeploying the U5's endurance run.
+   both seen on the board the same day, every byte received at 115,200 through Stop 2.
+   `SoakU5` and its tools stay at 57,600: moving them means redeploying the U5's
+   endurance run.
 
 ## Done
 

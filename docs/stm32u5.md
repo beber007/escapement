@@ -389,6 +389,11 @@ the next period, none late. A byte every 10 ms for half a second kept the idle t
 of Stop 2 throughout, all its bytes received in order. Without the window both tests
 fail; without the compare at its end the first does.
 
+On the board, in the check of 29348d8 on 2026-10-02, still at 57,600 baud and without a
+wake-up byte, `SleepU5` entered Stop 2 1,239 times in 60 s against 2,239 at 3faaf23, the
+window holding 2,759 sleeps in Sleep after the bursts from Linux. All 2,785 bytes were
+received, none late, the longest wake-up 19 ticks as before.
+
 ### The wake-up byte
 
 `SleepU5`'s link runs at 115,200 baud since 2026-10-02 (`OS_LPUART1_BAUD_RATE`, set by
@@ -403,7 +408,15 @@ bytes missing from the count.
 
 Under Renode, a wake-up byte sent as 0x5A into Stop 2 was dropped, the frame 5 ms after it
 received whole, a frame with its CRC off by one dropped, and the count went on in the
-next, none out of it. Accepting any CRC fails that test. Not yet seen on the board.
+next, none out of it. Accepting any CRC fails that test.
+
+On the board, in the check of 9ff2e2f on 2026-10-02, `SleepU5` at 115,200 baud received
+all 2,655 bytes `tools/unoq_sleep.py` sent over 60 s in frames behind their wake-up
+bytes, none out of the count, no overrun, and dropped no frame: no wake-up byte came out
+as a value other than 0x00, or none came out at all, which the counts do not tell apart.
+It entered Stop 2 1,230 times, the window holding 3,875 sleeps; the longest wake-up took
+19 ticks, the HSE missed none, none was late. One minute is no bound on how often a
+wake-up byte comes out wrong.
 
 ### Three hours
 
