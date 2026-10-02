@@ -147,6 +147,59 @@ on the RP2040. The **STM32L4** is set aside.
       measure the error left, or give the always-on timer an external 32.768 kHz clock
       on GPIO 12, 14, 20 or 22 (§12.10.7), which is hardware for the bench.
 
+6. **LPUART1 at 115,200 baud through Stop 2.** It runs at 57,600 (`stm32u5.md`,
+   "LPUART1 through Stop 2"), and its margin on waking was read on 2026-10-02:
+   - with its FIFO on, an overrun comes when a byte is complete and the 8 places are
+     full (RM0456, LPUART, "Overrun error"): from the byte that wakes the chip, 8 frames,
+     1.39 ms at 57,600 baud, 694 µs at 115,200;
+   - interrupts stay masked meanwhile: leaving Stop 2, 20 to 60 µs (DS13086, table 74),
+     then `_OSRaiseSystemClock`, 18 to 29 ticks of LPTIM1 measured over 454,487
+     wake-ups, at most 916 µs, then the timer's interrupt, of a higher priority: some
+     1.0 ms, a margin of about 30 % at 57,600 baud and none at 115,200;
+   - the HSE dominates, and has no maximum: 2 ms typical, "can vary significantly with
+     the crystal manufacturer" (DS13086, table 80). On this board at room temperature it
+     has always started in less, which nothing guarantees elsewhere or in the cold.
+
+   `SoakU5` never enters Stop 2, its pulse due every millisecond: the overrun of
+   2026-10-01 is not this. The ways weighed that day:
+   - hardware flow control, PG6, the LPUART's RTS and the Linux side's CTS, left to the
+     LPUART: the FIFO never overflows, but the first byte is still sampled while HSI16
+     starts, which keeps 57,600 baud;
+   - PG6 held at "stop" in Stop 2, with two frames of silence checked before, and "ready"
+     after the clock is raised: 115,200 baud and some 20 µA, but the UART no longer wakes
+     the chip, Linux waiting up to the length of a sleep, 1.83 s at most;
+   - HSI16 kept on in Stop 2 (HSIKERON): 115,200 baud and the UART wakes the chip, at
+     some 150 µA against 20.5, and the FIFO still needs flow control or draining;
+   - the LPDMA, autonomous in Stop 2, filling a ring in SRAM4: no limit, a new receive
+     path;
+   - the FIFO drained in the waits of `_OSRaiseSystemClock`, the handler then called with
+     the kernel's clock stopped;
+   - a wake-up byte, followed by an acknowledgement from the MCU before the message.
+
+   The way chosen, not yet built: **a wake-up byte without acknowledgement**. The client
+   sends one byte, waits T, then its message. It holds on three conditions:
+   1. T is bounded by the code, not only measured: the wait for the HSE capped, at some
+      2.5 ms, beyond which that wake-up goes on PLL1 from the MSIS, as on a NUCLEO,
+      160.017 MHz, some 100 ppm off, the HSE tried again at the next. `NoHSE` gives it
+      up for good today, after some 20 ms. T is then leaving Stop 2, the capped HSE, and
+      the maxima of the voltage range, booster and PLL1 lock, to read in DS13086; some
+      5 ms for the client;
+   2. the MCU stays awake W after each byte received, `_OSUARTIdle` refusing Stop 2
+      meanwhile, else it sleeps again as soon as the wake-up byte is read. W covers T, the
+      jitter of a Linux process and the gaps in a message, some 20 ms;
+   3. the wake-up byte can be dropped without doubt. Sampled while HSI16 starts, its value
+      is anything; received awake, it looks like data; and "the first byte after a
+      silence" does not tell it apart, the message's first byte coming T after it. A
+      framed protocol does, COBS with a CRC: the client sends 0x00, waits T, then 0x00,
+      the frame and 0x00, and whatever the wake-up byte became ends in an empty or invalid
+      frame, dropped as noise.
+
+   This keeps 115,200 baud, 20 µA in Stop 2, the UART waking the chip in some 5 ms, and
+   relies on no flow control. The order: the cap on the HSE first, which also keeps one
+   slow start from leaving the chip on the MSIS for good, testable under Renode; then the
+   window W; then the link of `SleepU5` and `tools/unoq_sleep.py`, a raw count of bytes
+   today, framed or with the byte after each wake-up dropped.
+
 ## Done
 
 - **The order between the cores, as far as it can be verified (closed 2026-09-30).** The
