@@ -418,6 +418,17 @@ It entered Stop 2 1,230 times, the window holding 3,875 sleeps; the longest wake
 19 ticks, the HSE missed none, none was late. One minute is no bound on how often a
 wake-up byte comes out wrong.
 
+### Faster, awake
+
+Awake, the limit of LPUART1 is its FIFO of 8 frames against the latency of its
+interrupt, which the kernel's timer outranks. On 2026-10-02 `SoakU5` ran 10 min at each
+of 230,400, 460,800 and 921,600 baud on the board, images and `tools/soak.py` built for
+each by hand from 9a6b1da (`OS_LPUART1_BAUD_RATE`): some 385,000 bytes of the link each,
+in bursts of up to 64, none out of the count, no overrun, no restart, the pulse at most
+45 µs late at every rate. At 921,600 the FIFO holds 87 µs. The limit lies beyond
+921,600, the highest rate tried; and `tools/soak.py` sends some 640 bytes a second on
+average, so a stream at full rate is not tried either.
+
 ### Three hours
 
 `SleepU5` ran three hours on the board on 2026-09-27, from 11:18 to 14:18 UTC, in six

@@ -203,7 +203,9 @@ on the RP2040. The **STM32L4** is set aside.
    115,200 baud, done under Renode on 2026-10-02 (`stm32u5.md`, "The wake-up byte"),
    both seen on the board the same day, every byte received at 115,200 through Stop 2.
    `SoakU5`, which never enters Stop 2, moved to 115,200 too on 2026-10-02, its link
-   raw as before.
+   raw as before. Awake, it ran without an overrun up to 921,600 baud the same day
+   (`stm32u5.md`, "Faster, awake"): a rate above 115,200 is open to a link that needs
+   it.
 
 ## Done
 
