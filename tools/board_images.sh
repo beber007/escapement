@@ -48,11 +48,12 @@ make -s -C "$PICO" clean >/dev/null
 # tools/unoq_check.sh runs.
 U5=Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
 make -s -C "$U5" clean >/dev/null
-make -s -C "$U5" build/SoakU5.elf build/SleepU5.elf >/dev/null
+make -s -C "$U5" build/SoakU5.elf build/SleepU5.elf build/SleepNoHSEU5.elf >/dev/null
 mkdir -p "$OUT/soak_u5"
-cp "$U5/build/SoakU5.elf" "$U5/build/SleepU5.elf" "$OUT/soak_u5/"
+cp "$U5/build/SoakU5.elf" "$U5/build/SleepU5.elf" "$U5/build/SleepNoHSEU5.elf" \
+   "$OUT/soak_u5/"
 make -s -C "$U5" clean >/dev/null
-echo "soak_u5: SoakU5 SleepU5"
+echo "soak_u5: SoakU5 SleepU5 SleepNoHSEU5"
 # The Pico 2: the six examples that count in memory, which tools/pico2_check.py runs, and
 # the two of the UART, which tools/pico2_uart.py runs.
 PICO2=Escapement/CORTEX-Mx/RP2350/Examples/pico2

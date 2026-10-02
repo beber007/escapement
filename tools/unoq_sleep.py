@@ -15,7 +15,9 @@ with an error unless, at the last report:
   - each instance's timer event came, within MAX_EVENT_OFF_US of when it was due;
   - every byte of a count this sends, in frames of 1 to 32 bytes 0.1 to 0.5 s apart,
     came through Stop 2, none out of the count or lost to an overrun;
-  - TIM2 and LPTIM1 agree within MAX_PPM over the run.
+  - TIM2 and LPTIM1 agree within MAX_PPM over the run, or, with nohse, TIM2 runs
+    NOHSE_PPM ahead within MAX_PPM: SleepNoHSEU5's PLL1 on the MSIS of range 2, locked
+    on the LSE that drives LPTIM1, 1,465 of its periods x 60 / 2 / 3 / 3, 160.0171 MHz.
 The wake-ups the HSE missed, PLL1 then on the MSIS until the next, are shown but not
 checked: a fallback, not an error (Escapement_Processor.c), though none was ever seen.
 LPUART1 runs at 115,200 baud for SleepU5, the byte that wakes the chip sampled while its
@@ -34,7 +36,7 @@ its endurance test's service stopped: the reports come over USART1 to the virtua
 port of its ST-LINK, found as tools/soak.py finds it, and nothing is sent, SleepU5
 receiving nothing there (SleepU5.c); the checks of the link then hold on no byte.
 
-    tools/unoq_sleep.py SECONDS [nucleo]
+    tools/unoq_sleep.py SECONDS [nucleo] [nohse]
 """
 import binascii
 import glob
@@ -51,10 +53,12 @@ MAX_EVENT_OFF_US = 20
 MIN_ENTRIES = 0.8
 WAKE_TICKS = 3000 * 32768 // 1000000
 MAX_PPM = 20
+NOHSE_PPM = (1465 * 32768 / 9 * 30 / 160e6 - 1) * 1e6   # +106.7
 WAKE_WAIT_S = 0.005    # the wake-up's 3 ms at most (OS_STOP2_WAKE_US), well inside the window
 BRIDGE = ["arduino-router-serial.path", "arduino-router-serial", "arduino-router"]
 
-NUCLEO = sys.argv[2:] == ["nucleo"]
+NUCLEO = "nucleo" in sys.argv[2:]
+EXPECTED_PPM = NOHSE_PPM if "nohse" in sys.argv[2:] else 0
 if NUCLEO:
     tty = os.environ.get("NUCLEO_TTY") or next(
         iter(sorted(glob.glob("/dev/serial/by-id/usb-STMicroelectronics_STLINK*"))),
@@ -157,7 +161,7 @@ if events < instances or event_off > MAX_EVENT_OFF_US:
     failures.append("a timer event missing or off its time")
 if received != sent or link_errors or overruns:
     failures.append("bytes from Linux lost")
-if abs(ppm) > MAX_PPM:
+if abs(ppm - EXPECTED_PPM) > MAX_PPM:
     failures.append("TIM2 and LPTIM1 apart")
 if failures:
     sys.exit("SleepU5: " + ", ".join(failures))

@@ -180,14 +180,18 @@ their period, and 8.8 µs from 12 to 125 MHz.
 
 With `BOARD_CI_U5=1` in that same line, the script also checks the board's own STM32U5
 (`tools/unoq_check.sh`) and posts the outcome as the status `board/u5`. The check runs
-on the CI's images, so it needs `BOARD_CI_IMAGES=ci`. It has three steps:
+on the CI's images, so it needs `BOARD_CI_IMAGES=ci`. It has four steps:
 
 1. `SleepU5` for a minute, the idle task in Stop 2 (`tools/unoq_sleep.py`): every start
    on its period, no late wake-up, at least 80 % of the instances in Stop 2, every
    timer event within 20 µs of its time, TIM2 within 20 ppm of LPTIM1, and every byte
    sent to it received;
-2. the endurance test, `SoakU5`, for two minutes, every part without error;
-3. its clock against Linux's raw clock, which NTP does not pull, over five minutes
+2. `SleepNoHSEU5` for a minute, the same with the HSE never started, PLL1 on the MSIS of
+   range 2 at every wake-up, the path of a board without the HSE, which neither U5 board of
+   the bench takes otherwise; TIM2 then runs 106.7 ppm ahead of LPTIM1, the MSIS being
+   locked on the LSE that drives it, and is checked so, within 20 ppm;
+3. the endurance test, `SoakU5`, for two minutes, every part without error;
+4. its clock against Linux's raw clock, which NTP does not pull, over five minutes
    (`tools/unoq_drift.py`), within 300 ppm.
 
 The long endurance run (`tools/soak.py uno-q`, the user service `escapement-soak-u5`)

@@ -68,12 +68,17 @@ endif
 ifdef PHASES
    CFLAGS += -DSLEEP_PHASES=$(PHASES)
 endif
+# make NOHSE=1: the HSE never started, PLL1 on the MSIS of range 2 at start and at every
+# wake-up from Stop 2, the path of a board without the HSE (Escapement_Processor.c).
+ifdef NOHSE
+   CFLAGS += -DOS_NO_HSE
+endif
 
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p build)
 
 EXAMPLES = TaskLEDU5 UARTEchoU5 TestTimerEventU5 TaskWrapU5 IPCU5 SoakU5 TestLPTimerU5 SleepU5 \
-           SleepWrapU5 Stop2EventWrapU5
+           SleepWrapU5 Stop2EventWrapU5 SleepNoHSEU5
 
 all: $(EXAMPLES:%=build/%.elf)
 
@@ -134,6 +139,16 @@ build/Escapement_UARTLink.o : ../../Escapement_UART.c
 	$(CC) $(CFLAGS) -DOS_LPUART1_BAUD_RATE=115200u $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SleepU5.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2.o \
                     build/Escapement_UARTLink.o build/Escapement_TimerEvent.o build/SleepU5.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+# SleepU5 as on a board without the HSE (OS_NO_HSE, Escapement_Processor.c): PLL1 on the
+# MSIS of range 2 at start and at every wake-up from Stop 2, which no board on the bench
+# runs otherwise, both U5 boards having their HSE.
+build/Escapement_ProcessorNoHSE.o : ../../Escapement_Processor.c
+	$(CC) $(CFLAGS) -DOS_NO_HSE $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SleepNoHSEU5.elf : $(filter-out build/Escapement_Processor.o,$(COMMON)) \
+                         build/Escapement_ProcessorNoHSE.o build/Escapement_LPTimer.o \
+                         build/Escapement_Stop2.o build/Escapement_UARTLink.o \
+                         build/Escapement_TimerEvent.o build/SleepU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 # SleepU5 with its times a thousand times longer, for the wrap under Renode (SleepU5.c),
 # the margins of the idle task in Stop 2 with them.

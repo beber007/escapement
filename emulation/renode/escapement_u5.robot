@@ -237,6 +237,47 @@ A wake-up the HSE misses goes on the MSIS, and the next tries the HSE again
     Should Be Equal As Integers  ${{ ${cfgr} & 3 }}  3
     Should Be Equal As Integers  ${{ (${sram} >> 16) & 7 }}  0
 
+Without the HSE, every wake-up from Stop 2 takes PLL1 on the MSIS
+    [Documentation]           SleepNoHSEU5, SleepU5 built with OS_NO_HSE, on a platform that
+    ...                       enters Stop 2 (escapement_u5_stop2.repl): the path of a board
+    ...                       without the HSE, which neither U5 board on the bench runs, both
+    ...                       having theirs. The HSE is never turned on, PLL1 takes the MSIS of
+    ...                       range 2 at start and at every wake-up without waiting for an HSE,
+    ...                       and every period and event keeps its time.
+    Load Escapement           SleepNoHSEU5  escapement_u5_stop2.repl
+    Execute Command           emulation RunFor "3"
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${instances}=             Read Word  ${results + 4}
+    ${jitter}=                Read Word  ${results + 16}
+    ${entries}=               Read Word  ${results + 20}
+    ${wake}=                  Read Word  ${results + 24}
+    ${late}=                  Read Word  ${results + 28}
+    ${events}=                Read Word  ${results + 36}
+    ${eventoff}=              Read Word  ${results + 40}
+    ${missed}=                Read Word  ${results + 56}
+    ${cr}=                    Read Word  0x46020C00
+    ${cfgr}=                  Read Word  0x46020C28
+    ${icscr1}=                Read Word  0x46020C08
+    ${sram}=                  Read Word  0x40026000
+    Log To Console            ${instances} instances, ${entries} into Stop 2, longest wake-up ${wake} ticks, ${missed} the HSE missed
+    Should Be True            ${instances} >= 25
+    Should Be True            ${entries} >= ${instances}
+    Should Be Equal As Integers  ${missed}  0
+    Should Be Equal As Integers  ${late}  0
+    Should Be True            ${jitter} <= 5
+    Should Be True            ${events} >= ${instances}
+    Should Be True            ${eventoff} <= 20
+    # No wait for an HSE: the wake-up well under the 64 ticks the port allows it.
+    Should Be True            ${wake} < 32
+    # The HSE never on; PLL1 from the MSIS (1), M = 3, the MSIS in range 2, and the SRAM
+    # at 0 wait states in range 1.
+    Should Be Equal As Integers  ${{ (${cr} >> 16) & 1 }}  0
+    Should Be Equal As Integers  ${{ ${cfgr} & 3 }}  1
+    Should Be Equal As Integers  ${{ (${cfgr} >> 8) & 0xF }}  2
+    Should Be Equal As Integers  ${{ (${icscr1} >> 28) & 0xF }}  2
+    Should Be Equal As Integers  ${{ (${sram} >> 16) & 7 }}  0
+
 A byte on LPUART1 keeps the idle task out of Stop 2 for the window
     [Documentation]           SleepU5 on a platform that enters Stop 2: a wake-up byte sent 50 ms
     ...                       into a period, the chip in Stop 2 since the event at 40 ms, wakes
@@ -632,7 +673,7 @@ The endurance test of the NUCLEO-U575ZI-Q reports on USART1
 
 Without the HSE, PLL1 takes the MSIS within its input ranges
     [Documentation]           SoakU5 of Examples/nucleo-u575 on a platform whose HSE never starts
-    ...                       (escapement_u5_nohse.repl), as the NUCLEO-U575ZI-Q ships: PLL1
+    ...                       (escapement_u5_nohse.repl), as on a board that has none: PLL1
     ...                       takes the MSIS in range 2, 16.0017 MHz locked on the LSE, its
     ...                       booster through a prescaler of 2 and its VCO through M = 3, both
     ...                       within their ranges, x 60 / 2; the wait states of the flash and

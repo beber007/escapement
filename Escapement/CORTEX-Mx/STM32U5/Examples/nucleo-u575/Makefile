@@ -40,6 +40,10 @@ LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
 ifdef PHASES
    CFLAGS += -DSLEEP_PHASES=$(PHASES)
 endif
+# make NOHSE=1: the HSE never started, as on a board without it (Examples/uno-q/Makefile).
+ifdef NOHSE
+   CFLAGS += -DOS_NO_HSE
+endif
 # make SMPS=1: the SMPS of the STM32U575ZIT6Q rather than the LDO reset leaves
 # (Escapement_Processor.c), to measure both; never for the UNO Q's U585, which has none.
 ifdef SMPS

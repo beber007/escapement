@@ -313,7 +313,7 @@ if [ "${BOARD_CI_U5:-}" = 1 ] && [ -f "$DIR/fw/soak_u5/SoakU5.elf" ]; then
     if (cd "$SRC" && sh tools/unoq_check.sh "$DIR/fw/soak_u5/SoakU5.elf" "$SHA") \
             >>"$LOG" 2>&1; then
         u5=success
-        status success "Stop 2 for 1 min, endurance test for 2, clock within 300 ppm; the long run goes on" \
+        status success "Stop 2 for 1 min with the HSE and 1 without, endurance test for 2, clock within 300 ppm; the long run goes on" \
             board/u5
     else
         u5=failure

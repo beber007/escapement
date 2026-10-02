@@ -150,7 +150,13 @@ typedef struct UNLOCK_ISR_DATA {
 void (*_OSIdleHook)(void) = NULL;
 
 static UNLOCK_ISR_DATA UnlockDescriptor;
-static BOOL NoHSE = FALSE;               // the HSE did not start once: not tried again
+/* The HSE did not start once: not tried again. OS_NO_HSE starts without it, as on a board
+** that has none, to run the MSIS's path on a board that has one (make NOHSE=1). */
+#ifdef OS_NO_HSE
+   static BOOL NoHSE = TRUE;
+#else
+   static BOOL NoHSE = FALSE;
+#endif
 static volatile UINT32 MSIRelocks;
 
 

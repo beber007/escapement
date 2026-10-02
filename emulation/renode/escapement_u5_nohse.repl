@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
 // LICENSE at the root of this repository.
 //
-// escapement_u5_nucleo.repl without the HSE, as the NUCLEO-U575ZI-Q ships (UM2861, 6.7):
+// escapement_u5_nucleo.repl without the HSE, as on a board that has none (UM2861, 6.7, leaves
+// it to the variant; the NUCLEO-U575ZI-Q on the bench has its own, found on 2026-10-02):
 // HSERDY never set, so that PLL1 takes the MSIS (Escapement_Processor.c). The RCC keeps
 // what the port writes as the platform's does, and, at the first write that sets the
 // MSIS's range, the wait states of FLASH_ACR at that moment, at offset 0x3F0, and the

@@ -8,10 +8,13 @@
 # if it passes.
 #
 #   tools/unoq_check.sh ELF SHA        # ELF: SoakU5.elf of the commit SHA, SleepU5.elf
-#                                      # beside it
+#                                      # and SleepNoHSEU5.elf beside it
 #
 # SleepU5 runs first, if its image is there: the restart of the clock on waking from
-# Stop 2 is the board's to check, Renode never entering it (tools/unoq_sleep.py).
+# Stop 2 is the board's to check, Renode never entering it (tools/unoq_sleep.py). Then
+# SleepNoHSEU5, if there, a minute too: the same, the HSE never started, PLL1 on the MSIS
+# of range 2 at every wake-up, the path of a board without the HSE, which no board of the
+# bench takes otherwise.
 # SoakU5 checks every part of itself each second (SoakU5.c) and tools/soak.py ends with an
 # error on any error or restart it saw. tools/unoq_drift.py then times its reports for five
 # minutes on Linux's raw clock, which NTP does not pull: against the disciplined one,
@@ -78,6 +81,10 @@ ok=yes
 SLEEP=$(dirname "$ELF")/SleepU5.elf
 if [ -f "$SLEEP" ]; then
     sh "$HERE/unoq_load.sh" "$SLEEP" && python3 "$HERE/unoq_sleep.py" 60 || ok=""
+fi
+NOHSE=$(dirname "$ELF")/SleepNoHSEU5.elf
+if [ -n "$ok" ] && [ -f "$NOHSE" ]; then
+    sh "$HERE/unoq_load.sh" "$NOHSE" && python3 "$HERE/unoq_sleep.py" 60 nohse || ok=""
 fi
 [ -n "$ok" ] && { sh "$HERE/unoq_load.sh" "$ELF" || ok=""; }
 if [ -n "$ok" ]; then

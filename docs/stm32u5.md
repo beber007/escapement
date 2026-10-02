@@ -238,7 +238,12 @@ the HSE (`escapement_u5_nohse.repl`). The NUCLEO-U575ZI-Q was taken for a board 
 it, and its endurance runs since 2026-09-30 (7d069ea) for a check of this path on the
 board. On 2026-10-02 its RCC read the HSE ready and PLL1 on it, M = 4: its crystal X3 is
 fitted (UM2861, 6.7, leaves it to the variant). Those runs checked the HSE, and the MSIS
-of range 2 has run under Renode only, on no board.
+of range 2 had run under Renode only, on no board. `SleepNoHSEU5`, `SleepU5` built with
+`OS_NO_HSE` (`make NOHSE=1` for any image), starts as a board without the HSE would: PLL1
+takes the MSIS of range 2 at start and at every wake-up from Stop 2. A Renode test checks
+it on the platform that enters Stop 2, and fails when the option does nothing; the board
+check of each commit runs it on the UNO Q for a minute after `SleepU5`, TIM2 then 106.7
+ppm ahead of LPTIM1, the MSIS being locked on the LSE that drives it.
 
 Since 2026-09-28 the board check times the U5 against `CLOCK_MONOTONIC_RAW`, the crystal
 of the board's Qualcomm processor as it is, which NTP does not pull (`tools/unoq_drift.py`).
