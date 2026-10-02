@@ -44,7 +44,9 @@
 ** the long task, from its own 500 to 1500 us of each 10 ms to 6 ms, drawn at random too:
 ** the processor from about a fifth loaded to three quarters, in steps of no set length.
 **
-** Once a second the heartbeat sends the counts to Linux on LPUART1, a line of text in
+** Once a second the heartbeat sends the counts to Linux on LPUART1, at 115,200 baud since
+** this image never enters Stop 2, the UART always receiving on a running clock (Makefile),
+** a line of text in
 ** hexadecimal: SOAK, the seconds run, the wraps, the activity and the errors of the eight
 ** parts, the bytes received on the link, its errors and overruns, the worst lateness of
 ** the pulse and of the timer events, the stack never used, the work of the long task in

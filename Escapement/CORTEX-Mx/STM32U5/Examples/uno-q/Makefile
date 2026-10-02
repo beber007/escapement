@@ -127,8 +127,9 @@ build/IPCU5.elf : $(COMMON) build/IPCU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/TestLPTimerU5.elf : $(COMMON) build/Escapement_LPTimer.o build/TestLPTimerU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-# SleepU5's link wakes the chip with a byte before each frame, which lets LPUART1 run at
-# 115,200 baud (SleepU5.c); the other images keep 57,600.
+# LPUART1 at 115,200 baud: SleepU5's link wakes the chip with a byte before each frame
+# (SleepU5.c), and SoakU5 never enters Stop 2; an image that does without that byte keeps
+# 57,600 (Escapement_UART.c).
 build/Escapement_UARTLink.o : ../../Escapement_UART.c
 	$(CC) $(CFLAGS) -DOS_LPUART1_BAUD_RATE=115200u $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SleepU5.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2.o \
@@ -152,7 +153,7 @@ build/Stop2EventWrapU5.o : Stop2EventWrapU5.c
 build/Stop2EventWrapU5.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2Wrap.o \
                              build/Escapement_TimerEvent.o build/Stop2EventWrapU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-build/SoakU5.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
+build/SoakU5.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UARTLink.o \
                    build/SoakU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 

@@ -35,7 +35,7 @@ was read, not copied into the repository.
 | Clocks | `Escapement_Processor.c` | the board's 16 MHz crystal (HSE) to 160 MHz through PLL1, or the MSIS locked on the LSE, raised to its 16 MHz range, if the HSE does not start; voltage range 1 with the EPOD booster, 4 flash wait states, a first step through an AHB prescaler of 2, the instruction cache on |
 | Kernel timer | `Escapement_Timer.c` | TIM2, 32 bits, counting microseconds and wrapping at 2^30, compare channel 1 on the next arrival; the 32-bit path of the STM32 port |
 | Timer events | `Escapement_TimerEvent.c` | TIM5, 32 bits, free-running, compare channel 1 on the next event; the logic of the RP2350 port, an event already due forced through CC1G |
-| UART | `Escapement_UART.c` | USART1 on PB6 and PB7 (D1 and D0 of the connector) at 115,200 baud, with its receive FIFO; LPUART1 on PG7 and PG8 to the board's Linux (`/dev/ttyHS1`) at 57,600 baud, 115,200 for `SleepU5` behind a wake-up byte, receiving through Stop 2, and PG6, the CTS of the Linux side, held low: left floating, it read high on 2026-09-28. The RP2350 driver without its priming, since the transmit interrupt of these UARTs reflects a state. Bytes lost to an overrun are counted |
+| UART | `Escapement_UART.c` | USART1 on PB6 and PB7 (D1 and D0 of the connector) at 115,200 baud, with its receive FIFO; LPUART1 on PG7 and PG8 to the board's Linux (`/dev/ttyHS1`) at 57,600 baud by default, 115,200 for `SleepU5` behind a wake-up byte and for `SoakU5`, which never enters Stop 2, receiving through Stop 2, and PG6, the CTS of the Linux side, held low: left floating, it read high on 2026-09-28. The RP2350 driver without its priming, since the transmit interrupt of these UARTs reflects a state. Bytes lost to an overrun are counted |
 | Interrupts | `Escapement_Interrupts.c` | the 126 entries of the STM32U575/U585, all but the reserved ones routed to the kernel's dispatcher, so that an application can take any interrupt with `OSSetISRDescriptor` |
 | Low-power timer | `Escapement_LPTimer.c` | LPTIM1 on the 32.768 kHz crystal (LSE), which counts through Stop 2 |
 | Stop 2 | `Escapement_Stop2.c` | the idle task in Stop 2, woken by LPTIM1 (below) |
@@ -361,7 +361,7 @@ is HSI16, which the LPUART wakes by itself when a byte comes (UESM, autonomous m
 RM0456 67.4.15). The first byte is sampled while HSI16 starts, which takes up to 3.6 µs
 (DS13086, table 82). At 115,200 baud that is 3.8 % of a frame, past the 3.41 % the
 receiver tolerates; at 57,600 baud it is 1.9 %. LPUART1 and the tools that read it
-therefore run at 57,600 baud. The receive FIFO holds the bytes that come while the clock
+therefore ran at 57,600 baud, until the wake-up byte below. The receive FIFO holds the bytes that come while the clock
 is raised again, interrupts masked. Keeping HSI16 on in Stop 2 instead (HSIKERON) would
 have kept 115,200 baud at some 150 µA (table 82), against 20.5 µA for Stop 2 itself with
 every SRAM retained, at 25 °C (table 56).
@@ -397,7 +397,7 @@ received, none late, the longest wake-up 19 ticks as before.
 ### The wake-up byte
 
 `SleepU5`'s link runs at 115,200 baud since 2026-10-02 (`OS_LPUART1_BAUD_RATE`, set by
-the UNO Q's Makefile for it alone; `SoakU5` and its tools stay at 57,600). Before each
+the UNO Q's Makefile; `SoakU5` too, which never enters Stop 2, its tools with it). Before each
 message `tools/unoq_sleep.py` sends a wake-up byte, 0x00, waits 5 ms, more than the 3 ms a
 wake-up is allowed (`OS_STOP2_WAKE_US`), then the message as a frame: 0x00, the bytes and
 their CRC-16 (CCITT, from 0xFFFF) encoded with COBS, 0x00. Sampled while HSI16 starts,
@@ -460,7 +460,11 @@ has the SMPS that the UNO Q's U585 lacks: 8.2 against 20.5 µA in Stop 2 with ev
 retained at 25 °C, by the datasheet (DS13737 rev. 4, tables 54 and 56). The port keeps
 the LDO, as reset leaves it, unless built with `make SMPS=1`. That option selects the
 SMPS before the voltage range is raised (PWR_CR3.REGSEL), so that both can be measured
-on the same board. The CI builds both images at each commit
+on the same board. The NUCLEO on the bench has its VDD at 1.8 V, JP4 on [2-3], not at
+the 3.3 V it ships with (UM2861, 6.4.4.3): OpenOCD read a target voltage of 1.80 V on
+2026-10-02, the first time it was read, and the jumper was found there. A current
+measured on it is at 1.8 V, to be weighed against the datasheet at the VDD of each
+table. The CI builds both images at each commit
 (`ppk2_u5/SleepU5-nucleo-phases30.elf` and `SleepU5-nucleo-smps-phases30.elf`). The
 board has run the endurance test on the bench since 2026-09-28; these two images have
 not been tried on it yet.

@@ -31,7 +31,7 @@ fd = os.open("/dev/ttyHS1", os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
 attrs = termios.tcgetattr(fd)
 attrs[0] = attrs[1] = attrs[3] = 0                        # raw
 attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL   # no flow control
-attrs[4] = attrs[5] = termios.B57600                      # LPUART1 (Escapement_UART.c)
+attrs[4] = attrs[5] = termios.B115200                     # SoakU5's LPUART1 (Makefile)
 termios.tcsetattr(fd, termios.TCSANOW, attrs)
 termios.tcflush(fd, termios.TCIOFLUSH)
 

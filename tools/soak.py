@@ -220,8 +220,8 @@ class UnoQ:
              "memory"]
     elf = os.path.expanduser("~/soak/SoakU5.elf")
     tty = "/dev/ttyHS1"
-    baud = termios.B57600    # LPUART1 (Escapement_UART.c)
-    byte_us = 10e6 / 57600   # a start bit, 8 data bits, a stop bit
+    baud = termios.B115200   # SoakU5's LPUART1 (Examples/uno-q/Makefile)
+    byte_us = 10e6 / 115200  # a start bit, 8 data bits, a stop bit
     silent = 10         # seconds without a report that say the board restarted
     bridge = ["arduino-router-serial.path", "arduino-router-serial", "arduino-router"]
     loader = "unoq_load.sh"
