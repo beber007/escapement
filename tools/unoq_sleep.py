@@ -29,9 +29,15 @@ of the kernel's against Linux's, shown but not checked: over a minute it read fr
 checks the clock over five minutes right after.
 Run on the board, the endurance test's service stopped (tools/unoq_check.sh).
 
-    tools/unoq_sleep.py SECONDS
+With nucleo, SleepU5 of Examples/nucleo-u575 on a NUCLEO-U575ZI-Q plugged into the UNO Q,
+its endurance test's service stopped: the reports come over USART1 to the virtual COM
+port of its ST-LINK, found as tools/soak.py finds it, and nothing is sent, SleepU5
+receiving nothing there (SleepU5.c); the checks of the link then hold on no byte.
+
+    tools/unoq_sleep.py SECONDS [nucleo]
 """
 import binascii
+import glob
 import os
 import random
 import select
@@ -48,13 +54,20 @@ MAX_PPM = 20
 WAKE_WAIT_S = 0.005    # the wake-up's 3 ms at most (OS_STOP2_WAKE_US), well inside the window
 BRIDGE = ["arduino-router-serial.path", "arduino-router-serial", "arduino-router"]
 
-subprocess.run(["sudo", "-n", "systemctl", "stop"] + BRIDGE, capture_output=True,
-               check=False)
-fd = os.open("/dev/ttyHS1", os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+NUCLEO = sys.argv[2:] == ["nucleo"]
+if NUCLEO:
+    tty = os.environ.get("NUCLEO_TTY") or next(
+        iter(sorted(glob.glob("/dev/serial/by-id/usb-STMicroelectronics_STLINK*"))),
+        "/dev/ttyACM0")
+else:
+    tty = "/dev/ttyHS1"
+    subprocess.run(["sudo", "-n", "systemctl", "stop"] + BRIDGE, capture_output=True,
+                   check=False)
+fd = os.open(tty, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
 attrs = termios.tcgetattr(fd)
 attrs[0] = attrs[1] = attrs[3] = 0                        # raw
 attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL   # no flow control
-attrs[4] = attrs[5] = termios.B115200                     # SleepU5's LPUART1 (Makefile)
+attrs[4] = attrs[5] = termios.B115200                     # LPUART1 (Makefile), USART1
 termios.tcsetattr(fd, termios.TCSANOW, attrs)
 termios.tcflush(fd, termios.TCIOFLUSH)
 
@@ -86,7 +99,7 @@ quiet = end - 3                              # the last reports count every byte
 pending, last, points = b"", None, []        # points: (kernel's us, arrival)
 sent, burst = 0, time.monotonic() + 1
 while time.monotonic() < end:
-    if burst <= time.monotonic() < quiet:
+    if not NUCLEO and burst <= time.monotonic() < quiet:
         data = bytes((sent + i) & 0xFF for i in range(random.randint(1, 32)))
         try:
             os.write(fd, b"\x00")

@@ -555,6 +555,34 @@ The endurance test counts the bursts of the link
     Should Be Equal As Integers  ${{ ${burst} >> 24 }}  3
     Should Be Equal As Integers  ${{ len($line.Line.split()) }}  29
 
+SleepU5 of the NUCLEO-U575ZI-Q reports on USART1 and still sleeps in Stop 2
+    [Documentation]           SleepU5 of Examples/nucleo-u575 (escapement_u5_nucleo.repl): its
+    ...                       reports go on USART1, the ST-LINK's virtual COM port, which
+    ...                       tools/unoq_sleep.py nucleo reads, none on LPUART1. USART1 only
+    ...                       sends: receiving, it would keep the idle task out of Stop 2
+    ...                       (_OSUARTIdle), which then never arms the compare of LPTIM1. The
+    ...                       instances keep their period and their events.
+    Load Escapement           SleepU5  escapement_u5_nucleo.repl  ${NUCLEO}
+    ${usart1}=                Create Terminal Tester  sysbus.usart1  defaultPauseEmulation=true
+    ${lpuart1}=               Create Terminal Tester  sysbus.lpuart1  defaultPauseEmulation=true
+    Wait For Line On Uart     SLEEP  timeout=2.5  testerId=${usart1}
+    Should Not Be On Uart     SLEEP  timeout=0.1  testerId=${lpuart1}
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${instances}=             Read Word  ${results + 4}
+    ${jitter}=                Read Word  ${results + 16}
+    ${late}=                  Read Word  ${results + 28}
+    ${nolse}=                 Read Word  ${results + 32}
+    ${events}=                Read Word  ${results + 36}
+    ${compare}=               Read Word  0x46004414
+    Log To Console            ${instances} instances, gap off by ${jitter} us at most, compare of LPTIM1 ${compare}
+    Should Be True            ${instances} >= 10
+    Should Be Equal As Integers  ${nolse}  0
+    Should Be Equal As Integers  ${late}  0
+    Should Be True            ${jitter} <= 5
+    Should Be True            ${events} >= ${instances}
+    Should Not Be Equal As Integers  ${compare}  0
+
 The endurance test of the NUCLEO-U575ZI-Q reports on USART1
     [Documentation]           SoakU5 of Examples/nucleo-u575 (escapement_u5_nucleo.repl), whose
     ...                       reports go on USART1, the ST-LINK's virtual COM port, which

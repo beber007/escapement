@@ -473,12 +473,47 @@ the LDO, as reset leaves it, unless built with `make SMPS=1`. That option select
 SMPS before the voltage range is raised (PWR_CR3.REGSEL), so that both can be measured
 on the same board. The NUCLEO on the bench has its VDD at 1.8 V, JP4 on [2-3], not at
 the 3.3 V it ships with (UM2861, 6.4.4.3): OpenOCD read a target voltage of 1.80 V on
-2026-10-02, the first time it was read, and the jumper was found there. A current
-measured on it is at 1.8 V, to be weighed against the datasheet at the VDD of each
-table. The CI builds both images at each commit
+2026-10-02, the first time it was read, and the jumper was found there; it was set back
+to [1-2], 3.3 V, the same evening, while looking for the hang below. A current measured
+at 1.8 V is to be weighed against the datasheet at the VDD of each table. The CI builds both images at each commit
 (`ppk2_u5/SleepU5-nucleo-phases30.elf` and `SleepU5-nucleo-smps-phases30.elf`). The
 board has run the endurance test on the bench since 2026-09-28; these two images have
 not been tried on it yet.
+
+### SleepU5 on the NUCLEO-U575ZI-Q
+
+Built for the NUCLEO, `SleepU5` sends its reports on USART1, the virtual COM port of the
+ST-LINK, and receives nothing there: USART1 receiving would keep the idle task out of
+Stop 2 (`_OSUARTIdle`). `tools/unoq_sleep.py 60 nucleo` reads them on the UNO Q, and a
+Renode test checks that the reports go there and that the idle task still arms LPTIM1.
+
+On the board on 2026-10-02 it first never sent a report. Two causes, found in turn:
+
+- JP2, which carries the ST-LINK's reset to the MCU (UM2861), was off. OpenOCD's "reset
+  halt" then reset nothing: the core was found in its HardFault handler after it, the
+  image was loaded and started there, at that priority, and locked up at the kernel's
+  first exception. `tools/nucleo_load.sh` still reported the load done.
+- With JP2 back, the image entered Stop 2 and never woke; OpenOCD reached the debug port
+  but could not halt the core, the reset held did not get it back, and only a power-off
+  did. A build that set DBG_STOP ran; the image as it was failed alike with the SMPS
+  (`make SMPS=1`) and at 3.3 V. The NUCLEO's chip is revision X (DBGMCU_IDCODE 0x20016482), the first, whose
+  errata were then read too (ES0499 rev. 12): none accounts for it. The cause was the
+  loader. `tools/nucleo_load.sh` runs Debian's OpenOCD 0.12.0, whose
+  `stm32x5x_common.cfg` sets DBG_STOP and DBG_STANDBY at each connection; the UNO Q's
+  own OpenOCD clears both. `OSInitStop2` cleared DBG_STOP alone, and DBGMCU_CR read
+  0x6 on the NUCLEO: the chip entered Stop 2 with DBG_STANDBY set, which RM0456 says
+  holds off the reset (75.2.4) and which a system reset leaves (75.12.2). With DBG_STOP
+  set the clocks never stop, which is why that build ran.
+
+`OSInitStop2` now clears both. `SleepU5` then ran 60 s on the NUCLEO at 3.3 V: 600
+instances, 1,141 entries into Stop 2, every start on its period to the microsecond, the
+events within 5 µs, TIM2 within 5.6 ppm of LPTIM1, none late; and the reset held got the
+core back while it slept, its SRAM intact. Its longest wake-up took 58 ticks of LPTIM1,
+and 61 to 66 with DBG_STOP set, against 19 on the UNO Q: near the 64 the wake-up waits
+for an HSE (`Escapement_Processor.c`), on a board said to have none fitted; not yet
+explained. The chip being revision X, the MSI PLL's unlock line, 23 of the EXTI, and
+interrupt 125, which the port enables for erratum 2.2.27, are reserved there (RM0456,
+tables 118 and 186): harmless so far, not yet guarded.
 
 ## Errata
 
@@ -515,7 +550,7 @@ The others that come near the port do not touch it. The LPTIM1 driver, added on
 | 2.2.2: MSI slow on leaving Standby or Stop 3 | the port enters Stop 2 alone |
 | 2.2.5: hang entering Stop 2 with PLL2, PLL3, HSI48 or SHSI on | the port starts none of them |
 | 2.2.11: first read of a cache line after Stop 2 corrupted | the images run from SRAM through the S-bus, which ICACHE does not cache; DCACHE1 is off |
-| 2.2.19: HardFault on a wake-up by an SRD peripheral with DBG_STOP set | `OSInitStop2` clears DBG_STOP, which the debugger may set |
+| 2.2.19: HardFault on a wake-up by an SRD peripheral with DBG_STOP set | `OSInitStop2` clears DBG_STOP, and DBG_STANDBY, which the debugger may set |
 | 2.2.22: device locked by a reset in Stop 2 with an SRAM powered down | every SRAM stays powered |
 | 2.17.1: disabling LPTIM by its ENABLE bit may leave its interrupt stuck and keep the chip from Stop | LPTIM1 is reset through the RCC, never disabled |
 | 2.17.3: writing LPTIM_DIER clears the flag it enables | DIER is written once, at start-up, its flag clear |

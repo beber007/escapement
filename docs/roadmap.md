@@ -113,7 +113,9 @@ on the RP2040. The **STM32L4** is set aside.
    (`stm32u5.md`, 2026-09-27). The absolute currents are for a NUCLEO-U575ZI-Q, borrowed
    for it. `Examples/nucleo-u575` builds `SleepU5` for that board, on the LDO or, with
    `make SMPS=1`, on its SMPS (bf447b8). The board is on the bench since 2026-09-28,
-   running the endurance test (item 0); `SleepU5` has not been tried on it yet.
+   running the endurance test (item 0). `SleepU5` ran on it on 2026-10-02, once the port
+   cleared DBG_STANDBY too, which Debian's OpenOCD sets (`stm32u5.md`, "SleepU5 on the
+   NUCLEO-U575ZI-Q"); its longest wake-up, some 60 ticks of LPTIM1, is still to explain.
    Then the margin of the wake-up, 3 ms, where the longest wake-up measured is 885 µs:
    the Sleep it leaves after waking may cost more than Stop 2 saves, which the PPK2 will
    price.

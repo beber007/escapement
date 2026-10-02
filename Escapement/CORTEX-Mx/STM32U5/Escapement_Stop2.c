@@ -28,8 +28,12 @@
 ** LPTIM1 wakes the chip from Stop 2 with its clock enabled in Run, in Sleep and Stop (the
 ** reset value of RCC_APB3SMENR) and in autonomous mode (RCC_SRDAMR), and its interrupt
 ** enabled in the NVIC (RM0456, 10.7.8 and 11.4.24): enabled only across the WFI, since it
-** has no handler. Errata: DBG_STOP is cleared, which the debugger may have set, since a
-** wake-up from an SRD peripheral with it set may end in a HardFault (2.2.19); PLL2, PLL3,
+** has no handler. DBG_STOP and DBG_STANDBY are cleared, which a debugger may have set:
+** Debian's OpenOCD 0.12.0 sets both at each connection (stm32x5x_common.cfg), and a
+** system reset leaves them (RM0456, 75.12.2). With DBG_STANDBY set and DBG_STOP clear the
+** NUCLEO-U575ZI-Q entered Stop 2 and never woke, nor did NRST reach it, until powered off
+** (2026-10-02); with DBG_STOP set the clocks never stop, and a wake-up from an SRD
+** peripheral may end in a HardFault (errata 2.2.19). PLL2, PLL3,
 ** HSI48 and SHSI are not started by the port (2.2.5), nor any SRAM powered down (2.2.22).
 ** The image runs from SRAM through the S-bus, which ICACHE does not cache (2.2.11).
 ** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
@@ -65,6 +69,7 @@
 #define SCB_SCR_SLEEPDEEP    (1u << 2)
 #define DBGMCU_CR            *((volatile UINT32 *)0xE0044004)
 #define DBGMCU_CR_DBG_STOP   (1u << 1)
+#define DBGMCU_CR_DBG_STANDBY (1u << 2)
 
 #define NVIC_ISER(irq)       ((volatile UINT32 *)0xE000E100)[(irq) >> 5]
 #define NVIC_ICER(irq)       ((volatile UINT32 *)0xE000E180)[(irq) >> 5]
@@ -131,7 +136,7 @@ BOOL OSInitStop2(void)
      return FALSE;
   RCC_APB3SMENR |= RCC_LPTIM1;
   RCC_SRDAMR |= RCC_LPTIM1;
-  DBGMCU_CR &= ~DBGMCU_CR_DBG_STOP;
+  DBGMCU_CR &= ~(DBGMCU_CR_DBG_STOP | DBGMCU_CR_DBG_STANDBY);
   PWR_CR1 = (PWR_CR1 & ~PWR_CR1_LPMS_MASK) | PWR_CR1_LPMS_STOP2;
   _OSIdleHook = Stop2Idle;
   return TRUE;

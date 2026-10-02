@@ -14,8 +14,11 @@
 #       -c init -c 'reset halt' -c 'load_image build/SleepU5.elf' \
 #       -c 'resume 0x20000000' -c exit
 #
-# The current of the MCU through JP5, the IDD jumper, taken off for the ammeter (UM2861,
-# 6.4.5). Not yet tried on the board.
+# That OpenOCD, Debian's 0.12.0, sets DBG_STOP and DBG_STANDBY, which OSInitStop2 clears
+# (Escapement_Stop2.c); the reset reaches the MCU only with JP2 fitted (UM2861). SleepU5
+# ran on the board on 2026-10-02 (docs/stm32u5.md, "SleepU5 on the NUCLEO-U575ZI-Q"). The
+# current of the MCU through JP5, the IDD jumper, taken off for the ammeter (UM2861,
+# 6.4.5): not yet measured.
 
 CROSS_COMPILE ?= arm-none-eabi-
 CC = $(CROSS_COMPILE)gcc

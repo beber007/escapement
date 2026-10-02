@@ -25,14 +25,19 @@
 ** handler checks. The idle task stays in Sleep for the few milliseconds of a line's
 ** sending, and for the window that follows each byte received (Escapement_Stop2.h).
 **
-** LPUART1 runs at 115,200 baud in the UNO Q's build (Makefile; 57,600 on the NUCLEO, where
-** nothing sends), the byte that wakes the chip sampled while HSI16 starts, which may make
-** it anything (Escapement_UART.c). Linux therefore sends a
+** LPUART1 runs at 115,200 baud in the UNO Q's build (Makefile), the byte that wakes the
+** chip sampled while HSI16 starts, which may make it anything (Escapement_UART.c). Linux
+** therefore sends a
 ** wake-up byte, 0x00, waits some 5 ms for the chip's clock, then its count in a frame:
 ** 0x00, the bytes of the count and a CRC-16 encoded with COBS, 0x00 (docs/roadmap.md,
 ** item 6). Whatever the wake-up byte became ends in an empty frame, ignored, or in an
 ** invalid one, dropped and counted: a frame of the count dropped would show as bytes
 ** missing from it.
+**
+** Built for a NUCLEO-U575ZI-Q (Examples/nucleo-u575, BOARD_NUCLEO_U575), the reports go
+** over USART1 instead, to the virtual COM port of the board's ST-LINK, at 115,200 baud,
+** and nothing is received: USART1 stops in Stop 2, and receiving on it would keep the idle
+** task out of Stop 2 (_OSUARTIdle, Escapement_UART.c). Words 11 to 13 stay at 0.
 **
 ** Results, in words: 0 marker, 1 instances measured, 2 ticks of LPTIM1 summed, 3 us of
 ** TIM2 summed, 4 largest gap between two starts off the period, in us, 5 entries into
@@ -72,16 +77,29 @@ volatile struct {
   UINT32 LinkDropped;
 } Results;
 
-static UINT8 LinkNext;                   // the byte of the count expected next
-static UINT8 Frame[FRAME_SIZE];          // the frame being received, then decoded in place
-static UINT32 FrameLength;               // bytes received since the last 0x00
+#ifndef BOARD_NUCLEO_U575
+   static UINT8 LinkNext;                // the byte of the count expected next
+   static UINT8 Frame[FRAME_SIZE];       // the frame being received, then decoded in place
+   static UINT32 FrameLength;            // bytes received since the last 0x00
+#endif
 
 static INT32 EventDue;                   // TIM2's time the event is due at
 
+/* The UART of the reports, and of the link where there is one. */
+#ifdef BOARD_NUCLEO_U575
+   #define LINK_UART      OS_IO_USART1
+   #define LINK_HANDLER   NULL
+#else
+   #define LINK_UART      OS_IO_LPUART1
+   #define LINK_HANDLER   LinkReceive
+#endif
+
 static void SleepTask(void *argument);
 static void EventTask(void *argument);
-static void LinkReceive(UINT8 byte);
-static void LinkFrame(void);
+#ifndef BOARD_NUCLEO_U575
+   static void LinkReceive(UINT8 byte);
+   static void LinkFrame(void);
+#endif
 static void Report(void);
 
 
@@ -95,7 +113,7 @@ int main(void)
      InitializeFlag(FLAG3_PIN);
      SetPin(FLAG3_PIN);
   #endif
-  OSInitUART(1,REPORT_SIZE,LinkReceive,OS_IO_LPUART1);
+  OSInitUART(1,REPORT_SIZE,LINK_HANDLER,LINK_UART);
   OSInitTimerEvent(1,1,OS_IO_TIM5);
   Results.NoLSE = !OSInitStop2();
   event = OSCreateEventDescriptor();
@@ -138,7 +156,7 @@ static void SleepTask(void *argument)
         Results.Late = counts.Late;
         Results.HSEMissed = counts.HSEMissed;
         Results.LinkHeld = counts.LinkHeld;
-        Results.LinkOverruns = OSGetUARTOverruns(OS_IO_LPUART1);
+        Results.LinkOverruns = OSGetUARTOverruns(LINK_UART);
         Report();
      }
   }
@@ -181,6 +199,7 @@ static void EventTask(void *argument)
 } /* end of EventTask */
 
 
+#ifndef BOARD_NUCLEO_U575
 /* LinkReceive: A byte from Linux, from the interrupt of LPUART1: one more of the frame,
 ** or the 0x00 that ends it. A frame longer than the buffer is kept counting, to be
 ** dropped at its end. */
@@ -244,6 +263,7 @@ static void LinkFrame(void)
      Results.LinkBytes += 1;
   }
 } /* end of LinkFrame */
+#endif
 
 
 /* PutHex: A number in hexadecimal, without leading zeros, and a space after it. */
@@ -263,7 +283,7 @@ static UINT8 *PutHex(UINT8 *p, UINT32 value)
 ** still being sent. */
 static void Report(void)
 {
-  UINT8 *line = (UINT8 *)OSGetFreeNodeUART(OS_IO_LPUART1), *p;
+  UINT8 *line = (UINT8 *)OSGetFreeNodeUART(LINK_UART), *p;
   if (line == NULL)
      return;
   p = line;
@@ -285,5 +305,5 @@ static void Report(void)
   p = PutHex(p,Results.LinkHeld);
   p = PutHex(p,Results.LinkDropped);
   p[-1] = '\n';
-  OSEnqueueUART(line,(UINT8)(p - line),OS_IO_LPUART1);
+  OSEnqueueUART(line,(UINT8)(p - line),LINK_UART);
 } /* end of Report */
