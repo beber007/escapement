@@ -103,7 +103,11 @@ on the RP2040. The **STM32L4** is set aside.
    pico-sdk headers.
 
 4. **The STM32U5's energy.** The idle task sleeps in Stop 2 on the board since 2026-09-27
-   (see Done). Its current is not measured yet. The datasheet, read on 2026-09-26
+   (see Done). Its current was measured on a NUCLEO-U575ZI-Q with a PPK2 on 2026-10-03
+   (`stm32u5.md`, "The NUCLEO's MCU measured with a PPK2"): Stop 2 at some 21 µA on the
+   LDO and 7 µA on the SMPS, `SleepU5`'s Stop 2 phase at 1.02 and 0.60 mA against 10.97
+   and 6.20 mA in Sleep, at 3.3 V. Left: the UNO Q's own U585, which only a difference
+   can show, and the PPK2 as a check of each commit. The datasheet, read on 2026-09-26
    (`power-aware.md`), puts it at some four times less current than Sleep at light load,
    some 5.3 against 1.4 mA with a tenth of the processor busy. The UNO Q's U585 has no
    SMPS, and DVFS would add some 10 % at most.

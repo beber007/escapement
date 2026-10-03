@@ -172,5 +172,9 @@ Rebooting the UNO Q or unbinding its drivers interrupts every run: ask first.
   alone set, the NUCLEO never woke from Stop 2 and only a power-off got it back. The
   NUCLEO's NRST reaches the MCU through JP2, which was found off: a "reset halt" then
   resets nothing, and the image is started wherever the core was.
+- The PPK2 on the NUCLEO (`tools/ppk2_nucleo.py`): an ampere meter in place of JP5, VIN
+  from JP4's side, VOUT to the MCU. The other way round the MCU runs through a diode and
+  the PPK2 reads 0. The debugger never reaches the MCU through it: program the flash with
+  JP5 fitted, then unplug CN1 before measuring, or the debug domain stays powered.
 - Emulation proves scheduling and register sequences, not energy; the board and an
   instrument decide.

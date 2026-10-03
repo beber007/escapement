@@ -559,7 +559,45 @@ need it.
 Under Renode, on the NUCLEO's platform, `SleepU5Flash` starts from the flash, VTOR at
 0x08000000, and reports on USART1, its periods and events on time. Renode loads every
 segment of the ELF, the data in SRAM included, so the copy from the flash is the board's
-to check. Not yet run on the board.
+to check: on the NUCLEO on 2026-10-03, programmed with OpenOCD's `program`, it ran from a
+reset with no debugger, 280 instances, 533 entries into Stop 2, none late.
+
+### The NUCLEO's MCU measured with a PPK2 (2026-10-03)
+
+A Nordic PPK2, firmware 1.2.4, is on the UNO Q's hub, read by `tools/ppk2_nucleo.py`
+with IRNAS's ppk2-api 0.9.2. It is an ampere meter in place of JP5, the IDD jumper
+(UM2861, 6.4.6): its VIN on the pin of JP5 that comes from JP4, the board's 3V3, its
+VOUT on the pin that goes to the MCU, its GND on the board's. Its logic input D0 is on
+D13 (CN7, pin 10), which `SleepU5` built with `PHASES=30` drives high in its 30 s of Stop
+2 and low in its 30 s of Sleep, its VCC on the board's 3V3 (CN8, pin 7). JP4 on 3V3, the
+MCU at 3.3 V; VDDA is on the board's 3V3, not behind JP5 (SB54, UM2861 table 9), and is
+not in the figures.
+
+The order that measures: `SleepU5Flash` programmed with JP5 fitted; CN1 unplugged, so
+that the debug domain the probe powered goes down; the PPK2 in place of JP5, its switch
+closed; CN1 plugged back, the MCU starting from its flash with no debugger since. Three
+things that read nothing on the way, each mistaken for something else first
+(`method.md`): VIN and VOUT the wrong way round, where the MCU still runs through the
+body diode of the PPK2's switch and the PPK2 reads 0; the PPK2 as a source on VDD_MCU,
+which the board then feeds by another way, the PPK2 supplying nothing once CN1 is in;
+and the debugger, which never reached the MCU through the PPK2, only with JP5 fitted.
+
+| `SleepU5`, one of each 30 s phase, 3.3 V | LDO | SMPS (`make SMPS=1`) |
+|---|---|---|
+| Sleep phase, mean | 10.97 mA | 6.20 mA |
+| Stop 2 phase, mean | 1.02 mA | 0.60 mA |
+| Stop 2, the level a long sleep reaches | some 21 to 22 µA | some 6.5 to 7.5 µA |
+
+The means of the Stop 2 phase are mostly the time awake: two wake-ups every 100 ms, each
+in Sleep for the 3 ms before its event at some 11 or 6 mA, the wake-up itself, 58 ticks
+of LPTIM1 waiting for the HSE, and a report on USART1 each second. The level of Stop 2
+itself, every SRAM retained, compares with the datasheet's (DS13737, Stop 2: some 20 µA
+on the LDO, 8.2 µA on the SMPS at 25 °C). Each sleep reads low first, some 1.4 µA, and
+climbs to that level over some tens of ms: for a small current the PPK2 takes a large
+shunt, through which the MCU's decoupling capacitors charge back. That shifts charge in
+time and leaves the means right; the level is read at the end of a long sleep, and a
+short sleep never reaches it. The temperature was a living room's, not measured. Each
+figure is one run.
 
 ## Errata
 
