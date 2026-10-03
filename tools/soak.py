@@ -259,6 +259,11 @@ class UnoQ:
             termios.tcflush(self.fd, termios.TCIOFLUSH)
         done = subprocess.run(["sh", loader, self.elf], capture_output=True, text=True,
                               check=False)
+        # The image before reported on until the loader stopped it: what came meanwhile
+        # is dropped too, lest its count be taken for the new one's (a review, 2026-10-03).
+        with self.lock:
+            self.value, self.pending = None, b""
+            termios.tcflush(self.fd, termios.TCIFLUSH)
         self.last = None
         if done.returncode == 0:
             return None

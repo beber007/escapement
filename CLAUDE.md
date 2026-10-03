@@ -160,7 +160,8 @@ Rebooting the UNO Q or unbinding its drivers interrupts every run: ask first.
   That reset also leaves core 1 running the previous image, which wrote into the next
   one's heap (a 3-slot pointer moved by 3, up to 38 % of reads torn): force it off in the
   PSM before loading, as `tools/pico2_check.py` does.
-- An image whose idle task sleeps in Stop 2 (`OSInitStop2`) clears DBG_STOP: the debug
+- An image whose idle task sleeps in Stop 2 (`OSInitStop2`) clears DBG_STOP and
+  DBG_STANDBY: the debug
   port is unpowered most of the time, and OpenOCD connecting then fails on an SWD parity
   error, the image left running. Connect with the reset held, as `tools/unoq_load.sh`
   does (`srst_nogate connect_assert_srst`).

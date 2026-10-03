@@ -196,7 +196,7 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
   endurance test since 2026-09-26, the latter for hours (`stm32u5.md`). The same sources
   build `SleepU5` for a NUCLEO-U575ZI-Q, to measure the MCU's current, and the endurance
   test, which has run on that board since 2026-09-28 (`tools/board_ci.md`); `SleepU5`
-  has not run there yet. The power-aware kernel is not ported (`power-aware.md`).
+  ran there on 2026-10-02 (`stm32u5.md`). The power-aware kernel is not ported (`power-aware.md`).
 - **ARM Cortex-M33** (ARMv8-M Mainline): the generic layer takes it down the
   Cortex-M3/M4 path under `CORTEX_M33`. The registers to save are the same, and so is
   the frame with the floating-point unit left off, and `LDREX`/`STREX`/`CLREX`. It is

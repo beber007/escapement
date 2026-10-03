@@ -90,6 +90,17 @@ def cobs(data):
     return bytes(out + bytes([len(block) + 1]) + block)
 
 
+def write_all(data):
+    """Writes data whole, waiting while the driver's buffer is full: a frame cut short of
+    its last 0x00 is closed by the next wake-up byte and counted by SleepU5 all the same,
+    which would have read as bytes lost (a review, 2026-10-03)."""
+    while data:
+        try:
+            data = data[os.write(fd, data):]
+        except BlockingIOError:
+            select.select([], [fd], [], 1.0)
+
+
 def frame(data):
     """The count's bytes, their CRC-16 big-endian, COBS, between two 0x00."""
     crc = binascii.crc_hqx(data, 0xFFFF).to_bytes(2, "big")
@@ -104,14 +115,10 @@ sent, burst = 0, time.monotonic() + 1
 while time.monotonic() < end:
     if not NUCLEO and burst <= time.monotonic() < quiet:
         data = bytes((sent + i) & 0xFF for i in range(random.randint(1, 32)))
-        try:
-            os.write(fd, b"\x00")
-            time.sleep(WAKE_WAIT_S)
-            framed = frame(data)
-            if os.write(fd, framed) == len(framed):   # else dropped whole by SleepU5
-                sent += len(data)
-        except BlockingIOError:
-            pass
+        write_all(b"\x00")
+        time.sleep(WAKE_WAIT_S)
+        write_all(frame(data))
+        sent += len(data)
         burst = time.monotonic() + random.uniform(0.1, 0.5)
     if select.select([fd], [], [], 0.05)[0]:
         now = time.monotonic()

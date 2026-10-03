@@ -616,13 +616,17 @@ SleepU5 of the NUCLEO-U575ZI-Q reports on USART1 and still sleeps in Stop 2
     ${nolse}=                 Read Word  ${results + 32}
     ${events}=                Read Word  ${results + 36}
     ${compare}=               Read Word  0x46004414
-    Log To Console            ${instances} instances, gap off by ${jitter} us at most, compare of LPTIM1 ${compare}
+    # The compare of one sleep may be 0 by chance, one in 65,536: that of the next too
+    # would not be.
+    Wait For Line On Uart     SLEEP  timeout=2.5  testerId=${usart1}
+    ${next}=                  Read Word  0x46004414
+    Log To Console            ${instances} instances, gap off by ${jitter} us at most, compares of LPTIM1 ${compare} and ${next}
     Should Be True            ${instances} >= 10
     Should Be Equal As Integers  ${nolse}  0
     Should Be Equal As Integers  ${late}  0
     Should Be True            ${jitter} <= 5
     Should Be True            ${events} >= ${instances}
-    Should Not Be Equal As Integers  ${compare}  0
+    Should Be True            ${compare} != 0 or ${next} != 0
 
 The MSI PLL unlock interrupt is left alone on revision X
     [Documentation]           Line 23 of the EXTI and interrupt 125, which the port takes for the

@@ -359,7 +359,8 @@ with its core at 160 MHz. `tools/unoq_load.sh` loads the images into SRAM over t
 board's own SWD. The power-aware kernel is not ported to it (`stm32u5.md`).
 
 - Two UARTs are available: `OS_IO_USART1`, on D1 and D0 of the connector at 115,200
-  baud, and `OS_IO_LPUART1`, to the board's Linux (`/dev/ttyHS1`) at 57,600 baud.
+  baud, and `OS_IO_LPUART1`, to the board's Linux (`/dev/ttyHS1`) at 57,600 baud by
+  default, `OS_LPUART1_BAUD_RATE` otherwise (115,200 for `SleepU5` and `SoakU5`).
 - Timer events take `OS_IO_TIM5`, since TIM2 is the kernel's.
 
 ### An idle task in Stop 2
@@ -381,7 +382,9 @@ counted. This asks the following of an application:
   period, asleep or not.
 - There is no Stop 2 while a UART sends, nor while USART1 has a receive handler.
   LPUART1 receives through Stop 2. Its first byte is sampled while its clock starts,
-  hence its 57,600 baud.
+  hence its 57,600 baud by default; at 115,200 the client sends a wake-up byte first
+  and the bytes after it, within `OS_STOP2_LINK_WINDOW_US`, come on a running clock
+  (`SleepU5.c`, `stm32u5.md`, "The wake-up byte").
 - An interrupt that comes during Stop 2 is taken once the clock is raised again, up to
   some 1 ms later.
 - The debug port sleeps with the chip, so an image is loaded with the reset held, as

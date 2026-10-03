@@ -76,7 +76,10 @@
 #define EXTI_IMR1            *((volatile UINT32 *)(EXTI_BASE + 0x80))
 #define EXTI_MSI_PLL_UNLOCK  (1u << 23)   /* LSECSS or MSI_PLL_UNLOCK */
 #define DBGMCU_IDCODE        *((volatile UINT32 *)0xE0044000)
-#define REV_ID_X             0x2001u      /* DBGMCU_IDCODE[31:16] (ES0499, table 2) */
+/* Revision X of the U575/585: REV_ID 0x2001 (ES0499, table 2) and DEV_ID 0x482, since
+** 0x2001 may name another revision of another U5 (RM0456, DBGMCU_IDCODE). */
+#define IDCODE_MASK          0xFFFF0FFFu  /* REV_ID[31:16] and DEV_ID[11:0] */
+#define IDCODE_U575_585_X    0x20010482u
 #define NVIC_ISER(irq)       ((volatile UINT32 *)0xE000E100)[(irq) >> 5]
 #define NVIC_BIT(irq)        (1u << ((irq) & 0x1F))
 
@@ -224,7 +227,7 @@ static void LockMSIS(void)
      RCC_CR |= RCC_CR_MSIPLLSEL;
      RCC_CR |= RCC_CR_MSIPLLEN;
      /* An unlock to interrupt 125, on its rising edge, but on revision X. */
-     if (DBGMCU_IDCODE >> 16 != REV_ID_X) {
+     if ((DBGMCU_IDCODE & IDCODE_MASK) != IDCODE_U575_585_X) {
         UnlockDescriptor.UnlockHandler = UnlockHandler;
         OSSetISRDescriptor(OS_IO_LSECSSD,&UnlockDescriptor);
         EXTI_RTSR1 |= EXTI_MSI_PLL_UNLOCK;

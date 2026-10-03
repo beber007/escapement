@@ -191,7 +191,8 @@ the same day that it had missed the SRAM's wait state in voltage range 4 above 1
 and read the datasheet's 1 % as a bound during the lock where it is its end; both
 fixed. A Renode test checks what the port writes, and
 fails on the code before. The NUCLEO was said to have run it since without error: it
-runs on its HSE (the hypotheses above), and no board has run that path.
+runs on its HSE (the hypotheses above). The path first ran on a chip as `SleepNoHSEU5`
+on the UNO Q on 2026-10-02 (`stm32u5.md`).
 
 ### Two fixes that were wrong
 

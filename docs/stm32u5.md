@@ -35,7 +35,7 @@ was read, not copied into the repository.
 | Clocks | `Escapement_Processor.c` | the board's 16 MHz crystal (HSE) to 160 MHz through PLL1, or the MSIS locked on the LSE, raised to its 16 MHz range, if the HSE does not start; voltage range 1 with the EPOD booster, 4 flash wait states, a first step through an AHB prescaler of 2, the instruction cache on |
 | Kernel timer | `Escapement_Timer.c` | TIM2, 32 bits, counting microseconds and wrapping at 2^30, compare channel 1 on the next arrival; the 32-bit path of the STM32 port |
 | Timer events | `Escapement_TimerEvent.c` | TIM5, 32 bits, free-running, compare channel 1 on the next event; the logic of the RP2350 port, an event already due forced through CC1G |
-| UART | `Escapement_UART.c` | USART1 on PB6 and PB7 (D1 and D0 of the connector) at 115,200 baud, with its receive FIFO; LPUART1 on PG7 and PG8 to the board's Linux (`/dev/ttyHS1`) at 57,600 baud by default, 115,200 for `SleepU5` behind a wake-up byte and for `SoakU5`, which never enters Stop 2, receiving through Stop 2, and PG6, the CTS of the Linux side, held low: left floating, it read high on 2026-09-28. The RP2350 driver without its priming, since the transmit interrupt of these UARTs reflects a state. Bytes lost to an overrun are counted |
+| UART | `Escapement_UART.c` | USART1 on PB6 and PB7 (D1 and D0 of the connector) at 115,200 baud, with its receive FIFO; LPUART1 on PG7 and PG8 to the board's Linux (`/dev/ttyHS1`) at 57,600 baud by default, 115,200 for `SleepU5` and `SleepWrapU5` behind a wake-up byte and for `SoakU5`, which never enters Stop 2, receiving through Stop 2, and PG6, the CTS of the Linux side, held low: left floating, it read high on 2026-09-28. The RP2350 driver without its priming, since the transmit interrupt of these UARTs reflects a state. Bytes lost to an overrun are counted |
 | Interrupts | `Escapement_Interrupts.c` | the 126 entries of the STM32U575/U585, all but the reserved ones routed to the kernel's dispatcher, so that an application can take any interrupt with `OSSetISRDescriptor` |
 | Low-power timer | `Escapement_LPTimer.c` | LPTIM1 on the 32.768 kHz crystal (LSE), which counts through Stop 2 |
 | Stop 2 | `Escapement_Stop2.c` | the idle task in Stop 2, woken by LPTIM1 (below) |
@@ -294,9 +294,10 @@ Two parts of that plan changed on 2026-09-27. It kept Stop 2 away while a timer 
 was pending, TIM5 stopping with it, a rule taken from the definition of Stop rather
 than read for TIM5 itself; TIM5 is now carried through Stop 2 instead (06e2e60). It
 also kept Stop 2 away while a UART had to receive, since LPUART1 runs on PCLK3, and
-`SoakU5`, fed by Linux, would hardly ever have entered it. LPUART1 now receives
-through Stop 2 on HSI16, at 57,600 baud, the rate its start allows (2673f02, "LPUART1
-through Stop 2" below).
+`SoakU5`, fed by Linux, would hardly ever have entered it. LPUART1 then received
+through Stop 2 on HSI16, at 57,600 baud, the rate its start allows for a first byte
+(2673f02, "LPUART1 through Stop 2" below); since 2026-10-02 at 115,200 behind a wake-up
+byte ("The wake-up byte").
 
 ### LPTIM1
 
@@ -489,8 +490,8 @@ the 3.3 V it ships with (UM2861, 6.4.4.3): OpenOCD read a target voltage of 1.80
 to [1-2], 3.3 V, the same evening, while looking for the hang below. A current measured
 at 1.8 V is to be weighed against the datasheet at the VDD of each table. The CI builds both images at each commit
 (`ppk2_u5/SleepU5-nucleo-phases30.elf` and `SleepU5-nucleo-smps-phases30.elf`). The
-board has run the endurance test on the bench since 2026-09-28; these two images have
-not been tried on it yet.
+board has run the endurance test on the bench since 2026-09-28; these two `PHASES=30`
+images have not been tried on it yet.
 
 ### SleepU5 on the NUCLEO-U575ZI-Q
 
@@ -514,7 +515,7 @@ On the board on 2026-10-02 it first never sent a report. Two causes, found in tu
   `stm32x5x_common.cfg` sets DBG_STOP and DBG_STANDBY at each connection; the UNO Q's
   own OpenOCD clears both. `OSInitStop2` cleared DBG_STOP alone, and DBGMCU_CR read
   0x6 on the NUCLEO: the chip entered Stop 2 with DBG_STANDBY set, which RM0456 says
-  holds off the reset (75.2.4) and which a system reset leaves (75.12.2). With DBG_STOP
+  holds off the reset (75.2.4) and which a system reset leaves (75.12.4). With DBG_STOP
   set the clocks never stop, which is why that build ran.
 
 `OSInitStop2` now clears both. `SleepU5` then ran 60 s on the NUCLEO at 3.3 V: 600
@@ -569,7 +570,7 @@ The others that come near the port do not touch it. The LPTIM1 driver, added on
 | 2.2.3, 2.2.16: LSE unusable at the low and medium-low drives | it sets medium-high, as Zephyr |
 | 2.2.26: hang on entering Stop or Standby with the flash prefetching at 4 wait states | the prefetch is off since 2026-09-29; it was on, the images running from SRAM taken to keep the port clear, which an audit of the port doubted: the condition is the prefetch and the wait states, wherever the code runs from, and the prefetch serves nothing to images that never fetch from the flash |
 | 2.2.1: PC13 toggling disturbs the LSE | neither the port nor Arduino's device tree uses PC13 |
-| 2.22.3: LPUART transmitter jitter with a kernel clock 3 to 4 times the baud rate | HSI16 for 57,600 baud, 278 times |
+| 2.22.3: LPUART transmitter jitter with a kernel clock 3 to 4 times the baud rate | HSI16 for 57,600 to 115,200 baud, 278 to 139 times; 17 at the 921,600 tried |
 | 2.2.2: MSI slow on leaving Standby or Stop 3 | the port enters Stop 2 alone |
 | 2.2.5: hang entering Stop 2 with PLL2, PLL3, HSI48 or SHSI on | the port starts none of them |
 | 2.2.11: first read of a cache line after Stop 2 corrupted | the images run from SRAM through the S-bus, which ICACHE does not cache; DCACHE1 is off |

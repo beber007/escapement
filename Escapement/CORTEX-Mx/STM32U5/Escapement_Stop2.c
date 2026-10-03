@@ -30,7 +30,7 @@
 ** enabled in the NVIC (RM0456, 10.7.8 and 11.4.24): enabled only across the WFI, since it
 ** has no handler. DBG_STOP and DBG_STANDBY are cleared, which a debugger may have set:
 ** Debian's OpenOCD 0.12.0 sets both at each connection (stm32x5x_common.cfg), and a
-** system reset leaves them (RM0456, 75.12.2). With DBG_STANDBY set and DBG_STOP clear the
+** system reset leaves them (RM0456, 75.12.4). With DBG_STANDBY set and DBG_STOP clear the
 ** NUCLEO-U575ZI-Q entered Stop 2 and never woke, nor did NRST reach it, until powered off
 ** (2026-10-02); with DBG_STOP set the clocks never stop, and a wake-up from an SRD
 ** peripheral may end in a HardFault (errata 2.2.19). PLL2, PLL3,
@@ -80,9 +80,10 @@
 #define MAX_TICKS            60000u
 
 /* The window in ticks of LPTIM1, under half its counter to tell a window open from one
-** long closed; and the ticks it must still have to be armed: the compare is written into
-** the clock domain of LPTIM1 in some two ticks (OSSetLPTimerCompare), and one written past
-** its count would never match. A window nearer its end is taken as closed. */
+** long closed; and the ticks it must still have to be armed. The compare reaches the clock
+** domain of LPTIM1 some time after its write, which RM0456 does not bound (58.4.11), and
+** one that arrives past the count never matches: a window nearer its end is taken as
+** closed, and its end is read again once the compare is written (WindowSleep). */
 #define WINDOW_TICKS         ((UINT32)OS_STOP2_LINK_WINDOW_US * 512u / 15625u)
 #define WINDOW_MIN_TICKS     4u
 #if OS_STOP2_LINK_WINDOW_US > 900000
@@ -205,9 +206,18 @@ static BOOL WindowHolds(void)
 ** interrupts masked, and the bytes of a message come every 87 us at 115,200 baud. */
 static void WindowSleep(void)
 {
+  UINT16 left;
   if (!WindowArmed) {
      OSSetLPTimerCompare(WindowEnd);
      WindowArmed = TRUE;
+     /* The end passed while the compare was written: it would match only 2 s on, the idle
+     ** task in Sleep meanwhile. The window closes instead, Stop 2 due at the next turn. */
+     left = (UINT16)(WindowEnd - OSGetLPTimer());
+     if (left == 0 || left > WINDOW_TICKS) {
+        WindowOpen = FALSE;
+        WindowArmed = FALSE;
+        return;
+     }
   }
   NVIC_ICPR(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
   NVIC_ISER(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);

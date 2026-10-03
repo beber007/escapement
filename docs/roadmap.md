@@ -151,8 +151,10 @@ on the RP2040. The **STM32L4** is set aside.
       measure the error left, or give the always-on timer an external 32.768 kHz clock
       on GPIO 12, 14, 20 or 22 (§12.10.7), which is hardware for the bench.
 
-6. **LPUART1 at 115,200 baud through Stop 2.** It runs at 57,600 (`stm32u5.md`,
-   "LPUART1 through Stop 2"), and its margin on waking was read on 2026-10-02:
+6. **LPUART1 at 115,200 baud through Stop 2 — built and seen on the board on
+   2026-10-02.** It ran at 57,600 until then, and 57,600 stays the default; `SleepU5`
+   and `SoakU5` run at 115,200 (below). Its margin on waking was read on 2026-10-02
+   (`stm32u5.md`, "LPUART1 through Stop 2"):
    - with its FIFO on, an overrun comes when a byte is complete and the 8 places are
      full (RM0456, LPUART, "Overrun error"): from the byte that wakes the chip, 8 frames,
      1.39 ms at 57,600 baud, 694 µs at 115,200;
@@ -180,12 +182,13 @@ on the RP2040. The **STM32L4** is set aside.
      the kernel's clock stopped;
    - a wake-up byte, followed by an acknowledgement from the MCU before the message.
 
-   The way chosen, not yet built: **a wake-up byte without acknowledgement**. The client
+   The way chosen and built on 2026-10-02: **a wake-up byte without acknowledgement**. The client
    sends one byte, waits T, then its message. It holds on three conditions:
-   1. T is bounded by the code, not only measured: the wait for the HSE capped, at some
-      2.5 ms, beyond which that wake-up goes on PLL1 from the MSIS, as on a NUCLEO,
-      160.017 MHz, some 100 ppm off, the HSE tried again at the next. `NoHSE` gives it
-      up for good today, after some 20 ms. T is then leaving Stop 2, the capped HSE, and
+   1. T is bounded by the code, not only measured: the wait for the HSE capped at 64
+      ticks of LPTIM1, 1.95 ms, beyond which that wake-up goes on PLL1 from the MSIS, as
+      on a board without the HSE, 160.017 MHz, some 100 ppm off, the HSE tried again at
+      the next; until then `NoHSE` gave it up for good, after some 20 ms, as it still does
+      at reset. T is then leaving Stop 2, the capped HSE, and
       the maxima of the voltage range, booster and PLL1 lock, to read in DS13086; some
       5 ms for the client;
    2. the MCU stays awake W after each byte received, `_OSUARTIdle` refusing Stop 2
@@ -209,7 +212,8 @@ on the RP2040. The **STM32L4** is set aside.
    `SoakU5`, which never enters Stop 2, moved to 115,200 too on 2026-10-02, its link
    raw as before. Awake, it ran without an overrun up to 921,600 baud the same day
    (`stm32u5.md`, "Faster, awake"): a rate above 115,200 is open to a link that needs
-   it.
+   it. Left open: how often a wake-up byte comes out wrong, which no check of a minute
+   can bound.
 
 ## Done
 
@@ -254,7 +258,8 @@ on the RP2040. The **STM32L4** is set aside.
   from the board's 16 MHz crystal since 2026-09-26, within some 25 ppm of NTP
   (`stm32u5.md`). A board check of each commit runs on the UNO Q's own Linux since
   2026-09-26 (`tools/unoq_check.sh`, status `board/u5`). Since 2026-09-27 it runs the
-  idle task in Stop 2 for a minute (`SleepU5`), then the endurance test for two minutes
+  idle task in Stop 2 for a minute (`SleepU5`), and since 2026-10-02 a minute more
+  without the HSE (`SleepNoHSEU5`), then the endurance test for two minutes
   and the clock within 300 ppm over five, and the long endurance run then goes on with the
   commit's image.
   - Step 1 of the Stop 2 plan, the LPTIM1 driver on the LSE (`Escapement_LPTimer.c`) and
