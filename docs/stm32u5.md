@@ -624,6 +624,9 @@ never missed, and the PPK2 then read, one run each, the same order as above:
 | Stop 2 phase, mean | 0.60 mA | 0.41 mA | 0.35 mA | 0.27 mA |
 | Run, the median of the phase that computes | 10.68 mA | 5.66 mA | 3.64 mA | 1.82 mA |
 | Run, a cycle | 67 pC | 71 pC | 91 pC | 113 pC |
+| On the LDO: Stop 2 phase, mean | 0.98 mA | 0.65 mA | 0.50 mA | 0.36 mA |
+| On the LDO: Run, the median | 20.44 mA | 10.50 mA | 6.20 mA | 2.89 mA |
+| On the LDO: Run, a cycle | 128 pC | 131 pC | 155 pC | 180 pC |
 
 Half the speed saves 39 % of the Sleep, a tenth of it 75 %: part of the current does not
 follow the clock. The Stop 2 phase is mostly the Sleep of the wake-up's margin, which
@@ -631,15 +634,19 @@ costs less slower; the task's work, a few µs an instance, is too little for a s
 core to show its price there. The Run rows are `SleepU5Flash` built with `RUN=80000`
 too: its second phase computes for 80 ms of each 100 ms instead of sleeping, a loop on
 a variable on the stack, and the median of that phase is the core running, its mean
-the 20 % left in Sleep beside (9.81 mA at 160 MHz, 0.8 × 10.68 + 0.2 × 6.2). The same
-day, same order, one run each.
+the 20 % left in Sleep beside (9.81 mA at 160 MHz, 0.8 × 10.68 + 0.2 × 6.2). The LDO
+rows are the same images built without `SMPS=1`. The same day, same order, one run
+each.
 
 A cycle costs least at 160 MHz, in voltage range 1 with the booster: the lower ranges
 do not save what the part of the current that does not follow the clock costs over the
 longer time. A given work done at 160 MHz and followed by Stop 2, some 5 to 7 µA, takes
-6 % less charge than at 80 MHz, 27 % less than at 40, 41 % less than at 16. DVFS, the
-work done slower, gains nothing on the SMPS; racing to Stop 2 is the best of the four,
-at every load. The LDO was not measured so. What a slower clock does save is the time
+6 % less charge than at 80 MHz, 27 % less than at 40, 41 % less than at 16. On the LDO,
+the U585's only regulator, a cycle costs twice as much and the order is the same: 2 %
+less at 160 than at 80, within what one run tells, 17 % less than at 40, 29 % less than
+at 16, where its datasheet's figures, 84 and 73 µA/MHz, put a cycle 13 % cheaper at 24
+MHz than at 160 (`power-aware.md`). DVFS, the work done slower, gains nothing on either
+regulator; racing to Stop 2 is the best of the four, at every load. What a slower clock does save is the time
 awake doing nothing: the margin of each wake-up, 0.60 mA in the Stop 2 phase at 160 MHz
 against 0.27 at 16. Two things the check of `tools/unoq_sleep.py` caught at 16
 MHz, fixed since:

@@ -26,7 +26,8 @@ STM32U585 of the Arduino UNO Q (`stm32u5.md`), was written anew in the manner of
 RP2350's. The older STM32 ports went on 2026-09-26 (9783ab4), the F4 last, once the U5
 ran on its board with a check of each commit. The U5 sleeps too well for DVFS to gain
 (`power-aware.md`): measured on 2026-10-03, a cycle costs least at 160 MHz, and racing to
-Stop 2 beats every slower speed on its SMPS (item 4); the LDO is still to be measured. The **STM32L4** is set aside.
+Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). No power-aware
+kernel is planned for it. The **STM32L4** is set aside.
 
 ## Open work, in order
 
@@ -113,9 +114,9 @@ Stop 2 beats every slower speed on its SMPS (item 4); the LDO is still to be mea
    left at 3 ms. Slower clocks, `make MHZ=80`, `40` or `16`, ran on it the same day: the
    Sleep phase at 3.77, 2.71 and 1.53 mA on the SMPS, the Stop 2 phase at 0.41, 0.35 and
    0.27 mA (`stm32u5.md`, "Slower clocks, measured"). The core computing costs 67 pC a
-   cycle at 160 MHz, 71 at 80, 91 at 40, 113 at 16: DVFS gains nothing on the SMPS,
-   racing to Stop 2 wins at every load. The same on the LDO, the U585's, is still to be
-   measured, its datasheet putting a cycle 13 % cheaper slower. Left there too:
+   cycle at 160 MHz, 71 at 80, 91 at 40, 113 at 16, and on the LDO, the U585's, 128,
+   131, 155 and 180: DVFS gains nothing on the U5, racing to Stop 2 wins at every load,
+   and no power-aware kernel is planned for it. Left there:
    waking at 16 MHz and raising the clock only for the work, the margin of the wake-up
    then at the cost the table gives for 16 MHz. The datasheet, read on 2026-09-26
    (`power-aware.md`), puts it at some four times less current than Sleep at light load,

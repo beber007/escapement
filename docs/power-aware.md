@@ -210,10 +210,10 @@ with a PPK2 (`stm32u5.md`, "Slower clocks, measured"): the core computing drew 1
 at 160 MHz, 5.66 at 80, 3.64 at 40 and 1.82 at 16, some 67, 71, 91 and 113 pC a cycle.
 The lower voltage ranges do not pay for the longer time: a cycle costs least at the
 highest speed, and racing to Stop 2, 5 to 7 µA, beats each slower speed at every load.
-DVFS has nothing to gain on the U5's SMPS, where the datasheet's figures promised some.
-The LDO, the U585's only regulator, was not measured that way: its figures above, 84
-and 73 µA/MHz, put a cycle 13 % cheaper slower, which the NUCLEO built without `SMPS=1`
-can check.
+On the LDO, the U585's only regulator, the same images drew 20.44, 10.50, 6.20 and 2.89
+mA, 128, 131, 155 and 180 pC a cycle: twice the SMPS's, in the same order, where the
+figures above, 84 and 73 µA/MHz, put a cycle 13 % cheaper slower. DVFS has nothing to
+gain on the U5, on either regulator.
 
 Cost of a port, measured on 2026-09-20, before the Cortex-M33 joined the generic layer:
 
