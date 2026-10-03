@@ -42,6 +42,9 @@
 #define CLK_REF_SELECTED     *((volatile UINT32 *)(CLOCKS_BASE + 0x38))
 #define CLK_SYS_CTRL         *((volatile UINT32 *)(CLOCKS_BASE + 0x3C))
 #define CLK_SYS_SELECTED     *((volatile UINT32 *)(CLOCKS_BASE + 0x44))
+#define CLK_REF_DIV          *((volatile UINT32 *)(CLOCKS_BASE + 0x34))
+#define CLK_SYS_DIV          *((volatile UINT32 *)(CLOCKS_BASE + 0x40))
+#define CLK_DIV_1            0x00000100u   /* INT = 1, FRAC = 0, as after reset */
 #define CLK_PERI_CTRL        *((volatile UINT32 *)(CLOCKS_BASE + 0x48))
 #define CLK_PERI_ENABLE      (1u << 11)
 #define CLOCKS_SLEEP_EN0     *((volatile UINT32 *)(CLOCKS_BASE + 0xA8))
@@ -92,6 +95,12 @@ void OSInitializeSystemClocks(void)
   while ((CLK_REF_SELECTED & (1u << CLK_REF_SRC_XOSC)) == 0);
   CLK_SYS_CTRL = CLK_SYS_SRC_REF;
   while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_REF)) == 0);
+  /* Both dividers back to 1: a firmware run before may have changed them, and a reset of
+  ** the cores by the debugger leaves the clocks as they were. The pico-sdk's left clk_ref
+  ** divided by 2 on the Pico 2 of the bench, and TIMER0, which counts microseconds of
+  ** it, ran at half speed under SleepPico2 (2026-10-03). */
+  CLK_REF_DIV = CLK_DIV_1;
+  CLK_SYS_DIV = CLK_DIV_1;
   /* Peripheral clock straight onto the crystal, so the UART keeps dividing a known 12 MHz
   ** whatever the system clock does afterwards. */
   /* Its aux mux changes only with the generator stopped, some cycles of the clock it ran
