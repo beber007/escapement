@@ -342,7 +342,7 @@ jobs:
         run: make -C Escapement/CORTEX-Mx/STM32U5/Examples/uno-q ${{ matrix.make }}
 
       - name: Build the endurance test and SleepU5 of the NUCLEO-U575ZI-Q
-        run: make -C Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575 build/SoakU5.elf build/SleepU5.elf
+        run: make -C Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575 build/SoakU5.elf build/SleepU5.elf build/SleepU5Flash.elf
 
       - name: Check the compiled order of the slot buffers and the task-level stores
         run: python3 tools/check_order.py Escapement/CORTEX-Mx/STM32U5/Examples/uno-q/build/Escapement{Hard,Soft,HardPA}.o

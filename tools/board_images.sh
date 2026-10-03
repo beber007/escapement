@@ -76,13 +76,15 @@ echo "ppk2_u5: SleepU5 PHASES=30"
 # The same for the NUCLEO-U575ZI-Q, whose jumper gives the MCU's current alone.
 NUCLEO=Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575
 make -s -C "$NUCLEO" clean >/dev/null
-make -s -C "$NUCLEO" PHASES=30 build/SleepU5.elf >/dev/null
+make -s -C "$NUCLEO" PHASES=30 build/SleepU5.elf build/SleepU5Flash.elf >/dev/null
 cp "$NUCLEO/build/SleepU5.elf" "$OUT/ppk2_u5/SleepU5-nucleo-phases30.elf"
+cp "$NUCLEO/build/SleepU5Flash.elf" "$OUT/ppk2_u5/SleepU5Flash-nucleo-phases30.elf"
 make -s -C "$NUCLEO" clean >/dev/null
-make -s -C "$NUCLEO" PHASES=30 SMPS=1 build/SleepU5.elf >/dev/null
+make -s -C "$NUCLEO" PHASES=30 SMPS=1 build/SleepU5.elf build/SleepU5Flash.elf >/dev/null
 cp "$NUCLEO/build/SleepU5.elf" "$OUT/ppk2_u5/SleepU5-nucleo-smps-phases30.elf"
+cp "$NUCLEO/build/SleepU5Flash.elf" "$OUT/ppk2_u5/SleepU5Flash-nucleo-smps-phases30.elf"
 make -s -C "$NUCLEO" clean >/dev/null
-echo "ppk2_u5: SleepU5 PHASES=30, NUCLEO-U575ZI-Q, LDO and SMPS"
+echo "ppk2_u5: SleepU5 PHASES=30, NUCLEO-U575ZI-Q, LDO and SMPS, in SRAM and in the flash"
 # Not a check either: the endurance test for a long run on that board (board_ci.md).
 make -s -C "$NUCLEO" build/SoakU5.elf >/dev/null
 mkdir -p "$OUT/soak_nucleo"

@@ -35,7 +35,10 @@
 ** (2026-10-02); with DBG_STOP set the clocks never stop, and a wake-up from an SRD
 ** peripheral may end in a HardFault (errata 2.2.19). PLL2, PLL3,
 ** HSI48 and SHSI are not started by the port (2.2.5), nor any SRAM powered down (2.2.22).
-** The image runs from SRAM through the S-bus, which ICACHE does not cache (2.2.11).
+** ICACHE is disabled across the WFI and enabled again after it (2.2.11, revision X: the
+** first fetch from the cache line last used before Stop 2 may read wrong after it), which
+** an image run from SRAM through the S-bus, uncached, does not need and one run from the
+** flash does (STM32U5_FLASH.ld).
 ** Platform version: STM32U585 (Arduino UNO Q), any STM32U5.
 */
 
@@ -68,6 +71,8 @@
 #define SCB_SCR              *((volatile UINT32 *)0xE000ED10)
 #define SCB_SCR_SLEEPDEEP    (1u << 2)
 #define DBGMCU_CR            *((volatile UINT32 *)0xE0044004)
+#define ICACHE_CR            *((volatile UINT32 *)0x40030400)
+#define ICACHE_CR_EN         (1u << 0)
 #define DBGMCU_CR_DBG_STOP   (1u << 1)
 #define DBGMCU_CR_DBG_STANDBY (1u << 2)
 
@@ -277,9 +282,11 @@ static void Stop2Idle(void)
   PWR_SR = PWR_SR_CSSF;
   hsi = RCC_CR & RCC_CR_HSION;           // cleared entering Stop (RM0456, RCC_CR)
   _OSSRAMBeforeStop2(TRUE);              // the SRAM's wait state for the wake-up, if any
+  ICACHE_CR &= ~ICACHE_CR_EN;            // erratum 2.2.11; invalidated in the background
   SCB_SCR |= SCB_SCR_SLEEPDEEP;
   __asm volatile ("DSB\n\tWFI\n\tISB" ::: "memory");
   SCB_SCR &= ~SCB_SCR_SLEEPDEEP;
+  ICACHE_CR |= ICACHE_CR_EN;
   NVIC_ICER(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
   woken = !OSLPTimerCompared();
   NVIC_ICPR(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);

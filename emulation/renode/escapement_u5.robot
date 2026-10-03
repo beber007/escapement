@@ -628,6 +628,33 @@ SleepU5 of the NUCLEO-U575ZI-Q reports on USART1 and still sleeps in Stop 2
     Should Be True            ${events} >= ${instances}
     Should Be True            ${compare} != 0 or ${next} != 0
 
+SleepU5 runs from the flash of the NUCLEO-U575ZI-Q
+    [Documentation]           SleepU5Flash, SleepU5 linked into the flash (STM32U5_FLASH.ld), on
+    ...                       the NUCLEO's platform: it starts from the vector table at 0x08000000,
+    ...                       its .data copied into SRAM by _OSResetHandler, runs from the flash,
+    ...                       reports on USART1 and keeps its period and events, as the image in
+    ...                       SRAM does.
+    Load Escapement           SleepU5Flash  escapement_u5_nucleo.repl  ${NUCLEO}
+    ${usart1}=                Create Terminal Tester  sysbus.usart1  defaultPauseEmulation=true
+    Wait For Line On Uart     SLEEP  timeout=2.5  testerId=${usart1}
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${marker}=                Read Word  ${results}
+    ${instances}=             Read Word  ${results + 4}
+    ${jitter}=                Read Word  ${results + 16}
+    ${late}=                  Read Word  ${results + 28}
+    ${events}=                Read Word  ${results + 36}
+    ${vtor}=                  Read Word  0xE000ED08
+    ${pc}=                    Execute Command  sysbus.cpu PC
+    Log To Console            ${instances} instances, VTOR ${vtor}, PC ${pc.strip()}
+    Should Be Equal As Integers  ${marker}  0x534C5050
+    Should Be True            ${instances} >= 10
+    Should Be Equal As Integers  ${late}  0
+    Should Be True            ${jitter} <= 5
+    Should Be True            ${events} >= ${instances}
+    Should Be Equal As Integers  ${vtor}  0x08000000
+    Should Be True            0x08000000 <= ${pc.strip()} < 0x08200000
+
 The MSI PLL unlock interrupt is left alone on revision X
     [Documentation]           Line 23 of the EXTI and interrupt 125, which the port takes for the
     ...                       MSI PLL unlock (erratum 2.2.27), are reserved on revision X of the

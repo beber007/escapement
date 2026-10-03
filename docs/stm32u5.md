@@ -537,6 +537,30 @@ Both loaders, `tools/nucleo_load.sh` and `tools/unoq_load.sh`, now refuse a load
 core is in an exception after their "reset halt" (ICSR.VECTACTIVE not 0): the reset did
 not reach it, as with JP2 off, and the image would start inside a handler.
 
+### SleepU5 from the flash, for the PPK2
+
+A current of a few µA in Stop 2 is to be measured after a power cycle with no debugger
+connected since: ST's examples for the NUCLEO-U575ZI-Q ask for a power reset after a
+load, a probe once connected leaving the debug domain powered until then, and the
+DBGMCU registers survive anything less (RM0456, 75.12.4). An image in SRAM does not
+survive that power cycle. `SleepU5Flash.elf` (`Examples/nucleo-u575`) is `SleepU5`
+linked into the flash, `STM32U5_FLASH.ld`: its vector table at 0x08000000, where the
+NUCLEO boots (FLASH_OPTR and NSBOOTADD0R read 0x1FEFF8AA and 0x0800007F on 2026-10-03),
+its code and constants in the flash, its data copied into SRAM by `_OSResetHandler`. The
+UNO Q keeps its images in SRAM, its flash holding Arduino's firmware. The NUCLEO's flash
+as it was on 2026-10-03 is kept off the repository, to be written back.
+
+Code run from the flash goes through ICACHE, which the port enables. On revision X, the
+NUCLEO's, the first fetch from the cache line last used before Stop 2 may read wrong after
+it (ES0499, 2.2.11): `Stop2Idle` disables ICACHE before its WFI and enables it again after,
+ST's workaround. An image in SRAM, fetched through the S-bus, is not cached and did not
+need it.
+
+Under Renode, on the NUCLEO's platform, `SleepU5Flash` starts from the flash, VTOR at
+0x08000000, and reports on USART1, its periods and events on time. Renode loads every
+segment of the ELF, the data in SRAM included, so the copy from the flash is the board's
+to check. Not yet run on the board.
+
 ## Errata
 
 The errata sheet of the chip, ES0499 (rev. 12, June 2026), was read against the port on

@@ -15,6 +15,11 @@
 #       -c init -c 'reset halt' -c 'load_image build/SleepU5.elf' \
 #       -c 'resume 0x20000000' -c exit
 #
+# SleepU5Flash.elf is SleepU5 linked into the flash (STM32U5_FLASH.ld), for the current
+# measured after a power cycle with no debugger connected since:
+#
+#       ... -c init -c 'reset halt' -c 'program build/SleepU5Flash.elf verify reset exit'
+#
 # That OpenOCD, Debian's 0.12.0, sets DBG_STOP and DBG_STANDBY, which OSInitStop2 clears
 # (Escapement_Stop2.c); the reset reaches the MCU only with JP2 fitted (UM2861). SleepU5
 # ran on the board on 2026-10-02 (docs/stm32u5.md, "SleepU5 on the NUCLEO-U575ZI-Q"). The
@@ -52,7 +57,7 @@ endif
 
 $(shell mkdir -p build)
 
-all: build/SleepU5.elf build/SoakU5.elf
+all: build/SleepU5.elf build/SoakU5.elf build/SleepU5Flash.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.d
@@ -80,6 +85,12 @@ build/SleepU5.o : $(UNOQ)/SleepU5.c
 
 build/SleepU5.elf : $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+
+# SleepU5 run from the flash (STM32U5_FLASH.ld), for the current measured after a power
+# cycle with no debugger since: the same objects, linked at 0x08000000 without the entry
+# code of an image in SRAM. Written with OpenOCD's "program ... verify reset".
+build/SleepU5Flash.elf : $(filter-out build/Escapement_RamEntry.o,$(OBJECTS))
+	$(CC) $(LDFLAGS) -o $@ $^ -T../../STM32U5_FLASH.ld -lgcc
 
 # SoakU5, the endurance test, its reports and link on USART1 to the ST-LINK's virtual COM
 # port (SoakU5.c), for a long run beside the UNO Q's checks (tools/soak.py nucleo).
