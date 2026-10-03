@@ -58,11 +58,13 @@
 ** peripheral whose rate depends on the clock. */
 void OSInitializeSystemClocks(void);
 
-/* _OSRaiseSystemClock: The second half of OSInitializeSystemClocks, from the MSIS to
-** PLL1, clock NULL; Escapement_Stop2.c calls it again on waking from Stop 2 with the count
-** of LPTIM1, which bounds the wait for the HSE. TRUE if the HSE missed that bound, PLL1
-** then on the MSIS until the next wake-up. */
-BOOL _OSRaiseSystemClock(UINT16 (*clock)(void));
+/* _OSStartHSE and _OSRaiseSystemClock: The second half of OSInitializeSystemClocks, the
+** HSE started, clock NULL, then the system clock from the MSIS to PLL1. Escapement_Stop2.c
+** calls both again on waking from Stop 2, the first with the count of LPTIM1, which
+** bounds the wait for the HSE, and sleeps between them on the MSIS. _OSStartHSE returns
+** TRUE if the HSE missed that bound, PLL1 then on the MSIS until the next wake-up. */
+BOOL _OSStartHSE(UINT16 (*clock)(void));
+void _OSRaiseSystemClock(void);
 
 /* _OSSRAMBeforeStop2: Sets the SRAM's wait state the chip needs on waking from Stop 2
 ** (stopping TRUE), or takes it off should the chip not have stopped (FALSE); an MSIS

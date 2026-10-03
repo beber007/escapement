@@ -316,7 +316,8 @@ more, no UART is sending, and USART1 is not receiving. That event is an arrival 
 wrap of TIM2, or a timer event of TIM5. The idle task arms LPTIM1 3 ms short of the
 event, stops TIM2 and TIM5 on an edge of LPTIM1 and enters Stop 2. On waking it takes
 the clock back to 160 MHz and starts both timers again on an edge, moved on by the ticks
-counted in between. Until 2026-09-27 a pending timer event kept the idle task in Sleep.
+counted in between. Since 2026-10-03 it sleeps on the MSIS until 500 µs before the event
+first ("The margin slept on the MSIS", below). Until 2026-09-27 a pending timer event kept the idle task in Sleep.
 
 `SleepU5` runs one task every 100 ms over this idle task. On the board on 2026-09-27,
 over 43 s:
@@ -646,10 +647,10 @@ the U585's only regulator, a cycle costs twice as much and the order is the same
 less at 160 than at 80, within what one run tells, 17 % less than at 40, 29 % less than
 at 16, where its datasheet's figures, 84 and 73 µA/MHz, put a cycle 13 % cheaper at 24
 MHz than at 160 (`power-aware.md`). DVFS, the work done slower, gains nothing on either
-regulator; racing to Stop 2 is the best of the four, at every load. What a slower clock does save is the time
-awake doing nothing: the margin of each wake-up, 0.60 mA in the Stop 2 phase at 160 MHz
-against 0.27 at 16. Two things the check of `tools/unoq_sleep.py` caught at 16
-MHz, fixed since:
+regulator; racing to Stop 2 is the best of the four, at every load. What a slower
+clock does save is the time awake doing nothing: the margin of each wake-up, 0.60 mA in
+the Stop 2 phase at 160 MHz against 0.27 at 16 (below, "The margin slept on the MSIS").
+Two things the check of `tools/unoq_sleep.py` caught at 16 MHz, fixed since:
 
 - TIM2 lost some 30 cycles a wake-up, those between the edge of LPTIM1 that ends the
   sleep and its start, made up by none: −6.1 ppm against LPTIM1 at 80 MHz, −14.2 at 40,
@@ -659,6 +660,32 @@ MHz, fixed since:
 - The way of a timer event's interrupt to its task, some 800 cycles, took 49 µs at 16
   MHz where the check allowed 20; it allows 1,600 cycles now, `MHZ=16` in its
   environment.
+
+### The margin slept on the MSIS (2026-10-03)
+
+The wake-up's margin, 3 ms, covers the HSE's start, which the NUCLEO's takes 1.7 ms of
+and the UNO Q's 0.5, and the raise of the clock. What the HSE left of it was spent in
+Sleep at 160 MHz, up to the event. The idle task now sleeps it on the clock the chip woke
+on, the MSIS at 4 MHz in range 4 (`SlowSleep`, `Escapement_Stop2.c`): `_OSStartHSE`
+starts the HSE and waits for it, as before, the core sleeps on LPTIM1 until
+`OS_STOP2_RAISE_US`, 500 µs, before the event, and `_OSRaiseSystemClock` then takes PLL1
+up. A byte on LPUART1 that woke the chip has the clock raised at once; the counts leave
+the sleep out of the longest wake-up and count the wake-ups that slept so (`Slow`).
+
+On the NUCLEO the same day, `SleepU5Flash` built with `PHASES=30` at 160 MHz, one run each,
+the Sleep phase as a control:
+
+| | SMPS | LDO |
+|---|---|---|
+| Stop 2 phase, the margin at 160 MHz (above) | 0.60 mA | 1.02 mA |
+| Stop 2 phase, the margin slept on the MSIS | 0.48 mA | 0.78 mA |
+| Sleep phase, the same in both | 6.22 mA | 10.98 mA |
+
+Some 20 % less on either regulator, with no instance late over 250 and 150, the longest
+wake-up 56 and 55 ticks of LPTIM1. Its HSE leaves the NUCLEO some 0.8 ms of the 3 to
+sleep so; the UNO Q's, starting in some 19 ticks, leaves 1.9, and should save more
+there, which its shared rail cannot show alone. Under Renode every wake-up of `SleepU5`
+slept so, and none came late (`escapement_u5.robot`).
 
 ## Errata
 

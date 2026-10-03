@@ -113,6 +113,11 @@ static BOOL WindowArmed;                   // the compare of LPTIM1 set at Windo
 
 static void Stop2Idle(void);
 
+/* Ticks of LPTIM1 the margin of the wake-up leaves on the MSIS, in Sleep, once the HSE is
+** up: the margin less OS_STOP2_RAISE_US, kept for raising the clock. */
+#define SLOW_TICKS(wake)     ((wake) > OS_STOP2_RAISE_US ? \
+                              ((wake) - OS_STOP2_RAISE_US) * 512u / 15625u : 0u)
+
 
 /* The UART driver says whether Stop 2 would lose its work, and the timer-event driver
 ** how far off its next event is, and stops and moves TIM5 on with TIM2; an image
@@ -191,6 +196,30 @@ static UINT16 NextTick(void)
 } /* end of NextTick */
 
 
+/* SlowSleep: Sleep on the clock the chip woke from Stop 2 on, the MSIS in range 4, until
+** LPTIM1 counts until or another interrupt comes; the ticks slept. The margin of the
+** wake-up was spent in Sleep at the system clock, 6.2 mA at 160 MHz on the NUCLEO's
+** SMPS and 11 on its LDO, where 1.5 to 2.2 would do at 16 (docs/stm32u5.md, "Slower
+** clocks, measured"). An until less than two ticks off is not slept: the compare written
+** takes some ticks of LPTIM1 to hold, and one already passed would never come. */
+static UINT16 SlowSleep(UINT16 until)
+{
+  UINT16 from = OSGetLPTimer();
+  if ((UINT16)(until - from) < 4u || (UINT16)(until - from) > MAX_TICKS)
+     return 0;
+  OSSetLPTimerCompare(until);
+  if ((UINT16)(until - OSGetLPTimer()) < 2u || (UINT16)(until - OSGetLPTimer()) > MAX_TICKS)
+     return (UINT16)(OSGetLPTimer() - from);
+  NVIC_ICPR(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
+  NVIC_ISER(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
+  __asm volatile ("DSB\n\tWFI\n\tISB" ::: "memory");
+  NVIC_ICER(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
+  (void)OSLPTimerCompared();
+  NVIC_ICPR(OS_IO_LPTIM1) = NVIC_BIT(OS_IO_LPTIM1);
+  return (UINT16)(OSGetLPTimer() - from);
+} /* end of SlowSleep */
+
+
 /* OpenWindow: The window of LPUART1 from now on. A compare already armed for an earlier
 ** end stays: it ends that sleep, and the next arms the new end. */
 static void OpenWindow(void)
@@ -254,8 +283,8 @@ static void WindowSleep(void)
 static void Stop2Idle(void)
 {
   UINT32 now, target, compare, limit, ticks, micros, event, hsi;
-  UINT16 start, wake, end;
-  BOOL holds, woken;
+  UINT16 start, alarm, wake, end, slept;
+  BOOL holds, woken, whole;
   _OSDisableInterrupts();
   holds = WindowHolds();
   now = TIM_CNT;
@@ -279,11 +308,13 @@ static void Stop2Idle(void)
      return;
   }
   micros = target - now - WakeUs;
-  if (micros > MAX_TICKS * 15625u / 512u)
+  whole = micros <= MAX_TICKS * 15625u / 512u;   // the alarm WakeUs before the event
+  if (!whole)
      micros = MAX_TICKS * 15625u / 512u;
   ticks = micros * 512u / 15625u;
   start = OSGetLPTimer();
-  OSSetLPTimerCompare((UINT16)(start + ticks));
+  alarm = (UINT16)(start + ticks);
+  OSSetLPTimerCompare(alarm);
   start = NextTick();
   TIM_CR1 &= ~TIM_CR1_CEN;
   _OSTimerEventHalt();
@@ -307,15 +338,21 @@ static void Stop2Idle(void)
   /* An interrupt already pending leaves the WFI at once, the chip still on PLL1. */
   if (PWR_SR & PWR_SR_STOPF) {
      wake = OSGetLPTimer();
-     if (_OSRaiseSystemClock(OSGetLPTimer))
+     if (_OSStartHSE(OSGetLPTimer))
         Counts.HSEMissed += 1;           // PLL1 on the MSIS until the next wake-up
+     /* The rest of the margin on the MSIS, OS_STOP2_RAISE_US kept to raise the clock;
+     ** a byte on LPUART1 has the clock raised at once. */
+     slept = woken || !whole ? 0 : SlowSleep((UINT16)(alarm + SLOW_TICKS(WakeUs)));
+     if (slept != 0)
+        Counts.Slow += 1;
+     _OSRaiseSystemClock();
      RCC_CR |= hsi;                      // HSI16 back for LPUART1 (Escapement_UART.c)
      if (woken)
         OpenWindow();                    // LPUART1 woke it, its byte read or not
      end = NextTick();
      Counts.Entries += 1;
-     if ((UINT16)(end - wake) > Counts.WakeMaxTicks)
-        Counts.WakeMaxTicks = (UINT16)(end - wake);
+     if ((UINT16)(end - wake - slept) > Counts.WakeMaxTicks)
+        Counts.WakeMaxTicks = (UINT16)(end - wake - slept);
   }
   else {
      _OSSRAMBeforeStop2(FALSE);

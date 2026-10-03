@@ -166,8 +166,10 @@ build/SleepNoHSEU5.elf : $(filter-out build/Escapement_Processor.o,$(COMMON)) \
                          build/Escapement_TimerEvent.o build/SleepU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 # SleepU5 with its times a thousand times longer, for the wrap under Renode (SleepU5.c),
-# the margins of the idle task in Stop 2 with them.
-SCALED = -DTIME_SCALE=1000 -DOS_STOP2_WAKE_US=3000000u -DOS_STOP2_MIN_US=5000000u
+# the margins of the idle task in Stop 2 with them; the part kept to raise the clock is
+# 1.2 ms there, the sleep on the MSIS before it held under 60,000 ticks of LPTIM1.
+SCALED = -DTIME_SCALE=1000 -DOS_STOP2_WAKE_US=3000000u -DOS_STOP2_MIN_US=5000000u \
+         -DOS_STOP2_RAISE_US=1200000u
 build/SleepWrapU5.o : SleepU5.c
 	$(CC) $(CFLAGS) $(SCALED) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/Escapement_Stop2Wrap.o : ../../Escapement_Stop2.c

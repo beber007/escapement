@@ -116,12 +116,13 @@ kernel is planned for it. The **STM32L4** is set aside.
    0.27 mA (`stm32u5.md`, "Slower clocks, measured"). The core computing costs 67 pC a
    cycle at 160 MHz, 71 at 80, 91 at 40, 113 at 16, and on the LDO, the U585's, 128,
    131, 155 and 180: DVFS gains nothing on the U5, racing to Stop 2 wins at every load,
-   and no power-aware kernel is planned for it. Left there:
-   waking at 16 MHz and raising the clock only for the work, the margin of the wake-up
-   then at the cost the table gives for 16 MHz. The datasheet, read on 2026-09-26
-   (`power-aware.md`), puts it at some four times less current than Sleep at light load,
-   some 5.3 against 1.4 mA with a tenth of the processor busy. The UNO Q's U585 has no
-   SMPS, and DVFS would add some 10 % at most.
+   and no power-aware kernel is planned for it. What a slower clock saves, the margin of
+   the wake-up, the idle task now sleeps on the MSIS at 4 MHz until 500 µs before the
+   event: the Stop 2 phase at 0.48 mA rather than 0.60 on the SMPS, 0.78 rather than 1.02
+   on the LDO (`stm32u5.md`, "The margin slept on the MSIS"). The datasheet, read on
+   2026-09-26 (`power-aware.md`), puts it at some four times less current than Sleep at
+   light load, some 5.3 against 1.4 mA with a tenth of the processor busy. The UNO Q's
+   U585 has no SMPS.
 
    Next, the PPK2, on `SleepU5` built with `make PHASES=30`, which alternates Stop 2 and
    Sleep, D13 telling them apart. On the UNO Q only the difference can show: the MCU

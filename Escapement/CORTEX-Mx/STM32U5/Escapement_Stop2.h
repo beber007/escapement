@@ -21,6 +21,13 @@
    #define OS_STOP2_MIN_US  5000u
 #endif
 
+/* The part of that margin kept for raising the clock, the voltage range, the booster and
+** PLL1, from the MSIS: the rest is slept on the MSIS once the HSE is up, rather than on
+** the system clock (Escapement_Stop2.c, SlowSleep). In ticks of TIM2 too. */
+#ifndef OS_STOP2_RAISE_US
+   #define OS_STOP2_RAISE_US 500u
+#endif
+
 /* The window after a byte received on LPUART1, or a wake-up it caused, during which the
 ** idle task stays in Sleep, so that a client may wake the chip with one byte and send its
 ** message at 115,200 baud once the clock is up (docs/roadmap.md, item 6). It covers the
@@ -51,16 +58,19 @@ void OSAllowStop2(BOOL allowed);
 void OSSetStop2Wake(UINT32 micros);
 
 /* The counts of the idle task, for the examples: the times it entered Stop 2, the largest
-** wake-up it took, in ticks of LPTIM1, the times it woke past the next event, whose
+** wake-up it took, in ticks of LPTIM1, the HSE's start and the clock's raise, the sleep on
+** the MSIS between them left out, the times it woke past the next event, whose
 ** kernel time it then set just before it, and the wake-ups the HSE missed, PLL1 then on
 ** the MSIS, some 100 ppm off, until the next (Escapement_Processor.c), and the sleeps
-** held in Sleep by the window of LPUART1 when Stop 2 was otherwise due. */
+** held in Sleep by the window of LPUART1 when Stop 2 was otherwise due, and the wake-ups
+** that slept part of their margin on the MSIS. */
 typedef struct OS_STOP2_COUNTS {
   UINT32 Entries;
   UINT32 WakeMaxTicks;
   UINT32 Late;
   UINT32 HSEMissed;
   UINT32 LinkHeld;
+  UINT32 Slow;
 } OS_STOP2_COUNTS;
 
 void OSGetStop2Counts(OS_STOP2_COUNTS *counts);

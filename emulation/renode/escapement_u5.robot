@@ -163,12 +163,16 @@ The wake-up from Stop 2 takes PLL1 back to the HSE
     ...                       the HSE starting at the tenth read of RCC_CR after each wake-up,
     ...                       within the 64 ticks of LPTIM1 the port waits: every wake-up takes
     ...                       PLL1 back to the HSE, none missed it, none is late, and the MSIS
-    ...                       stays in range 4.
+    ...                       stays in range 4. Each sleeps the margin on the MSIS once the HSE
+    ...                       is up, but the 500 us kept to raise the clock (SlowSleep).
     Load Escapement           SleepU5  escapement_u5_stop2.repl
     Execute Command           sysbus WriteDoubleWord 0x46020FFC 10
     Execute Command           emulation RunFor "3"
     ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
     ${results}=               Convert To Integer  ${results.strip()}
+    ${counts}=                Execute Command  sysbus GetSymbolAddress "Counts"
+    ${counts}=                Convert To Integer  ${counts.strip()}
+    ${slow}=                  Read Word  ${counts + 20}
     ${instances}=             Read Word  ${results + 4}
     ${jitter}=                Read Word  ${results + 16}
     ${entries}=               Read Word  ${results + 20}
@@ -177,7 +181,7 @@ The wake-up from Stop 2 takes PLL1 back to the HSE
     ${missed}=                Read Word  ${results + 56}
     ${cfgr}=                  Read Word  0x46020C28
     ${icscr1}=                Read Word  0x46020C08
-    Log To Console            ${instances} instances, ${entries} into Stop 2, longest wake-up ${wake} ticks, ${missed} the HSE missed
+    Log To Console            ${instances} instances, ${entries} into Stop 2, longest wake-up ${wake} ticks, ${missed} the HSE missed, ${slow} slept on the MSIS
     Should Be True            ${instances} >= 25
     Should Be True            ${entries} >= ${instances}
     Should Be Equal As Integers  ${missed}  0
@@ -186,6 +190,8 @@ The wake-up from Stop 2 takes PLL1 back to the HSE
     Should Be True            ${wake} < 64
     Should Be Equal As Integers  ${{ ${cfgr} & 3 }}  3
     Should Be Equal As Integers  ${{ (${icscr1} >> 28) & 0xF }}  0
+    # Counts holds the idle task's counts at every instant, Results only at each report.
+    Should Be True            ${slow} >= ${entries}
 
 A wake-up the HSE misses goes on the MSIS, and the next tries the HSE again
     [Documentation]           The same, the HSE never starting after a wake-up: the port waits

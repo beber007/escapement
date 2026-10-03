@@ -187,6 +187,7 @@ static UNLOCK_ISR_DATA UnlockDescriptor;
    static BOOL NoHSE = FALSE;
 #endif
 static volatile UINT32 MSIRelocks;
+static BOOL HSEUp;                         // _OSStartHSE found the HSE running
 
 
 /* UnlockHandler: The MSI left its PLL mode (erratum 2.2.27): the mode off and on again. */
@@ -286,24 +287,25 @@ void OSInitializeSystemClocks(void)
   #endif
   /* The MSIS locked, should PLL1 have to take it; then the HSE. */
   LockMSIS();
-  (void)_OSRaiseSystemClock(NULL);
+  (void)_OSStartHSE(NULL);
+  _OSRaiseSystemClock();
 } /* end of OSInitializeSystemClocks */
 
 
-/* _OSRaiseSystemClock: From the MSIS, as reset or a wake-up from Stop leaves the system
-** clock, in range 4, to OS_SYSTEM_CLOCK_HZ on PLL1, or on the HSE or the MSIS at 16 MHz. The HSE, missing at reset, is not waited for
-** again: a board without it fitted would otherwise spend its time-out there at every
-** wake-up from Stop 2. On waking, clock
-** names the caller's, and the HSE missing after HSE_WAKE_TICKS of it, PLL1 takes the MSIS
-** for this once, the HSE tried again at the next: interrupts stay masked meanwhile, and
-** the wait had no bound but the 20 ms of reset, after which the chip gave the HSE up for
-** good (2026-10-02). TRUE if the HSE missed so. */
-BOOL _OSRaiseSystemClock(UINT16 (*clock)(void))
+/* _OSStartHSE: The HSE started and waited for, from the MSIS reset or a wake-up from Stop
+** leaves the system clock on, before _OSRaiseSystemClock takes it up. The HSE, missing at
+** reset, is not waited for again: a board without it fitted would otherwise spend its
+** time-out there at every wake-up from Stop 2. On waking, clock names the caller's, and
+** the HSE missing after HSE_WAKE_TICKS of it, PLL1 takes the MSIS for this once, the HSE
+** tried again at the next: interrupts stay masked meanwhile, and the wait had no bound
+** but the 20 ms of reset, after which the chip gave the HSE up for good (2026-10-02).
+** TRUE if the HSE missed so. */
+BOOL _OSStartHSE(UINT16 (*clock)(void))
 {
   volatile UINT32 i;
-  UINT32 n;
   UINT16 start;
-  BOOL hse = FALSE, missed = FALSE;
+  BOOL missed = FALSE;
+  HSEUp = FALSE;
   if (!NoHSE) {
      RCC_CR |= RCC_CR_HSEON;
      if (clock == NULL) {
@@ -316,8 +318,19 @@ BOOL _OSRaiseSystemClock(UINT16 (*clock)(void))
                (UINT16)(clock() - start) < HSE_WAKE_TICKS);
         missed = (RCC_CR & RCC_CR_HSERDY) == 0;
      }
-     hse = !NoHSE && !missed;            // read once: a late HSERDY changes nothing now
+     HSEUp = !NoHSE && !missed;          // read once: a late HSERDY changes nothing now
   }
+  return missed;
+} /* end of _OSStartHSE */
+
+
+/* _OSRaiseSystemClock: From the MSIS, in range 4, to OS_SYSTEM_CLOCK_HZ on PLL1, or on the
+** HSE or the MSIS at 16 MHz, the HSE as _OSStartHSE found it. */
+void _OSRaiseSystemClock(void)
+{
+  volatile UINT32 i;
+  UINT32 n;
+  BOOL hse = HSEUp;
   /* The input of PLL1 before the booster, whose clock is the source before the divider M,
   ** must be 4 to 16 MHz, and the VCO's input after M 4 to 8 (RM0456 rev. 7, RCC_PLL1CFGR):
   ** the HSE, 16 MHz, the top of the booster's range, divided by 4 for the VCO. */
@@ -368,7 +381,6 @@ BOOL _OSRaiseSystemClock(UINT16 (*clock)(void))
         while ((RCC_CFGR1 & RCC_CFGR1_SWS_MASK) != RCC_CFGR1_SWS_HSE);
      }
      ICACHE_CR |= ICACHE_CR_EN;
-     return missed;
   #else
   /* The range and, above 55 MHz, the booster, then wait for both. */
   PWR_VOSR = (PWR_VOSR & ~((3u << 16) | PWR_VOSR_BOOSTEN)) | VOS_RANGE(CLOCK_RANGE) |
@@ -396,6 +408,5 @@ BOOL _OSRaiseSystemClock(UINT16 (*clock)(void))
   for (i = 0; i < 100; i += 1);            // some microseconds at 80 MHz
   RCC_CFGR2 &= ~RCC_CFGR2_HPRE_MASK;
   ICACHE_CR |= ICACHE_CR_EN;
-  return missed;
   #endif
 } /* end of _OSRaiseSystemClock */
