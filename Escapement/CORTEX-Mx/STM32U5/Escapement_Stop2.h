@@ -44,6 +44,12 @@ BOOL OSInitStop2(void);
 ** load (SleepU5). */
 void OSAllowStop2(BOOL allowed);
 
+/* OSSetStop2Wake: How long before the next event LPTIM1 wakes the chip, in ticks of TIM2,
+** OS_STOP2_WAKE_US until then. A wake-up that takes longer comes late (the counts below).
+** For a board whose wake-up is known, or to price the margin against the time spent in
+** Sleep after it (SleepU5 built with WAKE=). Under OS_STOP2_MIN_US, which stays fixed. */
+void OSSetStop2Wake(UINT32 micros);
+
 /* The counts of the idle task, for the examples: the times it entered Stop 2, the largest
 ** wake-up it took, in ticks of LPTIM1, the times it woke past the next event, whose
 ** kernel time it then set just before it, and the wake-ups the HSE missed, PLL1 then on

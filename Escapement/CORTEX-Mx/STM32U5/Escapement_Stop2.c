@@ -98,6 +98,7 @@
 
 static OS_STOP2_COUNTS Counts;
 static volatile BOOL Allowed = TRUE;
+static volatile UINT32 WakeUs = OS_STOP2_WAKE_US;  // how early LPTIM1 wakes the chip
 static UINT32 Fraction;                    // of a microsecond, in 512ths, carried over
 static BOOL WindowOpen;                    // the window of LPUART1, and its end on LPTIM1
 static UINT16 WindowEnd;
@@ -166,6 +167,12 @@ void OSAllowStop2(BOOL allowed)
 {
   Allowed = allowed;
 } /* end of OSAllowStop2 */
+
+
+void OSSetStop2Wake(UINT32 micros)
+{
+  WakeUs = micros;
+} /* end of OSSetStop2Wake */
 
 
 /* NextTick: Waits for the count of LPTIM1 to change, and returns the new one. */
@@ -264,7 +271,7 @@ static void Stop2Idle(void)
      _OSEnableInterrupts();
      return;
   }
-  micros = target - now - OS_STOP2_WAKE_US;
+  micros = target - now - WakeUs;
   if (micros > MAX_TICKS * 15625u / 512u)
      micros = MAX_TICKS * 15625u / 512u;
   ticks = micros * 512u / 15625u;

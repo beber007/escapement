@@ -599,6 +599,15 @@ time and leaves the means right; the level is read at the end of a long sleep, a
 short sleep never reaches it. The temperature was a living room's, not measured. Each
 figure is one run.
 
+The margin of the wake-up, `OS_STOP2_WAKE_US`, 3 ms, is the Sleep that follows each
+wake-up until the event, at some 6 mA on the SMPS. `OSSetStop2Wake()` sets it at run time,
+and `SleepU5` built with `PHASES=30 WAKE=2200` alternates 30 s at 3 ms, D13 high, and 30
+s at 2.2 ms, D13 low, both in Stop 2. On the NUCLEO on the SMPS on 2026-10-03, four
+phases of each: 588 µA at 3 ms, 500 µA at 2.2 ms, some 110 µA a millisecond of margin
+at its twenty wake-ups a second, and no wake-up late over 2,720 instances, the longest
+62 ticks of LPTIM1, 1.89 ms, its HSE starting. The default stays 3 ms; the UNO Q's
+wake-up, 19 ticks, 0.58 ms, would need far less.
+
 ## Errata
 
 The errata sheet of the chip, ES0499 (rev. 12, June 2026), was read against the port on

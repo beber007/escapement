@@ -68,6 +68,11 @@ endif
 ifdef PHASES
    CFLAGS += -DSLEEP_PHASES=$(PHASES)
 endif
+# make PHASES=30 WAKE=2200: the second phase in Stop 2 too, woken 2,200 us before each
+# event rather than OS_STOP2_WAKE_US (SleepU5.c).
+ifdef WAKE
+   CFLAGS += -DSLEEP_WAKE_B=$(WAKE)u
+endif
 # make NOHSE=1: the HSE never started, PLL1 on the MSIS of range 2 at start and at every
 # wake-up from Stop 2, the path of a board without the HSE (Escapement_Processor.c).
 ifdef NOHSE

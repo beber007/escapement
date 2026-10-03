@@ -17,7 +17,9 @@
 **
 ** Built with make PHASES=n, the idle task alternates n seconds in Stop 2, D13 high, and n
 ** seconds in Sleep, D13 low (OSAllowStop2), the load the same: what the PPK2 compares,
-** its digital input on D13 telling the phases apart in the one record.
+** its digital input on D13 telling the phases apart in the one record. With WAKE=us as
+** well, both phases are in Stop 2, the second woken us before each event rather than
+** OS_STOP2_WAKE_US (OSSetStop2Wake): the price of the margin of the wake-up.
 **
 ** Every ten instances a line of text goes to Linux on LPUART1: "SLEEP" and, in
 ** hexadecimal, the words 1 to 16 of Results. Linux may send back a count, one byte after
@@ -164,11 +166,18 @@ static void SleepTask(void *argument)
      /* The phase changes at a start: the next sleep is the first of the new one. */
      if (Results.Instances % (SLEEP_PHASES * 1000000 * TIME_SCALE / PERIOD) == 0) {
         if ((Results.Instances / (SLEEP_PHASES * 1000000 * TIME_SCALE / PERIOD)) % 2 == 0) {
+           #ifdef SLEEP_WAKE_B
+              OSSetStop2Wake(OS_STOP2_WAKE_US);
+           #endif
            OSAllowStop2(TRUE);
            SetPin(FLAG3_PIN);
         }
         else {
-           OSAllowStop2(FALSE);
+           #ifdef SLEEP_WAKE_B
+              OSSetStop2Wake(SLEEP_WAKE_B);   // Stop 2 still, woken that much later
+           #else
+              OSAllowStop2(FALSE);
+           #endif
            ClearPin(FLAG3_PIN);
         }
      }

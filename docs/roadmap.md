@@ -107,7 +107,10 @@ on the RP2040. The **STM32L4** is set aside.
    (`stm32u5.md`, "The NUCLEO's MCU measured with a PPK2"): Stop 2 at some 21 µA on the
    LDO and 7 µA on the SMPS, `SleepU5`'s Stop 2 phase at 1.02 and 0.60 mA against 10.97
    and 6.20 mA in Sleep, at 3.3 V. Left: the UNO Q's own U585, which only a difference
-   can show, and the PPK2 as a check of each commit. The datasheet, read on 2026-09-26
+   can show, and the PPK2 as a check of each commit. The margin of the wake-up was priced
+   the same day: some 110 µA a millisecond at twenty wake-ups a second on the SMPS, 3 ms
+   where 2.2 sufficed on the NUCLEO; `OSSetStop2Wake()` sets it per board, the default
+   left at 3 ms. The datasheet, read on 2026-09-26
    (`power-aware.md`), puts it at some four times less current than Sleep at light load,
    some 5.3 against 1.4 mA with a tenth of the processor busy. The UNO Q's U585 has no
    SMPS, and DVFS would add some 10 % at most.
@@ -123,8 +126,8 @@ on the RP2040. The **STM32L4** is set aside.
    NUCLEO-U575ZI-Q"); its longest wake-up, some 60 ticks of LPTIM1, is its HSE starting
    in some 1.8 ms, the board having one after all.
    Then the margin of the wake-up, 3 ms, where the longest wake-up measured is 885 µs:
-   the Sleep it leaves after waking may cost more than Stop 2 saves, which the PPK2 will
-   price.
+   the Sleep it leaves after waking may cost more than Stop 2 saves, which the PPK2
+   priced on 2026-10-03 (above).
 
    The plan for Stop 2, as read on 2026-09-26, and the two parts of it that changed the
    next day are in `stm32u5.md`, "The plan, as read on 2026-09-26".
