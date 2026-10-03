@@ -19,7 +19,10 @@
 ** seconds in Sleep, D13 low (OSAllowStop2), the load the same: what the PPK2 compares,
 ** its digital input on D13 telling the phases apart in the one record. With WAKE=us as
 ** well, both phases are in Stop 2, the second woken us before each event rather than
-** OS_STOP2_WAKE_US (OSSetStop2Wake): the price of the margin of the wake-up.
+** OS_STOP2_WAKE_US (OSSetStop2Wake): the price of the margin of the wake-up. With RUN=us
+** instead, each instance of the second phase computes for us from its start, the core
+** busy rather than asleep: the current of the core running, at the speed of the build
+** (make MHZ=); the event then comes late, after the instance.
 **
 ** Every ten instances a line of text goes to Linux on LPUART1: "SLEEP" and, in
 ** hexadecimal, the words 1 to 16 of Results. Linux may send back a count, one byte after
@@ -86,6 +89,9 @@ volatile struct {
 #endif
 
 static INT32 EventDue;                   // TIM2's time the event is due at
+#ifdef SLEEP_RUN_B
+   static BOOL Running;                  // the second phase: each instance computes
+#endif
 
 /* The UART of the reports, and of the link where there is one. */
 #ifdef BOARD_NUCLEO_U575
@@ -97,6 +103,9 @@ static INT32 EventDue;                   // TIM2's time the event is due at
 #endif
 
 static void SleepTask(void *argument);
+#ifdef SLEEP_RUN_B
+   static void Compute(INT32 start);
+#endif
 static void EventTask(void *argument);
 #ifndef BOARD_NUCLEO_U575
    static void LinkReceive(UINT8 byte);
@@ -170,6 +179,9 @@ static void SleepTask(void *argument)
               OSSetStop2Wake(OS_STOP2_WAKE_US);
            #endif
            OSAllowStop2(TRUE);
+           #ifdef SLEEP_RUN_B
+              Running = FALSE;
+           #endif
            SetPin(FLAG3_PIN);
         }
         else {
@@ -178,6 +190,9 @@ static void SleepTask(void *argument)
            #else
               OSAllowStop2(FALSE);
            #endif
+           #ifdef SLEEP_RUN_B
+              Running = TRUE;
+           #endif
            ClearPin(FLAG3_PIN);
         }
      }
@@ -185,12 +200,27 @@ static void SleepTask(void *argument)
   started = TRUE;
   lastTicks = ticks;
   lastMicros = micros;
+  #ifdef SLEEP_RUN_B
+     if (Running)
+        Compute(micros);
+  #endif
   for (i = 0; i < WORK; i += 1);
   EventDue = (_OSGetActualTime() + EVENT_DELAY) & 0x3FFFFFFF;
   OSScheduleTimerEvent(argument,EVENT_DELAY,OS_IO_TIM5);
   ClearPin(FLAG1_PIN);
   OSEndTask();
 } /* end of SleepTask */
+
+
+#ifdef SLEEP_RUN_B
+/* Compute: The core busy until SLEEP_RUN_B us after start, on TIM2's 30 bits. */
+static void Compute(INT32 start)
+{
+  volatile UINT32 i;
+  while ((((UINT32)_OSGetActualTime() - (UINT32)start) & 0x3FFFFFFF) < SLEEP_RUN_B)
+     for (i = 0; i < 100; i += 1);
+} /* end of Compute */
+#endif
 
 
 /* EventTask: The gap between the time the event was due and the time it came, early or

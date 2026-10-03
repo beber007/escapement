@@ -28,6 +28,7 @@ from ppk2_api.ppk2_api import PPK2_API
 
 RATE = 100000            # samples a second the PPK2 takes; the UNO Q reads some 70 to 80 %
                          # of them, chunks lost whole, which leaves the means right
+BIN_UA = 10              # the bins the median of a phase is read from
 SETTLE_S = 3             # the first second the PPK2 sends holds placeholder samples
 
 
@@ -71,25 +72,40 @@ def samples(ppk2, seconds):
         ppk2.stop_measuring()
 
 
+def median(bins, n):
+    """The median of a phase from its counts by bin of BIN_UA."""
+    seen = 0
+    for b in sorted(bins):
+        seen += bins[b]
+        if seen * 2 >= n:
+            return (b + 0.5) * BIN_UA
+    return 0.0
+
+
 def phases(seconds):
     """Each run of D0 at one level is a phase, its sums kept as samples come; the first
-    and the last, cut by the window, are left out of the means by level."""
-    found = []                         # [level, n, sum, min, max]
+    and the last, cut by the window, are left out of the means by level. The median of
+    each, from counts by bin of BIN_UA, is the level the phase spends most of its time
+    at: the core's running, for a phase that computes most of each period."""
+    found = []                         # [level, n, sum, min, max, bins]
     ppk2 = open_ppk2()
     for value, level in samples(ppk2, seconds):
         if not found or found[-1][0] != level:
-            found.append([level, 0, 0.0, value, value])
+            found.append([level, 0, 0.0, value, value, {}])
         phase = found[-1]
         phase[1] += 1
         phase[2] += value
         phase[3] = min(phase[3], value)
         phase[4] = max(phase[4], value)
+        b = int(value // BIN_UA)
+        phase[5][b] = phase[5].get(b, 0) + 1
     rate = sum(p[1] for p in found) / seconds          # the samples read a second
     print(f"{rate / 1000:.0f} kS/s read of the PPK2's {RATE // 1000}")
-    for i, (level, n, total, low, high) in enumerate(found):
+    for i, (level, n, total, low, high, bins) in enumerate(found):
         cut = " (cut by the window)" if i in (0, len(found) - 1) else ""
         print(f"phase {i}: {'Stop 2' if level else 'Sleep '} {n / rate:5.1f} s, mean "
-              f"{total / n:9.1f} uA, min {low:8.1f}, max {high:8.1f}{cut}")
+              f"{total / n:9.1f} uA, median {median(bins, n):9.1f}, min {low:8.1f}, "
+              f"max {high:8.1f}{cut}")
     for level, name in ((1, "Stop 2"), (0, "Sleep")):
         whole = [p for i, p in enumerate(found) if p[0] == level and 0 < i < len(found) - 1]
         if whole:

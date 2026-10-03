@@ -73,6 +73,11 @@ endif
 ifdef WAKE
    CFLAGS += -DSLEEP_WAKE_B=$(WAKE)u
 endif
+# make PHASES=30 RUN=80000: the second phase computes for 80,000 us of each instance, the
+# current of the core running (SleepU5.c).
+ifdef RUN
+   CFLAGS += -DSLEEP_RUN_B=$(RUN)u
+endif
 # make MHZ=80: the system clock at 80 MHz rather than 160; 40 and 16 too, each in the
 # lowest voltage range that runs it (Escapement_Processor.c).
 ifdef MHZ

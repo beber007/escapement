@@ -203,7 +203,17 @@ against 1.4 mA. Stop 2 stops TIM2, but LPTIM1 on the 32.768 kHz crystal counts t
 and an idle task in Stop 2 first, some four times less current by the datasheet. DVFS
 would come after, if at all, for some 10 % more on this board, and only once the PPK2 has
 measured the first. The idle task has slept in Stop 2 on the board since 2026-09-27
-(`stm32u5.md`); its current is still to be measured.
+(`stm32u5.md`).
+
+**Measured on 2026-10-03**, on the STM32U575 of a NUCLEO-U575ZI-Q, its SMPS on, at 3.3 V,
+with a PPK2 (`stm32u5.md`, "Slower clocks, measured"): the core computing drew 10.68 mA
+at 160 MHz, 5.66 at 80, 3.64 at 40 and 1.82 at 16, some 67, 71, 91 and 113 pC a cycle.
+The lower voltage ranges do not pay for the longer time: a cycle costs least at the
+highest speed, and racing to Stop 2, 5 to 7 µA, beats each slower speed at every load.
+DVFS has nothing to gain on the U5's SMPS, where the datasheet's figures promised some.
+The LDO, the U585's only regulator, was not measured that way: its figures above, 84
+and 73 µA/MHz, put a cycle 13 % cheaper slower, which the NUCLEO built without `SMPS=1`
+can check.
 
 Cost of a port, measured on 2026-09-20, before the Cortex-M33 joined the generic layer:
 
