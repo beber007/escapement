@@ -249,6 +249,14 @@ class UnoQ:
         one that failed unseen, the image before left running, passed for restarts of the
         board (2026-09-27)."""
         loader = os.path.join(os.path.dirname(os.path.abspath(__file__)), self.loader)
+        # The image loaded expects the link from 0: the count of the one before, which a
+        # take-over that failed may have read, would make an error of its first byte (the
+        # U5's run after the failed check of d9a32eb, 2026-10-02). The link waits for the
+        # new image's first report, as after a restart, its reports and bytes still in
+        # the driver dropped.
+        with self.lock:
+            self.value, self.pending = None, b""
+            termios.tcflush(self.fd, termios.TCIOFLUSH)
         done = subprocess.run(["sh", loader, self.elf], capture_output=True, text=True,
                               check=False)
         self.last = None
