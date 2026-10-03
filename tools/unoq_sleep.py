@@ -12,7 +12,10 @@ with an error unless, at the last report:
   - Stop 2 was entered by at least MIN_ENTRIES of the instances (those that send a
     report stay in Sleep);
   - the longest wake-up took less than the OS_STOP2_WAKE_US allowed, 3 ms;
-  - each instance's timer event came, within MAX_EVENT_OFF_US of when it was due;
+  - each instance's timer event came, within MAX_EVENT_OFF_US of when it was due, or
+    EVENT_OFF_CYCLES of the core's for an image built slower (make MHZ=, given here in
+    the environment as MHZ): the interrupt's way to the task, some 800 cycles, took 5 us
+    at 160 MHz and 49 at 16 on 2026-10-03;
   - every byte of a count this sends, in frames of 1 to 32 bytes 0.1 to 0.5 s apart,
     came through Stop 2, none out of the count or lost to an overrun;
   - TIM2 and LPTIM1 agree within MAX_PPM over the run. So does SleepNoHSEU5's, whose
@@ -37,7 +40,7 @@ its endurance test's service stopped: the reports come over USART1 to the virtua
 port of its ST-LINK, found as tools/soak.py finds it, and nothing is sent, SleepU5
 receiving nothing there (SleepU5.c); the checks of the link then hold on no byte.
 
-    tools/unoq_sleep.py SECONDS [nucleo]
+    [MHZ=16] tools/unoq_sleep.py SECONDS [nucleo]
 """
 import binascii
 import glob
@@ -50,7 +53,8 @@ import termios
 import time
 
 MAX_JITTER_US = 2
-MAX_EVENT_OFF_US = 20
+EVENT_OFF_CYCLES = 1600
+MAX_EVENT_OFF_US = max(20, EVENT_OFF_CYCLES // int(os.environ.get("MHZ", "160")))
 MIN_ENTRIES = 0.8
 WAKE_TICKS = 3000 * 32768 // 1000000
 MAX_PPM = 20

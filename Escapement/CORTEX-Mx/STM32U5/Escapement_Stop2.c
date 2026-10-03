@@ -100,6 +100,13 @@ static OS_STOP2_COUNTS Counts;
 static volatile BOOL Allowed = TRUE;
 static volatile UINT32 WakeUs = OS_STOP2_WAKE_US;  // how early LPTIM1 wakes the chip
 static UINT32 Fraction;                    // of a microsecond, in 512ths, carried over
+/* TIM2 stops a few instructions after the tick that starts the sleep, and starts again some
+** 30 cycles after the one that ends it, those of the code between: as many cycles lost per
+** wake-up, which made the kernel's second 38.5 ppm long at 16 MHz and 20 wake-ups a
+** second, 3 to 5 ppm at 160 (SleepU5 on the NUCLEO-U575ZI-Q, 2026-10-03). They are given
+** back, in 512ths of a microsecond. */
+#define RESTART_CYCLES       30u
+#define RESTART_FRACTION     (RESTART_CYCLES * 512u / (OS_SYSTEM_CLOCK_HZ / 1000000u))
 static BOOL WindowOpen;                    // the window of LPUART1, and its end on LPTIM1
 static UINT16 WindowEnd;
 static BOOL WindowArmed;                   // the compare of LPTIM1 set at WindowEnd
@@ -314,7 +321,7 @@ static void Stop2Idle(void)
      _OSSRAMBeforeStop2(FALSE);
      end = NextTick();
   }
-  micros = (UINT16)(end - start) * 15625u + Fraction;
+  micros = (UINT16)(end - start) * 15625u + Fraction + RESTART_FRACTION;
   Fraction = micros % 512u;
   micros /= 512u;
   TIM_CNT = now + micros >= limit ? limit - 1 : now + micros;
