@@ -32,7 +32,7 @@ was read, not copied into the repository.
 
 | Part | File | What it does |
 |---|---|---|
-| Clocks | `Escapement_Processor.c` | the board's 16 MHz crystal (HSE) to 160 MHz through PLL1, or the MSIS locked on the LSE, raised to its 16 MHz range, if the HSE does not start; voltage range 1 with the EPOD booster, 4 flash wait states, a first step through an AHB prescaler of 2, the instruction cache on |
+| Clocks | `Escapement_Processor.c` | the board's 16 MHz crystal (HSE) to 160 MHz through PLL1 (80, 40 or 16 with `make MHZ=`), or the MSIS locked on the LSE, raised to its 16 MHz range, if the HSE does not start; voltage range 1 with the EPOD booster, 4 flash wait states, a first step through an AHB prescaler of 2, the instruction cache on |
 | Kernel timer | `Escapement_Timer.c` | TIM2, 32 bits, counting microseconds and wrapping at 2^30, compare channel 1 on the next arrival; the 32-bit path of the STM32 port |
 | Timer events | `Escapement_TimerEvent.c` | TIM5, 32 bits, free-running, compare channel 1 on the next event; the logic of the RP2350 port, an event already due forced through CC1G |
 | UART | `Escapement_UART.c` | USART1 on PB6 and PB7 (D1 and D0 of the connector) at 115,200 baud, with its receive FIFO; LPUART1 on PG7 and PG8 to the board's Linux (`/dev/ttyHS1`) at 57,600 baud by default, 115,200 for `SleepU5` and `SleepWrapU5` behind a wake-up byte and for `SoakU5`, which never enters Stop 2, receiving through Stop 2, and PG6, the CTS of the Linux side, held low: left floating, it read high on 2026-09-28. The RP2350 driver without its priming, since the transmit interrupt of these UARTs reflects a state. Bytes lost to an overrun are counted |
@@ -607,6 +607,36 @@ phases of each: 588 µA at 3 ms, 500 µA at 2.2 ms, some 110 µA a millisecond o
 at its twenty wake-ups a second, and no wake-up late over 2,720 instances, the longest
 62 ticks of LPTIM1, 1.89 ms, its HSE starting. The default stays 3 ms; the UNO Q's
 wake-up, 19 ticks, 0.58 ms, would need far less.
+
+### Slower clocks, measured (2026-10-03)
+
+`make MHZ=80`, `40` or `16` builds every example at that speed instead of 160 MHz
+(`OS_SYSTEM_CLOCK_HZ`, `Escapement_Processor.c`): PLL1 divided by 4 or 8 in voltage
+range 2 or 3 without the booster, or the HSE itself in range 4, with the flash's and
+the SRAM's wait states those ranges need (RM0456, tables 54 and 47). Renode's platform
+cannot check them, its clocks fixed; the NUCLEO did. `SleepU5Flash` built with
+`PHASES=30 SMPS=1` at each speed ran its 150 instances on time, none late, the HSE
+never missed, and the PPK2 then read, one run each, the same order as above:
+
+| `SleepU5`, SMPS, 3.3 V | 160 MHz | 80 MHz | 40 MHz | 16 MHz |
+|---|---|---|---|---|
+| Sleep phase, mean | 6.20 mA | 3.77 mA | 2.71 mA | 1.53 mA |
+| Stop 2 phase, mean | 0.60 mA | 0.41 mA | 0.35 mA | 0.27 mA |
+
+Half the speed saves 39 % of the Sleep, a tenth of it 75 %: part of the current does not
+follow the clock. The Stop 2 phase is mostly the Sleep of the wake-up's margin, which
+costs less slower; the task's work, a few µs an instance, is too little for a slower
+core to show its price here. Two things the check of `tools/unoq_sleep.py` caught at 16
+MHz, fixed since:
+
+- TIM2 lost some 30 cycles a wake-up, those between the edge of LPTIM1 that ends the
+  sleep and its start, made up by none: −6.1 ppm against LPTIM1 at 80 MHz, −14.2 at 40,
+  −38.5 at 16, at 19 wake-ups a second, and 3 to 5 ppm at 160 before. `Stop2Idle` gives
+  them back (`RESTART_CYCLES`); the four speeds then read −2 to −5 ppm over 30 s, none in
+  the order of the speed.
+- The way of a timer event's interrupt to its task, some 800 cycles, took 49 µs at 16
+  MHz where the check allowed 20; it allows 1,600 cycles now, `MHZ=16` in its
+  environment.
 
 ## Errata
 

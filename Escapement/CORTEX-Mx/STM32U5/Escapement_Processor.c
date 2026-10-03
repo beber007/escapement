@@ -88,6 +88,8 @@
 #define RCC_CR_PLL1ON        (1u << 24)
 #define RCC_CR_PLL1RDY       (1u << 25)
 #define RCC_CFGR1_SW_PLL1    3u
+#define RCC_CFGR1_SW_HSE     2u
+#define RCC_CFGR1_SWS_HSE    (2u << 2)
 #define RCC_CFGR1_SWS_MASK   (3u << 2)
 #define RCC_CFGR1_SWS_PLL1   (3u << 2)
 #define RCC_CFGR2_HPRE_MASK  0xFu
@@ -116,7 +118,6 @@
 #define PWR_SVMSR            *((volatile UINT32 *)(PWR_BASE + 0x3C))
 #define PWR_SVMSR_REGS       (1u << 1)
 #define PWR_VOSR             *((volatile UINT32 *)(PWR_BASE + 0x0C))
-#define PWR_VOSR_VOS_RANGE1  (3u << 16)
 #define PWR_VOSR_BOOSTEN     (1u << 18)
 #define PWR_VOSR_VOSRDY      (1u << 15)
 #define PWR_VOSR_BOOSTRDY    (1u << 14)
@@ -134,7 +135,32 @@
 #define FLASH_ACR            *((volatile UINT32 *)(0x40022000 + 0x00))
 #define FLASH_ACR_LATENCY_MASK 0xFu
 #define FLASH_ACR_PRFTEN     (1u << 8)
-#define FLASH_WAIT_STATES    4u   /* range 1, 128 to 160 MHz */
+/* The voltage range, the booster, the flash's wait states and PLL1's divider R for each
+** system clock, its VCO at 320 MHz: the lowest range that runs it (RM0456 rev. 7, PWR,
+** dynamic voltage scaling: 160, 110, 55 and 25 MHz at most in ranges 1 to 4), the booster
+** above 55 MHz (PWR_VOSR.BOOSTEN), the wait states of table 54; the SRAM needs none in
+** ranges 1 to 3, and one in range 4 above 16 MHz (table 47). In range 3 the VCO may run
+** up to 330 MHz; range 4 has no PLL, and 16 MHz is the crystal or the MSIS itself. */
+#define VOS_RANGE(r)         ((4u - (r)) << 16)   /* VOS 3 is range 1, 0 range 4 */
+#if OS_SYSTEM_CLOCK_HZ == 160000000u
+   #define CLOCK_RANGE       1u
+   #define FLASH_WAIT_STATES 4u
+   #define PLL1_R            2u
+#elif OS_SYSTEM_CLOCK_HZ == 80000000u
+   #define CLOCK_RANGE       2u
+   #define FLASH_WAIT_STATES 2u
+   #define PLL1_R            4u
+#elif OS_SYSTEM_CLOCK_HZ == 40000000u
+   #define CLOCK_RANGE       3u
+   #define FLASH_WAIT_STATES 1u
+   #define PLL1_R            8u
+#elif OS_SYSTEM_CLOCK_HZ == 16000000u
+   #define CLOCK_RANGE       4u
+   #define FLASH_WAIT_STATES 1u
+#else
+   #error "OS_SYSTEM_CLOCK_HZ: 160, 80, 40 or 16 MHz on the STM32U5"
+#endif
+#define CLOCK_BOOST          (OS_SYSTEM_CLOCK_HZ > 55000000u)
 
 /* RAMCFG_MxCR of SRAM1, 2 and 3, the 768 KB the images run from (STM32U5_SRAM.ld). */
 #define RAMCFG_MCR(x)        *((volatile UINT32 *)(0x40026000 + 0x40 * ((x) - 1)))
@@ -265,7 +291,7 @@ void OSInitializeSystemClocks(void)
 
 
 /* _OSRaiseSystemClock: From the MSIS, as reset or a wake-up from Stop leaves the system
-** clock, in range 4, to 160 MHz on PLL1. The HSE, missing at reset, is not waited for
+** clock, in range 4, to OS_SYSTEM_CLOCK_HZ on PLL1, or on the HSE or the MSIS at 16 MHz. The HSE, missing at reset, is not waited for
 ** again: a board without it fitted would otherwise spend its time-out there at every
 ** wake-up from Stop 2. On waking, clock
 ** names the caller's, and the HSE missing after HSE_WAKE_TICKS of it, PLL1 takes the MSIS
@@ -328,11 +354,28 @@ BOOL _OSRaiseSystemClock(UINT16 (*clock)(void))
                     PLL1SRC_MSIS | PLL1RGE_4_8MHZ | PLL1M(3) | PLL1MBOOST_DIV2 | PLL1REN;
      n = 60;
   }
-  /* Range 1 and the booster, then wait for both. */
-  PWR_VOSR = (PWR_VOSR & ~(3u << 16)) | PWR_VOSR_VOS_RANGE1 | PWR_VOSR_BOOSTEN;
-  while ((PWR_VOSR & (PWR_VOSR_VOSRDY | PWR_VOSR_BOOSTRDY)) !=
-         (PWR_VOSR_VOSRDY | PWR_VOSR_BOOSTRDY));
-  /* Range 1 reads the SRAM at 0 wait states up to 160 MHz (RM0456, table 47): the one
+  #if CLOCK_RANGE == 4
+     /* Range 4, as reset and Stop leave it, without PLL1: the crystal, the SRAM at 0 wait
+     ** states, or the MSIS left at 16.0017 MHz, the SRAM at one. */
+     (void)n;
+     (void)i;
+     FLASH_ACR = (FLASH_ACR & ~(FLASH_ACR_LATENCY_MASK | FLASH_ACR_PRFTEN)) |
+                 FLASH_WAIT_STATES;
+     while ((FLASH_ACR & FLASH_ACR_LATENCY_MASK) != FLASH_WAIT_STATES);
+     if (hse) {
+        SRAMWaitStates(0);
+        RCC_CFGR1 = (RCC_CFGR1 & ~3u) | RCC_CFGR1_SW_HSE;
+        while ((RCC_CFGR1 & RCC_CFGR1_SWS_MASK) != RCC_CFGR1_SWS_HSE);
+     }
+     ICACHE_CR |= ICACHE_CR_EN;
+     return missed;
+  #else
+  /* The range and, above 55 MHz, the booster, then wait for both. */
+  PWR_VOSR = (PWR_VOSR & ~((3u << 16) | PWR_VOSR_BOOSTEN)) | VOS_RANGE(CLOCK_RANGE) |
+             (CLOCK_BOOST ? PWR_VOSR_BOOSTEN : 0u);
+  while ((PWR_VOSR & (PWR_VOSR_VOSRDY | (CLOCK_BOOST ? PWR_VOSR_BOOSTRDY : 0u))) !=
+         (PWR_VOSR_VOSRDY | (CLOCK_BOOST ? PWR_VOSR_BOOSTRDY : 0u)));
+  /* Ranges 1 to 3 read the SRAM at 0 wait states up to their maximum (table 47): the one
   ** set for the MSIS of range 2 is taken off, should the chip have woken on it, whichever
   ** source PLL1 takes now. */
   SRAMWaitStates(0);
@@ -342,8 +385,8 @@ BOOL _OSRaiseSystemClock(UINT16 (*clock)(void))
   ** of the port read on 2026-09-29 as holding whatever the code runs from. */
   FLASH_ACR = (FLASH_ACR & ~(FLASH_ACR_LATENCY_MASK | FLASH_ACR_PRFTEN)) | FLASH_WAIT_STATES;
   while ((FLASH_ACR & FLASH_ACR_LATENCY_MASK) != FLASH_WAIT_STATES);
-  /* 4 MHz x 80 / 2 = 160 MHz from the HSE. */
-  RCC_PLL1DIVR = (RCC_PLL1DIVR & ~PLL1DIVR_FIELDS) | PLL1N(n) | PLL1R(2);
+  /* 4 MHz x 80 = 320 MHz from the HSE, divided by R. */
+  RCC_PLL1DIVR = (RCC_PLL1DIVR & ~PLL1DIVR_FIELDS) | PLL1N(n) | PLL1R(PLL1_R);
   RCC_CR |= RCC_CR_PLL1ON;
   while ((RCC_CR & RCC_CR_PLL1RDY) == 0);
   /* Onto PLL1 through an AHB prescaler of 2 first, then 1. */
@@ -354,4 +397,5 @@ BOOL _OSRaiseSystemClock(UINT16 (*clock)(void))
   RCC_CFGR2 &= ~RCC_CFGR2_HPRE_MASK;
   ICACHE_CR |= ICACHE_CR_EN;
   return missed;
+  #endif
 } /* end of _OSRaiseSystemClock */

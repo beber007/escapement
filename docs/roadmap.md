@@ -110,7 +110,9 @@ on the RP2040. The **STM32L4** is set aside.
    can show, and the PPK2 as a check of each commit. The margin of the wake-up was priced
    the same day: some 110 µA a millisecond at twenty wake-ups a second on the SMPS, 3 ms
    where 2.2 sufficed on the NUCLEO; `OSSetStop2Wake()` sets it per board, the default
-   left at 3 ms. The datasheet, read on 2026-09-26
+   left at 3 ms. Slower clocks, `make MHZ=80`, `40` or `16`, ran on it the same day: the
+   Sleep phase at 3.77, 2.71 and 1.53 mA on the SMPS, the Stop 2 phase at 0.41, 0.35 and
+   0.27 mA (`stm32u5.md`, "Slower clocks, measured"). The datasheet, read on 2026-09-26
    (`power-aware.md`), puts it at some four times less current than Sleep at light load,
    some 5.3 against 1.4 mA with a tenth of the processor busy. The UNO Q's U585 has no
    SMPS, and DVFS would add some 10 % at most.

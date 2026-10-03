@@ -46,12 +46,16 @@
 #endif
 
 /* The system clock OSInitializeSystemClocks sets, which the timer and the UART derive
-** their rates from. */
-#define OS_SYSTEM_CLOCK_HZ 160000000u
+** their rates from: 160 MHz, or 80, 40 or 16 to weigh energy against speed (make MHZ=,
+** Escapement_Processor.c), each in the lowest voltage range that runs it. */
+#ifndef OS_SYSTEM_CLOCK_HZ
+   #define OS_SYSTEM_CLOCK_HZ 160000000u
+#endif
 
-/* Takes the system clock to 160 MHz through PLL1, fed by the board's 16 MHz crystal, or
-** by the MSIS left by reset should the crystal not start. To be called first, before the
-** timer and before any peripheral whose rate depends on the clock. */
+/* Takes the system clock to OS_SYSTEM_CLOCK_HZ through PLL1, fed by the board's 16 MHz
+** crystal, or by the MSIS left by reset should the crystal not start; at 16 MHz, the
+** crystal or the MSIS itself. To be called first, before the timer and before any
+** peripheral whose rate depends on the clock. */
 void OSInitializeSystemClocks(void);
 
 /* _OSRaiseSystemClock: The second half of OSInitializeSystemClocks, from the MSIS to

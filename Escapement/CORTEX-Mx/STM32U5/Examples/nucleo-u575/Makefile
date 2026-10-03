@@ -50,6 +50,11 @@ endif
 ifdef WAKE
    CFLAGS += -DSLEEP_WAKE_B=$(WAKE)u
 endif
+# make MHZ=80: the system clock at 80 MHz rather than 160; 40 and 16 too, each in the
+# lowest voltage range that runs it (Escapement_Processor.c).
+ifdef MHZ
+   CFLAGS += -DOS_SYSTEM_CLOCK_HZ=$(MHZ)000000u
+endif
 # make NOHSE=1: the HSE never started, as on a board without it (Examples/uno-q/Makefile).
 ifdef NOHSE
    CFLAGS += -DOS_NO_HSE
