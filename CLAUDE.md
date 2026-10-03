@@ -55,7 +55,7 @@ make -C Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575 [PHASES=30] [SMPS=1]  
 tools/unoq_check.sh SoakU5.elf SHA            # on the UNO Q: the board check of a commit
                                               # (status board/u5), then the long run goes on;
                                               # SleepU5.elf, then SleepNoHSEU5.elf, beside
-                                              # it run first (unoq_sleep.py [nohse])
+                                              # it run first (unoq_sleep.py)
 tools/soak.py nucleo 0 1m SoakU5.elf          # on the UNO Q: SoakU5 of Examples/nucleo-u575
                                               # on a NUCLEO-U575ZI-Q, over its ST-LINK
                                               # (service escapement-soak-nucleo)

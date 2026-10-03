@@ -188,8 +188,9 @@ on the CI's images, so it needs `BOARD_CI_IMAGES=ci`. It has four steps:
    sent to it received;
 2. `SleepNoHSEU5` for a minute, the same with the HSE never started, PLL1 on the MSIS of
    range 2 at every wake-up, the path of a board without the HSE, which neither U5 board of
-   the bench takes otherwise; TIM2 then runs 106.7 ppm ahead of LPTIM1, the MSIS being
-   locked on the LSE that drives it, and is checked so, within 20 ppm;
+   the bench takes otherwise, checked as `SleepU5`: TIM2 within 20 ppm of LPTIM1 too,
+   since it is set from LPTIM1 at every wake-up and runs on PLL1, 106.7 ppm fast on the
+   MSIS, only awake;
 3. the endurance test, `SoakU5`, for two minutes, every part without error;
 4. its clock against Linux's raw clock, which NTP does not pull, over five minutes
    (`tools/unoq_drift.py`), within 300 ppm.

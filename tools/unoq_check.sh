@@ -84,7 +84,7 @@ if [ -f "$SLEEP" ]; then
 fi
 NOHSE=$(dirname "$ELF")/SleepNoHSEU5.elf
 if [ -n "$ok" ] && [ -f "$NOHSE" ]; then
-    sh "$HERE/unoq_load.sh" "$NOHSE" && python3 "$HERE/unoq_sleep.py" 60 nohse || ok=""
+    sh "$HERE/unoq_load.sh" "$NOHSE" && python3 "$HERE/unoq_sleep.py" 60 || ok=""
 fi
 [ -n "$ok" ] && { sh "$HERE/unoq_load.sh" "$ELF" || ok=""; }
 if [ -n "$ok" ]; then

@@ -242,8 +242,14 @@ of range 2 had run under Renode only, on no board. `SleepNoHSEU5`, `SleepU5` bui
 `OS_NO_HSE` (`make NOHSE=1` for any image), starts as a board without the HSE would: PLL1
 takes the MSIS of range 2 at start and at every wake-up from Stop 2. A Renode test checks
 it on the platform that enters Stop 2, and fails when the option does nothing; the board
-check of each commit runs it on the UNO Q for a minute after `SleepU5`, TIM2 then 106.7
-ppm ahead of LPTIM1, the MSIS being locked on the LSE that drives it.
+check of each commit runs it on the UNO Q for a minute after `SleepU5`. Its first run on
+the board, in the check of d9a32eb on 2026-10-02, was the first of that path on a chip:
+600 instances, 1,225 entries into Stop 2, none late, every byte of the link received,
+and the longest wake-up 4 ticks of LPTIM1 against 19 waiting for the HSE. The check
+still failed, on TIM2 against LPTIM1: it expected TIM2 106.7 ppm ahead, PLL1 on the MSIS
+being that fast, and read -4.1. TIM2 is set from LPTIM1 at every wake-up from Stop 2,
+where the image spends most of its time, and runs on PLL1 only awake; it is now checked
+as `SleepU5`'s, within 20 ppm.
 
 Since 2026-09-28 the board check times the U5 against `CLOCK_MONOTONIC_RAW`, the crystal
 of the board's Qualcomm processor as it is, which NTP does not pull (`tools/unoq_drift.py`).
