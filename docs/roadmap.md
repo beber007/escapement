@@ -103,6 +103,29 @@ kernel is planned for it. The **STM32L4** is set aside.
    power manager differ from the RP2040's, and the driver is to be written from the
    pico-sdk headers.
 
+   The Pico 2 measured on 2026-10-03, `SleepPico2` built with `RUN=1`: the core
+   computing without a pause, 30 s at each point, the board powered by the PPK2 at 5 V
+   on VSYS, its regulator included; 75 and 37.5 MHz are PLL_SYS's 150 divided in
+   clk_sys, the VCO still at 1.5 GHz, and 12 MHz the crystal with PLL_SYS stopped:
+
+   | core voltage | 150 MHz | 75 MHz | 37.5 MHz | 12 MHz |
+   |---|---|---|---|---|
+   | 1.10 V | 15.99 mA, 107 pC a cycle | 8.84 mA, 118 pC | 5.79 mA, 154 pC | 2.94 mA, 245 pC |
+   | 1.00 V | | 7.60 mA, 101 pC | 5.11 mA, 136 pC | 2.69 mA, 225 pC |
+
+   As on the U5 a cycle costs least at full speed at a given voltage; what decides is
+   the sleep the time saved goes to. Racing at 150 MHz beats 75 MHz at 1.10 V only if
+   that sleep draws under 1.7 mA, and 37.5 MHz under 2.4: SLEEP, 4.2 mA (item 5), does
+   not, DORMANT, 0.36 mA, does. With a tenth of the processor busy and the idle task in
+   SLEEP, 75 MHz saves some 5 % and 37.5 some 10 %, at 1.10 V; SLEEP itself took 61 %
+   off WFI. At 1.00 V, 75 MHz costs less a cycle than 150 at 1.10 and beats racing to any
+   sleep, but the datasheet guarantees 1.1 V only (6.3.2), and its brown-out detector
+   resets the chip under some 0.95 V: a bench setting, as UNDERVOLT is on the RP2040.
+   Within the specification, then, DVFS on the RP2350 is worth some 10 % if the idle
+   task sleeps in SLEEP with PLL_SYS running, and next to nothing once it stops PLL_SYS,
+   1.99 mA, just over the 1.7 that 75 MHz needs, or once DORMANT keeps the time (item 5,
+   step 3). SLEEP comes first, PLL_SYS stopped.
+
 4. **The STM32U5's energy.** The idle task sleeps in Stop 2 on the board since 2026-09-27
    (see Done). Its current was measured on a NUCLEO-U575ZI-Q with a PPK2 on 2026-10-03
    (`stm32u5.md`, "The NUCLEO's MCU measured with a PPK2"): Stop 2 at some 21 µA on the
@@ -160,12 +183,54 @@ kernel is planned for it. The **STM32L4** is set aside.
    held 15 ppm. A sleep of 100 ms could move the kernel's time by some 1.5 ms. Second,
    the datasheet gives no current for WFI, SLEEP or DORMANT (§14.9.7), only 11 mA for a
    core at 150 MHz (p. 1347). The steps:
-   1. measure the three on a Pico 2 with the PPK2;
+   1. measure the three on a Pico 2 with the PPK2 — done on 2026-10-03, below;
    2. if SLEEP saves enough, gate the clocks the kernel does not need while TIMER0 runs
       on (SLEEP_EN1, p. 550), which keeps the time exact;
    3. for DORMANT, either calibrate LPOSC against the crystal before each sleep and
       measure the error left, or give the always-on timer an external 32.768 kHz clock
       on GPIO 12, 14, 20 or 22 (§12.10.7), which is hardware for the bench.
+
+   `SleepPico2` (Examples/pico2) measured them on 2026-10-03: no kernel, some 100 µs of
+   work every 100 ms on core 0, core 1 off, the ring oscillator, PLL_USB and the USB, ADC
+   and HSTX clocks stopped, 30 s of each phase told apart on the PPK2's D0 and D1. The
+   PPK2 powered the board at 5 V on VSYS, its regulator included, the LED off; three
+   phases of each, one run:
+
+   | | mean | median, the level between wake-ups |
+   |---|---|---|
+   | WFI, every clock running | 13.15 mA | 12.6 mA |
+   | SLEEP, every clock gated but the tick and TIMER0 | 5.10 mA | 4.2 mA |
+   | DORMANT, the crystal and PLL_SYS stopped | 1.29 mA | 0.36 mA |
+
+   SLEEP alone takes 61 % off WFI and keeps the kernel's time exact: step 2 is worth
+   doing. DORMANT's mean is mostly its wake-ups, the crystal's start of 6 ms (its STARTUP
+   delay, 6 times the millisecond, as the port sets it) and PLL_SYS locked again, every
+   100 ms. Two things met on the way. The always-on timer's alarm did not wake this
+   DORMANT: its count runs on LPOSC, but its alarm is compared on the power manager's
+   clock, which follows clk_ref, here the stopped crystal; it fired awake and never
+   asleep. The image is woken instead by a byte the UNO Q sends every 100 ms on the
+   probe's UART, whose falling edge on GP1 is a DORMANT wake-up (`tools/
+   pico2_sleep_load.sh --wake`). A kernel would run clk_ref from LPOSC first, as the
+   pico-extras do, or take step 3's external clock.
+
+   The cheaper sleeps a kernel could take, `make DEEP=1`, the same night, three phases of
+   each, one run:
+
+   | | mean | median |
+   |---|---|---|
+   | SLEEP, PLL_SYS running (the first run read 5.10 mA) | 4.47 mA | 4.1 mA |
+   | SLEEP, clk_sys on the crystal, PLL_SYS stopped, locked again on waking | 1.99 mA | 1.4 mA |
+   | DORMANT, the crystal's start at 1 ms rather than 6 | 1.23 mA | 0.35 mA |
+
+   Stopping PLL_SYS through the sleep takes 55 % more off SLEEP, 85 % off WFI in all,
+   TIMER0 still counting the crystal: that is the idle task to write, as the U5's sleeps
+   its wake-up's margin on the MSIS. The crystal's start is a small part of DORMANT's
+   mean, 1.29 to 1.23 mA; the rest of its wake-ups was not told apart.
+
+   And TIMER0 ran at half speed: the
+   firmware in the Pico 2's flash leaves clk_ref divided by 2, which a debugger's reset
+   keeps, and both ports never set the divider back; they do since, for clk_ref, clk_sys
+   and, on the RP2350, clk_peri.
 
 6. **LPUART1 at 115,200 baud through Stop 2 — built and seen on the board on
    2026-10-02.** It ran at 57,600 until then, and 57,600 stays the default; `SleepU5`

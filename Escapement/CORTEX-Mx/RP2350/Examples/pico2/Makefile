@@ -67,13 +67,30 @@ ifdef TRACE
    CFLAGS += -DESCAPEMENT_TRACE
 endif
 
+# make DEEP=1: SleepPico2's cheaper sleeps, PLL_SYS stopped or the crystal's start shorter.
+ifdef DEEP
+   CFLAGS += -DSLEEP_DEEP
+endif
+# make RUN=1 [RUN_VSEL=9]: SleepPico2 computing at four operating points rather than
+# sleeping, 1.10 V or, below it, 1.00 V (SleepPico2.c).
+ifdef RUN
+   CFLAGS += -DSLEEP_RUN
+endif
+ifdef RUN_VSEL
+   CFLAGS += -DRUN_VSEL=$(RUN_VSEL)u
+endif
+# make PHASE_PERIODS=20: SleepPico2's phases 2 s long rather than 30, to check them.
+ifdef PHASE_PERIODS
+   CFLAGS += -DPHASE_PERIODS=$(PHASE_PERIODS)u
+endif
+
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p build)
 
 all: build/TaskLEDPico2.elf build/UARTEchoPico2.elf build/TestTimerEventPico2.elf \
      build/FourSlotCoresPico2.elf build/ThreeSlotCoresPico2.elf build/TaskWrapPico2.elf \
      build/FIFOCoresPico2.elf build/IPCPico2.elf build/SoakPico2.elf build/LitmusPico2.elf \
-     build/UARTSendersPico2.elf
+     build/UARTSendersPico2.elf build/SleepPico2.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
@@ -147,6 +164,8 @@ build/SoakPico2.o : SoakPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/LitmusPico2.o : LitmusPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SleepPico2.o : SleepPico2.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskLEDPico2.elf : $(COMMON) build/TaskLEDPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/TaskLEDPico2.o -T$(LINKERFILE) -lgcc
@@ -170,6 +189,9 @@ build/SoakPico2.elf : $(COMMON) build/Escapement_Core1.o build/Escapement_TimerE
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakPico2.o -T$(LINKERFILE) -lgcc
 build/LitmusPico2.elf : $(COMMON) build/Escapement_Core1.o build/LitmusPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/LitmusPico2.o -T$(LINKERFILE) -lgcc
+# SleepPico2: no kernel, the three sleeps of the chip for the PPK2 (SleepPico2.c).
+build/SleepPico2.elf : $(COMMON) build/SleepPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/SleepPico2.o -T$(LINKERFILE) -lgcc
 
 # The .d files produced by -MMD list the headers of each object: without them, a change
 # to Escapement_Config.h triggers no rebuild at all and the next test runs against a

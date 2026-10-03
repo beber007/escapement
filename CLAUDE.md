@@ -40,6 +40,11 @@ OPENOCD=~/opt/openocd-rpi/bin/openocd PROBE=probe3 tools/pico2_check.py DIR   # 
 PROBE=probe3 tools/pico2_uart.py DIR          # the UART echo and senders, on the probe's UART
 PROBE=probe3 tools/pico2_soak.py DIR          # SoakPico2 for 40 min: two 2^30 wraps
                                               # (both with OPENOCD as above, holding the lock)
+ADAPTER_KHZ=1000 OPENOCD=... PROBE=probe3 tools/pico2_sleep_load.sh build/SleepPico2.elf
+PROBE=probe3 tools/pico2_sleep_load.sh --wake 285     # SleepPico2: WFI, SLEEP, DORMANT for
+                                              # the PPK2 (roadmap item 5), its DORMANT woken
+                                              # by bytes on GP1; PPK2_SOURCE_MV=5000
+                                              # PPK2_PHASES=WFI,SLEEP,DORMANT tools/ppk2_nucleo.py
 
 # STM32U5 (Arduino UNO Q, STM32U585, Cortex-M33) — eight examples, run from SRAM, which
 # leaves Arduino's firmware in the flash; its Renode suite runs on a platform of our own
@@ -176,5 +181,11 @@ Rebooting the UNO Q or unbinding its drivers interrupts every run: ask first.
   from JP4's side, VOUT to the MCU. The other way round the MCU runs through a diode and
   the PPK2 reads 0. The debugger never reaches the MCU through it: program the flash with
   JP5 fitted, then unplug CN1 before measuring, or the debug domain stays powered.
+- The PPK2 as a source cuts the board's power when the script that drives it ends: load
+  the image while `tools/ppk2_nucleo.py` runs, then `--wake` above. Powered so, the Pico
+  2's SWD read nothing at 5 MHz, and does at 1 (`ADAPTER_KHZ=1000`).
+- A firmware run before leaves the RP2040's and RP2350's clock dividers as it set them,
+  which a debugger's reset keeps: the Pico 2's left clk_ref divided by 2, TIMER0 at half
+  speed. `OSInitializeSystemClocks` sets them back to 1.
 - Emulation proves scheduling and register sequences, not energy; the board and an
   instrument decide.

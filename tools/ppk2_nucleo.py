@@ -17,10 +17,17 @@ run this script, which closes the PPK2's switch, and plug CN1 back (docs/stm32u5
     tools/ppk2_nucleo.py phases SECONDS   # the mean of each phase, by D0
     tools/ppk2_nucleo.py trace [MS]       # means of 100 samples over MS ms of samples
 
+For SleepPico2 on a Pico 2 (Examples/pico2), the PPK2 powers the board instead, a source
+of PPK2_SOURCE_MV millivolts on VSYS, its USB unplugged, and its phase is a number on D0
+and D1, PPK2_PHASES naming each:
+
+    PPK2_SOURCE_MV=5000 PPK2_PHASES=WFI,SLEEP,DORMANT tools/ppk2_nucleo.py phases 200
+
 ppk2-api (IRNAS, 0.9.2) and pyserial go on PYTHONPATH: the UNO Q has neither pip nor
 venv, their wheels unpacked into ~/ppk2-lib serve.
 """
 import glob
+import os
 import sys
 import time
 
@@ -30,6 +37,9 @@ RATE = 100000            # samples a second the PPK2 takes; the UNO Q reads some
                          # of them, chunks lost whole, which leaves the means right
 BIN_UA = 10              # the bins the median of a phase is read from
 SETTLE_S = 3             # the first second the PPK2 sends holds placeholder samples
+SOURCE_MV = int(os.environ.get("PPK2_SOURCE_MV", "0"))     # 0: an ampere meter
+NAMES = os.environ.get("PPK2_PHASES", "Sleep,Stop 2").split(",")
+BITS = max(1, (len(NAMES) - 1).bit_length())             # D0, then D1 too for 3 or 4
 
 
 def open_ppk2():
@@ -48,8 +58,12 @@ def open_ppk2():
             quiet = time.monotonic()
         time.sleep(0.05)
     ppk2.get_modifiers()
-    ppk2.use_ampere_meter()
-    ppk2.set_source_voltage(3300)      # asked for by the library, unused as a meter
+    if SOURCE_MV:
+        ppk2.use_source_meter()
+        ppk2.set_source_voltage(SOURCE_MV)
+    else:
+        ppk2.use_ampere_meter()
+        ppk2.set_source_voltage(3300)  # asked for by the library, unused as a meter
     ppk2.toggle_DUT_power("ON")
     time.sleep(0.5)
     return ppk2
@@ -66,10 +80,16 @@ def samples(ppk2, seconds):
             if data != b"":
                 values, raw = ppk2.get_samples(data)
                 if time.monotonic() >= settled:
-                    yield from zip(values, ppk2.digital_channels(raw)[0])
+                    # D0 in bit 0 of each raw sample, D1 in bit 1 (digital_channels)
+                    yield from zip(values, (r & ((1 << BITS) - 1) for r in raw))
             time.sleep(0.001)
     finally:
         ppk2.stop_measuring()
+
+
+def name(level):
+    """The phase a level of the digital inputs stands for."""
+    return NAMES[level] if level < len(NAMES) else f"level {level}"
 
 
 def median(bins, n):
@@ -103,14 +123,15 @@ def phases(seconds):
     print(f"{rate / 1000:.0f} kS/s read of the PPK2's {RATE // 1000}")
     for i, (level, n, total, low, high, bins) in enumerate(found):
         cut = " (cut by the window)" if i in (0, len(found) - 1) else ""
-        print(f"phase {i}: {'Stop 2' if level else 'Sleep '} {n / rate:5.1f} s, mean "
+        print(f"phase {i}: {name(level):7} {n / rate:5.1f} s, mean "
               f"{total / n:9.1f} uA, median {median(bins, n):9.1f}, min {low:8.1f}, "
               f"max {high:8.1f}{cut}")
-    for level, name in ((1, "Stop 2"), (0, "Sleep")):
+    for level in sorted({p[0] for p in found}, reverse=True):
         whole = [p for i, p in enumerate(found) if p[0] == level and 0 < i < len(found) - 1]
         if whole:
             n = sum(p[1] for p in whole)
-            print(f"{name}: {len(whole)} whole phases, mean {sum(p[2] for p in whole) / n:.1f} uA")
+            print(f"{name(level)}: {len(whole)} whole phases, mean "
+                  f"{sum(p[2] for p in whole) / n:.1f} uA")
 
 
 def trace(ms):
