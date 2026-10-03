@@ -43,8 +43,8 @@ run() {
 }
 
 if [ "$1" = --wake ]; then
-    tty=/dev/serial/by-id/$(ls /dev/serial/by-id | grep "Debug_Probe.*$(sh "$HERE/probe.sh" |
-        sed 's/.*serial \([0-9A-F]*\).*/\1/')-if01")
+    serial=$(sh "$HERE/probe.sh" | sed 's/.*serial \([0-9A-F]*\).*/\1/')
+    for tty in /dev/serial/by-id/*Debug_Probe*"$serial"-if01; do :; done
     stty -F "$tty" 115200 raw -echo
     timeout "$2" cat "$tty" | grep -a --line-buffered SLEEP2 &
     end=$(($(date +%s) + $2))
