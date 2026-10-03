@@ -193,8 +193,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Python
         run: python3 -m py_compile tools/*.py test/model/*.py emulation/renode/*.py
-      - name: Self-tests of the analysis tools
-        run: python3 tools/response_times.py --self-test
+      - name: Self-tests of the tools
+        run: python3 tools/response_times.py --self-test && python3 tools/soak.py --self-test
       - name: Shell
         run: shellcheck --version | sed -n 2p && shellcheck -S warning tools/*.sh
 

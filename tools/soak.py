@@ -420,7 +420,40 @@ class Status:
             pass
 
 
+def self_test():
+    """Known cases of the link, with no board: a pseudo-terminal for the port and a loader
+    that does nothing."""
+    import tempfile
+    master, slave = os.openpty()
+    board = object.__new__(UnoQ)
+    board.fd, board.lock, board.elf = slave, threading.Lock(), os.devnull
+    with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as loader:
+        loader.write("exit 0\n")
+    board.loader = loader.name
+    try:
+        # A load forgets the count read from the image before, and what the driver held:
+        # the image loaded expects the link from 0 (the failed check of d9a32eb).
+        board.value, board.sent, board.pending, board.last = 0x37, 123, b"SOAK", 1
+        assert board.load() is None
+        assert board.value is None and board.pending == b"" and board.last is None, \
+            (board.value, board.pending)
+        # The first report then sets it from that image: byte 25 expected, 18 received.
+        numbers = ["0"] * 28
+        numbers[18], numbers[25] = "12", "5"
+        os.write(master, ("SOAK " + " ".join(numbers) + "\n").encode())
+        assert board.report(1) is not None
+        assert (board.value, board.sent) == (5, 0x12), (board.value, board.sent)
+    finally:
+        os.unlink(loader.name)
+        os.close(master)
+        os.close(slave)
+    print("self-test passed")
+
+
 def main():
+    if sys.argv[1:] == ["--self-test"]:
+        self_test()
+        return
     boards = {"pico": Pico, "uno-q": UnoQ, "nucleo": Nucleo}
     if len(sys.argv) < 4 or sys.argv[1] not in boards:
         sys.exit(__doc__.split("\n\n")[1])
