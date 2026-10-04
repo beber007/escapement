@@ -331,8 +331,14 @@ kernel is planned for it. The **STM32L4** is set aside.
    levels further, to 0x20000a24, through the globals and into the image's code, which
    runs from SRAM below them, and the core was lost at 0x20000fce with no fault recorded.
    `Sentinel` read 0xA5A5A5A5 both times, under Renode too: it is no witness, the stack
-   pointer is. Left: the same on the STM32U5, then the Cortex-M0+ of the RP2040, which has
-   no stack limit: a region of its MPU, no access, just above the globals.
+   pointer is. On the STM32U5 of the UNO Q too, `StackGuardU5`, the same evening: with the
+   limit, the HardFault handler, CFSR 0x00100000 (STKOF), HFSR FORCED, the main stack
+   pointer at 0x20001b70 above the end of the globals at 0x20001878, 759 levels; without
+   it, three levels further, to 0x20000f70, `Sentinel` written over (0xFAFAFAFA, the low
+   byte of level 762) and the core faulting on an undefined instruction, the stack's bytes
+   run as code, which says nothing of the cause. Left: the Cortex-M0+ of the RP2040, which
+   has no stack limit: a region of its MPU, no access, just above the globals, which locks
+   the core up rather than fault it, written on 2026-10-04 on a branch and not yet run.
 
 ## Done
 

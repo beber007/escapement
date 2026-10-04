@@ -93,7 +93,7 @@ endif
 $(shell mkdir -p build)
 
 EXAMPLES = TaskLEDU5 UARTEchoU5 TestTimerEventU5 TaskWrapU5 IPCU5 SoakU5 TestLPTimerU5 SleepU5 \
-           SleepWrapU5 Stop2EventWrapU5 SleepNoHSEU5
+           SleepWrapU5 Stop2EventWrapU5 SleepNoHSEU5 StackGuardU5
 
 all: $(EXAMPLES:%=build/%.elf)
 
@@ -136,6 +136,8 @@ build/%U5.o : %U5.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskLEDU5.elf : $(COMMON) build/TaskLEDU5.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+build/StackGuardU5.elf : $(COMMON) build/StackGuardU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/UARTEchoU5.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
