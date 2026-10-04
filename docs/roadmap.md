@@ -318,6 +318,16 @@ kernel is planned for it. The **STM32L4** is set aside.
    it. Left open: how often a wake-up byte comes out wrong, which no check of a minute
    can bound.
 
+7. **A stack overflow that faults rather than corrupts.** The one stack grows down toward
+   the globals, with nothing between them; ZottaOS's comment said an overflow corrupted
+   nothing. Since 2026-10-04 the Cortex-M33 ports set MSPLIM at the end of the globals
+   (`_OSResetHandler`), which the Renode suites of the Pico 2 and of the STM32U5 still
+   pass. Renode does not model MSPLIM, so that the limit holds is for the board to show:
+   `StackGuardPico2` overflows the stack on purpose and must end in the HardFault
+   handler, STKOF set in the CFSR, the globals untouched; the same on the STM32U5. Then
+   the Cortex-M0+ of the RP2040, which has no stack limit: a region of its MPU, no access,
+   just above the globals.
+
 ## Done
 
 - **The order between the cores, as far as it can be verified (closed 2026-09-30).** The

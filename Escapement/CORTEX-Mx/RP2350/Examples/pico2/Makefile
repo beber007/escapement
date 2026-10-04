@@ -96,7 +96,8 @@ $(shell mkdir -p build)
 all: build/TaskLEDPico2.elf build/UARTEchoPico2.elf build/TestTimerEventPico2.elf \
      build/FourSlotCoresPico2.elf build/ThreeSlotCoresPico2.elf build/TaskWrapPico2.elf \
      build/FIFOCoresPico2.elf build/IPCPico2.elf build/SoakPico2.elf build/LitmusPico2.elf \
-     build/UARTSendersPico2.elf build/SleepPico2.elf build/IdlePico2.elf
+     build/UARTSendersPico2.elf build/SleepPico2.elf build/IdlePico2.elf \
+     build/StackGuardPico2.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
@@ -150,6 +151,8 @@ build/EscapementHardPA.o : ../../../../EscapementHardPA.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TaskLEDPico2.o : TaskLEDPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/StackGuardPico2.o : StackGuardPico2.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/UARTEchoPico2.o : UARTEchoPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/UARTSendersPico2.o : UARTSendersPico2.c
@@ -179,6 +182,8 @@ build/Escapement_SleepGate.o : ../../Escapement_SleepGate.c
 
 build/TaskLEDPico2.elf : $(COMMON) build/TaskLEDPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/TaskLEDPico2.o -T$(LINKERFILE) -lgcc
+build/StackGuardPico2.elf : $(COMMON) build/StackGuardPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/StackGuardPico2.o -T$(LINKERFILE) -lgcc
 build/UARTEchoPico2.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_UART.o build/UARTEchoPico2.o -T$(LINKERFILE) -lgcc
 build/UARTSendersPico2.elf : $(COMMON) build/Escapement_UART.o build/UARTSendersPico2.o

@@ -140,6 +140,14 @@ void _OSResetHandler(void)
   // cppcheck-suppress comparePointers
   for (pulDest = &_bss; pulDest < &_ebss; )
      *(pulDest++) = 0;
+  #if defined(CORTEX_M33)
+     /* The one stack grows down from below the blocks OSMalloc hands out toward the
+     ** globals, which end at _ebss. ARMv8-M checks the main stack pointer against MSPLIM
+     ** on every change of it, and faults (UsageFault STKOF, a HardFault here) rather than
+     ** write below it: an overflow stops the image instead of corrupting the kernel's
+     ** variables unseen. MSPLIM ignores its three low bits; _ebss is taken up to 8. */
+     __asm volatile ("MSR MSPLIM, %0" :: "r" (((UINT32)&_ebss + 7) & ~7u) : "memory");
+  #endif
   /* Initialize interrupts priority system */
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      /* On ARMv8-M with its security extension, the bits of AIRCR this write clears keep
@@ -413,7 +421,10 @@ void _OSIOHandler(void)
 ** has several interesting advantages:
 **  (1) Code size is definitively smaller and faster compared to the usual thread-safe
 **      malloc/free pair;
-**  (2) There is no memory corruption in case of a stack overflow;
+**  (2) A stack overflow does not corrupt the allocated blocks, which lie above the
+**      stack. It does reach the globals below it: on the Cortex-M33, MSPLIM makes it
+**      fault there instead (_OSResetHandler); the Cortex-M0+ has no such limit, and
+**      writes over them unseen. ZottaOS's comment claimed no corruption at all;
 **  (3) The run-time stack occupies its largest possible size.
 **
 ** OSMalloc: This function can only be used while the main function is active. Allocation
