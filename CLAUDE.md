@@ -76,7 +76,10 @@ python3 tools/coverage.py            # every kernel line covered or excluded wit
                                      # (COVERAGE-LINE, COVERAGE-OFF/ON), branches >= the
                                      # floor in test/host/coverage-floor (run by the CI)
 python3 tools/differential.py        # random task sets run by each build, every trace
-                                     # checked against EDF or DM (run by the CI, ~30 s)
+                                     # checked against EDF or DM, events and (m,k)-firm
+                                     # sets included (run by the CI, ~30 s)
+python3 tools/mutants.py hard --jobs 2   # one fault at a time in a kernel, the host test
+                                     # and differential.py on each (some 2 h a kernel)
 
 # Exhaustive models of the lock-free mechanisms (run by the CI)
 python3 test/model/fourslot.py

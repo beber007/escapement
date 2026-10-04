@@ -58,6 +58,10 @@ loops.
 | `signals` | three signals of an event before its task runs: it runs twice, the third finding the second kept; an event no task was created for is signalled without effect |
 | `notask` | the kernel started with no task created sets itself up and elects the idle task |
 | `trace <ticks>` | periodic tasks read on the standard input, "wcet period deadline takes", run for that long; prints who ran from when, for how long and at what speed, and when each instance ended, for `tools/differential.py`, which draws schedulable task sets at random and checks every trace against EDF or deadline-monotonic scheduling |
+| `createbounds` | tasks the kernel must accept at the edges of what it refuses: a period of one whole turn of 2^30, a deadline of one tick, a deadline past the remainder in a period of a turn or more, a workload of one tick |
+| `longperiod` | a task of period 2^30 + 1000, which counts its turns apart, over three wraps: released four times, each on time |
+| `twosignals` | two events signalled at the same instant before the timer handler runs: both tasks run, once each |
+| `eventspacing` | an event-driven task of workload 300 signalled at 50, 150 and 400: released at once at its first signal, then from the arrival queue at 350 and 650, a workload after each release |
 | `minspeed` | a light load with `OSSetMinimalProcessorSpeed`: the power-aware kernel never goes below it, which four of its five policies would otherwise do; two tasks released together with equal deadlines, which EDF* breaks by arrival and address |
 | `endinside`, `endinsidebusy` | `early` and `busy` with the soft timer interrupt taken at one compiler barrier of the kernels in two, at random (`HostCompilerBarrierHook`), where a task ending leaves its stores in the order the handler relies on; the interrupt completes first, as on the target, what `FinalizeContextSwitchPreparation` completes. The time does not move there, so who ran when and how fast must be as in the run without those interrupts, which a child process makes first |
 | `timewrap`, `timewrapbusy`, `timewrapidle` | `early`, `busy`, and two tasks arriving together after an idle time, started at the phase of the counter where one of the first sixteen instances ends at the last tick before the wrap; the interrupt of the wrap is taken at each of the first four time reads and barriers of that end in turn (`HostTimeReadHook`, `HostCompilerBarrierHook`), where the kernel may hold a time from before the shift. Every check of the timed run must hold. Each run is a child process |
@@ -175,6 +179,19 @@ event-driven task. In the soft kernel, ignoring the interference of other tasks 
 schedulability test of optional instances is not caught, for the same reason. `expiry`
 and `reclaim` were added when a slack that never ran out, and a DM_SLACK that reclaimed
 nothing, passed every other run.
+
+Three things of the harness changed on 2026-10-04, each after a mutant of the hard
+kernel survived every run (`tools/mutants.py`, `docs/method.md`). `OSMalloc` fills its
+blocks with 0xA5, as the target's SRAM is not zeros: a field a creation leaves unset no
+longer reads 0. `RunAcross` holds a task elected before the wrap over it only when its
+deadline lies beyond the wrap, so that the deadline sits in the ready queue while the
+kernel shifts the times: it held one whenever the wrap was its next interrupt, and a task
+of a period past 2^30, released on time, ran a whole turn late. Held only within the last
+`LATENCY` ticks, as first corrected, none sat in the ready queue across the wrap, and the
+coverage check found the shift of its deadlines run by no test. And every task that ends, by
+`OSEndTask` or `OSSuspendSynchronousTask`, must leave its context unsaved
+(`_OSNoSaveContext`) and ask for a context switch, as the timer handler must, which the
+host's port only counts: a run that sees one without fails.
 
 ## What it cannot see
 

@@ -114,10 +114,12 @@ void *OSGetISRDescriptor(UINT16 entry) { return _OSTabDevice[entry]; }
 void _OSIOHandler(void) { }
 
 /* Allocation: the kernel never frees, so neither does this. The target's OSMalloc hands
-** out SRAM as the boot or the previous image left it; a test sets HostMallocFill to fill
-** each block with that byte instead of zeros, so that a field the kernel forgets to set
-** does not read as 0. */
-int HostMallocFill = -1;
+** out SRAM as the boot or the previous image left it, and so does this: each block is
+** filled with 0xA5, so that a field the kernel forgets to set does not read as 0. Zeroed,
+** as calloc gave them until 2026-10-04, the blocks hid some thirty statements of the
+** hard kernel that set a field: left out, each passed every test (tools/mutants.py).
+** A test may set another byte, or -1 for zeros. */
+int HostMallocFill = 0xA5;
 int HostMallocBudget = -1;       /* allocations left before OSMalloc fails, -1 for no limit */
 void *OSMalloc(UINT16 size)
 {

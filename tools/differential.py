@@ -5,12 +5,14 @@
 """Random task sets run by the kernels on the host, each trace checked against the
 algorithm the build schedules by.
 
-test/host's mode "trace" runs periodic tasks that take time, with the kernel as it ships,
-and prints who ran from when, for how long, at what speed, and when each instance ended.
-This script draws task sets the algorithm can schedule, runs them, and checks each trace
-on its own, from the arrivals, the deadlines and the work each instance received: it
-shares no code with the kernels, and does not copy how they break ties. At every instant
-of a trace:
+test/host's mode "trace" runs tasks that take time, with the kernel as it ships, and
+prints who ran from when, for how long, at what speed, and when each instance ended.
+This script draws task sets the algorithm can schedule, periodic tasks and, in half of
+them, event-driven tasks signalled at random, runs them, and checks each trace on its
+own, from the releases, the deadlines and the work each instance received: it shares no
+code with the kernels, and does not copy how they break ties. The releases and deadlines
+of event-driven tasks come from the algorithms' specification (instances()): a workload
+apart under DM, a total bandwidth server under EDF. At every instant of a trace:
 
 - the task running has an instance released and not done, its oldest;
 - no instance waiting has a deadline strictly earlier (EDF, EDF* of the power-aware
@@ -65,28 +67,104 @@ class Failure(Exception):
     pass
 
 
+def periodic(wcet, period, deadline, takes):
+    return {"kind": "P", "wcet": wcet, "period": period, "deadline": deadline, "takes": takes}
+
+
+def firm(wcet, period, takes, m, k):
+    """An (m,k)-firm task, its deadline its period: of every k instances, m mandatory."""
+    return {"kind": "F", "wcet": wcet, "period": period, "deadline": period, "takes": takes,
+            "m": m, "k": k}
+
+
+def mandatory(j, m, k):
+    """Whether instance j of an (m,k)-firm task is mandatory: the pattern that spreads m
+    instances evenly over k (test/host, Mandatory), its first instance mandatory."""
+    j %= k
+    return j == (j * m + k - 1) // k * k // m
+
+
+def event_driven(takes, workload, signals):
+    return {"kind": "E", "takes": takes, "workload": workload, "signals": signals}
+
+
+def draw_firm(rng, deadline_monotonic):
+    """(m,k)-firm tasks taking their WCET, whose mandatory instances the algorithm
+    schedules, where all their instances together would overload the processor: the
+    kernel must drop optional ones, and admit only those that fit. The mandatory instances
+    of a task come at least floor(k/m) periods apart, which the tests take for their
+    period, their deadline staying the period; the declared load of every instance, often
+    past 1, forces drops."""
+    while True:
+        tasks = []
+        for _ in range(rng.randint(2, 5)):
+            period = rng.randint(20, 600)
+            k = rng.randint(1, 5)
+            m = rng.randint(1, k)
+            wcet = rng.randint(1, max(1, period // 2))
+            tasks.append(firm(wcet, period, wcet, m, k))
+        spaced = [(t["wcet"], t["period"] * (t["k"] // t["m"]), t["period"]) for t in tasks]
+        if deadline_monotonic:
+            ok = True
+            for i, (c, _, d) in enumerate(spaced):
+                higher = [(cj, pj) for j, (cj, pj, dj) in enumerate(spaced) if j != i and dj <= d]
+                r = c
+                while ok:
+                    nxt = c + sum(math.ceil(r / pj) * cj for cj, pj in higher)
+                    if nxt > d:
+                        ok = False
+                    elif nxt == r:
+                        break
+                    r = nxt
+            if ok:
+                return tasks
+        else:
+            # Deadlines shorter than the spacing: utilization does not decide (a (1,4) task
+            # of period 537 still has 537 to end in). Spuri's analysis, exact for such
+            # sporadic tasks under EDF, decides.
+            analysed = [{"wcet": c, "period": p, "deadline": d} for c, p, d in spaced]
+            if all(response_times.edf_response_time(i, analysed, (0, 0, 0)) is not None
+                   for i in range(len(analysed))):
+                return tasks
+
+
 def draw(rng, deadline_monotonic):
-    """A task set the algorithm schedules: (wcet, period, deadline, takes) per task."""
+    """A task set the algorithm schedules: periodic tasks, and up to two event-driven ones
+    signalled at random, at least twice the sum of their workloads apart, so that each
+    instance has ended, by its deadline, before its next signal."""
     while True:
         tasks = []
         for _ in range(rng.randint(1, 6)):
             period = rng.randint(10, 600)
             deadline = rng.randint(max(2, period // 2), period)
             wcet = rng.randint(1, max(1, deadline // 4))
-            takes = rng.randint(1, wcet)
-            tasks.append((wcet, period, deadline, takes))
+            tasks.append(periodic(wcet, period, deadline, rng.randint(1, wcet)))
+        events = rng.choice([0, 0, 1, 2])
+        workloads = [rng.randint(20, 400) for _ in range(events)]
+        for workload in workloads:
+            gap = 2 * sum(workloads)
+            signals, t = [], rng.randint(1, 300)
+            while t < DURATION:
+                signals.append(t)
+                t += rng.randint(gap, 2 * gap)
+            tasks.append(event_driven(rng.randint(1, max(1, workload // 4)), workload, signals))
         if deadline_monotonic and response_times_hold(tasks):
             return tasks
-        if not deadline_monotonic and sum(c / d for c, _, d, _ in tasks) <= 1:
+        load = sum(t["wcet"] / t["deadline"] if t["kind"] == "P" else t["takes"] / t["workload"]
+                   for t in tasks)
+        if not deadline_monotonic and load <= 1:
             return tasks
 
 
 def response_times_hold(tasks):
     """Response-time analysis for fixed priorities by deadline, every task released at
-    time 0: R = C + sum over higher priorities of ceil(R / P) C, at most the deadline.
-    Tasks of equal deadline are counted as interfering both ways."""
-    for i, (c, _, d, _) in enumerate(tasks):
-        higher = [(cj, pj) for j, (cj, pj, dj, _) in enumerate(tasks) if j != i and dj <= d]
+    time 0, an event-driven task as a sporadic one of period and deadline its workload:
+    R = C + sum over higher priorities of ceil(R / P) C, at most the deadline. Tasks of
+    equal deadline are counted as interfering both ways."""
+    flat = [(t["wcet"], t["period"], t["deadline"]) if t["kind"] == "P" else
+            (t["takes"], t["workload"], t["workload"]) for t in tasks]
+    for i, (c, _, d) in enumerate(flat):
+        higher = [(cj, pj) for j, (cj, pj, dj) in enumerate(flat) if j != i and dj <= d]
         r = c
         while True:
             nxt = c + sum(math.ceil(r / pj) * cj for cj, pj in higher)
@@ -98,14 +176,61 @@ def response_times_hold(tasks):
     return True
 
 
+def instances(tasks, dm):
+    """Every instance the run must hold, from the specification of the algorithms rather
+    than the kernels: (task, release, deadline, key), the key what decides between waiting
+    instances, the absolute deadline under EDF, the relative one under DM. A periodic task
+    is released every period from 0. An event-driven task under DM is released at its
+    signal, or a workload after its previous release if that is later, its deadline a
+    workload after; under EDF the event-driven tasks share a total bandwidth server
+    (Spuri and Buttazzo, 1996): an instance released at r gets the deadline
+    D = max(D, r) + workload, D the last deadline given to any of them."""
+    out = []
+    for i, t in enumerate(tasks):
+        if t["kind"] in "PF":
+            k = 0
+            while k * t["period"] <= DURATION:
+                r = k * t["period"]
+                optional = t["kind"] == "F" and not mandatory(k, t["m"], t["k"])
+                out.append((i, r, r + t["deadline"], t["deadline"] if dm else r + t["deadline"],
+                            optional))
+                k += 1
+    signals = sorted((s, i) for i, t in enumerate(tasks) if t["kind"] == "E"
+                     for s in t["signals"])
+    server, last = 0, {}
+    for s, i in signals:
+        w = tasks[i]["workload"]
+        if dm:
+            r = max(s, last.get(i, -w) + w)
+            last[i] = r
+            out.append((i, r, r + w, w, False))
+        else:
+            r = max(s, last.get(i, 0))
+            server = server + w if server > r else r + w
+            last[i] = server
+            out.append((i, r, server, server, False))
+    return sorted(out, key=lambda x: (x[1], x[0]))
+
+
 def run(build, tasks):
     binary = os.path.join(HOST, os.environ.get("BUILD", "build"), "test_scheduler_" + build)
-    text = "".join("%d %d %d %d\n" % t for t in tasks)
+    lines = []
+    for t in tasks:
+        if t["kind"] == "P":
+            lines.append("P %d %d %d %d" % (t["wcet"], t["period"], t["deadline"], t["takes"]))
+        elif t["kind"] == "F":
+            lines.append("F %d %d %d %d %d %d" % (t["wcet"], t["period"], t["deadline"],
+                                                  t["takes"], t["m"], t["k"]))
+        else:
+            lines.append("E %d %d" % (t["takes"], t["workload"]))
+    for s, i in sorted((s, i) for i, t in enumerate(tasks) if t["kind"] == "E"
+                       for s in t["signals"]):
+        lines.append("S %d %d" % (s, i))
     # What OSMalloc hands out is never freed, by design: test/host/Makefile turns the leak
     # check of AddressSanitizer off, which Linux runs and macOS does not.
     env = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
-    done = subprocess.run([binary, "trace", str(DURATION)], input=text, capture_output=True,
-                          text=True, timeout=60, env=env)
+    done = subprocess.run([binary, "trace", str(DURATION)], input="\n".join(lines) + "\n",
+                          capture_output=True, text=True, timeout=60, env=env)
     if done.returncode != 0:
         said = [l for l in (done.stdout + done.stderr).splitlines()
                 if l.strip() and not l[:2] in ("S ", "E ")]
@@ -117,23 +242,31 @@ def check(build, tasks, trace):
     """Raises Failure at the first point the trace breaks the algorithm."""
     dm = build in DEADLINE_MONOTONIC
     power_aware = build.startswith("pa_")
-    jobs = {i: [] for i in range(len(tasks))}     # pending instances: [release, deadline, work]
-    released = [0] * len(tasks)                   # instances released so far, per task
-    ended = [0] * len(tasks)
+    todo = instances(tasks, dm)                   # not yet released, in release order
+    # pending: [release, deadline, key, work, optional, started]; an optional instance of an
+    # (m,k)-firm task may be dropped, and is not waited for until it starts
+    jobs = {i: [] for i in range(len(tasks))}
     longest = [0] * len(tasks)                    # the longest response seen, per task
 
     def release_until(t):
-        for i, (_, period, deadline, takes) in enumerate(tasks):
-            while released[i] * period <= t:
-                r = released[i] * period
-                jobs[i].append([r, r + deadline, takes * 256])
-                released[i] += 1
+        while todo and todo[0][1] <= t:
+            i, r, d, k, optional = todo.pop(0)
+            # An optional instance not started when its task arrives again is dropped.
+            jobs[i] = [j for j in jobs[i] if not (j[4] and not j[5])]
+            jobs[i].append([r, d, k, tasks[i]["takes"] * 256, optional, False])
+
+    def due(i):
+        """The instance of task i that must run: mandatory, or optional and started."""
+        for j in jobs[i]:
+            if not j[4] or j[5]:
+                return j
+        return None
 
     def key(i):
-        return tasks[i][2] if dm else jobs[i][0][1]
+        return due(i)[2]
 
     def waiting():
-        return [i for i in jobs if jobs[i]]
+        return [i for i in jobs if due(i) is not None]
 
     now = 0
     pending_end = None                            # (time, task) the last segment must end
@@ -159,41 +292,47 @@ def check(build, tasks, trace):
         if t != now or step <= 0:
             raise Failure("t=%d: a segment of %d ticks where %d was expected" % (t, step, now))
         release_until(t)
-        later = sorted({k * tasks[j][1] for j in range(len(tasks))
-                        for k in range(released[j], released[j] + 2)
-                        if t < k * tasks[j][1] < t + step})
+        later = [x for x in todo if t < x[1] < t + step and not x[4]]
         if i < 0:
             if waiting():
                 raise Failure("t=%d: idle while task %s waits" % (t, waiting()))
             if later:
-                raise Failure("t=%d: idle through the release at %d" % (t, later[0]))
+                raise Failure("t=%d: idle through the release of task %d at %d" %
+                              (t, later[0][0], later[0][1]))
             now = t + step
             continue
         if not jobs[i]:
             raise Failure("t=%d: task %d runs with no instance released" % (t, i))
+        job = due(i) or jobs[i][0]
+        if job[4] and not job[5]:
+            # An optional instance starts only when no other instance must run. An instance
+            # released at this very instant does not count: a task ending at it is served
+            # before the timer's release, and may hand over to the optional one first.
+            before = [j for j in waiting() if due(j)[0] < t]
+            if before:
+                raise Failure("t=%d: an optional instance of task %d starts while %s must "
+                              "run" % (t, i, before))
+            job[5] = True
         best = min(key(j) for j in waiting())
         if key(i) > best:
             raise Failure("t=%d: task %d runs (%s %d) while %s waits with %d" %
                           (t, i, "deadline" if dm else "absolute deadline", key(i),
                            [j for j in waiting() if key(j) == best], best))
-        for r in later:
-            for j, (_, period, deadline, _) in enumerate(tasks):
-                if r % period == 0 and (deadline if dm else r + deadline) < key(i):
-                    raise Failure("t=%d: task %d released at %d, before task %d, does not "
-                                  "preempt it" % (t, j, r, i))
+        for j, r, _, k, _ in later:
+            if k < key(i):
+                raise Failure("t=%d: task %d released at %d, before task %d, does not "
+                              "preempt it" % (t, j, r, i))
         rate = RATES[speed] if power_aware else 256
-        job = jobs[i][0]
-        to_end = -(-job[2] // rate)
+        to_end = -(-job[3] // rate)
         if step > to_end:
             raise Failure("t=%d: task %d runs %d ticks past its work" % (t, i, step - to_end))
-        job[2] -= step * rate
+        job[3] -= step * rate
         now = t + step
-        if job[2] <= 0:
+        if job[3] <= 0:
             if now > job[1]:
                 raise Failure("task %d: the instance released at %d ends at %d, past its "
                               "deadline %d" % (i, job[0], now, job[1]))
-            jobs[i].pop(0)
-            ended[i] += 1
+            jobs[i].remove(job)
             longest[i] = max(longest[i], now - job[0])
             pending_end = (now, i)
     if pending_end is not None:
@@ -201,11 +340,12 @@ def check(build, tasks, trace):
     release_until(now - 1)
     for i in jobs:
         for job in jobs[i]:
-            if job[1] <= now:
+            if job[1] <= now and (not job[4] or job[5]):
                 raise Failure("task %d: the instance released at %d never ended by its "
                               "deadline %d" % (i, job[0], job[1]))
-    if build in ("hard_edf", "soft_edf"):
-        analysed = [{"period": p, "deadline": d, "wcet": c} for c, p, d, _ in tasks]
+    if build in ("hard_edf", "soft_edf") and all(t["kind"] == "P" for t in tasks):
+        analysed = [{"period": t["period"], "deadline": t["deadline"], "wcet": t["wcet"]}
+                    for t in tasks]
         for i in range(len(tasks)):
             bound = response_times.edf_response_time(i, analysed, (0, 0, 0))
             if bound is None or longest[i] > bound:
@@ -215,7 +355,7 @@ def check(build, tasks, trace):
 
 def self_test():
     """Traces made wrong by hand must fail, each for its reason."""
-    tasks = [(20, 100, 100, 15), (30, 150, 120, 30)]
+    tasks = [periodic(20, 100, 100, 15), periodic(30, 150, 120, 30)]
     good = "S 0 15 0 2\nE 15 0\nS 15 30 1 2\nE 45 1\nS 45 55 -1 0\nS 100 15 0 2\nE 115 0\n" \
            "S 115 35 -1 0\nS 150 30 1 2\nE 180 1\nS 180 20 -1 0\nT 200\n"
     global DURATION
@@ -236,7 +376,29 @@ def self_test():
         except Failure:
             continue
         sys.exit("self-test: a trace with %s passed" % name)
-    print("self-test: %d faulty traces caught" % len(wrong))
+    # An event-driven task of workload 300 signalled at 50, then at 95, beside the first
+    # periodic task: released at its signal, and preempted at 100 by the periodic instance
+    # due at 200, its own deadline the server's, 395.
+    events = [periodic(20, 100, 100, 15), event_driven(10, 300, [50])]
+    good = "S 0 15 0 2\nE 15 0\nS 15 35 -1 0\nS 50 10 1 2\nE 60 1\nS 60 40 -1 0\n" \
+           "S 100 15 0 2\nE 115 0\nS 115 85 -1 0\nT 200\n"
+    check("pa_edf", events, good)
+    late = events[:1] + [event_driven(10, 300, [95])]
+    wrong_events = {
+        "an event released late": (events, good.replace(
+            "S 15 35 -1 0\nS 50 10 1 2\nE 60 1\nS 60 40 -1 0",
+            "S 15 40 -1 0\nS 55 10 1 2\nE 65 1\nS 65 35 -1 0")),
+        "an event not preempted by an earlier deadline": (late,
+            "S 0 15 0 2\nE 15 0\nS 15 80 -1 0\nS 95 10 1 2\nE 105 1\nS 105 15 0 2\n"
+            "E 120 0\nS 120 80 -1 0\nT 200\n"),
+    }
+    for name, (tasks, trace) in wrong_events.items():
+        try:
+            check("pa_edf", tasks, trace)
+        except Failure:
+            continue
+        sys.exit("self-test: a trace with %s passed" % name)
+    print("self-test: %d faulty traces caught" % (len(wrong) + len(wrong_events)))
 
 
 def main():
@@ -251,7 +413,10 @@ def main():
     for build in builds:
         rng = random.Random("%s-%d" % (build, seed))
         for n in range(count):
-            tasks = draw(rng, build in DEADLINE_MONOTONIC)
+            if build.startswith("soft") and rng.random() < 0.5:
+                tasks = draw_firm(rng, build in DEADLINE_MONOTONIC)
+            else:
+                tasks = draw(rng, build in DEADLINE_MONOTONIC)
             try:
                 check(build, tasks, run(build, tasks))
             except (Failure, subprocess.TimeoutExpired) as e:

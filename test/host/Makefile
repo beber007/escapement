@@ -42,6 +42,9 @@ HEADERS = Escapement.h Escapement_Config.h Escapement_Types.h Escapement_Process
           Escapement_Timer.h Escapement_Interrupts.h
 
 BUILDS = hard_edf hard_dm soft_edf soft_dm pa_edf pa_dm pa_dra pa_drote pa_dmslack
+# The kernels test_ipc runs on; BUILDS and IPC narrowed, a run covers one kernel, as
+# tools/mutants.py has it: make run BUILDS="hard_edf hard_dm" IPC=hard
+IPC = hard soft pa
 FLAGS_hard_edf = -DHOST_SCHEDULER=1
 FLAGS_hard_dm  = -DHOST_SCHEDULER=2
 FLAGS_soft_edf = -DHOST_SCHEDULER=1 -DHOST_KERNEL_SOFT
@@ -65,7 +68,7 @@ KERNEL_pa_dmslack = $(PA)
 
 $(shell mkdir -p $(BUILD))
 
-run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(BUILD)/test_ipc_hard $(BUILD)/test_ipc_soft $(BUILD)/test_ipc_pa
+run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	@for b in $(BUILDS); do \
 	   echo; echo "=== $$b"; \
 	   ./$(BUILD)/test_scheduler_$$b && ./$(BUILD)/test_scheduler_$$b create && \
@@ -84,7 +87,9 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(BUILD)/test_ipc_hard $(BUILD)/test_
 	   ./$(BUILD)/test_scheduler_$$b timewrap && ./$(BUILD)/test_scheduler_$$b timewrapbusy && \
 	   ./$(BUILD)/test_scheduler_$$b timewrapidle && \
 	   ./$(BUILD)/test_scheduler_$$b eventrelease && ./$(BUILD)/test_scheduler_$$b simstale && \
-	   ./$(BUILD)/test_scheduler_$$b signals && ./$(BUILD)/test_scheduler_$$b notask || exit 1; \
+	   ./$(BUILD)/test_scheduler_$$b signals && ./$(BUILD)/test_scheduler_$$b notask && \
+	   ./$(BUILD)/test_scheduler_$$b createbounds && ./$(BUILD)/test_scheduler_$$b longperiod && \
+	   ./$(BUILD)/test_scheduler_$$b twosignals && ./$(BUILD)/test_scheduler_$$b eventspacing || exit 1; \
 	   case $$b in soft_*) ./$(BUILD)/test_scheduler_$$b firm && \
 	                      ./$(BUILD)/test_scheduler_$$b firmwrap && \
 	                      ./$(BUILD)/test_scheduler_$$b firmlong && \
@@ -101,9 +106,7 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(BUILD)/test_ipc_hard $(BUILD)/test_
 	                         ./$(BUILD)/test_scheduler_$$b firmdiscount && \
 	                         ./$(BUILD)/test_scheduler_$$b firmdiscountnear || exit 1;; esac; \
 	done
-	@echo; echo "=== hard"; ./$(BUILD)/test_ipc_hard
-	@echo; echo "=== soft"; ./$(BUILD)/test_ipc_soft
-	@echo; echo "=== pa"; ./$(BUILD)/test_ipc_pa
+	@for k in $(IPC); do echo; echo "=== $$k"; ./$(BUILD)/test_ipc_$$k || exit 1; done
 
 .SECONDEXPANSION:
 $(BUILD)/test_scheduler_%: test_scheduler.c host_port.c $$(KERNEL_$$*) $(HEADERS)

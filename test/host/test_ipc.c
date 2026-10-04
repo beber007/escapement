@@ -513,6 +513,23 @@ static void TestBuffer(UINT8 type, const char *name)
   Check("  once only by reference too",
         OSGetReferenceBuffer(buffer, OS_READ_ONLY_ONCE, &ref) == 0 && ref == NULL);
 
+  /* The edges, each moved by one by a mutant that no check caught (tools/mutants.py,
+  ** 2026-10-04): no descriptor, more than a slot at once, a slot of one byte. */
+  Check("  no descriptor: nothing read, by reference or by copy",
+        OSGetReferenceBuffer(NULL, OS_READ_MULTIPLE, &ref) == 0 && ref == NULL &&
+        OSGetCopyBuffer(NULL, OS_READ_MULTIPLE, copy) == 0);
+  {
+     void *fresh = OSInitBuffer(SLOT, type, NULL), *tiny = OSInitBuffer(1, type, NULL);
+     UINT8 one = 0x5A, got = 0;
+     Check("  more than a slot written at once fills one slot",
+           OSWriteBuffer(fresh, bytes, SLOT + 5) == SLOT &&
+           OSGetCopyBuffer(fresh, OS_READ_MULTIPLE, copy) == SLOT &&
+           memcmp(copy, bytes, SLOT) == 0);
+     Check("  a slot of one byte is read whole",
+           OSWriteBuffer(tiny, &one, 1) == 1 && OSGetCopyBuffer(tiny, OS_READ_ONLY_ONCE, &got) == 1 &&
+           got == 0x5A);
+  }
+
   /* An interrupt between an LL and its SC makes the SC fail although nothing changed:
   ** the reader must try again, not give up or take a slot that does not exist. */
   OSWriteBuffer(buffer, bytes + SLOT, SLOT);
@@ -576,9 +593,7 @@ static void TestPublication(UINT8 type, const char *name)
   unsigned ok;
 
   printf("\n%s buffer, a reader preempting the writer\n\n", name);
-  HostMallocFill = 0xA5;
-  Race = OSInitBuffer(SLOT, type, NULL);
-  HostMallocFill = -1;
+  Race = OSInitBuffer(SLOT, type, NULL);     /* over blocks of 0xA5, as every block now */
   RaceBarrier = 0; RaceAt = 1;
   HostBarrierHook = ReaderInWindow;
   OSWriteBuffer(Race, a, SLOT);

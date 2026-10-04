@@ -189,6 +189,20 @@
 extern HostTCB *_OSActiveTask, *_OSQueueHead;
 extern BOOL _OSNoSaveContext;
 extern void _OSTimerInterruptHandler(void);
+
+/* What the kernel must ask of the target each time, which the host's port only counts: a
+** task that ends, by OSEndTask or OSSuspendSynchronousTask, has its context left unsaved
+** (_OSNoSaveContext) and asks for a context switch; the timer handler asks for one before
+** it returns. Left out, each passed every run until 2026-10-04 (tools/mutants.py): on the
+** target the next task would not be elected, or a context that ended would be restored. */
+static unsigned EndBreaks = 0, HandlerBreaks = 0;
+static void TimerHandler(void)
+{
+  unsigned asked = HostContextSwitchesRequested;
+  _OSTimerInterruptHandler();
+  if (HostContextSwitchesRequested == asked)
+     HandlerBreaks += 1;
+}
 extern void HostAdvanceBy(INT32 delta);
 extern void (*HostOverflowCheckHook)(void);
 extern void (*HostTimeReadHook)(void);
@@ -296,7 +310,7 @@ static void ServeSoftTimer(void)
 {
   while (SoftTimerServed != HostSoftTimerRequests) {
      SoftTimerServed += 1;
-     _OSTimerInterruptHandler();
+     TimerHandler();
   }
 }
 
@@ -351,7 +365,13 @@ static void RunElected(HostTCB *interrupted)
         _OSNoSaveContext = FALSE;   /* cleared by the context switch that follows */
         continue;
      }
-     task->TaskCodePtr(task->Argument);
+     {
+        unsigned asked = HostContextSwitchesRequested;
+        task->TaskCodePtr(task->Argument);
+        if (_OSActiveTask != task &&
+            (!_OSNoSaveContext || HostContextSwitchesRequested == asked))
+           EndBreaks += 1;
+     }
      _OSNoSaveContext = FALSE;
      if (!ReadyQueueHolds()) {
         QueueBreaks += 1;
@@ -397,7 +417,7 @@ static void SoftTimerNow(void)
   HostSoftTimerHook = NULL;
   SoftTimerServed += 1;
   Finalize();
-  _OSTimerInterruptHandler();
+  TimerHandler();
   if (_OSNoSaveContext)
      longjmp(TaskFrame, 1);
   memcpy(frame, TaskFrame, sizeof frame);
@@ -414,7 +434,7 @@ static unsigned RunFor(INT32 duration)
   unsigned rounds = 0;
   while (HostClockNow() < target) {
      HostAdvanceBy(1);
-     _OSTimerInterruptHandler();
+     TimerHandler();
      rounds += 1;
      RunElected(NULL);
   }
@@ -454,11 +474,29 @@ static void CheckSimQueue(void)
   #endif
 }
 
+/* DueAfter: Whether the elected task's deadline lies more than ticks ahead, as IsLate
+** reads it; the idle task, never due, is not held. */
+static BOOL DueAfter(const HostTCB *task, INT32 ticks)
+{
+  INT32 now = HostClockNow();
+  if (task == NULL || task == IdleTCB)
+     return FALSE;
+  if (task->TaskState & TASKTYPE_BLOCKING)
+     return task->NextArrivalTimeLow - now > ticks;
+  #if BY_DEADLINE || defined(ESCAPEMENT_VERSION_SOFT) || defined(ESCAPEMENT_VERSION_HARD_PA)
+     return task->NextDeadline - now > ticks;
+  #else
+     /* The hard kernel under DM keeps no deadline: the next arrival stands for it, the
+     ** tasks here due at their period, and has none to shift in the ready queue. */
+     return task->NextArrivalTimeHigh == 0 && task->NextArrivalTimeLow - now > ticks;
+  #endif
+}
+
 static INT32 HookedTicks = 0;        /* moved by a hook inside the handler, see wrapinside */
 static void RunAcross(long long duration)
 {
   long long elapsed = 0;
-  _OSTimerInterruptHandler();        /* the arrivals at time zero */
+  TimerHandler();        /* the arrivals at time zero */
   RunElected(NULL);
   while (TRUE) {
      INT32 delta = TicksToNextInterrupt();
@@ -466,11 +504,18 @@ static void RunAcross(long long duration)
         break;
      HostAdvanceBy(delta);
      elapsed += delta;
-     _OSTimerInterruptHandler();
+     TimerHandler();
      elapsed += HookedTicks;
      HookedTicks = 0;
      CheckSimQueue();
-     if (HostClockNow() + TicksToNextInterrupt() != 0x40000000)
+     /* Held over the wrap only when its deadline lies beyond it: its deadline then sits in
+     ** the ready queue while the kernel shifts the times, which only that reaches. Held
+     ** whenever the wrap was the next interrupt, a task of a period past 2^30, released at
+     ** 1000 and due at 2000, ran a whole turn late (longperiod, 2026-10-04); held only
+     ** within LATENCY of the wrap, no task sat in the ready queue across it, and the shift
+     ** of its deadlines ran in no test. */
+     if (HostClockNow() + TicksToNextInterrupt() != 0x40000000 ||
+         !DueAfter(_OSActiveTask, 0x40000000 - HostClockNow()))
         RunElected(NULL);
   }
 }
@@ -797,6 +842,74 @@ static void TestNoTask(void)
   OSStartMultitasking(NULL, NULL);
   Check("  it starts, the idle task elected",
         _OSActiveTask != NULL && (_OSActiveTask->TaskState & TASKTYPE_BLOCKING) != 0);
+}
+
+/* TestCreateBounds: Tasks the kernel must accept, at the edges of what it refuses: a
+** period of one whole turn of 2^30 and no remainder, a deadline of one tick, a deadline
+** past the remainder in a period of a turn or more, a workload of one tick. Each edge
+** moved by one was accepted by no run before (tools/mutants.py, 2026-10-04). */
+static void TestCreateBounds(void)
+{
+  void *event = OSCreateEventDescriptor();
+  printf("\ntasks the kernel must accept, at the edges\n\n");
+  Check("  a period of one turn of 2^30, no remainder", TRY_TASK(1, 0, 100));
+  Check("  a period and a deadline of one tick", TRY_TASK(0, 1, 1));
+  Check("  a turn and 5 ticks, a deadline of 100", TRY_TASK(1, 5, 100));
+  Check("  an event-driven task of workload 1", CREATE_SYNCHRONOUS_TASK(EventTask, 1, event, NULL));
+}
+
+/* TestLongPeriod: A task of period one turn of 2^30 and 1000 ticks, which counts its turns
+** apart (PeriodHigh, NextArrivalTimeHigh), run across three wraps of the clock: released
+** at 0, 2^30 + 1000, 2^31 + 2000 and 3 * 2^30 + 3000, four times, each on time. Until
+** RunAcross was fixed the same day, each ran a whole turn after its release: the harness
+** held a task elected whenever the wrap was its next interrupt. */
+#if defined(ESCAPEMENT_VERSION_SOFT)
+   #define CREATE_LONG_TASK(cycles, offset, deadline, arg) \
+              OSCreateTask(CountingTask, 0, cycles, offset, deadline, 1, 1, 0, arg)
+#elif defined(ESCAPEMENT_VERSION_HARD_PA)
+   #define CREATE_LONG_TASK(cycles, offset, deadline, arg) \
+              OSCreateTask(CountingTask, 0, cycles, offset, deadline, arg)
+#else
+   #define CREATE_LONG_TASK(cycles, offset, deadline, arg) \
+              OSCreateTask(CountingTask, cycles, offset, deadline, arg)
+#endif
+static void TestLongPeriod(void)
+{
+  long long duration = 3LL * 0x40000000 + 100000;
+  char label[80];
+
+  CREATE_LONG_TASK(1, 1000, 1000, (void *)0);
+  StartKernel(NULL, NULL);
+  RunAcross(duration);
+
+  printf("\n%lld ticks of simulated time, a period past 2^30\n\n", duration);
+  Check("  the kernel clock wrapped three times", HostClockWraps == 3);
+  snprintf(label, sizeof label, "  the task ran four times: %u", Activations[0]);
+  Check(label, Activations[0] == 4);
+  Check("  no deadline missed", LateArrivals == 0);
+}
+
+/* TestTwoSignals: Two events signalled at the same instant, before the timer handler
+** runs: both tasks wait in its list of tasks to release, and both must run. */
+static unsigned FirstRuns, SecondRuns;
+static void FirstTask(void *argument) { (void)argument; FirstRuns += 1; OSSuspendSynchronousTask(); }
+static void SecondTask(void *argument) { (void)argument; SecondRuns += 1; OSSuspendSynchronousTask(); }
+
+static void TestTwoSignals(void)
+{
+  void *first = OSCreateEventDescriptor(), *second = OSCreateEventDescriptor();
+
+  CREATE_SYNCHRONOUS_TASK(FirstTask, 100, first, NULL);
+  CREATE_SYNCHRONOUS_TASK(SecondTask, 100, second, NULL);
+  StartKernel(NULL, NULL);
+  OSScheduleSuspendedTask(first);
+  OSScheduleSuspendedTask(second);
+  RunElected(NULL);
+  RunFor(1000);
+
+  printf("\ntwo events signalled at once\n\n");
+  Check("  both tasks ran, once each", FirstRuns == 1 && SecondRuns == 1);
+  Check("  the ready queue stays whole", QueueBreaks == 0);
 }
 
 /* TestPriority: An event-driven task created first, with a workload longer than the
@@ -1320,14 +1433,16 @@ static void RunTimed(INT32 duration)
   }
   TimedStart = TimedPhase;
   TimedStartWraps = HostClockWraps;
-  _OSTimerInterruptHandler();        /* the first arrivals */
+  TimerHandler();        /* the first arrivals */
   RunTimedUntil(duration, NULL);
 }
 
 static void SetKernelHooks(void);
 
 /* Signals of an event, sent at those times as an interrupt handler would (firmeventwait). */
-static INT32 SignalAt[4];
+#define MAX_SIGNALS 256
+static INT32 SignalAt[MAX_SIGNALS];
+static void *SignalTo[MAX_SIGNALS];    /* the event of each signal, SignalEvent if NULL */
 static unsigned NbSignals, NextSignal;
 static void *SignalEvent;
 
@@ -1377,7 +1492,7 @@ static void TakeInterrupt(void)
   HostLoseReservation();
   BarrierInterrupts += 1;
   Finalize();
-  _OSTimerInterruptHandler();
+  TimerHandler();
   if (_OSNoSaveContext) {
      BarrierZombies += 1;
      longjmp(TimedFrame, 1);
@@ -1430,7 +1545,8 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
      now = TimedNow();
      if (NextSignal < NbSignals && SignalAt[NextSignal] == now) {
         NextSignal += 1;
-        OSScheduleSuspendedTask(SignalEvent);
+        OSScheduleSuspendedTask(SignalTo[NextSignal - 1] != NULL ? SignalTo[NextSignal - 1]
+                                                                 : SignalEvent);
         continue;                      /* the soft timer interrupt it raises is served */
      }
      toEvent = HostTicksToNextEvent();
@@ -1458,9 +1574,12 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
         HostAdvanceBy(step);
         if (task->Work <= 0) {
            if (setjmp(TimedFrame) == 0) {
+              unsigned asked = HostContextSwitchesRequested;
               WrapPoints = 0;
               SetKernelHooks();
               active->TaskCodePtr(active->Argument);
+              if (!_OSNoSaveContext || HostContextSwitchesRequested == asked)
+                 EndBreaks += 1;
            }
            HostCompilerBarrierHook = NULL;
            HostTimeReadHook = NULL;
@@ -1480,7 +1599,7 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
            if (TimedRun == TIMED_FIRMWAIT)
               CountStillReady();
         #endif
-        _OSTimerInterruptHandler();
+        TimerHandler();
         CheckSimQueue();
         #if defined(ESCAPEMENT_VERSION_SOFT)
            if (TimedRun == TIMED_FIRMWAIT && !WholeReadyQueue())
@@ -1764,21 +1883,116 @@ static void TestTimeWrap(TimedMode mode)
   Check(label, failed == 0 && taken >= WRAP_ENDS);
 }
 
-/* TestTrace: Runs the periodic tasks read on the standard input, one per line, "wcet
-** period deadline takes", each instance taking "takes" ticks at the fastest speed, and
-** prints the trace (TraceOut) for tools/differential.py, which checks it against the
-** scheduling algorithm the build was made for. */
+/* TestTrace: Runs the tasks read on the standard input, one per line, and prints the trace
+** (TraceOut) for tools/differential.py, which checks it against the scheduling algorithm
+** the build was made for:
+**   P wcet period deadline takes   a periodic task, each instance taking "takes" ticks at
+**                                  the fastest speed
+**   E takes workload               an event-driven task: its instances take "takes" ticks,
+**                                  and come a workload apart at least
+**   S time task                    a signal of that event-driven task's event, the signals
+**                                  given in the order of their times
+**   F wcet period deadline takes m k   an (m,k)-firm task, soft kernel only, its pattern
+**                                  starting at instance 0
+** Tasks are numbered in the order of their lines, as the trace numbers them. */
 static void TestTrace(INT32 duration)
 {
-  long wcet, period, deadline, takes;
+  char kind[2];
+  long a, b, c, d;
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     long m, k;
+  #endif
   TraceOut = stdout;
   TimedRun = TIMED_BUSY;
-  while (NbTimed < TIMED_TASKS &&
-         scanf("%ld %ld %ld %ld", &wcet, &period, &deadline, &takes) == 4)
-     CreateTimedTask((INT32)wcet, (INT32)period, (INT32)deadline, (INT32)takes, -1);
+  while (scanf("%1s", kind) == 1) {
+     if (kind[0] == 'P' && scanf("%ld %ld %ld %ld", &a, &b, &c, &d) == 4 &&
+         NbTimed < TIMED_TASKS)
+        CreateTimedTask((INT32)a, (INT32)b, (INT32)c, (INT32)d, -1);
+     #if defined(ESCAPEMENT_VERSION_SOFT)
+     else if (kind[0] == 'F' && scanf("%ld %ld %ld %ld %ld %ld", &a, &b, &c, &d, &m, &k) == 6 &&
+              NbTimed < TIMED_TASKS) {
+        TimedTask *task = &Timed[NbTimed++];
+        task->WCET = (INT32)a;
+        task->Period = (INT32)b;
+        task->Deadline = (INT32)c;
+        task->Takes = (INT32)d;
+        task->Only = -1;
+        task->Work = NextWork(task);
+        OSCreateTask(TimedTaskCode, (INT32)a, 0, (INT32)b, (INT32)c, (UINT8)m, (UINT8)k, 0, task);
+     }
+     #endif
+     else if (kind[0] == 'E' && scanf("%ld %ld", &a, &b) == 2 && NbTimed < TIMED_TASKS) {
+        TimedTask *task = &Timed[NbTimed++];
+        task->WCET = (INT32)a;
+        task->Takes = 0;
+        task->Only = -1;
+        task->Work = task->WCET * 256;
+        task->Event = OSCreateEventDescriptor();
+        #if defined(ESCAPEMENT_VERSION_SOFT)
+           OSCreateSynchronousTask(TimedTaskCode, (INT32)a, (INT32)b, 0, task->Event, task);
+        #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+           OSCreateSynchronousTask(TimedTaskCode, (INT32)a, (INT32)b,
+                                   (UINT8)((a * 256 + b - 1) / b), task->Event, task);
+        #else
+           OSCreateSynchronousTask(TimedTaskCode, (INT32)b, task->Event, task);
+        #endif
+     }
+     else if (kind[0] == 'S' && scanf("%ld %ld", &a, &b) == 2 && NbSignals < MAX_SIGNALS &&
+              b >= 0 && b < (long)NbTimed) {
+        SignalAt[NbSignals] = (INT32)a;
+        SignalTo[NbSignals++] = Timed[b].Event;
+     }
+  }
   StartKernel(NULL, NULL);
   RunTimed(duration);
   printf("T %d\n", duration);
+}
+
+/* TestEventSpacing: An event-driven task of workload 300, alone, signalled at 50, 150 and
+** 400. The first signal releases it at once; the second waits in the arrival queue until
+** 350, a workload after the first release, and the third until 650, a workload after the
+** release from that queue. Each instance takes 10 ticks; at the fastest speed it ends 10
+** after its release, and under the power-aware kernel, which may stretch it, by its
+** deadline. */
+static void TestEventSpacing(void)
+{
+  TimedTask *events = &Timed[0];
+  static const INT32 release[3] = {50, 350, 650};
+  unsigned i;
+  char label[96];
+
+  TimedRun = TIMED_BUSY;
+  events->WCET = 10;
+  events->Work = events->WCET * 256;
+  events->Event = SignalEvent = OSCreateEventDescriptor();
+  NbTimed = 1;
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     OSCreateSynchronousTask(TimedTaskCode, events->WCET, 300, 0, SignalEvent, events);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateSynchronousTask(TimedTaskCode, events->WCET, 300, 9, SignalEvent, events);
+  #else
+     OSCreateSynchronousTask(TimedTaskCode, 300, SignalEvent, events);
+  #endif
+  SignalAt[0] = 50;
+  SignalAt[1] = 150;
+  SignalAt[2] = 400;
+  NbSignals = 3;
+  StartKernel(NULL, NULL);
+  RunTimed(2000);
+
+  printf("\n2000 ticks of simulated time, an event-driven task signalled sooner than its workload\n\n");
+  snprintf(label, sizeof label, "  the task ran for each signal: %u of 3", NbEventEnds);
+  Check(label, NbEventEnds == 3);
+  for (i = 0; i < NbEventEnds && i < 3; i += 1) {
+     #if defined(ESCAPEMENT_VERSION_HARD_PA)
+        BOOL ok = EventEnds[i] >= release[i] + 10 && EventEnds[i] <= release[i] + 300;
+     #else
+        BOOL ok = EventEnds[i] == release[i] + 10;
+     #endif
+     snprintf(label, sizeof label, "  instance %u, released at %d, ended at %d", i, release[i],
+              EventEnds[i]);
+     Check(label, ok);
+  }
 }
 
 /* TestSimStale: Under DRA and DR_OTE a task ending early leaves its entry in the simulation
@@ -2310,7 +2524,7 @@ static void TestFirmWrapMandatory(void)
 
   printf("\n%lld ticks of simulated time, a mandatory arrival beyond the wrap\n\n", duration);
   Check("  the kernel clock wrapped", HostClockWraps == 1);
-  /* Elected just before the wrap, it runs just after, as RunAcross has it. */
+  /* Counted in all: after the wrap the instances are numbered from it. */
   Check("  optional instance 2 of the (1,3) task, at 2^30 - 1000, ran: 3 runs",
         Firm[0].Runs == 3);
   Check("  the other task: every instance ran", WithinOne(Firm[1].Runs, 3));
@@ -2345,7 +2559,6 @@ static void TestFirmOverload(int share)
   RunAcross(duration);
 
   printf("\n%lld ticks of simulated time, more than 2^30 ticks of work declared\n\n", duration);
-  /* Elected just before the wrap, the last runs just after, as RunAcross has it. */
   Check("  optional instance 1 dropped: the (1,2) task ran instances 0 and 2",
         Firm[0].Runs == 2);
   for (i = 1; i <= tasks; i += 1)
@@ -2468,6 +2681,14 @@ int main(int argc, char *argv[])
      TestNoTask();
   else if (argc > 2 && strcmp(argv[1], "trace") == 0)
      TestTrace((INT32)strtol(argv[2], NULL, 10));
+  else if (argc > 1 && strcmp(argv[1], "createbounds") == 0)
+     TestCreateBounds();
+  else if (argc > 1 && strcmp(argv[1], "longperiod") == 0)
+     TestLongPeriod();
+  else if (argc > 1 && strcmp(argv[1], "twosignals") == 0)
+     TestTwoSignals();
+  else if (argc > 1 && strcmp(argv[1], "eventspacing") == 0)
+     TestEventSpacing();
   else if (argc > 1 && strcmp(argv[1], "simstale") == 0)
      TestSimStale();
   else if (argc > 1 && strcmp(argv[1], "eventrelease") == 0)
@@ -2515,6 +2736,12 @@ int main(int argc, char *argv[])
   else
      TestTaskSet();
 
+  if (EndBreaks != 0 || HandlerBreaks != 0) {
+     char label[96];
+     snprintf(label, sizeof label, "  ends without a switch or a context left unsaved: %u, "
+              "handlers: %u", EndBreaks, HandlerBreaks);
+     Check(label, FALSE);
+  }
   printf("\n%s\n", Failures ? "FAILURES" : "all checks passed");
   return Failures ? 1 : 0;
 }
