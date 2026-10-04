@@ -3,8 +3,9 @@
 # LICENSE at the root of this repository.
 """Worst-case response times of a task set by analysis, against those a trace shows.
 
-The analysis is that of the ZottaOS User Manual (May 2012, eq. 2.3, p. 15), response
-time analysis for fixed priorities with the kernel's costs:
+Under deadline-monotonic scheduling (--algorithm dm, the default) the analysis is that
+of the ZottaOS User Manual (May 2012, eq. 2.3, p. 15), response time analysis for fixed
+priorities with the kernel's costs:
 
     R_i = C_i + sum over j of higher priority of ceil(R_i / P_j) (C_j + C_rsw)
               + sum over every j of ceil(R_i / P_j) (C_isw + C_timer + C_rsw)
@@ -19,8 +20,25 @@ before it only if they lie less than a period apart. Every
 task is first released at the kernel's origin, TimeOrigin, then every period: the
 response of an instance is its end mark less its release.
 
+Under EDF (--algorithm edf) it is Spuri's response time analysis (M. Spuri, "Analysis
+of Deadline Scheduled Real-Time Systems", INRIA RR-2772, 1996), exact without costs: the
+worst response of task i comes in a busy period where every other task is released at
+its start and as often as it can, and i at some offset a in it. Its jobs and those of
+deadline no later than its own (ties against it) fill the processor until
+
+    L_i(a) = sum over j != i, D_j <= a + D_i,
+                 of min(ceil(L / P_j), 1 + floor((a + D_i - D_j) / P_j)) (C_j + C_rsw)
+             + (1 + floor(a / P_i)) C_i
+             + sum over every j of ceil(L / P_j) (C_isw + C_timer + C_rsw)
+
+and R_i = max over a of max(C_i, L_i(a) - a), a taking the values k P_j + D_j - D_i
+below the synchronous busy period. The costs are counted as eq. 2.3 counts them: each
+job that runs ahead of i restores a context once it ends, and each release of any task
+enters the timer. The self-test checks the analysis, without costs, against a
+simulation of every offset on small task sets drawn at random.
+
     tools/response_times.py TRACE.csv --task PIN:PERIOD:DEADLINE[:WCET] ...
-                            [--costs ISW,TIMER,RSW]
+                            [--costs ISW,TIMER,RSW] [--algorithm dm|edf]
     tools/response_times.py --self-test
 
 Times in microseconds. A task without WCET is given the longest time from a start mark to
@@ -47,6 +65,81 @@ def response_time(i, tasks, costs):
         if new == r:
             return r
         r = new
+
+
+def busy_period(tasks, costs):
+    """The synchronous busy period: every task released at 0 and as often as it can, the
+    kernel's costs included; None when the load reaches the processor's."""
+    isw, timer, rsw = costs
+    load = sum((t["wcet"] + isw + timer + 2 * rsw) / t["period"] for t in tasks)
+    if load >= 1:
+        return None
+    length = sum(t["wcet"] + isw + timer + 2 * rsw for t in tasks)
+    while True:
+        new = sum(math.ceil(length / t["period"]) * (t["wcet"] + isw + timer + 2 * rsw)
+                  for t in tasks)
+        if new == length:
+            return length
+        length = new
+
+
+def edf_response_time(i, tasks, costs):
+    """Spuri's analysis, the costs added as eq. 2.3 adds them; None if R_i passes the
+    deadline or the processor is overloaded."""
+    isw, timer, rsw = costs
+    length = busy_period(tasks, costs)
+    if length is None:
+        return None
+    ti = tasks[i]
+    offsets = set()
+    for t in tasks:
+        k = 0
+        while k * t["period"] + t["deadline"] - ti["deadline"] < length:
+            a = k * t["period"] + t["deadline"] - ti["deadline"]
+            if a >= 0:
+                offsets.add(a)
+            k += 1
+    worst = ti["wcet"]
+    for a in sorted(offsets):
+        own = (1 + math.floor(a / ti["period"])) * ti["wcet"]
+        others = [t for k, t in enumerate(tasks)
+                  if k != i and t["deadline"] <= a + ti["deadline"]]
+        window = own
+        while True:
+            new = own + sum(min(math.ceil(window / t["period"]),
+                                1 + math.floor((a + ti["deadline"] - t["deadline"])
+                                               / t["period"])) * (t["wcet"] + rsw)
+                            for t in others) \
+                      + sum(math.ceil(window / t["period"]) * (isw + timer + rsw)
+                            for t in tasks)
+            if new == window:
+                break
+            window = new
+        worst = max(worst, window - a)
+    return worst if worst <= ti["deadline"] else None
+
+
+def simulated_edf_response(i, tasks, horizon):
+    """The worst response of task i by simulation, tick by tick, without costs: every
+    other task released at 0 then every period, i first at each offset in turn, every
+    tie of deadlines against i. The check of edf_response_time."""
+    worst = 0
+    for a in range(horizon):
+        jobs = []                                   # [release, deadline, left, task]
+        for k, t in enumerate(tasks):
+            r = a if k == i else 0
+            while r < a + horizon:
+                jobs.append([r, r + t["deadline"], t["wcet"], k])
+                r += t["period"]
+        for now in range(3 * horizon):
+            ready = [j for j in jobs if j[0] <= now and j[2] > 0]
+            if not ready:
+                continue
+            job = min(ready, key=lambda j: (j[1], j[3] == i, j[0]))
+            job[2] -= 1
+            if job[2] == 0 and job[3] == i:
+                worst = max(worst, now + 1 - job[0])
+    return worst
 
 
 def priority_over(k, i, tasks):
@@ -92,12 +185,14 @@ def observed(origin, events, tasks):
     return out
 
 
-def report(tasks, costs, seen):
-    print(f"costs: C_isw {costs[0]} us, C_timer {costs[1]} us, C_rsw {costs[2]} us")
+def report(tasks, costs, seen, algorithm="dm"):
+    analysis = edf_response_time if algorithm == "edf" else response_time
+    print(f"{algorithm.upper()}, costs: C_isw {costs[0]} us, C_timer {costs[1]} us, "
+          f"C_rsw {costs[2]} us")
     print(f"{'pin':>4} {'P':>7} {'D':>7} {'C':>7}  {'R analysis':>10}  "
           f"{'R seen, max':>11}  instances")
     for i, task in enumerate(tasks):
-        r = response_time(i, tasks, costs)
+        r = analysis(i, tasks, costs)
         responses = seen.get(task["pin"], ([], []))[0] if seen else []
         c = f"{task['wcet']}" + ("*" if task.get("bound") else "")
         print(f"{task['pin']:>4} {task['period']:>7} {task['deadline']:>7} {c:>7}  "
@@ -139,7 +234,40 @@ def self_test():
     origin, events = read_trace(lines)
     seen = observed(origin, events, [{"pin": 9, "period": 100}])
     assert seen[9] == ([30, 60], [25, 53]), seen
-    print("self-test passed")
+    # EDF: a set where task 0, of the later deadline, waits for two jobs of task 1.
+    edf = [{"period": 10, "deadline": 10, "wcet": 4},
+           {"period": 4, "deadline": 3, "wcet": 1}]
+    assert edf_response_time(0, edf, (0, 0, 0)) == 6, edf_response_time(0, edf, (0, 0, 0))
+    assert edf_response_time(1, edf, (0, 0, 0)) == 1
+    # An overloaded set has no bound.
+    assert edf_response_time(0, [{"period": 2, "deadline": 2, "wcet": 2},
+                                 {"period": 4, "deadline": 4, "wcet": 1}], (0, 0, 0)) is None
+    # Spuri's analysis is exact without costs: it must give, task by task, the worst
+    # response a simulation of every offset finds, on small sets drawn at random.
+    import random
+    rng = random.Random(7)
+    checked = 0
+    while checked < 300:
+        n = rng.randint(2, 3)
+        tasks = []
+        for _ in range(n):
+            period = rng.randint(3, 12)
+            deadline = rng.randint(2, period)
+            tasks.append({"period": period, "deadline": deadline,
+                          "wcet": rng.randint(1, max(1, deadline // 2))})
+        horizon = math.lcm(*(t["period"] for t in tasks))
+        if busy_period(tasks, (0, 0, 0)) is None or horizon > 60:
+            continue
+        for i in range(n):
+            bound = edf_response_time(i, tasks, (0, 0, 0))
+            sim = simulated_edf_response(i, tasks, horizon)
+            if bound is not None:
+                assert bound == sim, (tasks, i, bound, sim)
+            else:
+                assert sim > tasks[i]["deadline"] or busy_period(tasks, (0, 0, 0)) is None, \
+                    (tasks, i, sim)
+        checked += 1
+    print("self-test passed: %d task sets, EDF's analysis equal to the simulation" % checked)
 
 
 def main():
@@ -148,6 +276,7 @@ def main():
     parser.add_argument("--task", type=parse_task, action="append", default=[])
     parser.add_argument("--costs", default="0,0,0",
                         help="C_isw,C_timer,C_rsw in microseconds")
+    parser.add_argument("--algorithm", choices=["dm", "edf"], default="dm")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
@@ -165,7 +294,7 @@ def main():
             if not spans:
                 sys.exit(f"pin {task['pin']}: no start and end marks; give its WCET")
             task["wcet"], task["bound"] = max(spans), True
-    report(args.task, costs, seen)
+    report(args.task, costs, seen, args.algorithm)
 
 
 if __name__ == "__main__":

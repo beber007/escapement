@@ -22,7 +22,10 @@ of a trace:
   then only;
 - it ends by its deadline: the task sets are drawn schedulable, by density for EDF and
   by response-time analysis for deadline-monotonic scheduling, the power-aware kernels
-  having to keep that at the speeds they pick.
+  having to keep that at the speeds they pick;
+- under EDF at the fastest speed (hard_edf, soft_edf), within the worst response
+  Spuri's analysis gives its task (tools/response_times.py, without the kernel's costs,
+  which the host does not have).
 
 What it does not check: the speeds the power-aware kernel picks, beyond that they keep
 the deadlines. A policy that runs faster than it needs passes.
@@ -33,11 +36,18 @@ the deadlines. A policy that runs faster than it needs passes.
   BUILD=build-O2 python3 tools/differential.py  the binaries of another build of test/host
 """
 
+import importlib.util
 import math
 import os
 import random
 import subprocess
 import sys
+
+_spec = importlib.util.spec_from_file_location(
+    "response_times", os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "response_times.py"))
+response_times = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(response_times)
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 HOST = os.path.join(ROOT, "test", "host")
@@ -110,6 +120,7 @@ def check(build, tasks, trace):
     jobs = {i: [] for i in range(len(tasks))}     # pending instances: [release, deadline, work]
     released = [0] * len(tasks)                   # instances released so far, per task
     ended = [0] * len(tasks)
+    longest = [0] * len(tasks)                    # the longest response seen, per task
 
     def release_until(t):
         for i, (_, period, deadline, takes) in enumerate(tasks):
@@ -183,6 +194,7 @@ def check(build, tasks, trace):
                               "deadline %d" % (i, job[0], now, job[1]))
             jobs[i].pop(0)
             ended[i] += 1
+            longest[i] = max(longest[i], now - job[0])
             pending_end = (now, i)
     if pending_end is not None:
         raise Failure("task %d did not end at %d" % (pending_end[1], pending_end[0]))
@@ -192,6 +204,13 @@ def check(build, tasks, trace):
             if job[1] <= now:
                 raise Failure("task %d: the instance released at %d never ended by its "
                               "deadline %d" % (i, job[0], job[1]))
+    if build in ("hard_edf", "soft_edf"):
+        analysed = [{"period": p, "deadline": d, "wcet": c} for c, p, d, _ in tasks]
+        for i in range(len(tasks)):
+            bound = response_times.edf_response_time(i, analysed, (0, 0, 0))
+            if bound is None or longest[i] > bound:
+                raise Failure("task %d responded in %d, past its bound by analysis, %s" %
+                              (i, longest[i], bound))
 
 
 def self_test():

@@ -30,7 +30,8 @@ why (`tools/coverage.py`), and checks the traces of random task sets, run by the
 on the host, against the algorithm each build claims (`tools/differential.py`): who runs
 must be a valid choice of EDF or deadline-monotonic scheduling at every instant, the
 processor never idles while work waits, every instance ends when its work is done and
-by its deadline. Kernels made wrong on purpose — either order reversed, arrivals sorted
+by its deadline, and under EDF within the bound of Spuri's response time analysis
+(`tools/response_times.py`). Kernels made wrong on purpose — either order reversed, arrivals sorted
 the wrong way, a speed one step too low or always the slowest — fail it within the first
 few task sets of each build.
 
