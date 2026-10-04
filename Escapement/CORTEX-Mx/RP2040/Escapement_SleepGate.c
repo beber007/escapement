@@ -45,10 +45,14 @@ void OSInitSleepGate(UINT32 keep0, UINT32 keep1)
   ** leaves running and which pauses only while the debugger holds a core: once core 1
   ** runs, it rebooted the chip into the flash (2026-09-28), as for FourSlotCoresPico. */
   WATCHDOG_CTRL_CLR = WATCHDOG_ENABLE;
+  /* Core 1 first: launching it, core 0 waits in WFE for the bootrom's answers on the
+  ** inter-core FIFO, and on the RP2350, with deep sleep and the gates already set, the
+  ** chip entered SLEEP there, the FIFO's clock gated, and the answer never came
+  ** (2026-10-04). */
+  OSLaunchCore1(Core1Sleep,&Core1Stack[16]);
   CLOCKS_SLEEP_EN0 = keep0;
   CLOCKS_SLEEP_EN1 = keep1 | CLK_SYS_TIMER;
   SCB_SCR |= SCB_SCR_SLEEPDEEP;
-  OSLaunchCore1(Core1Sleep,&Core1Stack[16]);
 } /* end of OSInitSleepGate */
 
 

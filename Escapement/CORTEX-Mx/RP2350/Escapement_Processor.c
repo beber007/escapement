@@ -36,6 +36,8 @@
 #define CLK_PERI_DIV         *((volatile UINT32 *)(CLOCKS_BASE + 0x4C))
 #define CLK_DIV_1            0x00010000u   /* INT = 1, FRAC = 0, as after reset */
 #define CLK_PERI_CTRL        *((volatile UINT32 *)(CLOCKS_BASE + 0x48))
+#define CLOCKS_SLEEP_EN0     *((volatile UINT32 *)(CLOCKS_BASE + 0xB4))
+#define CLOCKS_SLEEP_EN1     *((volatile UINT32 *)(CLOCKS_BASE + 0xB8))
 #define CLK_PERI_ENABLE      (1u << 11)
 
 #define CLK_REF_SRC_XOSC     2
@@ -71,6 +73,12 @@
 void OSInitializeSystemClocks(void)
 {
   volatile UINT32 i;
+  /* Every clock on through SLEEP, as after a power-on, as on the RP2040: a debugger's
+  ** reset leaves the CLOCKS block alone, and an image loaded after one that gated them
+  ** (Escapement_SleepGate.c) slept with the bus gated, the debugger reading zeros from
+  ** all of it (2026-10-04). */
+  CLOCKS_SLEEP_EN0 = 0xFFFFFFFFu;
+  CLOCKS_SLEEP_EN1 = 0x7FFFFFFFu;
   /* Start the crystal and wait for it to settle. */
   XOSC_STARTUP = XOSC_STARTUP_DELAY;
   XOSC_CTRL = XOSC_FREQ_RANGE_1_15 | XOSC_ENABLE;
