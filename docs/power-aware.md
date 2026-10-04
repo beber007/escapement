@@ -12,22 +12,6 @@ same day: DVFS saves some 10 % at best within the specification, with the idle t
 SLEEP and PLL_SYS running, and next to nothing once SLEEP stops PLL_SYS (roadmap items 3
 and 5). On the RP2040, the one chip with a driver: not measured yet (roadmap item 1).
 
-## The STM32L1 driver, removed
-
-The first DVFS driver of the project was written for the STM32L1. It had three steps, at
-4, 16 and 32 MHz, set the core voltage through `PWR_CR`, and ran in the
-`stm32l-discovery-pa` example. It was removed on 2026-09-22 with the L1 examples
-(4dede39), once the Pico ran every test they ran. The history keeps it, along with
-`IccMeasure.c`, the original authors' bench that stepped through the three ranges and
-read the current of the STM32L-Discovery. That bench was never run, for want of a board.
-
-Under Renode, the variant scheduled its three tasks at their periods and reprogrammed
-the PLL eighteen times in half a second. The voltage stayed in its highest range the
-whole time: the idle loop went back to full speed before every `WFI`, and a load of 90 %
-left little room. The same work found a defect in the Renode L151 platform, which
-declared TIM2 as a 32-bit counter where the L1 has a 16-bit one. The port's 16-bit timer
-mode therefore never saw its overflow; a derived platform fixed it.
-
 ## Is DVFS worth anything?
 
 **The physics.** For a fixed amount of work of *W* cycles, the dynamic energy is
@@ -44,10 +28,7 @@ specification, 0.90 V at 12 MHz gives (0.90/1.10)² ≈ 0.67, a third less.
 The RP2040's core regulator is linear, so the board draws the core's current at the
 supply voltage. That current per cycle falls with V, not V², and the 9 % in the core
 becomes some 5 % at the supply. The V² law also covers switching only. The crystal, the
-PLL kept running, the always-on blocks and the leakage do not scale with it. The
-STM32L1, the first target, promised more on paper: three regulator ranges from 1.8 to
-1.2 V, 2.25× in theory. The µA/MHz its datasheet was said to quote pointed to some 20 %
-per cycle, a figure never checked here.
+PLL kept running, the always-on blocks and the leakage do not scale with it.
 
 **The alternative is race-to-sleep.** Run at full speed, finish, then sleep as deeply as
 the chip allows. On the STM32U585 of the UNO Q, Stop 2 with all SRAM kept draws 20.5 µA
@@ -100,15 +81,12 @@ almost nothing to the reading.
 **Use a Pico, not a Pico W.** The CYW43439 wireless chip sits on the same rail and draws
 current even when idle, which would put a varying floor under every reading.
 
-**Two benches were weighed.** An INA226 module, a shunt and a 16-bit converter read over
-I²C, gives an average current. That is enough to compare steady operating points, and it
-is better than the INA219, whose 12 bits are marginal for telling voltage ranges apart. A
-Bus Pirate acting as I²C master can read it, with no second microcontroller to program.
-A Nordic Power Profiler Kit II costs an order of magnitude more. It powers the target,
-spans about a hundred nanoamps to an amp, and integrates energy over a window. Energy per
-unit of work, not average current, is what settles DVFS against race-to-sleep. The PPK2,
-chosen on 2026-09-24, has measured the STM32U5 and the Pico 2 since 2026-10-03; the
-Pico is next.
+**The instrument.** A Nordic Power Profiler Kit II powers the target, spans about a
+hundred nanoamps to an amp, and integrates energy over a window: energy per unit of
+work, not the average current an INA226 would give, is what settles DVFS against
+race-to-sleep. Chosen on 2026-09-24, it has measured the STM32U5 and the Pico 2 since
+2026-10-03; the Pico is next. The Pico 2 was measured on VSYS, its regulator included,
+so its figures are not those of the 3V3 rail recommended above.
 
 Because the core regulator is linear (RP2040 datasheet, section 2.10), part of what V²
 promises is dissipated in it rather than saved. The bench would measure a gain smaller
@@ -129,8 +107,8 @@ three operating points. `make KERNEL=PA` builds it in the Pico example.
 divider if need be, and takes the PLL back, glitchlessly both ways. None of this waits
 for a lock. The whole change runs with interrupts masked, 3.9 to 8.7 µs by the bench of
 2026-09-24 (`rp2040.md`). The price is a VCO that keeps running at 12 MHz. Stopping it
-there would save its current and cost a relock on the way back up, a trade the bench can
-settle. The 50 MHz point replaces the 48 MHz one first declared, which the same VCO
+there would save its current and cost a relock on the way back up, which is open
+(roadmap item 1). The 50 MHz point replaces the 48 MHz one first declared, which the same VCO
 cannot produce. The timer's 1 µs tick comes from the crystal and does not move.
 
 The idle task sleeps at 125 MHz by default. `make KERNEL=PA SLEEP_SPEED=0` lets it sleep
@@ -140,9 +118,10 @@ idle task sleeps").
 **The voltage moves little within the specification.** The datasheet guarantees the core
 between 1.05 and 1.16 V only (table 634), although the regulator accepts 0.80 to 1.30 V
 in 50 mV steps. Within the specification the voltage therefore only goes from 1.10 to
-1.05 V, about 9 % less energy per cycle. Since 1.05 V is valid up to 133 MHz, raising the
+1.05 V (The physics, above). Since 1.05 V is valid up to 133 MHz, raising the
 frequency never has to wait for the regulator. What is left is mostly frequency scaling,
-which on its own saves little against race-to-sleep. The bench will say how much.
+which on its own saves little against race-to-sleep: on the RP2350, some 10 % at best
+(Measured so far, above).
 
 **Undervolting, for the bench only.** `make KERNEL=PA UNDERVOLT=1` pairs 0.95 V with
 50 MHz and 0.90 V with 12 MHz. It also lowers the brown-out detector to 0.817 V; left
@@ -166,9 +145,9 @@ reports, not on any guarantee. On the Raspberry Pi forums a Pico ran at 10 MHz u
 `escapement_pico.repl` adds a model of `VREG`. `escapement_pico.robot` hooks the writes
 to it, to `CLK_SYS_CTRL` and to the post dividers (`rp2040_dvfs_check.py`). Over 100 ms
 of `TaskLEDPico`, clk_sys never runs faster than the voltage allows, and the voltage
-does change and reaches its lowest setting. The emulated core does not slow down with
-its clock. The test shows that the registers are driven in the right order, and says
-nothing about energy.
+does change and reaches its lowest setting. The test shows that the registers are driven
+in the right order, and says nothing about energy: none of the platforms used here ties
+the speed of the emulated core to its clock, and none models a supply voltage.
 
 ## Targets weighed
 
@@ -219,31 +198,21 @@ mA, 128, 131, 155 and 180 pC a cycle: twice the SMPS's, in the same order, where
 figures above, 84 and 73 µA/MHz, put a cycle 13 % cheaper slower. DVFS has nothing to
 gain on the U5, on either regulator.
 
-Cost of a port, measured on 2026-09-20, before the Cortex-M33 joined the generic layer:
-
-```
-Generic Cortex-M layer (M0/M3/M4)      921 lines   reusable as is
-Vendor-specific layer                ~1800 lines   to be rewritten
-  of which the DVFS driver             157 lines   the easy part
-```
-
-The context switch, the atomics and the scheduler do not move. The bulk of a port is the
-comparator timer, the vector table and the UART, not energy management.
+The bulk of a port is the comparator timer, the vector table and the UART, not energy
+management: the context switch, the atomics and the scheduler do not move.
 
 The RP2350 port was begun for its two cores rather than its regulator, and the U5 port
 for the Arduino UNO Q's STM32U585 (`roadmap.md`).
 
-Renode provides platforms for the STM32 F0, F1, F4, F7, G0, H7, L0, L1, L5 and W
-families, but none for the L4 or the U5. The U5 port wrote a platform of its own
-(`emulation.md`), and an L4 port would have to as well.
+## The STM32L1 driver, removed
 
-## What emulation will never tell
-
-None of the platforms used here, from the RP2040 models and the L151 platform before
-them to the platforms of the RP2350 and the U5, ties the speed of the emulated core to its
-clock, and none models a supply voltage. No emulator here can say that DVFS saves energy.
-What emulation shows is said above ("What emulation proves"): the kernel schedules, and
-drives the registers in the right order.
+The first DVFS driver of the project was written for the STM32L1, three steps at 4, 16
+and 32 MHz, and removed on 2026-09-22 with the L1 examples (4dede39), once the Pico ran
+every test they ran. Its bench, `IccMeasure.c`, was never run, for want of a board; under
+Renode the voltage stayed in its highest range, the idle loop going back to full speed
+before every `WFI`. That work found Renode's L151 platform declaring TIM2 a 32-bit
+counter where the L1 has a 16-bit one, which a derived platform fixed. The history keeps
+both.
 
 ## Sources
 
