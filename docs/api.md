@@ -90,7 +90,8 @@ reads what is there and returns.
 | Power-aware | `OSCreateTask(task, wcet, periodCycles, periodOffset, deadline, argument)` |
 
 Every creation returns `FALSE` when memory runs out, or for a period or a deadline
-outside those limits. Under DM it also fails past the number of tasks the kernel can
+outside those limits. The soft and power-aware kernels also refuse a negative `wcet` or
+one past the deadline, a task that could never meet it (since 2026-10-04). Under DM it also fails past the number of tasks the kernel can
 count: 255 in all, or 127 with the soft kernel, whose optional instances add the number
 of tasks to their priority. The first instance of every task arrives when the kernel
 starts. There is no offset.
@@ -180,7 +181,8 @@ computes it from `wcet` and the share.
 
 Under EDF the soft kernel reserves for the event-driven tasks at least the largest
 `wcet / workload` among them, rounded up to a 256th, whatever share was declared. It
-refuses a `wcet` above the workload, or one that would take the whole processor. A
+refuses a `wcet` that would take the whole processor. Both kernels refuse a negative
+`wcet` or one above the workload, under either algorithm. A
 `wcet` of 0 leaves the task out of that share.
 
 ### Timer events

@@ -54,6 +54,9 @@ loops.
 | `firmeventqueued` | soft kernel: an optional instance tested at its arrival while an event-driven task, signalled again too soon, waits in the arrival queue; the test steps over its smaller control block, which read as a periodic task's is read past its end (AddressSanitizer) |
 | `firmwrapmandatory` | soft kernel: an optional instance tested just before the wrap, its deadline beyond it, while another task's next mandatory instance arrives beyond the wrap too; the instance fits by 499 ticks, and is dropped if that arrival is not brought back by 2^30 |
 | `simstale` | a task ending early, then arriving behind a task that runs on: under DRA and DR_OTE its previous instance is still in the simulation queue, which the insertion takes out; the queue is checked after each timer event of the timed runs. The path is taken, but a kernel that leaves the previous entry linked is not caught: it drops the entries in between, and a task the simulation lost runs at the fastest speed, which costs energy and no deadline |
+| `firmoverload`, `firmoverloadinstances`, `firmoverloadshare`, `firmoverloadsum` | soft kernel: optional instances tested while more than 2^30 ticks of work are declared before their deadline, by single instances, whole instances, or, under EDF, the share of the event-driven tasks at 200 and 128 / 256; each guard of the 32-bit sum is reached, and each taken out shows in UndefinedBehaviorSanitizer but one, which the check after it makes redundant |
+| `signals` | three signals of an event before its task runs: it runs twice, the third finding the second kept; an event no task was created for is signalled without effect |
+| `notask` | the kernel started with no task created sets itself up and elects the idle task |
 | `minspeed` | a light load with `OSSetMinimalProcessorSpeed`: the power-aware kernel never goes below it, which four of its five policies would otherwise do; two tasks released together with equal deadlines, which EDF* breaks by arrival and address |
 | `endinside`, `endinsidebusy` | `early` and `busy` with the soft timer interrupt taken at one compiler barrier of the kernels in two, at random (`HostCompilerBarrierHook`), where a task ending leaves its stores in the order the handler relies on; the interrupt completes first, as on the target, what `FinalizeContextSwitchPreparation` completes. The time does not move there, so who ran when and how fast must be as in the run without those interrupts, which a child process makes first |
 | `timewrap`, `timewrapbusy`, `timewrapidle` | `early`, `busy`, and two tasks arriving together after an idle time, started at the phase of the counter where one of the first sixteen instances ends at the last tick before the wrap; the interrupt of the wrap is taken at each of the first four time reads and barriers of that end in turn (`HostTimeReadHook`, `HostCompilerBarrierHook`), where the kernel may hold a time from before the shift. Every check of the timed run must hold. Each run is a child process |
@@ -174,14 +177,24 @@ nothing, passed every other run.
 
 ## What it cannot see
 
-Line coverage was measured when each kernel joined the test; the Makefile has no target
-for it. It was 90 % of the hard kernel (2026-09-21, up from 24 % before the runs of
-events, queue and buffers), 87 % of the soft one (2026-09-21), and 90 % of the
-power-aware one in its shipped configuration, one task extension (2026-09-22). Over the
-nine builds together, with clang's `--coverage`, it was 92 %, 89 % and 92.5 %, and
-85.5 % of the queue between the cores, before the preempted operations, the allocations
-that fail, `firmevents` and `minspeed` were added. After them it was 96.9 %, 95.1 %,
-96.2 % and 100 % (2026-09-25).
+Coverage is a check (`python3 tools/coverage.py`, in CI since 2026-10-04): every line of
+the three kernels and of the queue between the cores that some build compiles must run in
+one of them, or say where it stands why it cannot, with `COVERAGE-LINE` or
+`COVERAGE-OFF` ... `COVERAGE-ON` in a comment. An excluded line that runs fails as well.
+Branches must not fall below `coverage-floor`. The test binaries are read one by one: a
+view merged over the nine builds had left out lines of DM_SLACK, two of them never run.
+On 2026-10-04 the check found 68 lines no run took, and 86.5 % of the branches taken.
+Tests were written for the logic among them, which found the defect of `eventrelease`;
+dead code was removed (`Initialize` could not fail, and OTE, DR_OTE and DM_SLACK had a
+branch for an empty arrival queue, which the active periodic task never leaves empty);
+the soft and power-aware kernels now refuse a WCET past the deadline. 37 lines remain
+excluded: the assertions of `DEBUG_MODE`, the helpers of the wait-free queue that find
+their work done, and DRA's update interrupted by another. 90.5 % of the branches run.
+
+Earlier figures, by line only: 90 % of the hard kernel (2026-09-21, up from 24 % before
+the runs of events, queue and buffers), 87 % of the soft one, 90 % of the power-aware one
+(2026-09-22); over the nine builds merged, 96.9 %, 95.1 % and 96.2 % of the three
+kernels and 100 % of the queue between the cores (2026-09-25).
 
 What is left of the wait-free queue is an operation that finds its work done while
 helping another, which takes two nested interruptions. The host interrupts an operation

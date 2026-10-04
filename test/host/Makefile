@@ -83,7 +83,8 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(BUILD)/test_ipc_hard $(BUILD)/test_
 	   ./$(BUILD)/test_scheduler_$$b endinside && ./$(BUILD)/test_scheduler_$$b endinsidebusy && \
 	   ./$(BUILD)/test_scheduler_$$b timewrap && ./$(BUILD)/test_scheduler_$$b timewrapbusy && \
 	   ./$(BUILD)/test_scheduler_$$b timewrapidle && \
-	   ./$(BUILD)/test_scheduler_$$b eventrelease && ./$(BUILD)/test_scheduler_$$b simstale || exit 1; \
+	   ./$(BUILD)/test_scheduler_$$b eventrelease && ./$(BUILD)/test_scheduler_$$b simstale && \
+	   ./$(BUILD)/test_scheduler_$$b signals && ./$(BUILD)/test_scheduler_$$b notask || exit 1; \
 	   case $$b in soft_*) ./$(BUILD)/test_scheduler_$$b firm && \
 	                      ./$(BUILD)/test_scheduler_$$b firmwrap && \
 	                      ./$(BUILD)/test_scheduler_$$b firmlong && \
@@ -91,9 +92,13 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(BUILD)/test_ipc_hard $(BUILD)/test_
 	                      ./$(BUILD)/test_scheduler_$$b firmwait && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventwait && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventqueued && \
-	                      ./$(BUILD)/test_scheduler_$$b firmwrapmandatory || exit 1;; esac; \
+	                      ./$(BUILD)/test_scheduler_$$b firmwrapmandatory && \
+	                      ./$(BUILD)/test_scheduler_$$b firmoverload && \
+	                      ./$(BUILD)/test_scheduler_$$b firmoverloadinstances || exit 1;; esac; \
 	   case $$b in soft_dm) ./$(BUILD)/test_scheduler_$$b firmeventahead || exit 1;; esac; \
-	   case $$b in soft_edf) ./$(BUILD)/test_scheduler_$$b firmdiscount && \
+	   case $$b in soft_edf) ./$(BUILD)/test_scheduler_$$b firmoverloadshare && \
+	                         ./$(BUILD)/test_scheduler_$$b firmoverloadsum && \
+	                         ./$(BUILD)/test_scheduler_$$b firmdiscount && \
 	                         ./$(BUILD)/test_scheduler_$$b firmdiscountnear || exit 1;; esac; \
 	done
 	@echo; echo "=== hard"; ./$(BUILD)/test_ipc_hard

@@ -236,6 +236,20 @@ jobs:
       - name: The same at -O2, under the whole of UndefinedBehaviorSanitizer
         run: make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
 
+  coverage:
+    # Every line of the kernels some build compiles must run, or say where it stands why
+    # it cannot (COVERAGE-LINE, COVERAGE-OFF ... COVERAGE-ON); branches must not fall
+    # below test/host/coverage-floor. clang's source-based coverage, read build by build.
+    name: Coverage of the kernels by the host test
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: clang and the LLVM tools
+        run: sudo apt-get update -q && sudo apt-get install -y -q clang llvm
+      - name: Every line covered or excluded with its reason, branches above the floor
+        run: clang --version | head -1 && python3 tools/coverage.py
+
   models:
     # The slot buffers and the FIFO queues over every interleaving, one model a job: run
     # one after another, beside the host test, they made the longest job of the run.

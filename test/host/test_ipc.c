@@ -510,6 +510,8 @@ static void TestBuffer(UINT8 type, const char *name)
   OSWriteBuffer(buffer, bytes, SLOT);
   ok = OSGetReferenceBuffer(buffer, OS_READ_ONLY_ONCE, &ref) == SLOT && memcmp(ref, bytes, SLOT) == 0;
   Check("  the reader gets the most recent slot", ok);
+  Check("  once only by reference too",
+        OSGetReferenceBuffer(buffer, OS_READ_ONLY_ONCE, &ref) == 0 && ref == NULL);
 
   /* An interrupt between an LL and its SC makes the SC fail although nothing changed:
   ** the reader must try again, not give up or take a slot that does not exist. */

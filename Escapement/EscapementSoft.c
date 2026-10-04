@@ -241,7 +241,7 @@ static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30
 
 
 /* INTERNAL FUNCTION PROTOTYPES AND MACROS */
-static BOOL Initialize(void);
+static void Initialize(void);
 static void IdleTask(void *);
 static BOOL ValidTiming(UINT16 periodCycles, INT32 periodOffset, INT32 deadline);
 static void Multiply46_16(UINT16 a0, INT32 a1, UINT16 b, UINT32 *c0, INT32 *c1);
@@ -274,9 +274,9 @@ static void EmptyRescheduleSynchronousTaskList(INT32 currentTime);
 
 
 /* Initialize: Initializes the internals of the OS. This function is called prior to
-** creating the first task and sets up the needed queues.
-** Returned value: (BOOL) TRUE on success and FALSE otherwise. */
-BOOL Initialize(void)
+** creating the first task and sets up the needed queues. It allocates nothing, the
+** sentinels being static, and cannot fail. */
+void Initialize(void)
 {
   /* The sentinel heads and tails of the ready and arrival queues. */
   _OSQueueHead = &QueueHeadSentinel;
@@ -293,7 +293,6 @@ BOOL Initialize(void)
   _OSQueueTail->Next[ARRIVALQ] = NULL;
   _OSQueueTail->TaskState = STATE_INIT | TASKTYPE_BLOCKING;
   _OSQueueTail->NextArrivalTimeLow = INT32_MAX;
-  return TRUE;
 } /* end of Initialize */
 
 
@@ -343,14 +342,17 @@ BOOL OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 peri
   UINT32 startHigh;
   INT32 startLow;
   /* At least one instance in k is mandatory, which the pattern divides by m and k. The
-  ** first arrival, startInstance periods, must fit the arrival time's count of turns. */
-  if (!ValidTiming(periodCycles,periodOffset,deadline) || m == 0 || k < m)
+  ** first arrival, startInstance periods, must fit the arrival time's count of turns. A
+  ** WCET past the deadline can never be met; the schedulability test of optional
+  ** instances also relies on WCET <= deadline <= period to keep its sums in 32 bits. */
+  if (!ValidTiming(periodCycles,periodOffset,deadline) || m == 0 || k < m ||
+      wcet < 0 || wcet > deadline)
      return FALSE;
   Multiply46_16(periodCycles,periodOffset,startInstance,&startHigh,&startLow);
   if (startHigh >= 0xFFFF)
      return FALSE;
-  if (_OSQueueHead == NULL && !Initialize())
-     return FALSE;
+  if (_OSQueueHead == NULL)
+     Initialize();
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      /* The priorities are counted in a byte, and an optional instance adds the number of
      ** tasks to its own. */
@@ -748,9 +750,10 @@ void _OSTimerInterruptHandler(void)
               /* At this point an arriving task should not be in state STATE_RUNNING */
               #ifdef DEBUG_MODE
                  if (arrival->TaskState & STATE_RUNNING) {
+                    /* COVERAGE-OFF: an assertion that a schedulable task set never meets */
                     _OSDisableInterrupts();
                     while (TRUE); // If we get here, the processor utilization > 100%.
-                 }
+                 }  /* COVERAGE-ON */
               #endif
               /* Remove the optional instance */
               #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
@@ -763,7 +766,9 @@ void _OSTimerInterruptHandler(void)
                  #ifdef DEBUG_MODE
                     for (tmp = _OSQueueHead; tmp != _OSQueueTail; tmp = tmp->Next[READYQ])
                        if (tmp == arrival)
+                          /* COVERAGE-OFF: an assertion, as above */
                           while (TRUE); // If we get here, the processor utilization > 100%.
+                          /* COVERAGE-ON */
                  #endif
                  for (tmp = _OSQueueTail; tmp->Next[READYQ] != NULL; tmp = tmp->Next[READYQ])
                     if (tmp->Next[READYQ] == arrival) {
@@ -1060,13 +1065,13 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
      if (utilization < needed)
         utilization = (UINT8)needed;
   #endif
-  /* The workload is the deadline of each instance, and an event's queue counts its tasks
-  ** in a byte. */
+  /* The workload is the deadline of each instance, which the WCET cannot pass, and an
+  ** event's queue counts its tasks in a byte. */
   if (event == NULL || ((FIFOQUEUE *)event)->QueueLength == 0xFF ||
-      workLoad <= 0 || workLoad >= ShiftTimeLimit)
+      workLoad <= 0 || workLoad >= ShiftTimeLimit || wcet < 0 || wcet > workLoad)
      return FALSE;
-  if (_OSQueueHead == NULL && !Initialize())
-     return FALSE;
+  if (_OSQueueHead == NULL)
+     Initialize();
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      /* The priorities are counted in a byte, and an optional instance adds the number of
      ** tasks to its own. */
@@ -1211,7 +1216,7 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
            ** Task asks for a task to be rescheduled only once it has, interrupts masked. */
            #ifdef DEBUG_MODE
               if ((etcb->TaskState & STATE_ZOMBIE) == 0)
-                 while (TRUE);
+                 while (TRUE);  // COVERAGE-LINE: an assertion of DEBUG_MODE
            #endif
            #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
               /* Under EDF, the task that is to process the event cannot execute until its
@@ -1448,9 +1453,11 @@ void FIFODequeueHelper(FIFOQUEUE *queue, UINTPTR signal, DEQUEUE_DESCRIPTOR *des
            /* The signal this dequeue left: mark it done, or a helper coming later, once
            ** an enqueue has taken the signal, would leave a second one
            ** (test/model/fifo.py). */
+           /* COVERAGE-OFF: a helper finding its work done takes two nested interrupts,
+           ** which the host never makes; test/model/fifo.py explores them */
            des->Done = TRUE;
            break;
-        }
+        }  /* COVERAGE-ON */
         else if (slot == NULL)
            if (des->SlotReturn == NULL) {
               if (OSUINTPTR_SC(&queue->Q[h],SIGNAL)) {
@@ -1545,9 +1552,10 @@ void FIFOEnqueueHelper(FIFOQUEUE *queue, ENQUEUE_DESCRIPTOR *des)
         }
         else if (slot == NULL) {
            if (des->SlotReturn == SIGNAL) {
+              /* COVERAGE-OFF: as in FIFODequeueHelper, two nested interrupts */
               des->Done = TRUE;
               break;
-           }
+           }  /* COVERAGE-ON */
            else if (OSUINTPTR_SC(&queue->Q[t],des->Item)) {
               IncrementFifoQueueIndex(&queue->Tail,des->Tail,queue->MaxIndex);
               des->Done = TRUE;

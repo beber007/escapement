@@ -211,7 +211,7 @@ static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30
 
 
 /* INTERNAL FUNCTION PROTOTYPES AND MACROS */
-static BOOL Initialize(void);
+static void Initialize(void);
 static void IdleTask(void *);
 static BOOL ValidTiming(UINT16 periodCycles, INT32 periodOffset, INT32 deadline);
 #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
@@ -238,9 +238,9 @@ static void EmptyRescheduleSynchronousTaskList(INT32 currentTime);
 
 
 /* Initialize: Initializes the internals of the OS. This function is called prior to
-** creating the first task and sets up the needed queues.
-** Returned value: (BOOL) TRUE on success and FALSE otherwise. */
-BOOL Initialize(void)
+** creating the first task and sets up the needed queues. It allocates nothing, the
+** sentinels being static, and cannot fail. */
+void Initialize(void)
 {
   /* The sentinel heads and tails of the ready and arrival queues. */
   _OSQueueHead = &QueueHeadSentinel;
@@ -257,7 +257,6 @@ BOOL Initialize(void)
   OSQueueTail->Next[ARRIVALQ] = NULL;
   OSQueueTail->TaskState = STATE_INIT | TASKTYPE_BLOCKING;
   OSQueueTail->NextArrivalTimeLow = INT32_MAX;
-  return TRUE;
 } /* end of Initialize */
 
 
@@ -306,8 +305,8 @@ BOOL OSCreateTask(void task(void *), UINT16 periodCycles, INT32 periodOffset,
   TCB *ptcb;
   if (!ValidTiming(periodCycles,periodOffset,deadline))
      return FALSE;
-  if (_OSQueueHead == NULL && !Initialize())
-     return FALSE;
+  if (_OSQueueHead == NULL)
+     Initialize();
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      if (OSQueueTail->Priority == 0xFF)  // the priorities are counted in a byte
         return FALSE;
@@ -459,9 +458,10 @@ void _OSTimerInterruptHandler(void)
            #ifdef DEBUG_MODE
               if (!(arrival->TaskState & STATE_ZOMBIE)) { // Is task still in the ready queue?
                  /* An arriving task should not be in state STATE_RUNNING */
+                 /* COVERAGE-OFF: an assertion that a schedulable task set never meets */
                  _OSDisableInterrupts();
                  while (TRUE); // If we get here, the processor utilization > 100%.
-              }
+              }  /* COVERAGE-ON */
            #endif
            /* Set task to INIT while keeping flag TASKTYPE_BLOCKING */
            arrival->TaskState &= TASKTYPE_BLOCKING;
@@ -661,8 +661,8 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 workLoad, void *event, voi
   if (event == NULL || ((FIFOQUEUE *)event)->QueueLength == 0xFF ||
       workLoad <= 0 || workLoad >= ShiftTimeLimit)
      return FALSE;
-  if (_OSQueueHead == NULL && !Initialize())
-     return FALSE;
+  if (_OSQueueHead == NULL)
+     Initialize();
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      if (OSQueueTail->Priority == 0xFF)  // the priorities are counted in a byte
         return FALSE;
@@ -804,7 +804,7 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
            ** Task asks for a task to be rescheduled only once it has, interrupts masked. */
            #ifdef DEBUG_MODE
               if ((etcb->TaskState & STATE_ZOMBIE) == 0)
-                 while (TRUE);
+                 while (TRUE);  // COVERAGE-LINE: an assertion of DEBUG_MODE
            #endif
            #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
               /* Under EDF, the task that is to process the event cannot execute until it
@@ -1025,9 +1025,11 @@ void FIFODequeueHelper(FIFOQUEUE *queue, UINTPTR signal, DEQUEUE_DESCRIPTOR *des
            /* The signal this dequeue left: mark it done, or a helper coming later, once
            ** an enqueue has taken the signal, would leave a second one
            ** (test/model/fifo.py). */
+           /* COVERAGE-OFF: a helper finding its work done takes two nested interrupts,
+           ** which the host never makes; test/model/fifo.py explores them */
            des->Done = TRUE;
            break;
-        }
+        }  /* COVERAGE-ON */
         else if (slot == NULL)
            if (des->SlotReturn == NULL) {
               if (OSUINTPTR_SC(&queue->Q[h],SIGNAL)) {
@@ -1122,9 +1124,10 @@ void FIFOEnqueueHelper(FIFOQUEUE *queue, ENQUEUE_DESCRIPTOR *des)
         }
         else if (slot == NULL) {
            if (des->SlotReturn == SIGNAL) {
+              /* COVERAGE-OFF: as in FIFODequeueHelper, two nested interrupts */
               des->Done = TRUE;
               break;
-           }
+           }  /* COVERAGE-ON */
            else if (OSUINTPTR_SC(&queue->Q[t],des->Item)) {
               IncrementFifoQueueIndex(&queue->Tail,des->Tail,queue->MaxIndex);
               des->Done = TRUE;

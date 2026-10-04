@@ -72,6 +72,9 @@ tools/soak.py nucleo 0 1m SoakU5.elf          # on the UNO Q: SoakU5 of Examples
 # also runs it at -O2 under the whole of UndefinedBehaviorSanitizer
 make -C test/host run
 make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
+python3 tools/coverage.py            # every kernel line covered or excluded with its reason
+                                     # (COVERAGE-LINE, COVERAGE-OFF/ON), branches >= the
+                                     # floor in test/host/coverage-floor (run by the CI)
 
 # Exhaustive models of the lock-free mechanisms (run by the CI)
 python3 test/model/fourslot.py

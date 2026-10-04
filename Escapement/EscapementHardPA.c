@@ -322,7 +322,7 @@ static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30
 
 
 /* INTERNAL FUNCTION PROTOTYPES AND MACROS */
-static BOOL Initialize(void);
+static void Initialize(void);
 static void IdleTask(void *);
 static TCB *CreateTask(void task(void *), INT32, UINT16, INT32, INT32, void *);
 static BOOL ValidTiming(UINT16 periodCycles, INT32 periodOffset, INT32 deadline);
@@ -377,9 +377,9 @@ void _OSTimerInterruptHandler(void);
 
 
 /* Initialize: Initializes the internals of the OS. This function is called prior to
-** creating the first task and sets up the needed queues.
-** Returned value: (BOOL) TRUE on success and FALSE otherwise. */
-BOOL Initialize(void)
+** creating the first task and sets up the needed queues. It allocates nothing, the
+** sentinels being static, and cannot fail. */
+void Initialize(void)
 {
   /* The sentinel heads and tails of the ready and arrival queues. */
   _OSQueueHead = &QueueHeadSentinel;
@@ -400,7 +400,6 @@ BOOL Initialize(void)
     _OSQueueHead->NextSim = OSQueueTail;
     OSQueueTail->NextSim = NULL;
   #endif
-  return TRUE;
 } /* end of Initialize */
 
 
@@ -456,10 +455,11 @@ TCB *CreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 period
                   INT32 deadline, void *argument)
 {
   TCB *ptcb;
-  if (!ValidTiming(periodCycles,periodOffset,deadline))
+  /* A WCET past the deadline can never be met. */
+  if (!ValidTiming(periodCycles,periodOffset,deadline) || wcet < 0 || wcet > deadline)
      return NULL;
-  if (_OSQueueHead == NULL && !Initialize())
-     return NULL;
+  if (_OSQueueHead == NULL)
+     Initialize();
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      if (OSQueueTail->Priority == 0xFF)  // the priorities are counted in a byte
         return NULL;
@@ -717,9 +717,10 @@ void _OSTimerInterruptHandler(void)
            #ifdef DEBUG_MODE
               if (!(arrival->TaskState & STATE_ZOMBIE)) { // Is task still in the ready queue?
                  /* An arriving task should not be in state STATE_RUNNING */
+                 /* COVERAGE-OFF: an assertion that a schedulable task set never meets */
                  _OSDisableInterrupts();
                  while (TRUE); // If we get here, the processor utilization > 100%.
-              }
+              }  /* COVERAGE-ON */
            #endif
            /* Set task to INIT while keeping flag TASKTYPE_BLOCKING */
            arrival->TaskState &= TASKTYPE_BLOCKING;
@@ -1018,13 +1019,13 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
                              UINT8 aperiodicUtilization, void *event, void *arg)
 {
   ETCB *etcb;
-  /* The workload is the deadline of each instance, and an event's queue counts its tasks
-  ** in a byte. */
+  /* The workload is the deadline of each instance, which the WCET cannot pass, and an
+  ** event's queue counts its tasks in a byte. */
   if (event == NULL || ((FIFOQUEUE *)event)->QueueLength == 0xFF ||
-      workLoad <= 0 || workLoad >= ShiftTimeLimit)
+      workLoad <= 0 || workLoad >= ShiftTimeLimit || wcet < 0 || wcet > workLoad)
      return FALSE;
-  if (_OSQueueHead == NULL && !Initialize())
-     return FALSE;
+  if (_OSQueueHead == NULL)
+     Initialize();
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      if (OSQueueTail->Priority == 0xFF)  // the priorities are counted in a byte
         return FALSE;
@@ -1225,7 +1226,7 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
            ** Task asks for a task to be rescheduled only once it has, interrupts masked. */
            #ifdef DEBUG_MODE
               if ((etcb->TaskState & STATE_ZOMBIE) == 0)
-                 while (TRUE);
+                 while (TRUE);  // COVERAGE-LINE: an assertion of DEBUG_MODE
            #endif
            #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
               /* Under EDF, the task that is to process the event cannot execute until its
@@ -1406,11 +1407,14 @@ void DRASimUpdateElapseTime(INT32 newTime)
      completed = newTime - oldTime;
      if (newExcess > 0) {
         if (newExcess > completed) {
+           /* COVERAGE-OFF: the excess is at most a share below 1 of the time since the
+           ** last update, which every update brings DRASimTime to: it passes that time
+           ** only when a call interrupting this one moved DRASimTime past newTime */
            oldExcess = newExcess - completed;
            InterruptibleINT32CAS2(&DRASimTime,oldTime,newTime,
                                              &AperiodicExcess,newExcess,oldExcess,FALSE);
            return;
-        }
+        }  /* COVERAGE-ON */
         else {
            INT32 tmp = oldTime + newExcess;
            InterruptibleINT32CAS2(&DRASimTime,oldTime,tmp,&AperiodicExcess,newExcess,0,FALSE);
@@ -1432,7 +1436,7 @@ void DRASimUpdateElapseTime(INT32 newTime)
         ** although DRASimTime did not change, so only a changed value gives up. */
         do {
            if (OSINT32_LL(&DRASimTime) != oldTime)
-              return;
+              return;  // COVERAGE-LINE: only after an interrupting call moved it
         } while (!OSINT32_SC(&DRASimTime,newTime));
         break;
      }
@@ -1559,10 +1563,11 @@ UINT8 GetProcessorSpeed(INT32 time)
         ** work up to the earliest of the next periodic arrival, the next event-driven
         ** release and its own deadline. */
         if (_OSActiveTask->Next[READYQ] == OSQueueTail) {
-           if (_OSQueueHead->Next[ARRIVALQ] != OSQueueTail)
-              completionTime = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
-           else
-              completionTime = ShiftTimeLimit - time;
+           /* The active task is periodic, and a periodic task stays in the arrival queue
+           ** from its release on, for its next arrival: the queue is never empty here. The
+           ** branch ZottaOS had for an empty queue was never taken, and bounded the time
+           ** with a length, 2^30 - time, where it needed a time (2026-10-04). */
+           completionTime = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
            if (SynchronousTaskList != NULL && 
                (tmp = GetEarliestAperiodicArrival()) < completionTime) {
               if (tmp <= time)
@@ -1595,10 +1600,11 @@ UINT8 GetProcessorSpeed(INT32 time)
         ** are smaller than periods. */
         completionTime = GetDRASlackTime() + AperiodicExcess;
         if (_OSActiveTask->Next[READYQ] == OSQueueTail) {
-           if (_OSQueueHead->Next[ARRIVALQ] != OSQueueTail)
-              oteCompletionTime = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
-           else
-              oteCompletionTime = ShiftTimeLimit - time;
+           /* The active task is periodic, and a periodic task stays in the arrival queue
+           ** from its release on, for its next arrival: the queue is never empty here. The
+           ** branch ZottaOS had for an empty queue was never taken, and bounded the time
+           ** with a length, 2^30 - time, where it needed a time (2026-10-04). */
+           oteCompletionTime = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
            if (SynchronousTaskList != NULL && (tmp = GetEarliestAperiodicArrival()) < oteCompletionTime) {
               if (tmp <= time)
                  #ifdef STATIC_POWER_MANAGEMENT
@@ -1627,10 +1633,11 @@ UINT8 GetProcessorSpeed(INT32 time)
         /* Check if we can apply OTE: Get next arrival time and correct for deadlines that
         ** are smaller than periods. */
         if (_OSActiveTask->Next[READYQ] == OSQueueTail) {
-           if (_OSQueueHead->Next[ARRIVALQ] != OSQueueTail)
-              completionTime = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
-           else
-              completionTime = ShiftTimeLimit - time;
+           /* The active task is periodic, and a periodic task stays in the arrival queue
+           ** from its release on, for its next arrival: the queue is never empty here. The
+           ** branch ZottaOS had for an empty queue was never taken, and bounded the time
+           ** with a length, 2^30 - time, where it needed a time (2026-10-04). */
+           completionTime = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
            if (SynchronousTaskList != NULL && (tmp = GetEarliestAperiodicArrival()) < completionTime) {
               if (tmp <= time)
                  #ifdef STATIC_POWER_MANAGEMENT
@@ -1937,9 +1944,11 @@ void FIFODequeueHelper(FIFOQUEUE *queue, UINTPTR signal, DEQUEUE_DESCRIPTOR *des
            /* The signal this dequeue left: mark it done, or a helper coming later, once
            ** an enqueue has taken the signal, would leave a second one
            ** (test/model/fifo.py). */
+           /* COVERAGE-OFF: a helper finding its work done takes two nested interrupts,
+           ** which the host never makes; test/model/fifo.py explores them */
            des->Done = TRUE;
            break;
-        }
+        }  /* COVERAGE-ON */
         else if (slot == NULL)
            if (des->SlotReturn == NULL) {
               if (OSUINTPTR_SC(&queue->Q[h],SIGNAL)) {
@@ -2034,9 +2043,10 @@ void FIFOEnqueueHelper(FIFOQUEUE *queue, ENQUEUE_DESCRIPTOR *des)
         }
         else if (slot == NULL) {
            if (des->SlotReturn == SIGNAL) {
+              /* COVERAGE-OFF: as in FIFODequeueHelper, two nested interrupts */
               des->Done = TRUE;
               break;
-           }
+           }  /* COVERAGE-ON */
            else if (OSUINTPTR_SC(&queue->Q[t],des->Item)) {
               IncrementFifoQueueIndex(&queue->Tail,des->Tail,queue->MaxIndex);
               des->Done = TRUE;

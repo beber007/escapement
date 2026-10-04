@@ -678,6 +678,34 @@ static void TestCreate(void)
   unsigned i, accepted;
 
   printf("\ntasks the kernel refuses to create\n\n");
+  /* Before any other task: the kernel is set up, then the control block of the task cannot
+  ** be allocated. Created later, the task meets a full queue or priorities first. */
+  HostMallocBudget = 0;
+  Check("  the first event-driven task when memory runs out",
+        !CREATE_SYNCHRONOUS_TASK(EventTask, 20, event, NULL));
+  HostMallocBudget = -1;
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     Check("  a negative WCET", !OSCreateTask(CountingTask, -1, 0, 100, 100, 1, 1, 0, NULL));
+     Check("  a WCET past the deadline",
+           !OSCreateTask(CountingTask, 101, 0, 200, 100, 1, 1, 0, NULL));
+     Check("  an event-driven task with a negative WCET",
+           !OSCreateSynchronousTask(EventTask, -1, 100, 0, event, NULL));
+     Check("  an event-driven task with a WCET past its workload",
+           !OSCreateSynchronousTask(EventTask, 101, 100, 0, event, NULL));
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     Check("  a negative WCET", !OSCreateTask(CountingTask, -1, 0, 100, 100, NULL));
+     Check("  a WCET past the deadline", !OSCreateTask(CountingTask, 101, 0, 200, 100, NULL));
+     Check("  an event-driven task with a negative WCET",
+           !OSCreateSynchronousTask(EventTask, -1, 100, 13, event, NULL));
+     Check("  an event-driven task with a WCET past its workload",
+           !OSCreateSynchronousTask(EventTask, 101, 100, 13, event, NULL));
+  #endif
+  #if defined(ESCAPEMENT_VERSION_SOFT) && BY_DEADLINE
+     /* Its share of the processor, the smallest n / 256 with n * workload >= WCET * 256,
+     ** would be 256 / 256, which a byte does not hold. */
+     Check("  an event-driven task whose WCET is its workload",
+           !OSCreateSynchronousTask(EventTask, 100, 100, 0, event, NULL));
+  #endif
   Check("  a period of 0", !TRY_TASK(0, 0, 1));
   Check("  a negative remainder", !TRY_TASK(1, -5, 100));
   Check("  a remainder of 2^30", !TRY_TASK(0, 0x40000000, 100));
@@ -725,6 +753,49 @@ static void TestCreate(void)
   #else
      Check("  more than 255 tasks in all", accepted + 2 == 255);
   #endif
+}
+
+/* TestSignals: Signals of an event coalesce while its task has not run: the first wakes
+** the task, the second is kept, and the third finds it kept and adds nothing, so the task
+** runs twice. An event no task was created for has no queue: signalling it does nothing. */
+static unsigned CoalescedRuns;
+static void CoalescedTask(void *argument)
+{
+  (void)argument;
+  CoalescedRuns += 1;
+  OSSuspendSynchronousTask();
+}
+
+static void TestSignals(void)
+{
+  void *event = OSCreateEventDescriptor(), *alone = OSCreateEventDescriptor();
+  char label[80];
+
+  CREATE_SYNCHRONOUS_TASK(CoalescedTask, 100, event, NULL);
+  StartKernel(NULL, NULL);
+  OSScheduleSuspendedTask(alone);
+  OSScheduleSuspendedTask(event);
+  OSScheduleSuspendedTask(event);
+  OSScheduleSuspendedTask(event);
+  RunElected(NULL);
+  RunFor(1000);
+
+  printf("\nthree signals before the task runs, and an event without a task\n\n");
+  snprintf(label, sizeof label, "  the task ran twice: %u", CoalescedRuns);
+  Check(label, CoalescedRuns == 2);
+  Check("  the ready queue stays whole", QueueBreaks == 0);
+}
+
+/* TestNoTask: The kernel started with no task created sets itself up there, and runs the
+** idle task. */
+static void TestNoTask(void)
+{
+  printf("\nthe kernel started without a task\n\n");
+  /* It returns on the host, FALSE, as it does when it gives up: the task it elected
+  ** tells the two apart. */
+  OSStartMultitasking(NULL, NULL);
+  Check("  it starts, the idle task elected",
+        _OSActiveTask != NULL && (_OSActiveTask->TaskState & TASKTYPE_BLOCKING) != 0);
 }
 
 /* TestPriority: An event-driven task created first, with a workload longer than the
@@ -2219,6 +2290,71 @@ static void TestFirmWrapMandatory(void)
   Check("  no deadline missed", LateArrivals == 0);
 }
 
+/* TestFirmOverload: The test of an optional instance sums in 32 bits the work released
+** before its deadline, and gives up once the sum passes 2^30: the instance cannot fit, and
+** summing on would overflow. A (1,2)-firm task of period 2^29 is tested at its optional
+** instance 1, while tasks of WCET up to 2^29 arrive 10, 20 and 30 ticks later. With three,
+** the second takes the sum of their work past 2^30, and the third, added with the time,
+** would take it past 2^31. Under EDF the event-driven tasks then take their share of
+** what is left: at 200 / 256 that share alone, counted in 56ths, would pass 2^31; at
+** 128 / 256, from 7/8 of 2^30, it passes 2^30, and the sum with the time 2^31. Each guard
+** taken out shows in UndefinedBehaviorSanitizer. */
+static void TestFirmOverload(int share)
+{
+  long long duration = 0x40000000LL + 1000000;
+  unsigned tasks = share == 0 ? 3 : share == 200 ? 1 : 2;
+  INT32 last = share == 128 ? 402653184 : 1 << 29;   /* 3/8 of 2^30 */
+  char label[96];
+  unsigned i;
+  BOOL ran = TRUE;
+
+  CreateFirmTask(&Firm[0], 100, 1 << 29, 1, 2);
+  for (i = 1; i <= tasks; i += 1)
+     CreateFirmTask(&Firm[i], i == tasks ? last : 1 << 29, (1 << 29) + 10 * (INT32)i, 1, 1);
+  if (share != 0)
+     OSCreateSynchronousTask(EventTask, 1, 1000, (UINT8)share, OSCreateEventDescriptor(), NULL);
+
+  StartKernel(NULL, NULL);
+  RunAcross(duration);
+
+  printf("\n%lld ticks of simulated time, more than 2^30 ticks of work declared\n\n", duration);
+  /* Elected just before the wrap, the last runs just after, as RunAcross has it. */
+  Check("  optional instance 1 dropped: the (1,2) task ran instances 0 and 2",
+        Firm[0].Runs == 2);
+  for (i = 1; i <= tasks; i += 1)
+     ran = ran && Firm[i].Runs == 3;
+  snprintf(label, sizeof label, "  every mandatory instance of the other %u ran", tasks);
+  Check(label, ran);
+}
+
+/* TestFirmOverloadInstances: The same test, a task whose whole instances fall before the
+** deadline: their work, instances times WCET, is checked against what is left of 2^30
+** before it is added. The (1,2)-firm task declares 2^28, a task arriving 10 ticks after
+** its optional instance almost 2^29, and a third task of 2^27 - 1000 every 2^27 - 1000
+** has three whole instances before the deadline, where what is left of 2^30 holds two.
+** Its period puts no arrival on the wrap, where RunAcross would hold the instance before.
+** The sum stays below 2^31 even unchecked, and the check after it would drop the
+** instance as well: that check alone does not show in any run. */
+static void TestFirmOverloadInstances(void)
+{
+  long long duration = 0x40000000LL + 1000000;
+  char label[96];
+
+  CreateFirmTask(&Firm[0], 1 << 28, 1 << 29, 1, 2);
+  CreateFirmTask(&Firm[1], 1 << 29, (1 << 29) + 10, 1, 1);
+  CreateFirmTask(&Firm[2], (1 << 27) - 1000, (1 << 27) - 1000, 1, 1);
+
+  StartKernel(NULL, NULL);
+  RunAcross(duration);
+
+  printf("\n%lld ticks of simulated time, whole instances past what 2^30 holds\n\n", duration);
+  Check("  optional instance 1 dropped: the (1,2) task ran instances 0 and 2",
+        Firm[0].Runs == 2);
+  snprintf(label, sizeof label, "  every mandatory instance ran: %u of 3 and %u of 9",
+           Firm[1].Runs, Firm[2].Runs);
+  Check(label, Firm[1].Runs == 3 && Firm[2].Runs == 9);
+}
+
 static void TestFirmWrap(void)
 {
   long long duration = 3LL * 0x40000000 + 1000000;
@@ -2299,6 +2435,10 @@ int main(int argc, char *argv[])
      TestTimeWrap(TIMED_EARLY);
   else if (argc > 1 && strcmp(argv[1], "timewrapbusy") == 0)
      TestTimeWrap(TIMED_BUSY);
+  else if (argc > 1 && strcmp(argv[1], "signals") == 0)
+     TestSignals();
+  else if (argc > 1 && strcmp(argv[1], "notask") == 0)
+     TestNoTask();
   else if (argc > 1 && strcmp(argv[1], "simstale") == 0)
      TestSimStale();
   else if (argc > 1 && strcmp(argv[1], "eventrelease") == 0)
@@ -2310,6 +2450,16 @@ int main(int argc, char *argv[])
         TestFirm();
      else if (argc > 1 && strcmp(argv[1], "firmwrap") == 0)
         TestFirmWrap();
+     else if (argc > 1 && strcmp(argv[1], "firmoverload") == 0)
+        TestFirmOverload(0);
+     else if (argc > 1 && strcmp(argv[1], "firmoverloadinstances") == 0)
+        TestFirmOverloadInstances();
+     #if BY_DEADLINE
+        else if (argc > 1 && strcmp(argv[1], "firmoverloadshare") == 0)
+           TestFirmOverload(200);
+        else if (argc > 1 && strcmp(argv[1], "firmoverloadsum") == 0)
+           TestFirmOverload(128);
+     #endif
      else if (argc > 1 && strcmp(argv[1], "firmwrapmandatory") == 0)
         TestFirmWrapMandatory();
      else if (argc > 1 && strcmp(argv[1], "firmlong") == 0)
