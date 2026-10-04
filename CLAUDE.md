@@ -184,16 +184,15 @@ Rebooting the UNO Q or unbinding its drivers interrupts every run: ask first.
   one's heap (a 3-slot pointer moved by 3, up to 38 % of reads torn): force it off in the
   PSM before loading, as `tools/pico2_check.py` does.
 - An image whose idle task sleeps in Stop 2 (`OSInitStop2`) clears DBG_STOP and
-  DBG_STANDBY: the debug
-  port is unpowered most of the time, and OpenOCD connecting then fails on an SWD parity
-  error, the image left running. Connect with the reset held, as `tools/unoq_load.sh`
-  does (`srst_nogate connect_assert_srst`).
+  DBG_STANDBY: the debug port is unpowered most of the time, and OpenOCD connecting then
+  fails on an SWD parity error, the image left running. Connect with the reset held, as
+  `tools/unoq_load.sh` does (`srst_nogate connect_assert_srst`).
 - The two OpenOCDs of the UNO Q differ: Debian's (`/usr/bin/openocd`, the NUCLEO's)
   sets DBG_STOP and DBG_STANDBY at each connection, Arduino's (`/opt/openocd`) clears
   them, and a system reset leaves them. `OSInitStop2` clears both: with DBG_STANDBY
   alone set, the NUCLEO never woke from Stop 2 and only a power-off got it back. The
-  NUCLEO's NRST reaches the MCU through JP2, which was found off: a "reset halt" then
-  resets nothing, and the image is started wherever the core was.
+  NUCLEO's NRST reaches the MCU through JP2: check it is fitted, or a "reset halt"
+  resets nothing and the image is started wherever the core was.
 - The PPK2 on the NUCLEO (`tools/ppk2_nucleo.py`): an ampere meter in place of JP5, VIN
   from JP4's side, VOUT to the MCU. The other way round the MCU runs through a diode and
   the PPK2 reads 0. The debugger never reaches the MCU through it: program the flash with
