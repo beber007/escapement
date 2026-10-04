@@ -103,97 +103,66 @@ byte instead of zeros (`HostMallocFill`), as SRAM is.
 
 The audit of 2026-09-25 added the runs from `create` to `firmlong`, and the reader in
 the middle of a write. Each failed on the kernel before its fix, with a hang, a
-corrupted queue, a missed deadline or a sanitizer report:
-
-- a slot buffer said a slot was new before handing it over, so a reader preempting the
-  writer took the slot it had already read, and the new one was lost;
-- an event-driven task ending at its deadline was inserted in the ready queue while
-  still in it;
-- an event-driven task waiting beyond a wrap sorted before periodic tasks due earlier;
-- a DM_SLACK slack was given twice;
-- a task past its WCET resumed at the slowest speed.
-
-The sanitizer now also checks shifts.
-
-Two of those fixes were wrong. The endurance test found it on the board and under
-Renode the same day (`docs/method.md`). The status of a slot buffer, set after the slot,
-let a reader take the same slot twice. An event-driven task preempted while it suspended
-itself had the context of the task preempting it discarded. The reader at the writer's
-last barrier fails on the first, under every kernel. `signalinside`, with a task of
-higher priority, fails on the second, with a segmentation fault under deadline-monotonic
-scheduling.
+corrupted queue, a missed deadline or a sanitizer report; the findings are listed in
+`docs/method.md`, "The line-by-line audit". Two of those fixes were wrong ("Two fixes
+that were wrong" there): the reader at the writer's last barrier fails on the first,
+under every kernel, and `signalinside`, with a task of higher priority, on the second,
+with a segmentation fault under deadline-monotonic scheduling.
 
 ### Races closed after the audit
 
-`endinside` closed a race the audit had left open (2026-09-25). The power-aware kernel
-raised a flag of its own before a task ending became a zombie, so that the handler would
-set the speed of the next task, and the handler cleared it. An interrupt that found the
-task still running cleared the flag. A second one, once the task was a zombie, took the
-next task for one that had been running, charged it the time of the task ending, and
-left it at that task's speed. The handler now reads `_OSNoSaveContext` instead, which
-only the context switch clears. With a barrier where the flag was set and the zombie not
-yet marked, the kernel before the fix fails in each of the five power-aware builds, at
-both loads, except DRA with tasks taking their WCET, where it has nothing to reclaim.
-The kernel after the fix passes there, and fails once the handler ignores
-`_OSNoSaveContext`. So that tasks here end the way the target ends them, the test also
-clears `_OSNoSaveContext` where the context switch would, and takes each soft timer
-interrupt through what `FinalizeContextSwitchPreparation` does.
+Each run below reached a race or a path no run had taken, on 2026-09-25; the story of
+each is in `docs/method.md`, "Races and limits closed after the audit".
 
-`firmwait` reached a path of the soft kernel no run had taken (2026-09-25): an optional
-instance still ready at its next arrival, which instances running in no time never
-leave. The kernel takes it out correctly, under EDF and deadline-monotonic scheduling.
-With that removal taken out, the run hangs.
+- `endinside`: the power-aware kernel left the next task at the speed of a task ending
+  between two interrupts. The kernel before the fix fails in each of the five
+  power-aware builds, at both loads, but DRA with tasks taking their WCET, where it has
+  nothing to reclaim; the kernel after it fails once the handler ignores
+  `_OSNoSaveContext`. So that tasks end here as on the target, the test clears
+  `_OSNoSaveContext` where the context switch would, and takes each soft timer
+  interrupt through what `FinalizeContextSwitchPreparation` does.
+- `firmwait`: an optional instance still ready at its next arrival, which instances
+  running in no time never leave. The kernel takes it out correctly; with that removal
+  taken out, the run hangs.
+- `firmeventwait`: under EDF, with no share declared for the event-driven tasks, the
+  soft kernel's test of an optional instance left them out. The run hangs on the
+  overload guard before the fix.
+- `timewrap`: under DM_SLACK, a task ending read the time before its reservation, and
+  the slack grew by 2^30 after the wrap. The kernel before the fix misses a deadline
+  under `timewrapidle`; the other runs pass on it, their slack going to no task that may
+  use it.
 
-`firmeventwait` closed another (2026-09-25). Under EDF the soft kernel's test of an
-optional instance counts the event-driven tasks by the share of the processor declared
-for them. With none declared, it left them out, though each gave its WCET and workload.
-The instance started, the event delayed it past its next arrival, and the kernel stopped
-on its overload guard, the run hanging. At least each task's WCET over its workload is
-now reserved.
+`eventrelease` found a defect inherited from ZottaOS (2026-10-04), written for a branch
+coverage showed untaken. The soft kernel set an event-driven task's earliest next release
+each time it elected the task, not once where the task is released: under DM an instance
+signalled 300 ticks after the previous one, its workload, ended 419 ticks after its
+signal, where the analysis bounds its response at 210. The kernel before the fix fails
+`eventrelease` and `firmeventahead`.
 
-`timewrap` closed another (2026-09-25). Under DM_SLACK a task ending read the time
-before taking the reservation that makes its slack one unit. The wrap shifted the time
-of the last update in between, the task stored a time from before the shift, and at the
-next arrival after an idle time the slack grew by 2^30. The time is now read inside the
-reservation. The kernel before the fix misses a deadline under `timewrapidle`, where a
-task of lower priority than the one ending is slowed down on that slack. The other runs
-pass on it, since there the slack goes to no task that may use it.
+### Faults planted, then mutants
 
-`eventrelease` found a defect inherited from ZottaOS (2026-10-04), while tests were
-written for the branches line coverage showed untaken. The soft kernel set an event-
-driven task's earliest next release each time it elected the task, not once where the
-task is released, as the hard and power-aware kernels do. Preempted and elected again,
-the task had its next release put off: under DM an instance signalled 300 ticks after the
-previous one, its workload, was held from 451 to 660 and ended at 870, 419 ticks after
-its signal, where the analysis bounds its response at 210. Under EDF the value was never
-read. The kernel before the fix fails `eventrelease` and `firmeventahead`, which met it
-first: its instance ended at 1890, the event's releases late.
-
-### Planted faults
-
-Faults were also planted in the kernels by hand, to see the test fail. When it was
-written (5018fdb, 2026-09-21), 14 of 15 faults planted in the hard kernel failed a
-check. The one that did not, event-driven deadlines no longer following one another, has
-no effect when tasks run in zero time, and the runs where tasks take time have no
-event-driven task. In the soft kernel, ignoring the interference of other tasks in the
-schedulability test of optional instances is not caught, for the same reason. `expiry`
-and `reclaim` were added when a slack that never ran out, and a DM_SLACK that reclaimed
-nothing, passed every other run.
+When the test was written (5018fdb, 2026-09-21), 14 of 15 faults planted by hand in the
+hard kernel failed a check; `expiry` and `reclaim` were added when a slack that never ran
+out, and a DM_SLACK that reclaimed nothing, passed every other run. `tools/mutants.py`
+now plants them by the thousand (`docs/method.md`, "Mutants").
 
 Three things of the harness changed on 2026-10-04, each after a mutant of the hard
-kernel survived every run (`tools/mutants.py`, `docs/method.md`). `OSMalloc` fills its
-blocks with 0xA5, as the target's SRAM is not zeros: a field a creation leaves unset no
-longer reads 0. `RunAcross` holds a task elected before the wrap over it only when its
-deadline lies beyond the wrap, so that the deadline sits in the ready queue while the
-kernel shifts the times: it held one whenever the wrap was its next interrupt, and a task
-of a period past 2^30, released on time, ran a whole turn late. Held only within the last
-`LATENCY` ticks, as first corrected, none sat in the ready queue across the wrap, and the
-coverage check found the shift of its deadlines run by no test. And every task that ends, by
-`OSEndTask` or `OSSuspendSynchronousTask`, must leave its context unsaved
-(`_OSNoSaveContext`) and ask for a context switch, as the timer handler must, which the
-host's port only counts: a run that sees one without fails.
+kernel survived every run:
 
-## What it cannot see
+- `OSMalloc` fills its blocks with 0xA5, as the target's SRAM is not zeros: a field a
+  creation leaves unset no longer reads 0.
+- `RunAcross` holds a task elected before the wrap over it only when its deadline lies
+  beyond the wrap, so that the deadline sits in the ready queue while the kernel shifts
+  the times. It held one whenever the wrap was its next interrupt, and a task of a
+  period past 2^30, released on time, ran a whole turn late (`longperiod`). Held only
+  within the last `LATENCY` ticks, as first corrected, none sat in the ready queue
+  across the wrap, and the coverage check found the shift of its deadlines run by no
+  test.
+- Every task that ends, by `OSEndTask` or `OSSuspendSynchronousTask`, must leave its
+  context unsaved (`_OSNoSaveContext`) and ask for a context switch, as the timer
+  handler must, which the host's port only counts: a run that sees one without fails.
+
+## Coverage
 
 Coverage is a check (`python3 tools/coverage.py`, in CI since 2026-10-04): every line of
 the three kernels and of the queue between the cores that some build compiles must run in
@@ -214,6 +183,8 @@ Earlier figures, by line only: 90 % of the hard kernel (2026-09-21, up from 24 %
 the runs of events, queue and buffers), 87 % of the soft one, 90 % of the power-aware one
 (2026-09-22); over the nine builds merged, 96.9 %, 95.1 % and 96.2 % of the three
 kernels and 100 % of the queue between the cores (2026-09-25).
+
+## What it cannot see
 
 What is left of the wait-free queue is an operation that finds its work done while
 helping another, which takes two nested interruptions. The host interrupts an operation
