@@ -540,10 +540,13 @@ void ScheduleNextTask(void)
            _OSActiveTask = _OSQueueHead->Next[READYQ];
      }
   #endif
-  /* The idle task is in the same state as an event-driven task, but has no period, and
-  ** its arrival time has to stay at INT32_MAX for it to sort after every other. */
-  if (_OSActiveTask->TaskState == TASKTYPE_BLOCKING && _OSActiveTask != _OSQueueTail)
-     _OSActiveTask->NextArrivalTimeLow = _OSGetActualTime() + _OSActiveTask->PeriodLow;
+  /* The earliest next arrival of an event-driven task is set where it is released, a
+  ** period after that release (EmptyRescheduleSynchronousTaskList, the timer handler).
+  ** It was set again here each time the task was elected, inherited from ZottaOS: a task
+  ** preempted, then elected again, had its next release put off by the preemption, and
+  ** under DM an instance signalled a period after the previous one ended 419 ticks after
+  ** its signal, its deadline 300 and its response by analysis 210 (test/host,
+  ** eventrelease, 2026-10-04). */
   _OSScheduleTask();
 } /* end of ScheduleNextTask */
 

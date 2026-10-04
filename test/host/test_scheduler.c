@@ -1190,12 +1190,16 @@ static INT32 TimedNow(void)
 #define MAX_ENDS 64
 static INT32 Ends[MAX_ENDS];   /* when the first instances ended, for timewrap */
 static unsigned NbEnds;
+static INT32 EventEnds[MAX_ENDS];   /* the same for event-driven tasks */
+static unsigned NbEventEnds;
 
 /* TimedTaskCode: Called once the work of the instance is done. */
 static void TimedTaskCode(void *argument)
 {
   TimedTask *task = (TimedTask *)argument;
   if (task->Event != NULL) {
+     if (NbEventEnds < MAX_ENDS)
+        EventEnds[NbEventEnds++] = TimedNow();
      task->Instance += 1;
      task->Work = NextWork(task);
      OSSuspendSynchronousTask();
@@ -1678,6 +1682,52 @@ static void TestTimeWrap(TimedMode mode)
   Check(label, failed == 0 && taken >= WRAP_ENDS);
 }
 
+/* TestEventRelease: An event-driven task's next instance may be released a workload after
+** the previous one was, whatever happened to that one since. The task, 100 ticks every
+** 300 at least, is signalled at 151 and 451, beside a periodic task of 110 every 250 and
+** higher priority under deadline-monotonic scheduling. Its first instance is preempted at
+** 250 and elected again at 360. The soft kernel set the next release again at each
+** election, 300 after 360: the second instance waited from 451 to 660, was preempted at
+** 750, and ended at 870, 419 ticks after its signal (2026-10-04). Released at 451, it
+** ends at 661 under either algorithm, its response by analysis 210. */
+static void TestEventRelease(void)
+{
+  TimedTask *events = &Timed[1];
+  unsigned i;
+  char label[96];
+
+  TimedRun = TIMED_BUSY;
+  CreateTimedTask(110, 250, 250, 0, -1);
+  events->WCET = 100;
+  events->Work = events->WCET * 256;
+  events->Event = SignalEvent = OSCreateEventDescriptor();
+  NbTimed = 2;
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     OSCreateSynchronousTask(TimedTaskCode, events->WCET, 300, 0, SignalEvent, events);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateSynchronousTask(TimedTaskCode, events->WCET, 300, 86, SignalEvent, events);
+  #else
+     OSCreateSynchronousTask(TimedTaskCode, 300, SignalEvent, events);
+  #endif
+  SignalAt[0] = 151;
+  SignalAt[1] = 451;
+  NbSignals = 2;
+  StartKernel(NULL, NULL);
+  RunTimed(2000);
+
+  printf("\n2000 ticks of simulated time, an event-driven task signalled a workload apart\n\n");
+  snprintf(label, sizeof label, "  the event-driven task ran for each signal: %u of %u",
+           NbEventEnds, NbSignals);
+  Check(label, NbEventEnds == NbSignals);
+  for (i = 0; i < NbEventEnds && i < NbSignals; i += 1) {
+     snprintf(label, sizeof label, "  instance %u ended %d after its signal, at most 300",
+              i, EventEnds[i] - SignalAt[i]);
+     Check(label, EventEnds[i] - SignalAt[i] <= 300);
+  }
+  snprintf(label, sizeof label, "  the periodic task missed no deadline: %u", Timed[0].Misses);
+  Check(label, Timed[0].Misses == 0);
+}
+
 #if defined(ESCAPEMENT_VERSION_SOFT)
 /* (m,k)-FIRM TASKS -------------------------------------------------------------------- */
 /* The soft kernel splits the instances of an (m,k)-firm task into mandatory ones, always
@@ -1958,6 +2008,59 @@ static void TestFirmEventWait(void)
   Check(label, optional->Misses == 0);
 }
 
+#if defined(ESCAPEMENT_VERSION_SOFT) && !BY_DEADLINE
+/* TestFirmEventAhead: Under deadline-monotonic scheduling, an optional instance tested
+** while an event-driven task of higher priority cannot be released again before its
+** minimal inter-arrival time: its interference counts from that release, not from now, and
+** the instances that do not fit whole count their WCET only. The event-driven task, WCET
+** 100 every 300 at least, is signalled at 950 and ends at 1050, where the optional instance
+** of 1000-2000, WCET 640, is tested. Releases at 1250, 1550 and 1850 take 2 * 100 + 100
+** of the 750 ticks to 2000: 640 + 300 from 1050 ends at 1990, and the instance fits. Counted
+** from 1050, or with the last 150 ticks counted whole, they take 350, and it is dropped.
+** The signals then come at those releases, the worst case, and the instance ends at 1990. */
+static void TestFirmEventAhead(void)
+{
+  INT32 duration = 4000;
+  TimedTask *optional = &Timed[0], *events = &Timed[1];
+  unsigned i, end = 0;
+  char label[96];
+
+  TimedRun = TIMED_FIRMWAIT;
+  optional->WCET = 640;
+  optional->Period = optional->Deadline = 1000;
+  optional->Work = optional->WCET * 256;
+  events->WCET = 100;
+  events->Work = events->WCET * 256;
+  events->Event = SignalEvent = OSCreateEventDescriptor();
+  NbTimed = 2;
+  OSCreateTask(TimedTaskCode, optional->WCET, 0, optional->Period, optional->Deadline, 1, 2,
+               0, optional);
+  OSCreateSynchronousTask(TimedTaskCode, events->WCET, 300, 0, SignalEvent, events);
+  SignalAt[0] = 950;
+  SignalAt[1] = 1250;
+  SignalAt[2] = 1550;
+  SignalAt[3] = 1850;
+  NbSignals = 4;
+  StartKernel(NULL, NULL);
+  RunTimed(duration);
+
+  for (i = 0; i < NbEnds; i += 1)
+     if (Ends[i] > 1000 && Ends[i] <= 2000)
+        end = (unsigned)Ends[i];
+  printf("\n%d ticks of simulated time, an optional instance and an event that cannot come"
+         " yet\n\n", duration);
+  snprintf(label, sizeof label, "  the event-driven task ran for each signal: %u of %u",
+           events->Instance, NbSignals);
+  Check(label, events->Instance == NbSignals);
+  snprintf(label, sizeof label, "  optional instance 1 (1000-2000) ran: %u", optional->Ran[1]);
+  Check(label, optional->Ran[1] == 1);
+  snprintf(label, sizeof label, "  and ended at 1990: %u", end);
+  Check(label, end == 1990);
+  snprintf(label, sizeof label, "  no deadline missed: %u", optional->Misses);
+  Check(label, optional->Misses == 0);
+}
+#endif
+
 #if defined(ESCAPEMENT_VERSION_SOFT) && BY_DEADLINE
 /* TestFirmDiscount: An optional instance that cannot fit beside the mandatory instances
 ** released before its deadline, while an event-driven task, signalled earlier, holds a
@@ -2095,6 +2198,8 @@ int main(int argc, char *argv[])
      TestTimeWrap(TIMED_EARLY);
   else if (argc > 1 && strcmp(argv[1], "timewrapbusy") == 0)
      TestTimeWrap(TIMED_BUSY);
+  else if (argc > 1 && strcmp(argv[1], "eventrelease") == 0)
+     TestEventRelease();
   else if (argc > 1 && strcmp(argv[1], "timewrapidle") == 0)
      TestTimeWrap(TIMED_IDLE);
   #if defined(ESCAPEMENT_VERSION_SOFT)
@@ -2110,6 +2215,10 @@ int main(int argc, char *argv[])
         TestFirmWait();
      else if (argc > 1 && strcmp(argv[1], "firmeventwait") == 0)
         TestFirmEventWait();
+     #if !BY_DEADLINE
+        else if (argc > 1 && strcmp(argv[1], "firmeventahead") == 0)
+           TestFirmEventAhead();
+     #endif
      #if BY_DEADLINE
         else if (argc > 1 && strcmp(argv[1], "firmdiscount") == 0)
            TestFirmDiscount(20000, 6000);

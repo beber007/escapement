@@ -49,6 +49,8 @@ loops.
 | `firmevents` | (m,k)-firm tasks beside an event-driven task, whose workload the soft kernel computes under EDF; each task reads its place in its pattern (`OSGetTaskInstance`) |
 | `firmwait` | tasks taking time, the mandatory instances keeping the processor busy across a whole period of an optional one, which is still in the ready queue, never started, when its task arrives again: the kernel takes it out before inserting the next, every mandatory instance runs, none twice, and the ready queue stays whole |
 | `firmeventwait` | an optional instance started under EDF, then delayed by an event-driven task declaring its WCET and workload but no share of the processor, signalled as an interrupt handler would at chosen times: the schedulability test must count it, and no deadline is missed |
+| `eventrelease` | an event-driven task signalled a workload after its previous signal, its first instance preempted by a periodic task of higher priority: each instance ends within its workload of its signal, the next release counted from the previous one, not from the last time the task was elected |
+| `firmeventahead` | soft kernel under DM only: an optional instance tested while an event-driven task of higher priority cannot be released again yet; the test counts its interference from that release, and the last instance that does not fit whole by its WCET. The instance fits by 10 ticks, and ends at 1990 under the worst signals; counted from now, or the remainder whole, it would be dropped |
 | `minspeed` | a light load with `OSSetMinimalProcessorSpeed`: the power-aware kernel never goes below it, which four of its five policies would otherwise do; two tasks released together with equal deadlines, which EDF* breaks by arrival and address |
 | `endinside`, `endinsidebusy` | `early` and `busy` with the soft timer interrupt taken at one compiler barrier of the kernels in two, at random (`HostCompilerBarrierHook`), where a task ending leaves its stores in the order the handler relies on; the interrupt completes first, as on the target, what `FinalizeContextSwitchPreparation` completes. The time does not move there, so who ran when and how fast must be as in the run without those interrupts, which a child process makes first |
 | `timewrap`, `timewrapbusy`, `timewrapidle` | `early`, `busy`, and two tasks arriving together after an idle time, started at the phase of the counter where one of the first sixteen instances ends at the last tick before the wrap; the interrupt of the wrap is taken at each of the first four time reads and barriers of that end in turn (`HostTimeReadHook`, `HostCompilerBarrierHook`), where the kernel may hold a time from before the shift. Every check of the timed run must hold. Each run is a child process |
@@ -145,6 +147,16 @@ next arrival after an idle time the slack grew by 2^30. The time is now read ins
 reservation. The kernel before the fix misses a deadline under `timewrapidle`, where a
 task of lower priority than the one ending is slowed down on that slack. The other runs
 pass on it, since there the slack goes to no task that may use it.
+
+`eventrelease` found a defect inherited from ZottaOS (2026-10-04), while tests were
+written for the branches line coverage showed untaken. The soft kernel set an event-
+driven task's earliest next release each time it elected the task, not once where the
+task is released, as the hard and power-aware kernels do. Preempted and elected again,
+the task had its next release put off: under DM an instance signalled 300 ticks after the
+previous one, its workload, was held from 451 to 660 and ended at 870, 419 ticks after
+its signal, where the analysis bounds its response at 210. Under EDF the value was never
+read. The kernel before the fix fails `eventrelease` and `firmeventahead`, which met it
+first: its instance ended at 1890, the event's releases late.
 
 ### Planted faults
 
