@@ -41,6 +41,7 @@
 */
 
 #include "Escapement.h"
+#include "Escapement_Timer.h"
 #include "Escapement_TimerEvent.h"
 
 #define TIMER_BASE          0x400B0000   /* TIMER0 */
@@ -194,6 +195,7 @@ static void ArmAlarm(TIMER_ISR_DATA *device)
   TIMER_EVENT_NODE *head = device->EventQueue;
   if (head == NULL)
      return;
+  _OSAlarmTime[device->Alarm - &TIMER_ALARM(0)] = head->Time;
   *device->Alarm = head->Time;
   if ((INT32)(head->Time - TIMER_TIMERAWL) <= 0) {
      TIMER_ARMED = device->AlarmBit;

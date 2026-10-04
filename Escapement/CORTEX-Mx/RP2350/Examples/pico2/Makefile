@@ -67,6 +67,12 @@ ifdef TRACE
    CFLAGS += -DESCAPEMENT_TRACE
 endif
 
+# make SLEEP_GATE=1 has IdlePico2's idle task sleep in SLEEP, PLL_SYS stopped
+# (Escapement_SleepGate.c); without it, the same image's plain WFI.
+ifdef SLEEP_GATE
+   CFLAGS += -DSLEEP_GATE
+   SLEEPGATE = build/Escapement_SleepGate.o build/Escapement_Core1.o
+endif
 # make DEEP=1: SleepPico2's cheaper sleeps, PLL_SYS stopped or the crystal's start shorter.
 ifdef DEEP
    CFLAGS += -DSLEEP_DEEP
@@ -90,7 +96,7 @@ $(shell mkdir -p build)
 all: build/TaskLEDPico2.elf build/UARTEchoPico2.elf build/TestTimerEventPico2.elf \
      build/FourSlotCoresPico2.elf build/ThreeSlotCoresPico2.elf build/TaskWrapPico2.elf \
      build/FIFOCoresPico2.elf build/IPCPico2.elf build/SoakPico2.elf build/LitmusPico2.elf \
-     build/UARTSendersPico2.elf build/SleepPico2.elf
+     build/UARTSendersPico2.elf build/SleepPico2.elf build/IdlePico2.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
@@ -166,6 +172,10 @@ build/LitmusPico2.o : LitmusPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SleepPico2.o : SleepPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/IdlePico2.o : IdlePico2.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_SleepGate.o : ../../Escapement_SleepGate.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 build/TaskLEDPico2.elf : $(COMMON) build/TaskLEDPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/TaskLEDPico2.o -T$(LINKERFILE) -lgcc
@@ -192,6 +202,8 @@ build/LitmusPico2.elf : $(COMMON) build/Escapement_Core1.o build/LitmusPico2.o
 # SleepPico2: no kernel, the three sleeps of the chip for the PPK2 (SleepPico2.c).
 build/SleepPico2.elf : $(COMMON) build/SleepPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/SleepPico2.o -T$(LINKERFILE) -lgcc
+build/IdlePico2.elf : $(COMMON) $(SLEEPGATE) build/Escapement_TimerEvent.o build/IdlePico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(SLEEPGATE) build/Escapement_TimerEvent.o build/IdlePico2.o -T$(LINKERFILE) -lgcc
 
 # The .d files produced by -MMD list the headers of each object: without them, a change
 # to Escapement_Config.h triggers no rebuild at all and the next test runs against a

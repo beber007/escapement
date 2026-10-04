@@ -185,7 +185,7 @@ kernel is planned for it. The **STM32L4** is set aside.
    core at 150 MHz (p. 1347). The steps:
    1. measure the three on a Pico 2 with the PPK2 — done on 2026-10-03, below;
    2. if SLEEP saves enough, gate the clocks the kernel does not need while TIMER0 runs
-      on (SLEEP_EN1, p. 550), which keeps the time exact;
+      on (SLEEP_EN1, p. 550), which keeps the time exact — done on 2026-10-04, below;
    3. for DORMANT, either calibrate LPOSC against the crystal before each sleep and
       measure the error left, or give the always-on timer an external 32.768 kHz clock
       on GPIO 12, 14, 20 or 22 (§12.10.7), which is hardware for the bench.
@@ -231,6 +231,28 @@ kernel is planned for it. The **STM32L4** is set aside.
    firmware in the Pico 2's flash leaves clk_ref divided by 2, which a debugger's reset
    keeps, and both ports never set the divider back; they do since, for clk_ref, clk_sys
    and, on the RP2350, clk_peri.
+
+   Step 2 was written on 2026-10-04: `Escapement_SleepGate.c` on the RP2350, as on the
+   RP2040, its idle task called through `_OSIdleHook`. It gates every clock but those the
+   image keeps, moves clk_sys onto the crystal and stops PLL_SYS, then sleeps until
+   150 µs before the first alarm of TIMER0 armed, on its alarm 3, and locks the PLL
+   again on waking. ALARMn cannot be read back: the port keeps what it wrote in
+   `_OSAlarmTime`. `IdlePico2` (Examples/pico2), a task of some 100 µs every 100 ms and a
+   timer event 40 ms after each, measured on the PPK2 as `SleepPico2` was, 30 s of each,
+   one run:
+
+   | `IdlePico2` | mean | median | instances' jitter, events' offset |
+   |---|---|---|---|
+   | WFI (`make`) | 13.76 mA | 13.3 mA | 1 µs, 5 µs |
+   | SLEEP, PLL_SYS stopped (`make SLEEP_GATE=1`) | 2.46 mA | 1.8 mA | 0 µs, 4 µs |
+
+   82 % off the idle task's current, the kernel's time kept: the jitter and offsets were
+   read while it ran, 251 instances. Without the early wake-up the PLL's lock made them
+   56 and 61 µs. Two defects met on the way, both fixed in the RP2040's port too: an image
+   loaded after one that gated its clocks slept with the bus gated, SLEEP_EN outliving
+   the debugger's reset, which `OSInitializeSystemClocks` now sets back; and core 0, its
+   gates and deep sleep already set, entered SLEEP while waiting for core 1's bootrom on
+   the inter-core FIFO, whose clock was gated: `OSInitSleepGate` launches core 1 first.
 
 6. **LPUART1 at 115,200 baud through Stop 2 — built and seen on the board on
    2026-10-02.** It ran at 57,600 until then, and 57,600 stays the default; `SleepU5`

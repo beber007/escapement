@@ -233,11 +233,9 @@ int main(void)
         DormantSleep();
      #ifdef SLEEP_DEEP
      else if (Results.Phase == PHASE_SLEEP_XOSC) {
-        CLK_SYS_CTRL &= ~CLK_SYS_SRC_AUX;
-        while ((CLK_SYS_SELECTED & 1u) == 0);
-        PLL_SYS_PWR = 0xFFFFFFFFu;
+        _OSLowerSystemClock();
         TimerSleep(&due);
-        OSInitializeSystemClocks();
+        _OSRaiseSystemClock();
      }
      #endif
      else
@@ -298,20 +296,19 @@ static void TimerSleep(UINT32 *due)
 /* DormantSleep: DORMANT until the next falling edge on GP1. The system clock goes to
 ** clk_ref, the crystal, PLL_SYS is stopped (6.5.3, "DORMANT does not halt PLLs"), the
 ** edge flags cleared, and the crystal put dormant, which stops the core. The edge
-** restarts the crystal; OSInitializeSystemClocks then locks PLL_SYS again, as at start. */
+** restarts the crystal, and PLL_SYS is locked again (Escapement_Processor.c). Until
+** 2026-10-04 OSInitializeSystemClocks did that, which now sets SLEEP_EN back too. */
 static void DormantSleep(void)
 {
-  CLK_SYS_CTRL &= ~CLK_SYS_SRC_AUX;
-  while ((CLK_SYS_SELECTED & 1u) == 0);
-  PLL_SYS_PWR = 0xFFFFFFFFu;
+  _OSLowerSystemClock();
   IO_BANK0_INTR0 = GPIO_EDGE_LOW(WAKE_PIN);
   #ifdef SLEEP_DEEP
-     XOSC_STARTUP = XOSC_STARTUP_1MS;   // OSInitializeSystemClocks sets the port's back
+     XOSC_STARTUP = XOSC_STARTUP_1MS;
   #endif
   XOSC_DORMANT = XOSC_DORMANT_WORD;
   __asm volatile ("DSB\n\tISB" ::: "memory");
   IO_BANK0_INTR0 = GPIO_EDGE_LOW(WAKE_PIN);
-  OSInitializeSystemClocks();
+  _OSRaiseSystemClock();
 } /* end of DormantSleep */
 
 

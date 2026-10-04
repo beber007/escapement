@@ -52,4 +52,22 @@
 ** clock. */
 void OSInitializeSystemClocks(void);
 
+/* _OSLowerSystemClock and _OSRaiseSystemClock: The system clock onto the 12 MHz crystal,
+** PLL_SYS stopped, and back to PLL_SYS at 150 MHz, locked again. clk_ref, the timer's
+** tick and clk_peri stay on the crystal throughout: the kernel's time and the UART's rate
+** do not move. Escapement_SleepGate.c calls them around the idle task's WFI. */
+void _OSLowerSystemClock(void);
+void _OSRaiseSystemClock(void);
+
+/* The idle task sleeps through _OSIdleHook once OSInitSleepGate has set it, so that an
+** image without it links neither; the hook returns with interrupts enabled. */
+extern void (*_OSIdleHook)(void);
+#undef _OSSleep
+#define _OSSleep() while (TRUE) { \
+                      if (_OSIdleHook != NULL) \
+                         _OSIdleHook(); \
+                      else \
+                         __asm volatile ("WFI" ::: "memory"); \
+                   };
+
 #endif /* ESCAPEMENT_PROCESSOR_H */

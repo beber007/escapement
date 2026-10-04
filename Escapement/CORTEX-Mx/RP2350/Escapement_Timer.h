@@ -38,4 +38,10 @@ INT32 _OSGetActualTime(void);
 BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit);
 BOOL _OSSetTimer(INT32 nextArrivalTime);
 
+/* _OSAlarmTime: The counter's value each alarm of TIMER0 was last armed on, which the
+** alarm registers do not give back: Escapement_SleepGate.c wakes the chip before the
+** first of those armed (TIMER_ARMED), to raise its clock in time. Alarms 0 and 1 are the
+** kernel's, 2 is the timer events' as the examples choose it, 3 the sleep's own. */
+extern volatile UINT32 _OSAlarmTime[4];
+
 #endif /* ESCAPEMENT_TIMER_H */

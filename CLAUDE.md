@@ -31,7 +31,7 @@ tools/bench_status.sh                         # the bench on one screen, over SS
 tools/soak_emulated.sh OUT 60 1440 hard::1 soft:KERNEL=SOFT:2   # instances under Renode
 tools/soak_emulated_status.sh OUT [SHA]       # their sum, status emulation/soak
 
-# Pico 2 (RP2350, Cortex-M33) — ten examples; no KERNEL=PA yet. Its Renode suite runs
+# Pico 2 (RP2350, Cortex-M33) — thirteen examples; no KERNEL=PA yet. Its Renode suite runs
 # on a platform of our own, on the Mac too (Renode 1.17 portable, robotframework 6.1 venv)
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
 renode-test emulation/renode/escapement_pico2.robot
@@ -45,6 +45,8 @@ PROBE=probe3 tools/pico2_sleep_load.sh --wake 285     # SleepPico2: WFI, SLEEP, 
                                               # the PPK2 (roadmap item 5), its DORMANT woken
                                               # by bytes on GP1; PPK2_SOURCE_MV=5000
                                               # PPK2_PHASES=WFI,SLEEP,DORMANT tools/ppk2_nucleo.py
+make SLEEP_GATE=1 -C ...pico2                  # IdlePico2's idle task in SLEEP, PLL_SYS stopped
+                                              # (roadmap item 5); loaded as SleepPico2 is
 
 # STM32U5 (Arduino UNO Q, STM32U585, Cortex-M33) — eight examples, run from SRAM, which
 # leaves Arduino's firmware in the flash; its Renode suite runs on a platform of our own

@@ -67,6 +67,9 @@
 #define XOSC_STARTUP_DELAY   (47 * 6)
 
 
+void (*_OSIdleHook)(void) = NULL;
+
+
 /* OSInitializeSystemClocks: Switches the reference, system and peripheral clocks onto the
 ** 12 MHz crystal, then the system clock onto the PLL at 150 MHz. Must be called before
 ** anything that depends on time, which includes _OSInitializeTimer and the UART. */
@@ -133,3 +136,27 @@ void OSInitializeSystemClocks(void)
   CLK_SYS_CTRL = CLK_SYS_AUXSRC_PLL | CLK_SYS_SRC_AUX;
   while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_AUX)) == 0);
 } /* end of OSInitializeSystemClocks */
+
+
+/* _OSLowerSystemClock: clk_sys onto clk_ref, the crystal, through the glitchless mux, the
+** auxiliary one left on the PLL, then PLL_SYS powered down, its dividers kept. SLEEP with
+** PLL_SYS running drew 4.5 mA on the Pico 2 at 5 V, 2.0 with it stopped (SleepPico2,
+** 2026-10-03). */
+void _OSLowerSystemClock(void)
+{
+  CLK_SYS_CTRL = CLK_SYS_AUXSRC_PLL | CLK_SYS_SRC_REF;
+  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_REF)) == 0);
+  PLL_PWR = 0xFFFFFFFFu;
+} /* end of _OSLowerSystemClock */
+
+
+/* _OSRaiseSystemClock: PLL_SYS powered up on the dividers OSInitializeSystemClocks set,
+** its lock awaited before its post-dividers, then clk_sys back onto it. */
+void _OSRaiseSystemClock(void)
+{
+  PLL_PWR &= ~(PLL_PWR_PD | PLL_PWR_VCOPD);
+  while ((PLL_CS & PLL_CS_LOCK) == 0);
+  PLL_PWR &= ~PLL_PWR_POSTDIVPD;
+  CLK_SYS_CTRL = CLK_SYS_AUXSRC_PLL | CLK_SYS_SRC_AUX;
+  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_AUX)) == 0);
+} /* end of _OSRaiseSystemClock */
