@@ -52,6 +52,7 @@
 #include <setjmp.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -1198,8 +1199,11 @@ typedef struct TimedTask {
   void *Event;                /* the event of an event-driven task, NULL if periodic */
 } TimedTask;
 
-#define TIMED_TASKS 4
+#define TIMED_TASKS 8
 static TimedTask Timed[TIMED_TASKS];
+/* trace: who runs, from when, for how long and at what speed, and when each instance
+** ends, for tools/differential.py to check against the algorithms. */
+static FILE *TraceOut = NULL;
 static unsigned NbTimed;
 static TimedMode TimedRun;
 static UINT32 TimedSeed = 12345;
@@ -1268,6 +1272,8 @@ static unsigned NbEventEnds;
 static void TimedTaskCode(void *argument)
 {
   TimedTask *task = (TimedTask *)argument;
+  if (TraceOut != NULL)
+     fprintf(TraceOut, "E %d %d\n", TimedNow(), (int)(task - Timed));
   if (task->Event != NULL) {
      if (NbEventEnds < MAX_ENDS)
         EventEnds[NbEventEnds++] = TimedNow();
@@ -1441,6 +1447,8 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
         if (toEnd < step)
            step = toEnd;
         TimedTrace = TimedTrace * 31u + (UINT32)now * 7u + (UINT32)(task - Timed) * 3u + speed;
+        if (TraceOut != NULL)
+           fprintf(TraceOut, "S %d %d %d %u\n", now, step, (int)(task - Timed), speed);
         task->Work -= step * rate;
         BusyAt[speed] += step;
         #if defined(ESCAPEMENT_VERSION_HARD_PA)
@@ -1462,6 +1470,8 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
         }
      }
      else {
+        if (TraceOut != NULL)
+           fprintf(TraceOut, "S %d %d -1 0\n", now, step);
         IdleTime += step;
         HostAdvanceBy(step);
      }
@@ -1752,6 +1762,23 @@ static void TestTimeWrap(TimedMode mode)
   snprintf(label, sizeof label, "  %u runs, the wrap taken inside %u times: every check held",
            (unsigned)(WRAP_ENDS * WRAP_POINTS), taken);
   Check(label, failed == 0 && taken >= WRAP_ENDS);
+}
+
+/* TestTrace: Runs the periodic tasks read on the standard input, one per line, "wcet
+** period deadline takes", each instance taking "takes" ticks at the fastest speed, and
+** prints the trace (TraceOut) for tools/differential.py, which checks it against the
+** scheduling algorithm the build was made for. */
+static void TestTrace(INT32 duration)
+{
+  long wcet, period, deadline, takes;
+  TraceOut = stdout;
+  TimedRun = TIMED_BUSY;
+  while (NbTimed < TIMED_TASKS &&
+         scanf("%ld %ld %ld %ld", &wcet, &period, &deadline, &takes) == 4)
+     CreateTimedTask((INT32)wcet, (INT32)period, (INT32)deadline, (INT32)takes, -1);
+  StartKernel(NULL, NULL);
+  RunTimed(duration);
+  printf("T %d\n", duration);
 }
 
 /* TestSimStale: Under DRA and DR_OTE a task ending early leaves its entry in the simulation
@@ -2439,6 +2466,8 @@ int main(int argc, char *argv[])
      TestSignals();
   else if (argc > 1 && strcmp(argv[1], "notask") == 0)
      TestNoTask();
+  else if (argc > 2 && strcmp(argv[1], "trace") == 0)
+     TestTrace((INT32)strtol(argv[2], NULL, 10));
   else if (argc > 1 && strcmp(argv[1], "simstale") == 0)
      TestSimStale();
   else if (argc > 1 && strcmp(argv[1], "eventrelease") == 0)

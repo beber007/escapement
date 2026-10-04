@@ -24,7 +24,15 @@ The levels are ordered by how much they cost and by how little they assume. The 
 exists because the fifth still runs through a debugger, and that turned out to matter
 (the `TIMER_DBGPAUSE` investigation in `rp2040.md`). Beside these levels, the CI runs
 static analysis (cppcheck over each port, GCC's `-fanalyzer`) and checks the compiled
-order of the accesses the lock-free code depends on (below).
+order of the accesses the lock-free code depends on (below). Since 2026-10-04 it also
+fails a commit that leaves a line of the kernels unrun by the host test without saying
+why (`tools/coverage.py`), and checks the traces of random task sets, run by the kernels
+on the host, against the algorithm each build claims (`tools/differential.py`): who runs
+must be a valid choice of EDF or deadline-monotonic scheduling at every instant, the
+processor never idles while work waits, every instance ends when its work is done and
+by its deadline. Kernels made wrong on purpose — either order reversed, arrivals sorted
+the wrong way, a speed one step too low or always the slowest — fail it within the first
+few task sets of each build.
 
 ## Hypotheses that were wrong
 
@@ -62,6 +70,8 @@ wrong with confidence, and the record has to show how each conclusion was reache
 | The NUCLEO-U575ZI-Q has no HSE, so its endurance runs since 2026-09-30 checked PLL1 on the MSIS of range 2 — from the board's user manual (UM2861, 6.7), as the assistant read it | Its RCC, read over SWD while its run was redeployed, prompted by a wake-up of some 60 ticks of LPTIM1, near the 64 the port waits for an HSE (2026-10-02) | HSE ready and PLL1 on it, M = 4: its crystal X3 is fitted. The manual leaves the HSE to the variant. The runs checked the HSE path, and the MSIS of range 2 has run under Renode only |
 | On PLL1 from the MSIS, 160.017 MHz, `SleepNoHSEU5`'s TIM2 would run 106.7 ppm ahead of LPTIM1 — computed by the assistant, and made the board check's bound | The check itself, red on its first run (2026-10-02): -4.1 ppm | TIM2 is set from LPTIM1 at every wake-up from Stop 2, where the image spends most of its time; PLL1's rate shows only while it is awake. The computation was right about the clock and wrong about what TIM2 counts. The path itself ran without a fault |
 | The PPK2 read nothing on the NUCLEO, or the debugger could not reach the MCU through it, from a voltage drop in its shunt, then from VOUT on the board's rail, then from a fault of its range switching that its firmware once had — three causes stated in turn by the assistant and an agent (2026-10-03) | The firmware found up to date, the rail found at 3.31 V with the PPK2 at 3.5 V, then photos of the wiring | VIN and VOUT were the wrong way round on JP5: the MCU ran through the body diode of the PPK2's switch and the PPK2 read 0. Turned round, as an ampere meter, it measured. The debugger still does not reach the MCU through it, which is left unexplained: the image is put in the flash with JP5 fitted |
+| The host test covered 97 % of the kernels' lines, as clang's coverage merged over the nine builds said (2026-10-04) | Reading each test binary on its own, then writing a test for each branch never taken | The merged view had left out lines compiled in one build only, two of DM_SLACK never run; 68 lines in all had never run. A test written for one of them found a defect inherited from ZottaOS: the soft kernel set an event-driven task's next release again each time it elected it, and under deadline-monotonic scheduling an instance ended 419 ticks after its signal, its deadline 300 and its response by analysis 210 |
+| CBMC could prove the kernels' FIFO queue as compiled, `goto-instrument --isr` placing an interrupt before each shared access, nested as on one core (2026-10-04) | A first run successful in half a second, while an assertion that the interrupt never preempted the operation held too; then the same with the interrupt in place | The interrupt routine had been dropped as unused before it was instrumented, and nothing ran inside the operation. In place, one operation and one interrupt did not conclude in 20 minutes and 3.6 GB. The proof stays with `test/model/fifo.py`, a model written anew, and the compiled order with `tools/check_order.py` |
 | The kernel schedules by earliest deadline first — the first line of the README, and what sets the project apart | Running the scheduler on the host, where a mirror of the task control block read a pointer where a deadline belonged | Every example shipped was scheduling deadline-monotonic. `EscapementHard.h` set the algorithm itself, with no `#ifndef`, and no configuration file overrode it |
 
 One more mistake was of a different kind. An early rebranding pass deleted a comment

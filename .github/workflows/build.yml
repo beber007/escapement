@@ -194,7 +194,9 @@ jobs:
       - name: Python
         run: python3 -m py_compile tools/*.py test/model/*.py emulation/renode/*.py
       - name: Self-tests of the tools
-        run: python3 tools/response_times.py --self-test && python3 tools/soak.py --self-test
+        run: |
+          python3 tools/response_times.py --self-test && python3 tools/soak.py --self-test
+          python3 tools/differential.py --self-test
       - name: Shell
         run: shellcheck --version | sed -n 2p && shellcheck -S warning tools/*.sh
 
@@ -235,6 +237,8 @@ jobs:
         run: make -C test/host run
       - name: The same at -O2, under the whole of UndefinedBehaviorSanitizer
         run: make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
+      - name: Random task sets, every trace checked against the algorithm of its build
+        run: python3 tools/differential.py
 
   coverage:
     # Every line of the kernels some build compiles must run, or say where it stands why

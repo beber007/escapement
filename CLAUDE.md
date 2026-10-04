@@ -75,6 +75,8 @@ make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
 python3 tools/coverage.py            # every kernel line covered or excluded with its reason
                                      # (COVERAGE-LINE, COVERAGE-OFF/ON), branches >= the
                                      # floor in test/host/coverage-floor (run by the CI)
+python3 tools/differential.py        # random task sets run by each build, every trace
+                                     # checked against EDF or DM (run by the CI, ~30 s)
 
 # Exhaustive models of the lock-free mechanisms (run by the CI)
 python3 test/model/fourslot.py
