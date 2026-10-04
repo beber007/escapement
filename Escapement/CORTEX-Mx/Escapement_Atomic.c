@@ -72,7 +72,7 @@ inline UINT8 OSUINT8_LL(UINT8 *memAddr)
 {
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      UINT8 tmp;
-     asm volatile ("LDREXB %0,[%1]":"=&b"(tmp):"r"(memAddr));
+     asm volatile ("LDREXB %0,[%1]":"=&l"(tmp):"r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
      /* The load comes after the reservation: GCC moved it before the store of the bit
@@ -95,7 +95,7 @@ inline BOOL OSUINT8_SC(UINT8 *memAddr, register UINT8 newVal)
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      register BOOL tmp;
      asm volatile ("STREXB %0,%2,[%1]\n"
-                   "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
+                   "SUB %0,#1" : "=&l"(tmp) : "r"(memAddr),"r"(newVal));
      return tmp;
   #elif defined(CORTEX_M0)
      UINT32 priMask = GetPriMask();
@@ -119,7 +119,7 @@ inline UINT16 OSUINT16_LL(UINT16 *memAddr)
 {
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      UINT16 tmp;
-     asm volatile ("LDREXH %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
+     asm volatile ("LDREXH %0,[%1]" : "=&l"(tmp) : "r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
      _OSLLReserveBit = TRUE;           // Mark reserved, then load (see OSUINT8_LL)
@@ -135,7 +135,7 @@ inline BOOL OSUINT16_SC(UINT16 *memAddr, register UINT16 newVal)
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      register BOOL tmp;
      asm volatile ("STREXH %0,%2,[%1]\n"
-                   "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
+                   "SUB %0,#1" : "=&l"(tmp) : "r"(memAddr),"r"(newVal));
      return tmp;
   #elif defined(CORTEX_M0)
      UINT32 priMask = GetPriMask();
@@ -159,7 +159,7 @@ inline INT16 OSINT16_LL(INT16 *memAddr)
 {
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      INT16 tmp;
-     asm volatile ("LDREXH %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
+     asm volatile ("LDREXH %0,[%1]" : "=&l"(tmp) : "r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
      _OSLLReserveBit = TRUE;           // Mark reserved, then load (see OSUINT8_LL)
@@ -175,7 +175,7 @@ inline BOOL OSINT16_SC(INT16 *memAddr, register INT16 newVal)
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      register BOOL tmp;
      asm volatile ("STREXH %0,%2,[%1]\n"
-                   "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
+                   "SUB %0,#1" : "=&l"(tmp) : "r"(memAddr),"r"(newVal));
      return tmp;
   #elif defined(CORTEX_M0)
      UINT32 priMask = GetPriMask();
@@ -199,7 +199,7 @@ inline UINT32 OSUINT32_LL(UINT32 *memAddr)
 {
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      UINT32 tmp;
-     asm volatile ("LDREX %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
+     asm volatile ("LDREX %0,[%1]" : "=&l"(tmp) : "r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
      _OSLLReserveBit = TRUE;           // Mark reserved, then load (see OSUINT8_LL)
@@ -215,7 +215,7 @@ inline BOOL OSUINT32_SC(UINT32 *memAddr, register UINT32 newVal)
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      register BOOL tmp;
      asm volatile ("STREX %0,%2,[%1]\n"
-                   "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
+                   "SUB %0,#1" : "=&l"(tmp) : "r"(memAddr),"r"(newVal));
      return tmp;
   #elif defined(CORTEX_M0)
      UINT32 priMask = GetPriMask();
@@ -239,7 +239,7 @@ inline INT32 OSINT32_LL(INT32 *memAddr)
 {
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      INT32 tmp;
-     asm volatile ("LDREX %0,[%1]" : "=&b"(tmp) : "r"(memAddr));
+     asm volatile ("LDREX %0,[%1]" : "=&l"(tmp) : "r"(memAddr));
      return tmp;
   #elif defined(CORTEX_M0)
      _OSLLReserveBit = TRUE;           // Mark reserved, then load (see OSUINT8_LL)
@@ -255,7 +255,7 @@ inline BOOL OSINT32_SC(INT32 *memAddr, register INT32 newVal)
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)
      register BOOL tmp;
      asm volatile ("STREX %0,%2,[%1]\n"
-                   "SUB %0,#1" : "=&b"(tmp) : "r"(memAddr),"r"(newVal));
+                   "SUB %0,#1" : "=&l"(tmp) : "r"(memAddr),"r"(newVal));
      return tmp;
   #elif defined(CORTEX_M0)
      UINT32 priMask = GetPriMask();

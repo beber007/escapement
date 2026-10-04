@@ -145,7 +145,7 @@ right. The host test says the scheduler made the decisions it should have.
 
 | Level | What it establishes |
 |---|---|
-| Compilation | every example of the three ports built by two compilers at each push to `main` |
+| Compilation | every example of the three ports built by two versions of GCC at each push to `main`, the kernels and the ports compiled by clang too |
 | The scheduler alone | every kernel and algorithm run on the host under AddressSanitizer: every line run or excluded with its reason, 90.5 % of the branches, and random task sets checked against the algorithms |
 | Every interleaving | the lock-free buffers and queues explored exhaustively, weak memory included |
 | Replayable execution | the three ports under Renode, as regression tests |
@@ -157,7 +157,7 @@ right. The host test says the scheduler made the decisions it should have.
 
 | Level | Means | What it establishes |
 |---|---|---|
-| Compilation | GitHub Actions, with the developer's GCC and a second one, 14.2 | the examples of the Pico, the Pico 2 and the STM32U5, on each push to `main` and each pull request |
+| Compilation | GitHub Actions, with the developer's GCC and a second one, 14.2, and clang | the examples of the Pico, the Pico 2 and the STM32U5, on each push to `main` and each pull request; the kernels and the ports also compiled by clang without a warning (`tools/clang_check.sh`) |
 | The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for. Every line of the kernels runs or says why it cannot, and 90.5 % of the branches run, a check since 2026-10-04 (`tools/coverage.py`). Random task sets run by each build, every trace checked against EDF or DM and, under EDF, against Spuri's bound (`tools/differential.py`) |
 | Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access, both slot buffers on two cores too, each core free to reorder its accesses as the architecture allows, and the queue of Evéquoz between the cores of the RP2350: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
 | Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the RP2040, the RP2350 and the STM32U5; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after, on the RP2350 both slot buffers between its two cores, and on the STM32U5 the idle task sleeping on its low-power timer and moving the kernel clock on, across the 2^30 wrap too — all as regression tests |

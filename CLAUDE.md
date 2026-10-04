@@ -99,6 +99,7 @@ sh tools/check_encoding.sh           # every tracked file must be valid UTF-8
 # Static analysis (run by the CI): cppcheck over each port, GCC's -fanalyzer per Cortex-M
 sh tools/cppcheck.sh
 sh tools/analyze.sh
+sh tools/clang_check.sh              # a third compiler: clang, -Wall, compiled not linked
 ```
 
 Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. The board:

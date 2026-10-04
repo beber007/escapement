@@ -240,6 +240,19 @@ jobs:
       - name: Random task sets, every trace checked against the algorithm of its build
         run: python3 tools/differential.py
 
+  clang:
+    # A third compiler for the kernels and the ports, compiled for each Cortex-M as the
+    # images are, not linked; any warning fails.
+    name: The kernels and the ports under clang
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: clang
+        run: sudo apt-get update -q && sudo apt-get install -y -q clang
+      - name: Every kernel, algorithm and port, with -Wall
+        run: clang --version | head -1 && sh tools/clang_check.sh
+
   coverage:
     # Every line of the kernels some build compiles must run, or say where it stands why
     # it cannot (COVERAGE-LINE, COVERAGE-OFF ... COVERAGE-ON); branches must not fall
