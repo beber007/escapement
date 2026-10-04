@@ -186,9 +186,9 @@ to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
   of the Renode suite, the litmus tests showing no reordering between the cores, the
   periods right on the frequency counter, the UART echo and the two senders through the
   probe's UART, and `SoakPico2` across two 2^30 wraps in 40 minutes without an error
-  (`architecture.md`, `tools/pico2_check.py`, `tools/pico2_uart.py`,
-  `tools/pico2_soak.py`). The bench checks all of it but the wrap, 18 minutes a time, at
-  each commit (status `board/pico2`).
+  (`rp2040.md`, "The Pico 2 on the board"; `tools/pico2_check.py`,
+  `tools/pico2_uart.py`, `tools/pico2_soak.py`). The bench checks all of it but the
+  wrap, 18 minutes a time, at each commit (status `board/pico2`).
 
 - **A stack that faults (2026-10-04).** The one stack grows down toward the globals,
   with nothing between them; ZottaOS's comment said an overflow corrupted nothing. Since

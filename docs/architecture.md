@@ -146,46 +146,16 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
 - **Raspberry Pi RP2350** (Pico 2): Cortex-M33, port under
   `Escapement/CORTEX-Mx/RP2350/`. It was transposed from the RP2040 port on 2026-09-24:
   the clocks at 150 MHz, TIMER0 with its tick from the TICKS block, 52 interrupts, the
-  pads released from their isolation, the UART, the timer events and the launch of
-  core 1. The hard and the soft kernel build the examples under `pico2/` in the CI: those
-  of the Pico that are not benches, plus `ThreeSlotCoresPico2`, `FIFOCoresPico2` and
+  pads released from their isolation, the UART, the timer events and the launch of core
+  1. The hard and the soft kernel build the examples under `pico2/` in the CI: those of
+  the Pico that are not benches, plus `ThreeSlotCoresPico2`, `FIFOCoresPico2` and
   `LitmusPico2`. They run under Renode on a platform of our own (`emulation.md`),
   including the 2^30 wrap of the kernel clock, both slot buffers between the two cores
   and the queue between them; `IdlePico2`, `SleepPico2` and `StackGuardPico2` are for
-  the board only. That shows that they schedule, not that the clocks are
-  programmed right. A Pico 2 did on 2026-09-28: the frequency counter gave clk_sys
-  150,000 kHz on the PLL, clk_ref and clk_peri 12,000 kHz on the crystal. On it the six
-  examples that count in memory pass the criteria of the Renode suite
-  (`tools/pico2_check.py`): both slot buffers and the queue between the cores, `IPCPico2`,
-  the endurance test and the litmus tests. The frequency counter of the Bus Pirate read
-  the outputs on 2026-09-29, loaded as `tools/pico2_check.py` loads, each reading 8 s
-  after the one before, and every one agreed with the next:
-
-  | Output | Example, task | Expected | Measured |
-  |---|---|---:|---:|
-  | `GP4` | `TaskLEDPico2`, 1 ms probe | 500 Hz | 500.01 Hz, 6 readings |
-  | `GP2` | `TaskLEDPico2`, 20 ms task | 50 Hz | 50.0014 to 50.0015 Hz, 4 |
-  | `GP3` | `TaskLEDPico2`, 60 ms task | 16.66667 Hz | 16.66715 Hz, 4 |
-  | `GP2` | `TestTimerEventPico2`, 5 ms event | 200 Hz | 200.007 Hz, 4 |
-  | `GP3` | `TestTimerEventPico2`, 10 ms event | 100 Hz | 100.0031 Hz, 4 |
-
-  Every output is +28 to +35 ppm off, as the Pico's were on the same instrument
-  (`rp2040.md`, 16.66713 and 100.0031 Hz there). Two boards reading the same offset, it
-  is the Bus Pirate's reference that is some 30 ppm slow, not either crystal.
-
-  The UART, through the Debug Probe's own on GP0 and GP1, on 2026-09-30
-  (`tools/pico2_uart.py`, the CI's images of 3c141ca): `UARTEchoPico2` sent back the
-  suite's line, the 256 byte values and 1,408 bytes of lines sent back to back, each
-  byte once and in order. `UARTSendersPico2` put 18,106 lines on the port in 20 s, the
-  line full, none broken. The lines its tasks had queued when their counts were read,
-  17,658, lay between the 17,553 on the port just before and the 17,661 just after.
-
-  The 2^30 wrap on the board, the same day: `TaskWrapPico2` has its periods scaled for
-  Renode, a thousand times too long here, so `SoakPico2` crossed it instead, as the
-  Pico's endurance test did (`rp2040.md`). It ran 2,400 s across two wraps, read every
-  minute over SWD without stopping a core (`tools/pico2_soak.py`): no error in any of
-  its eight parts, no restart, the pulse at most 46 µs late and the timer events 40, at
-  least 952 bytes of core 1's stack never used. The power-aware kernel is not ported.
+  the board only. That shows that they schedule, not that the clocks are programmed
+  right. A Pico 2 did on 2026-09-28, and the bench checks it at each commit: its clocks,
+  the periods on a frequency counter, the UART and the 2^30 wrap on the board are in
+  `rp2040.md`, "The Pico 2 on the board". The power-aware kernel is not ported.
 - **STM32U5** (the STM32U585 of the Arduino UNO Q): Cortex-M33, port under
   `Escapement/CORTEX-Mx/STM32U5/`. It was written anew on 2026-09-25, after the model of
   the RP2350 port. The clocks run at 160 MHz from the board's 16 MHz crystal. TIM2 serves

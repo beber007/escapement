@@ -65,8 +65,8 @@ and slows down only as far as those times still meet every deadline.
 | | |
 |---|---|
 | **4,716 bytes** | of code for the whole kernel plus four periodic tasks, on a Cortex-M0+, with GCC 16.2 on 2026-09-27 (5,164 on 2026-09-25) ([`docs/build.md`](docs/build.md)) |
-| **3.2 µs** | one scheduling round of the hard kernel, measured on the board on 2026-09-23. At 1,000 activations per second that is 0.33 % of the processor, under EDF and DM alike. The bench on the UNO Q has read 3.5 µs since 2026-09-26 ([`docs/rp2040.md`](docs/rp2040.md)) |
-| **+28 ppm** | how far the periods are off when read by an external frequency counter. A Pico 2 reads the same on it: the offset is the counter's reference, not the boards ([`docs/architecture.md`](docs/architecture.md)) |
+| **3.5 µs** | one scheduling round of the hard kernel on the Pico, read by the bench at each commit, 12 µs at worst: at 1,000 activations per second, 0.35 % of the processor. It was 3.2 µs under EDF and DM alike on 2026-09-23, before every firmware was built with `-fno-strict-aliasing` ([`docs/rp2040.md`](docs/rp2040.md), [`docs/method.md`](docs/method.md)) |
+| **+28 ppm** | how far the periods are off when read by an external frequency counter. A Pico 2 reads the same on it: the offset is the counter's reference, not the boards ([`docs/rp2040.md`](docs/rp2040.md)) |
 | **108,000** | task activations in three hours on an STM32U5. Between them the idle task slept in Stop 2 454,487 times, with the kernel's clock stopped. None started a microsecond off its period ([`docs/stm32u5.md`](docs/stm32u5.md)) |
 
 ## Where it runs
