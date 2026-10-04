@@ -43,8 +43,9 @@ and slows down only as far as those times still meet every deadline.
 
 - EDF and DM scheduling without a periodic tick. The cost of a scheduling round is
   measured on the board ([`docs/rp2040.md`](docs/rp2040.md)).
-- A kernel whose queues take no lock, even on the Cortex-M0+, which has no
-  load-linked/store-conditional instructions ([Design](#concurrency-without-locks)).
+- A kernel that updates its queues without masking interrupts, one short section aside,
+  even on the Cortex-M0+, which has no load-linked/store-conditional instructions
+  ([Design](#concurrency-without-locks)).
 - Lock-free buffers and queues checked over every interleaving by small exhaustive
   models, weak memory ordering included. Each model must also catch deliberately broken
   variants. One of them cut the memory barriers of a queue between two cores from
@@ -63,9 +64,9 @@ and slows down only as far as those times still meet every deadline.
 
 | | |
 |---|---|
-| **4,716 bytes** | of code for the whole kernel plus four periodic tasks, on a Cortex-M0+, with GCC 16.2 on 2026-09-27. It was 5,164 on 2026-09-25, and the kernel has shrunk since ([`docs/build.md`](docs/build.md)) |
+| **4,716 bytes** | of code for the whole kernel plus four periodic tasks, on a Cortex-M0+, with GCC 16.2 on 2026-09-27 (5,164 on 2026-09-25) ([`docs/build.md`](docs/build.md)) |
 | **3.2 µs** | one scheduling round of the hard kernel, measured on the board on 2026-09-23. At 1,000 activations per second that is 0.33 % of the processor, under EDF and DM alike. The bench on the UNO Q has read 3.5 µs since 2026-09-26 ([`docs/rp2040.md`](docs/rp2040.md)) |
-| **+28 ppm** | how far the periods are off when read by an external frequency counter. That is the tolerance of the board's crystal, not an error of the scheduler |
+| **+28 ppm** | how far the periods are off when read by an external frequency counter. A Pico 2 reads the same on it: the offset is the counter's reference, not the boards ([`docs/architecture.md`](docs/architecture.md)) |
 | **108,000** | task activations in three hours on an STM32U5. Between them the idle task slept in Stop 2 454,487 times, with the kernel's clock stopped. None started a microsecond off its period ([`docs/stm32u5.md`](docs/stm32u5.md)) |
 
 ## Where it runs
@@ -74,7 +75,7 @@ and slows down only as far as those times still meet every deadline.
 |---|---|---|---|
 | Raspberry Pi Pico (RP2040) | Cortex-M0+, 125 MHz | hard, soft, power-aware with DVFS | the board, checked at each commit; Renode |
 | Arduino UNO Q (STM32U585) | Cortex-M33, 160 MHz | hard, soft; the idle task in Stop 2 | the board, checked at each commit; Renode |
-| Raspberry Pi Pico 2 (RP2350) | Cortex-M33, 150 MHz | hard, soft; two cores sharing lock-free buffers | Renode; on the board since 2026-09-28, its clocks and the five examples that count in memory |
+| Raspberry Pi Pico 2 (RP2350) | Cortex-M33, 150 MHz | hard, soft; two cores sharing lock-free buffers | the board, checked at each commit: the six examples that count in memory and the UART; Renode |
 | NUCLEO-U575ZI-Q (STM32U575) | Cortex-M33, 160 MHz | the hard kernel's example in Stop 2, for current measurement; the endurance test | the endurance test on the board since 2026-09-28; Renode |
 
 ## An application
@@ -146,10 +147,10 @@ right. The host test says the scheduler made the decisions it should have.
 | Level | What it establishes |
 |---|---|
 | Compilation | every example of the three ports built by two versions of GCC at each push to `main`, the kernels and the ports compiled by clang too |
-| The scheduler alone | every kernel and algorithm run on the host under AddressSanitizer: every line run or excluded with its reason, 90.5 % of the branches, and random task sets checked against the algorithms |
+| The scheduler alone | every kernel and algorithm run on the host under AddressSanitizer: every line run or excluded with its reason, 91.15 % of the branches, and random task sets checked against the algorithms |
 | Every interleaving | the lock-free buffers and queues explored exhaustively, weak memory included |
 | Replayable execution | the three ports under Renode, as regression tests |
-| Internal state on hardware | the scheduling traced on a running board, and two boards checked at each commit |
+| Internal state on hardware | the scheduling traced on a running board, and three boards checked at each commit |
 | Independent instrument | the periods read by a frequency counter, outside all the project's software |
 
 <details>
@@ -158,7 +159,7 @@ right. The host test says the scheduler made the decisions it should have.
 | Level | Means | What it establishes |
 |---|---|---|
 | Compilation | GitHub Actions, with the developer's GCC and a second one, 14.2, and clang | the examples of the Pico, the Pico 2 and the STM32U5, on each push to `main` and each pull request; the kernels and the ports also compiled by clang without a warning (`tools/clang_check.sh`) |
-| The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for. Every line of the kernels runs or says why it cannot, and 90.5 % of the branches run, a check since 2026-10-04 (`tools/coverage.py`). Random task sets run by each build, every trace checked against EDF or DM and, under EDF, against Spuri's bound (`tools/differential.py`) |
+| The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for. Every line of the kernels runs or says why it cannot, and 91.15 % of the branches run (90.5 % on 2026-10-04), a check since that day (`tools/coverage.py`). Random task sets run by each build, every trace checked against EDF or DM and, under EDF, against Spuri's bound (`tools/differential.py`) |
 | Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access, both slot buffers on two cores too, each core free to reorder its accesses as the architecture allows, and the queue of Evéquoz between the cores of the RP2350: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
 | Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the RP2040, the RP2350 and the STM32U5; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after, on the RP2350 both slot buffers between its two cores, and on the STM32U5 the idle task sleeping on its low-power timer and moving the kernel clock on, across the 2^30 wrap too — all as regression tests |
 | Internal state on hardware | OpenOCD and SWD on a Pico; the reports of an STM32U5 to the Linux of its Arduino UNO Q | a trace of the scheduling read without stopping a core: deadlines armed ahead of the counter, timer events delivered on the microsecond, the clock changed by the power-aware kernel; cost counters read back from SRAM; on the U5, an endurance test run for hours with every part checked each second, its causes of reset, and its clock measured against Linux's within some 25 ppm; at each commit, the idle task in Stop 2, every task starting on its period and every timer event and byte from Linux coming through it |

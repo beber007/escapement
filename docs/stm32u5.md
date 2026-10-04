@@ -42,14 +42,15 @@ was read, not copied into the repository.
 | From SRAM | `Escapement_RamEntry.S`, `STM32U5_SRAM.ld` | the image starts at its first word, which takes the stack and the reset handler from the vector table that follows, aligned on 1024 bytes; `OSInitializeSystemClocks` points VTOR at that table |
 
 The examples in `Examples/uno-q` are those of the Pico 2, transposed: `TaskLEDU5`,
-`UARTEchoU5`, `TestTimerEventU5`, `TaskWrapU5`, `IPCU5`, `TestLPTimerU5`, `SleepU5` and
-`SoakU5`, the endurance test. In `SoakU5`, the part that the Pico 2 runs between its two
-cores becomes a 4-slot buffer written by the interrupt of TIM3 and read by a task that
-this interrupt preempts. The independent watchdog stands in for the RP2350's. The
-examples drive four outputs (`BoardU5.h`): the green of LED3 on PH11 and the blue of
-LED4 on PH15, both lit when low, and PB13 and PB14, which are D13 and D12 of the
-connector. The hard and the soft kernel build under EDF and deadline-monotonic
-scheduling. The power-aware kernel is not ported.
+`UARTEchoU5`, `TestTimerEventU5`, `TaskWrapU5`, `IPCU5` and `SoakU5`, the endurance
+test; then `TestLPTimerU5`, `SleepU5` and `Stop2EventWrapU5` for Stop 2, and
+`StackGuardU5`, a stack that overflows on purpose (roadmap item 7). In `SoakU5`, the
+part that the Pico 2 runs between its two cores becomes a 4-slot buffer written by the
+interrupt of TIM3 and read by a task that this interrupt preempts. The independent
+watchdog stands in for the RP2350's. The examples drive four outputs (`BoardU5.h`): the
+green of LED3 on PH11 and the blue of LED4 on PH15, both lit when low, and PB13 and
+PB14, which are D13 and D12 of the connector. The hard and the soft kernel build under
+EDF and deadline-monotonic scheduling. The power-aware kernel is not ported.
 
 ## On the board
 
@@ -135,11 +136,17 @@ that followed it had already run. The kernel took that flag for an overflow befo
 timer had started, and stopped on its overload check. With `URS` set, only a wrap of the
 counter raises the flag (`Escapement_Timer.c`).
 
+On 2026-10-04 `StackGuardU5` overflowed the one stack on purpose. With MSPLIM set to the
+end of the globals, as the port does since that day, the core faulted on a stack
+overflow (CFSR 0x00100000, STKOF), the stack pointer above the globals. Built without
+it, the stack went into the globals and the core faulted on an undefined instruction
+(roadmap item 7). Renode does not model MSPLIM.
+
 ### Under Renode
 
 Renode runs the port on a platform of the project's own
 (`emulation/renode/escapement_u5.repl`, see [`emulation.md`](emulation.md)), which has
-the pins of the UNO Q since 2026-09-26. The twelve tests of `escapement_u5.robot` pass
+the pins of the UNO Q since 2026-09-26. The tests of `escapement_u5.robot` pass
 under each of the four builds, hard and soft kernel under EDF and deadline-monotonic.
 They cover:
 
@@ -151,6 +158,11 @@ They cover:
 - 3.5 s of the endurance test with every part active and none in error;
 - LPTIM1's count against TIM2's, and the idle task sleeping on LPTIM1, up to the wrap
   when the next arrival lies beyond it;
+- the wake-up from Stop 2 taking PLL1 back to the HSE, a wake-up the HSE misses going on
+  the MSIS, and the path without the HSE;
+- LPUART1 through Stop 2: the window after a byte, and a wake-up byte that comes out
+  wrong dropped with the frames it spoils;
+- `SleepU5` built for the NUCLEO, from its SRAM and from its flash;
 - the endurance test built for the NUCLEO-U575ZI-Q reporting on USART1, the ST-LINK's
   virtual COM port, and not on LPUART1 (`escapement_u5_nucleo.repl`, which adds the
   ports A and F of that board's pins).
@@ -479,8 +491,9 @@ current, JP5 (UM2861, 6.4.5). `Examples/nucleo-u575` builds `SleepU5` for it fro
 same sources. Its outputs are on pins that drive no LED, since the LEDs sit on the rail
 that jumper measures. This one has its HSE crystal, X3, fitted, which this page denied
 until 2026-10-02 on a reading of UM2861 (6.7), that leaves it to the variant: its RCC
-read the HSE ready and PLL1 on it. A board without it would have the port fall back to
-the MSIS locked on the LSE, the HSE given up after one failed start. The board's STM32U575ZIT6Q
+read the HSE ready and PLL1 on it. Without it the port runs PLL1 on the MSIS of range 2:
+the HSE is not tried again once it failed to start, and a wake-up it misses goes on the
+MSIS (`SleepNoHSEU5`, checked on the UNO Q at each commit). The board's STM32U575ZIT6Q
 has the SMPS that the UNO Q's U585 lacks: 8.2 against 20.5 µA in Stop 2 with every SRAM
 retained at 25 °C, by the datasheet (DS13737 rev. 4, tables 54 and 56). The port keeps
 the LDO, as reset leaves it, unless built with `make SMPS=1`. That option selects the
@@ -491,8 +504,8 @@ the 3.3 V it ships with (UM2861, 6.4.4.3): OpenOCD read a target voltage of 1.80
 to [1-2], 3.3 V, the same evening, while looking for the hang below. A current measured
 at 1.8 V is to be weighed against the datasheet at the VDD of each table. The CI builds both images at each commit
 (`ppk2_u5/SleepU5-nucleo-phases30.elf` and `SleepU5-nucleo-smps-phases30.elf`). The
-board has run the endurance test on the bench since 2026-09-28; these two `PHASES=30`
-images have not been tried on it yet.
+board has run the endurance test on the bench since 2026-09-28. The PPK2 measured
+`SleepU5` from the flash instead (`SleepU5Flash`, below).
 
 ### SleepU5 on the NUCLEO-U575ZI-Q
 

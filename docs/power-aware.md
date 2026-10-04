@@ -3,9 +3,14 @@
 The power-aware kernel, `EscapementHardPA`, lowers the frequency and the core voltage
 when the execution times the tasks declare leave room before the next deadline. Its one
 driver is the RP2040's, described below. The kernel also runs in the host test
-(`test/host`). Whether it saves energy has not been measured: this page sets out what the
-datasheets lead one to expect, what the bench will have to settle, and what emulation
-can and cannot show.
+(`test/host`). This page sets out what the datasheets lead one to expect, what the
+bench has measured, and what emulation can and cannot show.
+
+**Measured so far.** On the STM32U5, 2026-10-03: a cycle costs least at 160 MHz, and
+racing to Stop 2 beats every slower speed at every load (below). On the RP2350, the
+same day: DVFS saves some 10 % at best within the specification, with the idle task in
+SLEEP and PLL_SYS running, and next to nothing once SLEEP stops PLL_SYS (roadmap items 3
+and 5). On the RP2040, the one chip with a driver: not measured yet (roadmap item 1).
 
 ## The STM32L1 driver, removed
 
@@ -24,8 +29,6 @@ declared TIM2 as a 32-bit counter where the L1 has a 16-bit one. The port's 16-b
 mode therefore never saw its overflow; a derived platform fixed it.
 
 ## Is DVFS worth anything?
-
-This is an open question, to be settled before more goes into this variant.
 
 **The physics.** For a fixed amount of work of *W* cycles, the dynamic energy is
 `α·C·V²·f · W/f = α·C·V²·W`, which does not depend on the frequency. Lowering *f* alone
@@ -52,7 +55,7 @@ by its datasheet, and 8.2 µA on the STM32U575 with its SMPS (`stm32u5.md`). The
 has no such mode (see the table below). Since dynamic energy does not depend on f,
 running fast costs nothing extra and shortens the time the fixed costs are paid for.
 Where the chip sleeps well, race-to-sleep is expected to match DVFS or beat it, and it is
-simpler. No measurement here says by how much.
+simpler. On the U5 and the RP2350 it does (Measured so far, above).
 
 DVFS can win only where sleeping is not an option:
 
@@ -103,8 +106,9 @@ is better than the INA219, whose 12 bits are marginal for telling voltage ranges
 Bus Pirate acting as I²C master can read it, with no second microcontroller to program.
 A Nordic Power Profiler Kit II costs an order of magnitude more. It powers the target,
 spans about a hundred nanoamps to an amp, and integrates energy over a window. Energy per
-unit of work, not average current, is what settles DVFS against race-to-sleep. The PPK2
-was chosen on 2026-09-24; as of 2026-09-27 the bench has not been built.
+unit of work, not average current, is what settles DVFS against race-to-sleep. The PPK2,
+chosen on 2026-09-24, has measured the STM32U5 and the Pico 2 since 2026-10-03; the
+Pico is next.
 
 Because the core regulator is linear (RP2040 datasheet, section 2.10), part of what V²
 promises is dissipated in it rather than saved. The bench would measure a gain smaller
@@ -166,7 +170,7 @@ does change and reaches its lowest setting. The emulated core does not slow down
 its clock. The test shows that the registers are driven in the right order, and says
 nothing about energy.
 
-## Which MCU to port to next?
+## Targets weighed
 
 DVFS pays off where sleep is poor. The best low-power MCUs are therefore those where it
 should help least, race-to-sleep serving them better.
@@ -178,10 +182,10 @@ load is continuous and rules out sleeping.
 | Target | Why | Caveat |
 |---|---|---|
 | **RP2040** | Core voltage adjustable in 50 mV steps, though the datasheet only guarantees 1.05 to 1.16 V (see above). Clock programmable from a few kHz to 133 MHz. Above all, **poor sleep**: no 1 µA Stop mode, and dormant mode loses the clocks. SLEEP, which gates the clocks while the kernel's timer runs on, is given at 0.39 mA typical in the datasheet's example, its PLLs stopped (roadmap, item 1). Race-to-sleep is weak there, so DVFS has a niche. Cortex-M0+, covered by the generic layer. | QSPI flash that does not follow the core voltage. The images run from SRAM, which leaves it idle, but it stays on the rail. |
-| **RP2350** | The RP2040's successor, on a board as cheap, the Pico 2. The same PLL scheme, so the clock half of the DVFS driver should largely carry over, and 150 MHz. Its core regulator is a **switching** one, to be driven anew, which removes the caveat of the RP2040's linear regulator. Its Cortex-M33 is ARMv8-M, which the generic layer covers since 2026-09-24. The port exists, without a DVFS driver (`architecture.md`). | Sleep is better than on the RP2040, with a power manager, switchable domains and SRAM retention, so the argument of poor sleep weakens; only a measurement will say how much. QSPI flash as on the RP2040. **No Renode model exists** (checked 2026-09-22): Renode itself models neither the RP2040 nor the RP2350, and the RP2350 branch of the RP2040 models stopped at its first commits, in 2024. Renode does emulate the Cortex-M33, and a minimal platform was written for it (`emulation.md`). |
+| **RP2350** | The RP2040's successor, on a board as cheap, the Pico 2. The same PLL scheme, so the clock half of the DVFS driver should largely carry over, and 150 MHz. Its core regulator is a **switching** one, to be driven anew, which removes the caveat of the RP2040's linear regulator. Its Cortex-M33 is ARMv8-M, which the generic layer covers since 2026-09-24. The port exists, without a DVFS driver (`architecture.md`). | Sleep is better than on the RP2040, with a power manager, switchable domains and SRAM retention, so the argument of poor sleep weakens: measured on 2026-10-03, SLEEP 4.2 mA, DORMANT 0.36 mA, DVFS some 10 % at best (roadmap items 3 and 5). QSPI flash as on the RP2040. Renode has no model of it: a platform of our own (`emulation.md`). |
 | **Cortex-M7 (STM32H7…)** | Presumably the largest gain in absolute watts. At 400–550 MHz switching should make up most of the budget, so V² would apply to most of it; not checked against a datasheet here. Typical workloads (audio, SDR, motor control) are **continuous** and cannot sleep. | Core not covered by the generic layer, which has the M0, M3, M4 and M33. |
 | **STM32L4** | Once the cheapest STM32 port: a Cortex-M4, which the generic layer covers, with wider voltage scaling than the L1. Set aside (`roadmap.md`). | Renode ships no L4 platform, so the emulation would have to be built along with the port. |
-| **STM32U5** | Four voltage ranges, a 40 nm process, less leakage than anything else here. Ported, without DVFS. | Stop 2 draws tens of µA or less, so race-to-sleep dominates even more than on the L1, and the gain is probably **smaller**, not larger. On the UNO Q's STM32U585 it is smaller still: see below. |
+| **STM32U5** | Four voltage ranges, a 40 nm process, less leakage than anything else here. Ported, without DVFS. | Stop 2 draws tens of µA or less, so race-to-sleep dominates. Measured on 2026-10-03: DVFS gains nothing (below). |
 | ESP32, Ambiq Apollo | — | To rule out. The ESP32 already has vendor DFS (`esp_pm`) with automatic idling; on Ambiq parts the voltage is managed internally, with no lever for the user. |
 
 **The STM32U585 of the UNO Q, read on 2026-09-26** (RM0456 rev. 7, datasheet DS13086
@@ -226,10 +230,8 @@ Vendor-specific layer                ~1800 lines   to be rewritten
 The context switch, the atomics and the scheduler do not move. The bulk of a port is the
 comparator timer, the vector table and the UART, not energy management.
 
-For energy, measuring comes before porting. Until there is a figure from hardware, the
-next target is chosen blind, and the bench described above uses a board already at hand.
-The RP2350 port was begun anyway, for its two cores rather than its regulator, and the
-U5 port for the Arduino UNO Q's STM32U585 (`roadmap.md`).
+The RP2350 port was begun for its two cores rather than its regulator, and the U5 port
+for the Arduino UNO Q's STM32U585 (`roadmap.md`).
 
 Renode provides platforms for the STM32 F0, F1, F4, F7, G0, H7, L0, L1, L5 and W
 families, but none for the L4 or the U5. The U5 port wrote a platform of its own

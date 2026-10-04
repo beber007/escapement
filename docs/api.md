@@ -89,12 +89,12 @@ reads what is there and returns.
 | Soft | `OSCreateTask(task, wcet, periodCycles, periodOffset, deadline, m, k, startInstance, argument)` |
 | Power-aware | `OSCreateTask(task, wcet, periodCycles, periodOffset, deadline, argument)` |
 
-Every creation returns `FALSE` when memory runs out, or for a period or a deadline
-outside those limits. The soft and power-aware kernels also refuse a negative `wcet` or
-one past the deadline, a task that could never meet it (since 2026-10-04). Under DM it also fails past the number of tasks the kernel can
-count: 255 in all, or 127 with the soft kernel, whose optional instances add the number
-of tasks to their priority. The first instance of every task arrives when the kernel
-starts. There is no offset.
+Every creation returns `FALSE` when memory runs out, for a period or a deadline outside
+those limits, or, under DM, past the number of tasks the kernel can count: 255 in all,
+or 127 with the soft kernel, whose optional instances add the number of tasks to their
+priority. The soft and power-aware kernels also refuse a negative `wcet` or one past the
+deadline, a task that could never meet it. The first instance of every task arrives when
+the kernel starts. There is no offset.
 
 ### Soft kernel
 
@@ -189,8 +189,7 @@ refuses a `wcet` that would take the whole processor. Both kernels refuse a nega
 
 `Escapement_TimerEvent` signals an event after a delay. `main` calls
 `OSInitTimerEvent(nodes, priority, OS_IO_TIMER_2)`, which returns `FALSE` for no node or
-short memory (since 2026-09-29; it returned nothing and wrote past an empty block); a
-task then calls
+short memory; a task then calls
 `OSScheduleTimerEvent(event, delay, OS_IO_TIMER_2)`, and `OSUnScheduleTimerEvent` takes a
 pending one back. `TestTimerEventPico` raises a pin every 5 ms and has an event-driven
 task lower it 1 ms later.
@@ -255,12 +254,11 @@ assumes preemptions that nest. Slot buffers are the exception, when read with
 the Cortex-M0+ emulates for one core only.
 
 The 4-slot buffer works between the two cores of the Pico, as `FourSlotCoresPico` shows
-on the board (`rp2040.md`), and between those of the Pico 2 under Renode. On the Pico 2
-the 3-slot buffer should work too, since the port makes `LDREX`/`STREX` see both cores.
-Its model says so, and a Pico 2 showed it on 2026-09-28: 30 runs of `ThreeSlotCoresPico2`,
-none torn (`architecture.md`). Between the cores
-the buffer takes no event: signalled from core 1, it would pend the kernel's interrupt
-on core 1, where no kernel runs.
+on the board (`rp2040.md`). Both slot buffers work between those of the Pico 2, since
+the port makes `LDREX`/`STREX` see both cores: their models say so, and so did a Pico 2
+on 2026-09-28, 30 runs of `ThreeSlotCoresPico2` none torn (`architecture.md`). Between
+the cores the buffer takes no event: signalled from core 1, it would pend the kernel's
+interrupt on core 1, where no kernel runs.
 
 ### A queue between the cores, on the Pico 2
 
@@ -321,7 +319,9 @@ or a slot buffer, and signals the task that does the rest.
 `OSMalloc(size)` allocates for good, and only before `OSStartMultitasking`. It draws
 from `OSMALLOC_INTERNAL_HEAP_SIZE` bytes set in `Escapement_Config.h`, and the queues,
 buffers, events and tasks take their memory from it. The stack takes all the RAM left.
-There is no `free` and no C library: the code is built freestanding.
+On the Cortex-M33 a stack that reaches the globals faults (MSPLIM, since 2026-10-04); on
+the Cortex-M0+ it overwrites them unseen. There is no `free` and no C library: the code
+is built freestanding.
 
 ## On the Pico
 
@@ -351,8 +351,9 @@ There is no `free` and no C library: the code is built freestanding.
 The Pico 2 takes the same calls, under `RP2350/Examples/pico2`, with its core at
 150 MHz. The power-aware kernel is not ported to it. A Pico 2 on the bench has run the
 six examples that count in memory at each commit since 2026-09-28, and the periods of
-the two that toggle outputs were read on a frequency counter on 2026-09-29; the UART
-echo has run under Renode only (`architecture.md`).
+the two that toggle outputs were read on a frequency counter on 2026-09-29. The UART
+echo and two tasks sending at once have been checked there too since 2026-09-30
+(`tools/board_ci.md`).
 
 ## On the Arduino UNO Q
 

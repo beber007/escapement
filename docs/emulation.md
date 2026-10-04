@@ -6,11 +6,11 @@ chip has its own suite of Robot Framework tests, which the CI replays on each pu
 Emulation shows that the kernel schedules and drives the registers in the right order.
 It says nothing of energy; the board and an instrument decide that.
 
-| Chip | Platform | Renode | Suite, tests on 2026-09-27 | Builds in the CI |
+| Chip | Platform | Renode | Suite, tests on 2026-10-05 | Builds in the CI |
 |---|---|---|---|---:|
-| RP2040 (Pico) | matgla/Renode_RP2040, with a fixed timer | 1.16.1, `linux-dotnet` | `escapement_pico.robot`, 8 | 11 |
-| RP2350 (Pico 2) | our own, `escapement_pico2.repl` | 1.17.0, portable | `escapement_pico2.robot`, 10 | 4, and 1 under GCC 14.2 |
-| STM32U585 (UNO Q) | our own, `escapement_u5.repl` | 1.17.0, portable | `escapement_u5.robot`, 11 | 4 |
+| RP2040 (Pico) | matgla/Renode_RP2040, with a fixed timer | 1.16.1, `linux-dotnet` | `escapement_pico.robot`, 10 | 11 |
+| RP2350 (Pico 2) | our own, `escapement_pico2.repl` | 1.17.0, portable | `escapement_pico2.robot`, 12 | 4, and 1 under GCC 14.2 |
+| STM32U585 (UNO Q) | our own, `escapement_u5.repl` | 1.17.0, portable | `escapement_u5.robot`, 23 | 4 |
 
 The RP2350 and STM32U5 suites run on a Mac as well as in the CI:
 
@@ -331,4 +331,7 @@ The eleventh, the same day, runs the endurance test built for the NUCLEO-U575ZI-
 reads its reports on USART1; built to report on LPUART1 as on the UNO Q, the image fails
 it. The twelfth, on 2026-09-29, has the idle task sleep in Stop 2 while an event-driven
 task's arrival lies beyond the wrap (`Stop2EventWrapU5`); before the fix it found, TIM2
-lost 1.5 ms of the period across the wrap (`stm32u5.md`).
+lost 1.5 ms of the period across the wrap (`stm32u5.md`). Those since cover the
+wake-up from Stop 2 with and without the HSE, LPUART1 through Stop 2, `SleepU5` run from
+the NUCLEO's flash and the erratum of the MSI PLL: 23 tests on 2026-10-05. The platform
+does not model MSPLIM, so `StackGuardU5` runs on the board only.

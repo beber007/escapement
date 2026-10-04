@@ -87,7 +87,7 @@ run for linearizability. The slot-buffer models explore every interleaving of a 
 with its reader, the writer being an interrupt handler or code on the other core. They
 check the properties Rushby model-checked for Simpson's algorithm: no read mixes two
 records, and none goes backwards. Between two cores, each core is also free to reorder
-its accesses. The models found four defects, now fixed (`method.md`).
+its accesses. The models found six defects, now fixed (`method.md`).
 
 ### Across the two cores
 
@@ -147,11 +147,12 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
   `Escapement/CORTEX-Mx/RP2350/`. It was transposed from the RP2040 port on 2026-09-24:
   the clocks at 150 MHz, TIMER0 with its tick from the TICKS block, 52 interrupts, the
   pads released from their isolation, the UART, the timer events and the launch of
-  core 1. The hard and the soft kernel build ten examples under `pico2/` in the CI. They
-  are the seven of the Pico that are not benches, plus `ThreeSlotCoresPico2`,
-  `FIFOCoresPico2` and `LitmusPico2`. All ten run under Renode on a platform of our own (`emulation.md`),
+  core 1. The hard and the soft kernel build the examples under `pico2/` in the CI: those
+  of the Pico that are not benches, plus `ThreeSlotCoresPico2`, `FIFOCoresPico2` and
+  `LitmusPico2`. They run under Renode on a platform of our own (`emulation.md`),
   including the 2^30 wrap of the kernel clock, both slot buffers between the two cores
-  and the queue between them. That shows that they schedule, not that the clocks are
+  and the queue between them; `IdlePico2`, `SleepPico2` and `StackGuardPico2` are for
+  the board only. That shows that they schedule, not that the clocks are
   programmed right. A Pico 2 did on 2026-09-28: the frequency counter gave clk_sys
   150,000 kHz on the PLL, clk_ref and clk_peri 12,000 kHz on the crystal. On it the six
   examples that count in memory pass the criteria of the Renode suite
@@ -190,9 +191,10 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
   the RP2350 port. The clocks run at 160 MHz from the board's 16 MHz crystal. TIM2 serves
   the kernel and TIM5 the timer events. USART1 goes to the connector and LPUART1 to the
   board's Linux. An idle task can sleep in Stop 2, woken by LPTIM1. The hard and the soft
-  kernel build ten images under `uno-q/`, two of them for the wrap under Renode:
-  `SleepWrapU5`, which is `SleepU5` with its times scaled, and `Stop2EventWrapU5`. They run from SRAM and leave Arduino's firmware
-  in the flash. All ten run under Renode on a platform of our own. The board has run `TaskLEDU5` and the
+  kernel build the images under `uno-q/`, two of them for the wrap under Renode:
+  `SleepWrapU5`, which is `SleepU5` with its times scaled, and `Stop2EventWrapU5`. They
+  run from SRAM and leave Arduino's firmware in the flash. All but `StackGuardU5` run
+  under Renode on a platform of our own. The board has run `TaskLEDU5` and the
   endurance test since 2026-09-26, the latter for hours (`stm32u5.md`). The same sources
   build `SleepU5` for a NUCLEO-U575ZI-Q, to measure the MCU's current, and the endurance
   test, which has run on that board since 2026-09-28 (`tools/board_ci.md`); `SleepU5`
@@ -200,7 +202,10 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
 - **ARM Cortex-M33** (ARMv8-M Mainline): the generic layer takes it down the
   Cortex-M3/M4 path under `CORTEX_M33`. The registers to save are the same, and so is
   the frame with the floating-point unit left off, and `LDREX`/`STREX`/`CLREX`. It is
-  built without the floating-point unit (`-mcpu=cortex-m33+nofp`). The errata of the
+  built without the floating-point unit (`-mcpu=cortex-m33+nofp`). Since 2026-10-04 the
+  port sets MSPLIM to the end of the globals: a stack that grows into them faults
+  instead of overwriting them, as a Pico 2 and the UNO Q showed (`StackGuardPico2`,
+  `StackGuardU5`, roadmap item 7). The errata of the
   core itself were read on 2026-09-26. Arm's notice (SDEN-756493, v9.0, April 2018)
   leaves only 1080541 open in r0p4, the STM32U585's core, and that one concerns the MPU,
   which the port does not use. The errata of the context switch, 851802, 937163 and
@@ -210,9 +215,7 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
 - **ARM Cortex-M0 / M3 / M4**: the generic layer under `Escapement/CORTEX-Mx/`. The
   Cortex-M33 takes its Cortex-M3/M4 path. The STM32 ports it served were removed one
   after the other:
-  - the F0, F1 and F2 on 2026-09-20. Their examples had only ever been compiled, and the
-    project demonstrates what the kernel does rather than list the parts it could run
-    on;
+  - the F0, F1 and F2 on 2026-09-20. Their examples had only ever been compiled;
   - the L1 on 2026-09-22, with its DVFS driver, once the Pico ran every test it ran;
   - the F4 on 2026-09-26. It had been kept for the Cortex-M3/M4 path, which the RP2350
     and the STM32U5 now take; the STM32U5 is checked on its board at each commit.
@@ -231,16 +234,18 @@ Escapement/
   CORTEX-Mx/                ARM port: generic Cortex-M layer, RP2040, RP2350, STM32U5
   CORTEX-Mx/RP2040/Examples/ the Raspberry Pi Pico examples
   CORTEX-Mx/RP2350/Examples/ the Raspberry Pi Pico 2 examples
-  CORTEX-Mx/STM32U5/Examples/ the Arduino UNO Q examples, and SleepU5 for the
-                            NUCLEO-U575ZI-Q
+  CORTEX-Mx/STM32U5/Examples/ the Arduino UNO Q examples, and SleepU5, SleepU5Flash
+                            and SoakU5 for the NUCLEO-U575ZI-Q
 test/host/                  the three kernels built for the host
 test/model/                 exhaustive models of the lock-free mechanisms
+test/litmus/                the lock-free mechanisms on an Armv8-A host that reorders
 emulation/renode/           Renode platforms, models and Robot suites
 tools/                      trace capture, loading and board checks, endurance tests,
                             the compiled-order check, static analysis, figures
 ci/                         the container image the CI runs in
 .github/workflows/build.yml builds the examples and runs them under Renode on
                             every kernel and algorithm; runs the models, the
-                            kernels on the host, the order check and the static
-                            analysis
+                            kernels on the host with their coverage and the
+                            differential test, the order check and the static
+                            analysis, clang included
 ```

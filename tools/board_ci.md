@@ -1,8 +1,9 @@
 # Checks on the board
 
 `tools/board_ci.sh` runs the board checks on each new commit of `main` and posts the
-outcome to GitHub as commit statuses: `board/pico` for the Pico, and `board/u5` for the
-STM32U5 of the Arduino UNO Q that carries the bench. The checks themselves are listed in
+outcome to GitHub as commit statuses: `board/pico` for the Pico, `board/pico2` for the
+Pico 2, and `board/u5` for the STM32U5 of the Arduino UNO Q that carries the bench. The
+checks themselves are listed in
 [`docs/rp2040.md`](../docs/rp2040.md#checks-on-the-board). This page explains how to
 install the script under systemd on Linux, under launchd on a Mac, and on the UNO Q.
 
@@ -49,12 +50,13 @@ must agree with it.
 
 | Probe or port | Board | Role | Held by |
 |---|---|---|---|
-| probe1 | Pico | the checks of each commit, `board/pico` | `board_ci.sh`, some 10 min a commit |
+| probe1 | Pico | the checks of each commit, `board/pico` | `board_ci.sh`, some 10 min of a check's 20 |
 | probe2 | Pico W | the endurance test, a week per kernel, `board/soak` | `escapement-soak-pico` |
 | probe3 | Pico 2, the probe's UART on GP0 and GP1 | the checks of each commit, `board/pico2` | `board_ci.sh` |
 | STLINK-V3 | NUCLEO-U575ZI-Q | a run until stopped, `board/soak-nucleo` | `escapement-soak-nucleo` |
 | the UNO Q's own SWD | STM32U585 | the checks of each commit, `board/u5`, then a run until the next | `board_ci.sh`, then `escapement-soak-u5` |
-| Bus Pirate v4 | — | none yet; `tools/pico_reset.py` is untried | — |
+| Bus Pirate v4 | — | the frequency counter, read by hand | — |
+| PPK2 | NUCLEO-U575ZI-Q, or a Pico 2 it powers | current, measured by hand (`tools/ppk2_nucleo.py`) | — |
 
 `tools/bench_status.sh` shows on one screen who holds each probe, the board CI, the last
 reading of each endurance run and the statuses of the commits concerned, from the Mac

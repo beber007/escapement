@@ -31,8 +31,8 @@ tools/bench_status.sh                         # the bench on one screen, over SS
 tools/soak_emulated.sh OUT 60 1440 hard::1 soft:KERNEL=SOFT:2   # instances under Renode
 tools/soak_emulated_status.sh OUT [SHA]       # their sum, status emulation/soak
 
-# Pico 2 (RP2350, Cortex-M33) — thirteen examples; no KERNEL=PA yet. Its Renode suite runs
-# on a platform of our own, on the Mac too (Renode 1.17 portable, robotframework 6.1 venv)
+# Pico 2 (RP2350, Cortex-M33) — no KERNEL=PA yet. Its Renode suite runs on a platform of
+# our own, on the Mac too (Renode 1.17 portable, robotframework 6.1 venv)
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
 renode-test emulation/renode/escapement_pico2.robot
 OPENOCD=~/opt/openocd-rpi/bin/openocd PROBE=probe3 tools/pico2_check.py DIR   # on the UNO Q:
@@ -48,7 +48,7 @@ PROBE=probe3 tools/pico2_sleep_load.sh --wake 285     # SleepPico2: WFI, SLEEP, 
 make SLEEP_GATE=1 -C ...pico2                  # IdlePico2's idle task in SLEEP, PLL_SYS stopped
                                               # (roadmap item 5); loaded as SleepPico2 is
 
-# STM32U5 (Arduino UNO Q, STM32U585, Cortex-M33) — eight examples, run from SRAM, which
+# STM32U5 (Arduino UNO Q, STM32U585, Cortex-M33) — examples run from SRAM, which
 # leaves Arduino's firmware in the flash; its Renode suite runs on a platform of our own
 # as for the Pico 2 (docs/stm32u5.md); no KERNEL=PA
 make -C Escapement/CORTEX-Mx/STM32U5/Examples/uno-q
@@ -110,8 +110,9 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
 
 ## Before a commit
 
-- Host tests, the three models, the encoding check, the static analysis, and every Pico,
-  Pico 2 and STM32U5 variant still build.
+- Host tests, `coverage.py`, `differential.py`, the four models, the encoding check, the
+  static analysis (cppcheck, `-fanalyzer`, clang), and every Pico, Pico 2 and STM32U5
+  variant still build.
 - A change meant to leave a build alone (comments, an option off by default) must leave
   its images byte for byte identical: compare `arm-none-eabi-objcopy -O binary` outputs
   against those of `main`.

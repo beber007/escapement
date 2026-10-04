@@ -47,9 +47,6 @@ each at the commit that published it, the earlier figures come out byte for byte
 | 2026-09-26 | ff4fd7b | | | 5,596 / 8 / 640 |
 | 2026-09-27 | bf447b8 | 4,716 / 8 / 240 | 4,324 / 8 / 344 | 5,656 / 8 / 648 |
 
-The kernel has shrunk since 2026-09-25, and the STM32U5 port has grown since
-2026-09-26.
-
 ## Build options
 
 The hard kernel under EDF is the default everywhere. The other kernels and algorithms
@@ -67,6 +64,9 @@ are chosen on the command line (`architecture.md`):
 | `PHASES=30` | `uno-q`, `nucleo-u575` | `SleepU5` alternates 30 s in Stop 2 and 30 s in Sleep |
 | `SMPS=1` | `nucleo-u575` | the STM32U575's SMPS rather than its LDO |
 
+Other options, for the bench alone (`SLEEP_GATE`, `NOHSE`, `MHZ` and more), are
+commented in each Makefile.
+
 `make KERNEL=PA bench` builds the two benches of the Pico, `BenchDVFSPico` and
 `BenchVregPico`. `make bin` adds raw binaries of the examples.
 
@@ -77,19 +77,18 @@ virtual COM port (`tools/board_ci.md`).
 
 ## On hardware and under emulation
 
-> **The RP2040 and STM32U5 ports have run on hardware.** On the RP2040 (`rp2040.md`),
-> that covers all three kernels, the DVFS driver, the timer events, and the 4-slot
-> buffer between the cores. The wrap of the kernel clock has been seen there under
-> emulation alone, and the core below its specified voltage only by the regulator bench.
-> The STM32U5 has run on the Arduino UNO Q since 2026-09-26 (`stm32u5.md`): the clock
-> set-up, `TaskLEDU5`, and the endurance test for hours. The Pico 2 port has run under
-> Renode only. Every example runs under Renode in the CI except three:
-> `FourSlotCoresPico`, which only the board runs, and the two benches of the Pico.
+> **All three ports have run on hardware**, and a bench checks each at every commit
+> (`tools/board_ci.md`). The core of the RP2040 below its specified voltage has been
+> seen only by the regulator bench (`rp2040.md`). Every example runs under Renode in
+> the CI except those made for a board: `FourSlotCoresPico` and the two benches of the
+> Pico, `IdlePico2`, `SleepPico2` and `StackGuardPico2`, and `StackGuardU5`
+> (`architecture.md`).
 
-Nothing is written to the flash. The images of the Pico are loaded into SRAM over SWD
-with OpenOCD (`rp2040.md`). Those of the STM32U5 are loaded into SRAM too, by
-`tools/unoq_load.sh` and the OpenOCD of the UNO Q, which drives the MCU's SWD from the
-board's Linux processor (`stm32u5.md`).
+The images run from SRAM, loaded over SWD with OpenOCD: those of the Pico and the
+Pico 2 by a Debug Probe (`rp2040.md`), those of the STM32U5 by `tools/unoq_load.sh` and
+the OpenOCD of the UNO Q, which drives the MCU's SWD from the board's Linux processor
+(`stm32u5.md`). Only `SleepU5Flash` is written to a flash, the NUCLEO's, to measure the
+current without a debugger attached.
 
 ## Host tests and models
 
@@ -98,5 +97,7 @@ in Python. Neither needs the ARM toolchain:
 
 ```sh
 make -C test/host run                # every kernel and algorithm, see test/host/README.md
+python3 tools/coverage.py            # the lines and branches it runs (clang)
+python3 tools/differential.py        # random task sets, each trace checked
 python3 test/model/fourslot.py       # and threeslot.py, fifo.py, fifo_mp.py
 ```
