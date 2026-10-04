@@ -49,12 +49,27 @@ void HostUnmask(void);
 #define _OSEnableInterrupts()           HostUnmask()
 #define _OSDisableInterrupts()          (HostMasked = 1)
 #define _OSSleep()                      ((void)0)
+#ifndef HOST_LITMUS
 #define _OSMemoryBarrier()              do { __asm volatile ("" ::: "memory"); \
                                              if (HostBarrierHook) HostBarrierHook(); } while (0)
+#else
+/* The litmus bench (test/litmus) runs the kernel's code on two threads of a weakly
+** ordered Armv8-A host: the barrier is a DMB ISH, but the one on the line SKIP_BARRIER,
+** which only the compiler keeps; it adds no access to memory, which between an LDXR and
+** its STXR would clear the reservation. */
+#ifndef SKIP_BARRIER
+   #define SKIP_BARRIER 0
+#endif
+#define _OSMemoryBarrier()              do { if (__LINE__ != SKIP_BARRIER) \
+                                                __asm volatile ("dmb ish" ::: "memory"); \
+                                             else \
+                                                __asm volatile ("" ::: "memory"); } while (0)
+#endif
 
 /* The assembler context switch, and the offsets it assumes, do not exist here. */
 #define OSCheckTCBLayout() struct OSCheckTCBLayoutNotApplicable
 
+#ifndef HOST_LITMUS
 /* Load-linked / store-conditional pairs. The kernel builds its queues with them; on the
 ** host, nothing preempts, so a reservation is lost only when a test sets HostFailingSC. */
 UINT8  OSUINT8_LL(UINT8 *addr);
@@ -69,6 +84,26 @@ INT32  OSINT32_LL(INT32 *addr);
 BOOL   OSINT32_SC(INT32 *addr, INT32 value);
 UINTPTR OSUINTPTR_LL(UINTPTR *addr);
 BOOL   OSUINTPTR_SC(UINTPTR *addr, UINTPTR value);
+#else
+/* For the litmus bench, the exclusive load and store of AArch64, inline so that nothing
+** stands between them but what the kernel's code puts there. */
+#define HOST_EXCLUSIVE(name, type, w, b) \
+   static inline type name##_LL(type *addr) \
+   { type value; \
+     __asm volatile ("ldxr" b " %" w "0, [%1]" : "=r" (value) : "r" (addr) : "memory"); \
+     return value; } \
+   static inline BOOL name##_SC(type *addr, type value) \
+   { UINT32 failed; \
+     __asm volatile ("stxr" b " %w0, %" w "2, [%1]" : "=&r" (failed) : "r" (addr), \
+                     "r" (value) : "memory"); \
+     return failed == 0; }
+HOST_EXCLUSIVE(OSUINT8, UINT8, "w", "b")
+HOST_EXCLUSIVE(OSUINT16, UINT16, "w", "h")
+HOST_EXCLUSIVE(OSINT16, INT16, "w", "h")
+HOST_EXCLUSIVE(OSUINT32, UINT32, "w", "")
+HOST_EXCLUSIVE(OSINT32, INT32, "w", "")
+HOST_EXCLUSIVE(OSUINTPTR, UINTPTR, "x", "")
+#endif
 
 /* Operating points of the power-aware kernel, those of the RP2040: the kernel picks one
 ** from the work left and the time until the next arrival, and the host only records it,

@@ -327,6 +327,23 @@ the bench does not catch are no less needed: `fifo_mp.py` finds each one's run a
 the architecture, and this processor does not happen to take it. The bench stands for a
 processor that reorders, not for a Cortex-M, none of which is known to reorder as far.
 
+The kernel's 3-slot buffer went on the same bench the same day (`test/litmus/slots.c`).
+`EscapementHard.c` is compiled as it stands, through the host port of `test/host` built
+with `HOST_LITMUS`: its barriers are a `DMB ISH`, its LL and SC an LDXRB and an STXRB.
+A writer writes items of 16 bytes, a number and a check word, and a reader copies the
+latest out. A slot written while it is read, or named before it is filled, comes out
+torn or short, and the numbers read must never go backwards.
+
+| Run, 2026-10-04 | Result |
+|---|---|
+| The buffer, its five barriers, 4 runs of 5 to 20 million items | 0 errors, some 64 million reads in 5 s |
+| Without the barrier before `Latest` is written | caught in 5 runs of 5: a slot read short |
+| Without the one before the reader's LL of `Reading` | caught in 5 runs of 5: a torn slot |
+| Without the one after `Latest`, the one before `Status`, or the one before `Reading = 3` | caught in none of 5 runs each |
+
+The two caught are the two the model gives the plainest reason for: the slot filled
+before it is named, and the reader's request seen before it reads the slot.
+
 The first version of the bench had a fault of its own. In place of the barrier it left
 out, it counted the passes with an atomic add. Between an LDXR and its STXR, that
 exclusive access cleared the reservation, so every SC failed and the mutant without the

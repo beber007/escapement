@@ -161,6 +161,7 @@ void HostUnmask(void)
   }
 }
 
+#ifndef HOST_LITMUS          /* the litmus bench takes the exclusives of AArch64 */
 /* Atomics. Single threaded and never preempted here, so a reservation holds — unless a
 ** test sets HostFailingSC to make that many store-conditionals fail, as an interrupt
 ** between the LL and the SC does on the target. */
@@ -197,6 +198,7 @@ INT32  OSINT32_LL(INT32 *a)   { INT32 value; LL(a); }
 BOOL   OSINT32_SC(INT32 *a, INT32 v)   { SC(a, v); }
 UINTPTR OSUINTPTR_LL(UINTPTR *a) { UINTPTR value; LL(a); }
 BOOL   OSUINTPTR_SC(UINTPTR *a, UINTPTR v) { SC(a, v); }
+#endif
 
 
 #ifdef ESCAPEMENT_VERSION_HARD_PA
