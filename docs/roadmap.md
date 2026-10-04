@@ -323,11 +323,16 @@ kernel is planned for it. The **STM32L4** is set aside.
    the globals, with nothing between them; ZottaOS's comment said an overflow corrupted
    nothing. Since 2026-10-04 the Cortex-M33 ports set MSPLIM at the end of the globals
    (`_OSResetHandler`), which the Renode suites of the Pico 2 and of the STM32U5 still
-   pass. Renode does not model MSPLIM, so that the limit holds is for the board to show:
-   `StackGuardPico2` overflows the stack on purpose and must end in the HardFault
-   handler, STKOF set in the CFSR, the globals untouched; the same on the STM32U5. Then
-   the Cortex-M0+ of the RP2040, which has no stack limit: a region of its MPU, no access,
-   just above the globals.
+   pass. Renode does not model MSPLIM, so that the limit holds is for the board to show.
+   On the Pico 2 it did, on 2026-10-04, `StackGuardPico2` loaded on probe3 from the Mac
+   over the gateway: with the limit, the core in its HardFault handler, CFSR 0x00100000
+   (STKOF) and HFSR FORCED, the main stack pointer stopped at 0x20001600 above the end of
+   the globals at 0x20001210, 513 levels deep; built without it, the stack went three
+   levels further, to 0x20000a24, through the globals and into the image's code, which
+   runs from SRAM below them, and the core was lost at 0x20000fce with no fault recorded.
+   `Sentinel` read 0xA5A5A5A5 both times, under Renode too: it is no witness, the stack
+   pointer is. Left: the same on the STM32U5, then the Cortex-M0+ of the RP2040, which has
+   no stack limit: a region of its MPU, no access, just above the globals.
 
 ## Done
 
