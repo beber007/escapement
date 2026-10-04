@@ -2,9 +2,11 @@
 ** Escapement - Lightweight Power-Aware Real-Time OS.
 ** Distributed under the terms of LICENSE at the root of this repository.
 */
-/* File slots.c: The kernel's 3-slot buffer (OSWriteBuffer and GetReadyBuffer3Slot, in
-** EscapementHard.c, after Chen and Burns, 1997) between two threads of a weakly ordered
-** Armv8-A host, as litmus.c runs the queue between the cores. The kernel is compiled as
+/* File slots.c: The kernel's slot buffers between two threads of a weakly ordered
+** Armv8-A host, as litmus.c runs the queue between the cores: the 3-slot buffer
+** (OSWriteBuffer and GetReadyBuffer3Slot, in EscapementHard.c, after Chen and Burns, 1997)
+** and, with -4, the 4-slot one (GetReadyBuffer4Slot, after Simpson, 1990, with no LL or
+** SC: each side writes its own words only). The kernel is compiled as
 ** it stands, with the host port of test/host built for the bench (HOST_LITMUS): its DMBs
 ** are DMB ISH, its LL and SC LDXRB and STXRB.
 **
@@ -14,9 +16,9 @@
 ** slot the writer wrote while it was read comes out torn, its check wrong or its length
 ** short; a slot named before it was filled comes out with an older number or a torn one;
 ** and the numbers read must never go backwards. These are the three properties
-** test/model/threeslot.py checks in every interleaving.
+** test/model/threeslot.py and fourslot.py check in every interleaving.
 **
-**   slots [-p PAIRS] [-n ITEMS]
+**   slots [-4] [-p PAIRS] [-n ITEMS]
 */
 
 #include <pthread.h>
@@ -112,21 +114,23 @@ static void *Reader(void *arg)
 
 int main(int argc, char **argv)
 {
-  int pairs = 2, opt;
+  int pairs = 2, slots = 3, opt;
   uint64_t items = 20000000;
-  while ((opt = getopt(argc,argv,"p:n:")) != -1)
+  while ((opt = getopt(argc,argv,"4p:n:")) != -1)
      switch (opt) {
+     case '4': slots = 4; break;
      case 'p': pairs = atoi(optarg); break;
      case 'n': items = strtoull(optarg,NULL,0); break;
      default:
-        fprintf(stderr,"usage: %s [-p PAIRS] [-n ITEMS]\n",argv[0]);
+        fprintf(stderr,"usage: %s [-4] [-p PAIRS] [-n ITEMS]\n",argv[0]);
         return 2;
      }
   PAIR *p = calloc(pairs,sizeof *p);
   pthread_t *t = calloc(2 * pairs,sizeof *t);
   double start = Now();
   for (int i = 0; i < pairs; i++) {
-     p[i].Buffer = OSInitBuffer(SIZE,OS_BUFFER_TYPE_3_SLOT,NULL);
+     p[i].Buffer = OSInitBuffer(SIZE,slots == 3 ? OS_BUFFER_TYPE_3_SLOT
+                                                : OS_BUFFER_TYPE_4_SLOT,NULL);
      p[i].Items = items;
      pthread_create(&t[2 * i],NULL,Writer,&p[i]);
      pthread_create(&t[2 * i + 1],NULL,Reader,&p[i]);
@@ -149,7 +153,7 @@ int main(int argc, char **argv)
            still[i] = Now();
         }
         else if (Now() - still[i] > 10) {
-           printf("  3-slot buffer, pair %d stuck at item %llu: no progress for 10 s\n",i,
+           printf("  %d-slot buffer, pair %d stuck at item %llu: no progress for 10 s\n",slots,i,
                   (unsigned long long)w);
            fflush(stdout);
            _exit(1);
@@ -163,8 +167,8 @@ int main(int argc, char **argv)
      errors += p[i].Errors;
      reads += p[i].Reads;
   }
-  printf("  3-slot buffer (SKIP_BARRIER=%d), %d pairs of threads, %llu items written each, "
-         "%lu read: %lu errors (%.0f s)\n",SKIP_BARRIER,pairs,(unsigned long long)items,reads,
+  printf("  %d-slot buffer (SKIP_BARRIER=%d), %d pairs of threads, %llu items written each, "
+         "%lu read: %lu errors (%.0f s)\n",slots,SKIP_BARRIER,pairs,(unsigned long long)items,reads,
          errors,Now() - start);
   return errors != 0;
 }

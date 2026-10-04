@@ -344,6 +344,22 @@ torn or short, and the numbers read must never go backwards.
 The two caught are the two the model gives the plainest reason for: the slot filled
 before it is named, and the reader's request seen before it reads the slot.
 
+The 4-slot buffer went on it next (`slots.c -4`), with no LL or SC: each side writes
+only words of its own.
+
+| Run, 2026-10-04 | Result |
+|---|---|
+| The buffer, its five barriers, 4 runs of 5 to 20 million items | 0 errors, some 56 million reads in 4 s |
+| Without the barrier before the writer names its slot in `Index` | caught in 5 runs of 5: a slot read short |
+| Without the one before it names the pair in `Latest` | caught in 5 runs of 5: a slot read short |
+| Without the one before the reader takes the slot from `Index` | caught in 5 runs of 5: a slot read short |
+| Without the one before `Status`, or the one before the reader names its pair in `Reading` | caught in none of 5 runs each |
+
+Of the three structures, the 4-slot buffer shows the most of its barriers needed on
+this processor, three of five, against two of five for the 3-slot buffer and two of
+seven for the queue. The barrier before `Status`, common to both buffers, is never
+caught: it matters only for the first item, which the bench reads among millions.
+
 The first version of the bench had a fault of its own. In place of the barrier it left
 out, it counted the passes with an atomic add. Between an LDXR and its STXR, that
 exclusive access cleared the reservation, so every SC failed and the mutant without the

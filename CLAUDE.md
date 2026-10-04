@@ -79,9 +79,9 @@ python3 test/model/threeslot.py      # ~1 min, up to 1.2 GB; --jobs N in paralle
 python3 test/model/fifo.py           # ~35 s
 python3 test/model/fifo_mp.py        # the queue between the cores, ~100 s, 2.3 GB
 
-# The queue between the cores and the 3-slot buffer on a processor that reorders: an
-# Armv8-A host, the Mac (test/litmus, docs/method.md); each with its barriers, then
-# without each, ~45 s; test/host builds the kernel for it with HOST_LITMUS
+# The queue between the cores and the 3- and 4-slot buffers on a processor that reorders:
+# an Armv8-A host, the Mac (test/litmus, docs/method.md); each with its barriers, then
+# without each, ~1 min; test/host builds the kernel for it with HOST_LITMUS
 sh test/litmus/run.sh
 
 # The compiled order of the slot buffers and of the queue between the cores against the
