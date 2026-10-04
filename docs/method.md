@@ -187,7 +187,13 @@ Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
 window under-counts by one WCET at most, and random task sets seldom come that close. A
 reference of that test, computed apart and compared decision by decision, would read
-them; it is not written. A quarter of the power-aware kernel's survivors are in the
+them; it is not written. What the test promises is checked instead, since 2026-10-05:
+`tools/differential.py` runs each (m,k)-firm set a second time, tasks taking less than
+their WCET, and simulates from each optional instance admitted the schedule in which
+every instance takes its WCET; the instance must end by its deadline. Kernels made to
+leave out the instance's own WCET, half the mandatory work or the partial instance fail
+it under DM, and hang on the overload guard under EDF. The survivors pass: they
+under-count within what still fits. A quarter of the power-aware kernel's survivors are in the
 choice of speed (`GetProcessorSpeed`, DRA's simulation, DM_SLACK's slack): a mutant that
 picks a faster speed than it needs keeps every deadline, and nothing holds the policies
 to the speeds their papers give. A reference of each policy would.

@@ -91,9 +91,11 @@ def event_driven(takes, workload, signals):
 
 
 def draw_firm(rng, deadline_monotonic):
-    """(m,k)-firm tasks taking their WCET, whose mandatory instances the algorithm
-    schedules, where all their instances together would overload the processor: the
-    kernel must drop optional ones, and admit only those that fit. The mandatory instances
+    """(m,k)-firm tasks, whose mandatory instances the algorithm schedules, where all their
+    instances together would overload the processor: the kernel must drop optional ones,
+    and admit only those that fit. Each task takes its WCET, so that an optional instance
+    wrongly admitted misses its deadline in the run; main() runs each set again with tasks
+    taking less, where worst_case_end() checks each one admitted. The mandatory instances
     of a task come at least floor(k/m) periods apart, which the tests take for their
     period, their deadline staying the period; the declared load of every instance, often
     past 1, forces drops."""
@@ -240,13 +242,53 @@ def run(build, tasks):
     return done.stdout
 
 
+def worst_case_end(tasks, jobs, todo, i, target, t, dm):
+    """When the optional instance target of task i, starting at t, would end were every
+    instance to take its WCET: the instances pending at t, mandatory or optional and
+    started, their WCET less the work they received; every mandatory instance released
+    before its deadline; and the instance itself, which loses every tie. Optional instances
+    not yet started never delay it: the kernel considers one only when no other instance
+    waits (EDF), or behind the instances promoted to their base priority (DM). Event-driven
+    tasks are left out, as their worst case is the kernel's reservation, not a schedule."""
+    ready = []                                    # [release, key, ticks left, target]
+    for j, pending in jobs.items():
+        for job in pending:
+            if job is target:
+                continue
+            if not job[4] or job[5]:
+                received = tasks[j]["takes"] * 256 - job[3]
+                left = -(-(tasks[j]["wcet"] * 256 - received) // 256)
+                if left > 0:
+                    ready.append([job[0], job[2], left, False])
+    for j, r, _, key, optional in todo:
+        if r < target[1] and not optional:
+            ready.append([r, key, tasks[j]["wcet"], False])
+    ready.append([t, target[2], tasks[i]["wcet"], True])
+    now = t
+    while True:
+        released = [x for x in ready if x[0] <= now]
+        if not released:
+            now = min(x[0] for x in ready)
+            continue
+        run = min(released, key=lambda x: (x[1], x[3]))
+        later = [x[0] for x in ready if x[0] > now]
+        step = min([run[2]] + [r - now for r in later])
+        run[2] -= step
+        now += step
+        if run[2] == 0:
+            if run[3]:
+                return now
+            ready.remove(run)
+
+
 def check(build, tasks, trace):
     """Raises Failure at the first point the trace breaks the algorithm."""
     dm = build in DEADLINE_MONOTONIC
     power_aware = build.startswith("pa_")
     todo = instances(tasks, dm)                   # not yet released, in release order
-    # pending: [release, deadline, key, work, optional, started]; an optional instance of an
-    # (m,k)-firm task may be dropped, and is not waited for until it starts
+    # pending: [release, deadline, key, work, optional, started, admissible]; an optional
+    # instance of an (m,k)-firm task may be dropped, and is not waited for until it starts;
+    # admissible, it may have been admitted at an end where nothing else was due
     jobs = {i: [] for i in range(len(tasks))}
     longest = [0] * len(tasks)                    # the longest response seen, per task
 
@@ -255,7 +297,7 @@ def check(build, tasks, trace):
             i, r, d, k, optional = todo.pop(0)
             # An optional instance not started when its task arrives again is dropped.
             jobs[i] = [j for j in jobs[i] if not (j[4] and not j[5])]
-            jobs[i].append([r, d, k, tasks[i]["takes"] * 256, optional, False])
+            jobs[i].append([r, d, k, tasks[i]["takes"] * 256, optional, False, False])
 
     def due(i):
         """The instance of task i that must run: mandatory, or optional and started."""
@@ -291,6 +333,15 @@ def check(build, tasks, trace):
             if pending_end != (t, i):
                 raise Failure("t=%d: task %d ends, expected %s" % (t, i, pending_end))
             pending_end = None
+            # The end is served before a release at the same instant: with no other
+            # instance due, the kernel may admit an optional one there, which that release
+            # then preempts before it has run (admitted below).
+            release_until(t - 1)
+            if not [j for j in waiting() if due(j)[0] < t]:
+                for pending in jobs.values():
+                    for job in pending:
+                        if job[4] and not job[5] and job[0] < t:
+                            job[6] = True
             continue
         if fields[0] == "T":
             if now != int(fields[1]):
@@ -321,9 +372,15 @@ def check(build, tasks, trace):
             # released at this very instant does not count: a task ending at it is served
             # before the timer's release, and may hand over to the optional one first.
             before = [j for j in waiting() if due(j)[0] < t]
-            if before:
+            if before and not job[6]:
                 raise Failure("t=%d: an optional instance of task %d starts while %s must "
                               "run" % (t, i, before))
+            if all(x["kind"] in "PF" for x in tasks):
+                end = worst_case_end(tasks, jobs, todo, i, job, t, dm)
+                if end > job[1]:
+                    raise Failure("t=%d: an optional instance of task %d starts that, every "
+                                  "task taking its WCET, ends at %d, past its deadline %d" %
+                                  (t, i, end, job[1]))
             job[5] = True
         best = min(key(j) for j in waiting())
         if key(i) > best:
@@ -433,6 +490,10 @@ def main():
                 tasks = draw(rng, build in DEADLINE_MONOTONIC)
             try:
                 check(build, tasks, run(build, tasks))
+                if any(t["kind"] == "F" for t in tasks):
+                    light = random.Random("%s-%d-%d" % (build, seed, n))
+                    tasks = [dict(t, takes=light.randint(1, t["wcet"])) for t in tasks]
+                    check(build, tasks, run(build, tasks))
             except (Failure, subprocess.TimeoutExpired) as e:
                 failed += 1
                 print("%s, set %d %s: %s" % (build, n, tasks, e))
