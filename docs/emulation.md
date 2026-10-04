@@ -291,6 +291,15 @@ from there. Core 1, left halted, never took its own: after 5 s of virtual time i
 some 2 million addresses, core 0's a few dozen. The robot empties it after every interval
 (`drop_halted_core_dirty.py`).
 
+With that fix the run was made again from 2026-10-02 at some 07:05, at 1b67f30, on
+pc-bertrand: the hard, the soft, the deadline-monotonic and the power-aware kernel under
+DRA, one instance each. All four ran their day of virtual time, 86,400 s, across 80 wraps
+of the kernel clock, and ended on 2026-10-04 after 53 to 61 hours, every count of the
+firmware at 0 errors to the last of 1,440 readings. The pulse was at most 100 µs late
+under deadline-monotonic scheduling and on time under the three others; the timer events
+at most 90 to 92 µs late, 190 under DRA. Some 255 KB of stack were never used. The
+status `emulation/soak` of 1b67f30 says so.
+
 ## A platform of our own for the STM32U5
 
 Renode models no STM32U5 either (checked 2026-09-25: no platform in 1.17.0, nor in the

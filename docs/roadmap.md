@@ -48,8 +48,9 @@ kernel is planned for it. The **STM32L4** is set aside.
    error and no overrun, then was moved on 2026-09-30 at 20:46 UTC to 7d069ea, whose PLL1
    takes the MSIS of range 2 without an HSE: 10 h 45 min across 36 wraps on 2026-10-01 at
    07:30 UTC, no error and no overrun. That board has its HSE, found on 2026-10-02, so the
-   run did not go through the MSIS. Instances under Renode, each with its own build and seed, are
-   not started.
+   run did not go through the MSIS. Four instances under Renode, each with its own build and seed,
+   the hard, soft, deadline-monotonic and DRA kernels, ran a day of virtual time each at
+   1b67f30, 80 wraps, and ended on 2026-10-04 with no error (`emulation.md`).
 
 1. **The energy verdict on the RP2040.** Build the bench of `power-aware.md`: a plain Pico
    rather than a Pico W, powered and measured by a Power Profiler Kit II, chosen on
