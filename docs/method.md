@@ -130,6 +130,33 @@ fallback, and every example selects EDF. All three emulation suites still pass. 
 test also checks that no deadline is missed, a check that could not be written while
 the field it reads did not exist.
 
+## What the README claims, and what checks it
+
+That lesson, a claim no test reads is not checked, was applied to the README on
+2026-10-04: each claim it makes about behaviour, set against what reads it in the
+behaviour, a test, a model, the board or an instrument.
+
+| Claim | What reads it | Found |
+|---|---|---|
+| Scheduling by EDF or DM | the host test's view of the task control block; `tools/differential.py`, each trace checked against the algorithm of its build | holds |
+| No periodic tick: the timer interrupts at a release only | nothing on the host; on the U5, the idle task's 454,487 Stop 2 in three hours, which a tick would have cut short | to add: the trace's timer interrupts set against the releases |
+| The power-aware kernel slows down only as far as every deadline holds | `tools/differential.py` under its five policies, with kernels made to run too slow; the host test's speeds | holds |
+| Overload drops chosen (m,k)-firm instances, not deadlines at random | the host test's `firm` runs, `firmoverload*` | holds |
+| The queues take no lock | `docs/architecture.md` | **false since 2026-09-25**: `OSSuspendSynchronousTask` masks interrupts around the enqueue of a task on its event. The README now says so |
+| The queue between the cores went from fifteen barriers to six | the model `fifo_mp.py` | **stale**: seven since 2026-09-29 |
+| The models found four bugs | `docs/method.md`, "Hypotheses that were wrong" | **stale**: six, two of them in the queue between the cores |
+| Two boards checked at each commit | `tools/board_ci.md` | **stale**: three, the Pico 2 since 2026-09-30 |
+| 87 to 90 % of each kernel's lines run | `tools/coverage.py` | **stale**: every line runs or is excluded with its reason, 90.5 % of the branches |
+| How much current Stop 2 saves is not measured | `docs/stm32u5.md` | **stale**: measured on 2026-10-03 with a PPK2 |
+| Whether DVFS saves energy is not settled | `docs/roadmap.md`, items 3 and 4 | **stale**: settled against it on the U5, some 10 % at best on the RP2350; open on the RP2040 |
+| The program shown is a whole program for the Pico | nothing | to add: build it in CI |
+| Responses stay under the bound of the analysis | `tools/response_times.py` on the traces in `docs/data` | holds, and since 2026-10-04 under EDF too |
+| The figures: 4,716 bytes, 3.2 µs, +28 ppm, 108,000 activations | each dated, with its source | measurements of a day, not claims about every build |
+
+Six claims had gone stale as the work moved on, one had become false, and two were read
+by nothing. The README was corrected the same day; the two checks wait for the mutation
+run of the kernels, which builds the host test, to end.
+
 ## What this changes in the repository
 
 The CI runs the kernel, under Renode and on the host, besides building it. That is how

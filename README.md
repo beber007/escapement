@@ -48,13 +48,16 @@ and slows down only as far as those times still meet every deadline.
 - Lock-free buffers and queues checked over every interleaving by small exhaustive
   models, weak memory ordering included. Each model must also catch deliberately broken
   variants. One of them cut the memory barriers of a queue between two cores from
-  fifteen to six ([`docs/method.md`](docs/method.md)).
+  fifteen to seven, each needed ([`docs/method.md`](docs/method.md)).
 - Voltage and frequency chosen from the declared execution times, traced on real
   silicon ([below](#on-the-silicon), [`docs/power-aware.md`](docs/power-aware.md)).
 - An idle task that puts an STM32U5 into Stop 2 and still keeps the kernel's time to
   the microsecond ([`docs/stm32u5.md`](docs/stm32u5.md)).
-- Two boards tested on every commit by a bench that pulls `main` by itself
-  ([`tools/board_ci.md`](tools/board_ci.md)).
+- Three boards tested on every commit, a Pico, a Pico 2 and an STM32U5, by a bench that
+  pulls `main` by itself ([`tools/board_ci.md`](tools/board_ci.md)).
+- Every line of the kernels run by the host test or excluded with its reason, and the
+  traces of random task sets checked against EDF, DM and the bound of EDF's response
+  time analysis, at each commit ([`docs/method.md`](docs/method.md)).
 
 ## In four figures
 
@@ -130,7 +133,7 @@ right. The host test says the scheduler made the decisions it should have.
 | Level | What it establishes |
 |---|---|
 | Compilation | every example of the three ports built by two compilers at each push to `main` |
-| The scheduler alone | every kernel and algorithm run on the host under AddressSanitizer, 87 to 90 % of each kernel's lines |
+| The scheduler alone | every kernel and algorithm run on the host under AddressSanitizer: every line run or excluded with its reason, 90.5 % of the branches, and random task sets checked against the algorithms |
 | Every interleaving | the lock-free buffers and queues explored exhaustively, weak memory included |
 | Replayable execution | the three ports under Renode, as regression tests |
 | Internal state on hardware | the scheduling traced on a running board, and two boards checked at each commit |
@@ -142,7 +145,7 @@ right. The host test says the scheduler made the decisions it should have.
 | Level | Means | What it establishes |
 |---|---|---|
 | Compilation | GitHub Actions, with the developer's GCC and a second one, 14.2 | the examples of the Pico, the Pico 2 and the STM32U5, on each push to `main` and each pull request |
-| The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for — 87 to 90 % of the lines of each kernel |
+| The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for. Every line of the kernels runs or says why it cannot, and 90.5 % of the branches run, a check since 2026-10-04 (`tools/coverage.py`). Random task sets run by each build, every trace checked against EDF or DM and, under EDF, against Spuri's bound (`tools/differential.py`) |
 | Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access, both slot buffers on two cores too, each core free to reorder its accesses as the architecture allows, and the queue of Evéquoz between the cores of the RP2350: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
 | Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the RP2040, the RP2350 and the STM32U5; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after, on the RP2350 both slot buffers between its two cores, and on the STM32U5 the idle task sleeping on its low-power timer and moving the kernel clock on, across the 2^30 wrap too — all as regression tests |
 | Internal state on hardware | OpenOCD and SWD on a Pico; the reports of an STM32U5 to the Linux of its Arduino UNO Q | a trace of the scheduling read without stopping a core: deadlines armed ahead of the counter, timer events delivered on the microsecond, the clock changed by the power-aware kernel; cost counters read back from SRAM; on the U5, an endurance test run for hours with every part checked each second, its causes of reset, and its clock measured against Linux's within some 25 ppm; at each commit, the idle task in Stop 2, every task starting on its period and every timer event and byte from Linux coming through it |
@@ -155,8 +158,10 @@ Read by that counter, the declared periods of 1, 20 and 60 ms give 500.02 Hz,
 under each of the three kernels ([`docs/rp2040.md`](docs/rp2040.md)).
 
 Levels have caught what the earlier ones missed. The host test found the kernel
-scheduling by DM while this page said EDF. The models found four bugs in the
-lock-free code that every test had let through. The stories are in
+scheduling by DM while this page said EDF. The models found six bugs in the
+lock-free code that every test had let through. A test written for a branch the
+coverage showed untaken found an event-driven task released late under DM, a defect
+inherited from ZottaOS. The stories are in
 [`docs/method.md`](docs/method.md).
 
 ## Watch it run
@@ -222,8 +227,11 @@ Tasks declare their worst-case execution time. The kernel uses it to work out ho
 it can slow the core down without putting a deadline at risk, which is what the DRA,
 OTE and DM_SLACK algorithms compute. The power-aware kernel schedules by EDF\*, an EDF
 that breaks ties in a fixed way, so it can predict when each task will finish. Whether
-this actually saves energy is not settled yet
-([`docs/power-aware.md`](docs/power-aware.md)).
+this actually saves energy depends on the chip, and measuring decided it on two
+([`docs/power-aware.md`](docs/power-aware.md), [`docs/roadmap.md`](docs/roadmap.md)). On
+the STM32U5 it does not: a cycle costs least at full speed, and racing to Stop 2 wins at
+every load. On the RP2350, within its specified voltage, some 10 % at best. On the
+RP2040 the verdict is open.
 
 </details>
 
@@ -246,8 +254,8 @@ enters Stop 2. The kernel's timer stops too. On waking, the idle task restarts t
 clocks and moves the kernel's timer forward by what the low-power timer counted. The
 UART to the board's Linux keeps receiving. On the board, every task still starts on
 time to the microsecond and no wake-up has been late
-([`docs/stm32u5.md`](docs/stm32u5.md)). How much current it saves has not been
-measured yet.
+([`docs/stm32u5.md`](docs/stm32u5.md)). Measured on a NUCLEO-U575ZI-Q with a Power
+Profiler Kit II, at 3.3 V on its SMPS: some 7 µA in Stop 2, against 6.2 mA in Sleep.
 
 </details>
 
@@ -256,8 +264,11 @@ measured yet.
 <details>
 <summary>A kernel that takes no lock</summary>
 
-None of the three kernels masks interrupts to protect its queues. They use
-load-linked/store-conditional pairs instead, `LDREX`/`STREX` on the Cortex-M33. The
+The three kernels update their queues with load-linked/store-conditional pairs rather
+than by masking interrupts, `LDREX`/`STREX` on the Cortex-M33. One place masks them: a
+task suspending itself on an event, from its enqueue until it has left the ready queue,
+where the endurance test found a race on 2026-09-25
+([`docs/architecture.md`](docs/architecture.md#synchronisation)). The
 Cortex-M0+ has no such instructions. There the reservation is a flag that every
 context switch and every interrupt clears on the way out, and only the
 store-conditional itself runs with interrupts masked, for a few instructions. No task
@@ -315,10 +326,12 @@ behind on a chip whose SC can also fail for no reason, so the queue retries that
 Each of the three has a model in [`test/model`](test/model), explored exhaustively in
 CI. The models cover the reader and writer of the slot buffers, the queue operations
 preempting each other at every access, and the load-linked/store-conditional pair as
-the Cortex-M0+ emulates it. They found four bugs, all fixed: a 3-slot reader that could
+the Cortex-M0+ emulates it. They found six bugs, all fixed: a 3-slot reader that could
 read past its array, a signal that could wake two tasks, and, between two cores, a
-3-slot writer that could hand the reader the slot it was still writing, and both slot
-buffers without the memory barriers that keep each core's accesses in order. None of
+3-slot writer that could hand the reader the slot it was still writing, both slot
+buffers without the memory barriers that keep each core's accesses in order, and in the
+queue between the cores an index left behind by a store-conditional that fails for no
+reason, and an item lost to a store-conditional seen before the stores after it. None of
 them was in the published algorithms. They came from turning a compare-and-swap into a
 single store-conditional attempt, from what ZottaOS added to Evéquoz's queue, and from
 code written for one core ([`docs/method.md`](docs/method.md)).
