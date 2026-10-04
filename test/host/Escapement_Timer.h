@@ -28,8 +28,6 @@
 #ifndef ESCAPEMENT_TIMER_H
 #define ESCAPEMENT_TIMER_H
 
-#define NonMaskableSoftwareTimer
-
 void _OSInitializeTimer(void);
 void _OSStartTimer(void);
 INT32 _OSGetActualTime(void);

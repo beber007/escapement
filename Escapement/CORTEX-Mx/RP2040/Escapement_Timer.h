@@ -30,7 +30,6 @@
 
 /* The timer interrupt is not maskable by the kernel's critical sections; it only marks
 ** its cause and defers the work to a lower priority software interrupt. */
-#define NonMaskableSoftwareTimer
 
 void _OSInitializeTimer(void);
 void _OSStartTimer(void);
