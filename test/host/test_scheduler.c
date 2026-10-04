@@ -1400,6 +1400,7 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
               CountStillReady();
         #endif
         _OSTimerInterruptHandler();
+        CheckSimQueue();
         #if defined(ESCAPEMENT_VERSION_SOFT)
            if (TimedRun == TIMED_FIRMWAIT && !WholeReadyQueue())
               QueueBreaks += 1;
@@ -1680,6 +1681,35 @@ static void TestTimeWrap(TimedMode mode)
   snprintf(label, sizeof label, "  %u runs, the wrap taken inside %u times: every check held",
            (unsigned)(WRAP_ENDS * WRAP_POINTS), taken);
   Check(label, failed == 0 && taken >= WRAP_ENDS);
+}
+
+/* TestSimStale: Under DRA and DR_OTE a task ending early leaves its entry in the simulation
+** queue until the simulation, which runs every instance for its WCET, has used it up; and
+** the simulation is brought up to date at an arrival only if the head of the ready queue
+** changes. A task of 30 every 100 ends after 5, then a task of 140 every 1000, deadline
+** 150, runs on: at 100 the first arrives behind it, its previous instance still in the
+** simulation queue, which the insertion must take out rather than link it twice. Both
+** tasks keep their deadlines under every kernel, and under DRA and DR_OTE the simulation
+** queue stays whole. */
+static void TestSimStale(void)
+{
+  char label[96];
+
+  TimedRun = TIMED_BUSY;
+  CreateTimedTask(30, 100, 100, 5, -1);
+  CreateTimedTask(140, 1000, 150, 0, -1);
+  StartKernel(NULL, NULL);
+  RunTimed(3000);
+  CheckSimQueue();
+
+  printf("\n3000 ticks of simulated time, an arrival behind a task running on\n\n");
+  snprintf(label, sizeof label, "  the short task: %u of 30 instances", Timed[0].Instance);
+  Check(label, Timed[0].Instance == 30);
+  snprintf(label, sizeof label, "  the long one: %u of 3", Timed[1].Instance);
+  Check(label, Timed[1].Instance == 3);
+  snprintf(label, sizeof label, "  no deadline missed: %u", Timed[0].Misses + Timed[1].Misses);
+  Check(label, Timed[0].Misses + Timed[1].Misses == 0);
+  Check("  the simulation queue stays whole", QueueBreaks == 0);
 }
 
 /* TestEventRelease: An event-driven task's next instance may be released a workload after
@@ -2008,6 +2038,51 @@ static void TestFirmEventWait(void)
   Check(label, optional->Misses == 0);
 }
 
+/* TestFirmEventQueued: An event-driven task signalled again while it runs waits in the
+** arrival queue until it may be released, a workload after its release under DM, its
+** deadline under EDF. The test of an optional instance walks that queue for the periodic
+** tasks released before its deadline, and must step over the event-driven task, whose
+** smaller control block has none of their fields; it counts it apart. The task, 100 ticks
+** within 300, is signalled at 950, ends at 1050, and is signalled again at 1060: it waits
+** in the arrival queue until 1250, and the optional instance of 1100-2200 is tested at
+** its arrival with the task there. */
+static void TestFirmEventQueued(void)
+{
+  INT32 duration = 4000;
+  TimedTask *optional = &Timed[0], *events = &Timed[1];
+  char label[96];
+
+  TimedRun = TIMED_FIRMWAIT;
+  optional->WCET = 400;
+  optional->Period = optional->Deadline = 1100;
+  optional->Work = optional->WCET * 256;
+  events->WCET = 100;
+  events->Work = events->WCET * 256;
+  events->Event = SignalEvent = OSCreateEventDescriptor();
+  NbTimed = 2;
+  OSCreateTask(TimedTaskCode, optional->WCET, 0, optional->Period, optional->Deadline, 1, 2,
+               0, optional);
+  OSCreateSynchronousTask(TimedTaskCode, events->WCET, 300, 0, SignalEvent, events);
+  SignalAt[0] = 950;
+  SignalAt[1] = 1060;
+  NbSignals = 2;
+  StartKernel(NULL, NULL);
+  RunTimed(duration);
+
+  printf("\n%d ticks of simulated time, an optional instance tested with an event queued\n\n",
+         duration);
+  snprintf(label, sizeof label, "  the event-driven task ran for each signal: %u of %u",
+           NbEventEnds, NbSignals);
+  Check(label, NbEventEnds == NbSignals);
+  snprintf(label, sizeof label, "  its second instance waited for 1250: ended at %d",
+           NbEventEnds > 1 ? EventEnds[1] : 0);
+  Check(label, NbEventEnds > 1 && EventEnds[1] >= 1350);
+  snprintf(label, sizeof label, "  optional instance 1 (1100-2200) ran: %u", optional->Ran[1]);
+  Check(label, optional->Ran[1] == 1);
+  snprintf(label, sizeof label, "  no deadline missed: %u", optional->Misses);
+  Check(label, optional->Misses == 0);
+}
+
 #if defined(ESCAPEMENT_VERSION_SOFT) && !BY_DEADLINE
 /* TestFirmEventAhead: Under deadline-monotonic scheduling, an optional instance tested
 ** while an event-driven task of higher priority cannot be released again before its
@@ -2118,6 +2193,32 @@ static void TestFirmDiscount(INT32 workload, INT32 duration)
 }
 #endif
 
+/* TestFirmWrapMandatory: An optional instance tested just before the wrap, its deadline
+** beyond it, while a periodic task's next mandatory instance arrives beyond the wrap too:
+** its arrival is then 2^30 plus its low part, which the test must take off before it
+** compares it with the deadline. A (1,3)-firm task of period 2^29 - 500 and WCET 2^29 -
+** 2000 has its optional instance 2 at 2^30 - 1000; a task of 1000 every 2^29 + 250 arrives
+** at 2^30 + 500, once in the window. The instance fits by 499 ticks; counted 2^30 too
+** early, that task's instances would take it over and drop it. */
+static void TestFirmWrapMandatory(void)
+{
+  long long duration = 0x40000000LL + 1000000;
+
+  CreateFirmTask(&Firm[0], (1 << 29) - 2000, (1 << 29) - 500, 1, 3);
+  CreateFirmTask(&Firm[1], 1000, (1 << 29) + 250, 1, 1);
+
+  StartKernel(NULL, NULL);
+  RunAcross(duration);
+
+  printf("\n%lld ticks of simulated time, a mandatory arrival beyond the wrap\n\n", duration);
+  Check("  the kernel clock wrapped", HostClockWraps == 1);
+  /* Elected just before the wrap, it runs just after, as RunAcross has it. */
+  Check("  optional instance 2 of the (1,3) task, at 2^30 - 1000, ran: 3 runs",
+        Firm[0].Runs == 3);
+  Check("  the other task: every instance ran", WithinOne(Firm[1].Runs, 3));
+  Check("  no deadline missed", LateArrivals == 0);
+}
+
 static void TestFirmWrap(void)
 {
   long long duration = 3LL * 0x40000000 + 1000000;
@@ -2198,6 +2299,8 @@ int main(int argc, char *argv[])
      TestTimeWrap(TIMED_EARLY);
   else if (argc > 1 && strcmp(argv[1], "timewrapbusy") == 0)
      TestTimeWrap(TIMED_BUSY);
+  else if (argc > 1 && strcmp(argv[1], "simstale") == 0)
+     TestSimStale();
   else if (argc > 1 && strcmp(argv[1], "eventrelease") == 0)
      TestEventRelease();
   else if (argc > 1 && strcmp(argv[1], "timewrapidle") == 0)
@@ -2207,6 +2310,8 @@ int main(int argc, char *argv[])
         TestFirm();
      else if (argc > 1 && strcmp(argv[1], "firmwrap") == 0)
         TestFirmWrap();
+     else if (argc > 1 && strcmp(argv[1], "firmwrapmandatory") == 0)
+        TestFirmWrapMandatory();
      else if (argc > 1 && strcmp(argv[1], "firmlong") == 0)
         TestFirmLong();
      else if (argc > 1 && strcmp(argv[1], "firmevents") == 0)
@@ -2215,6 +2320,8 @@ int main(int argc, char *argv[])
         TestFirmWait();
      else if (argc > 1 && strcmp(argv[1], "firmeventwait") == 0)
         TestFirmEventWait();
+     else if (argc > 1 && strcmp(argv[1], "firmeventqueued") == 0)
+        TestFirmEventQueued();
      #if !BY_DEADLINE
         else if (argc > 1 && strcmp(argv[1], "firmeventahead") == 0)
            TestFirmEventAhead();

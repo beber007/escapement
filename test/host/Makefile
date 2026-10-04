@@ -83,13 +83,15 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(BUILD)/test_ipc_hard $(BUILD)/test_
 	   ./$(BUILD)/test_scheduler_$$b endinside && ./$(BUILD)/test_scheduler_$$b endinsidebusy && \
 	   ./$(BUILD)/test_scheduler_$$b timewrap && ./$(BUILD)/test_scheduler_$$b timewrapbusy && \
 	   ./$(BUILD)/test_scheduler_$$b timewrapidle && \
-	   ./$(BUILD)/test_scheduler_$$b eventrelease || exit 1; \
+	   ./$(BUILD)/test_scheduler_$$b eventrelease && ./$(BUILD)/test_scheduler_$$b simstale || exit 1; \
 	   case $$b in soft_*) ./$(BUILD)/test_scheduler_$$b firm && \
 	                      ./$(BUILD)/test_scheduler_$$b firmwrap && \
 	                      ./$(BUILD)/test_scheduler_$$b firmlong && \
 	                      ./$(BUILD)/test_scheduler_$$b firmevents && \
 	                      ./$(BUILD)/test_scheduler_$$b firmwait && \
-	                      ./$(BUILD)/test_scheduler_$$b firmeventwait || exit 1;; esac; \
+	                      ./$(BUILD)/test_scheduler_$$b firmeventwait && \
+	                      ./$(BUILD)/test_scheduler_$$b firmeventqueued && \
+	                      ./$(BUILD)/test_scheduler_$$b firmwrapmandatory || exit 1;; esac; \
 	   case $$b in soft_dm) ./$(BUILD)/test_scheduler_$$b firmeventahead || exit 1;; esac; \
 	   case $$b in soft_edf) ./$(BUILD)/test_scheduler_$$b firmdiscount && \
 	                         ./$(BUILD)/test_scheduler_$$b firmdiscountnear || exit 1;; esac; \
