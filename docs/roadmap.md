@@ -7,7 +7,7 @@ whose code last changed in 2014 and was published in 2016.
 This page separates what is open from what is done. Open items are plans, each with the
 date its facts were read. Done items say where the result is measured or checked, and a
 result counts as measured only where a page gives its date and conditions. Last revised
-on 2026-09-30.
+on 2026-10-05.
 
 ## Direction
 
@@ -18,39 +18,29 @@ at hand.
 
 New work goes to the **Pico**, the **Pico 2** and the **STM32U5**. The RP2350 of the
 Pico 2 has a switching core regulator and two cores with exclusive accesses. Its port was
-begun on 2026-09-24 for the cores. Its DVFS driver waits for the RP2040 bench, and will be
-written only if that bench shows DVFS beating race-to-sleep.
+begun on 2026-09-24 for the cores. A DVFS driver is not planned for it: measured on
+2026-10-03, it would save some 10 % at best, less than sleeping deeper does (items 3
+and 5).
 
 Among the STM32, the **STM32U5** is the one kept. Its port, begun on 2026-09-25 for the
 STM32U585 of the Arduino UNO Q (`stm32u5.md`), was written anew in the manner of the
 RP2350's. The older STM32 ports went on 2026-09-26 (9783ab4), the F4 last, once the U5
 ran on its board with a check of each commit. The U5 sleeps too well for DVFS to gain
-(`power-aware.md`): measured on 2026-10-03, a cycle costs least at 160 MHz, and racing to
-Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). No power-aware
-kernel is planned for it. The **STM32L4** is set aside.
+(`power-aware.md`): measured on 2026-10-03, a cycle costs least at 160 MHz, and racing
+to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
+**STM32L4** is set aside.
 
 ## Open work, in order
 
 0. **Two weeks of endurance on a board** (`rp2040.md`, "The endurance test"). `SoakPico`
    runs on the Pico W, on a probe of its own, since 2026-09-28 at 20:03 UTC: a week under
-   the hard kernel, EDF, at 69825e4, then a week under the power-aware one. On 2026-10-01
-   at 07:30 UTC it had run 59 h 28 min across 199 wraps of the kernel clock, with no error
-   and no restart, the pulse at most 126 µs late and the timer events 133. The script
-   that reads it was stopped once for 7 s, to be updated, and took the run over, the
-   image having run on.
-   Two STM32U5 run alongside, until stopped, reading their counts on a UART
-   (`stm32u5.md`, "The endurance test"): the UNO Q's own U585, which each board check
-   restarts on its commit (19 h without error at 34d86a4, again at 81a08ff on 2026-09-30,
-   and 10 h 19 min at 452328d on 2026-10-01 at 07:30 UTC), and a NUCLEO-U575ZI-Q on the
-   bench since 2026-09-28. The NUCLEO's run failed after 17 h 26 min on 2026-09-29, at
-   00adc77, on one byte its USART1 lost to an overrun, every count of the kernel at 0; it
-   ran again at 73a6d83, the USART's FIFO enabled, 27 h 58 min across 93 wraps with no
-   error and no overrun, then was moved on 2026-09-30 at 20:46 UTC to 7d069ea, whose PLL1
-   takes the MSIS of range 2 without an HSE: 10 h 45 min across 36 wraps on 2026-10-01 at
-   07:30 UTC, no error and no overrun. That board has its HSE, found on 2026-10-02, so the
-   run did not go through the MSIS. Four instances under Renode, each with its own build and seed,
-   the hard, soft, deadline-monotonic and DRA kernels, ran a day of virtual time each at
-   1b67f30, 80 wraps, and ended on 2026-10-04 with no error (`emulation.md`).
+   the hard kernel, EDF, at 69825e4, then a week under the power-aware one. On 2026-10-04
+   at 22:36 UTC it had run 6 days 1 h 48 min across 488 wraps of the kernel clock, with
+   no error and no restart. Two STM32U5 run alongside until stopped (`stm32u5.md`, "The
+   endurance test"): the UNO Q's own, restarted by each board check on its commit, and a
+   NUCLEO-U575ZI-Q, 25 h 56 min across 86 wraps at f197a35 on 2026-10-04, no error and no
+   overrun. The statuses `board/soak`, `board/soak-u5` and `board/soak-nucleo` of each
+   commit give their state since (`tools/board_ci.md`).
 
 1. **The energy verdict on the RP2040.** Build the bench of `power-aware.md`: a plain Pico
    rather than a Pico W, powered and measured by a Power Profiler Kit II, chosen on
@@ -86,23 +76,13 @@ kernel is planned for it. The **STM32L4** is set aside.
    3. the PLL's lock time, to decide whether a long sleep pays for stopping it, as the U5
       stops its clocks in Stop 2.
 
-2. **The Pico 2 on the board.** A Pico 2 has been on the bench since 2026-09-28, on
-   probe3, driven by Raspberry Pi's OpenOCD (`tools/board_ci.md`). Its clocks are right
-   and the five examples that count in memory pass (`architecture.md`,
-   `tools/pico2_check.py`), and so do litmus tests of the order in which each core sees
-   the other's accesses: none reordered (`architecture.md`). The bench checks them at
-   each commit. The outputs of `TaskLEDPico2` and `TestTimerEventPico2` were read on
-   the Bus Pirate's frequency counter on 2026-09-29, every period right
-   (`architecture.md`). On 2026-09-30 the UART echo and the two senders passed through
-   the probe's UART, and `SoakPico2` crossed the 2^30 wrap twice in 40 minutes without
-   an error (`tools/pico2_uart.py`, `tools/pico2_soak.py`). Every example of the Pico 2
-   has now run on the board, but `TaskWrapPico2`, whose periods are scaled for Renode.
-   The checks of each commit run the UART's two since then; the wrap, 18 minutes a time,
-   stays out of them. Left: the power-aware kernel and DVFS (item 3).
+2. **The Pico 2 on the board — done on 2026-09-30.** Every example has run on a Pico 2,
+   and the bench checks six of them and the UART at each commit (Done). Left: the
+   power-aware kernel and DVFS (item 3).
 
-3. **DVFS on the RP2350**, if the verdict of item 1 is for it. Its regulator and its
-   power manager differ from the RP2040's, and the driver is to be written from the
-   pico-sdk headers.
+3. **DVFS on the RP2350 — measured on 2026-10-03, worth some 10 % at best.** Its
+   regulator and its power manager differ from the RP2040's, and a driver would be
+   written from the pico-sdk headers. It is not planned: SLEEP comes first (item 5).
 
    The Pico 2 measured on 2026-10-03, `SleepPico2` built with `RUN=1`: the core
    computing without a pause, 30 s at each point, the board powered by the PPK2 at 5 V
@@ -148,25 +128,12 @@ kernel is planned for it. The **STM32L4** is set aside.
    light load, some 5.3 against 1.4 mA with a tenth of the processor busy. The UNO Q's
    U585 has no SMPS.
 
-   Next, the PPK2, on `SleepU5` built with `make PHASES=30`, which alternates Stop 2 and
-   Sleep, D13 telling them apart. On the UNO Q only the difference can show: the MCU
-   shares a rail with the rest of the board, with no jumper to measure it alone
-   (`stm32u5.md`, 2026-09-27). The absolute currents are for a NUCLEO-U575ZI-Q, borrowed
-   for it. `Examples/nucleo-u575` builds `SleepU5` for that board, on the LDO or, with
-   `make SMPS=1`, on its SMPS (bf447b8). The board is on the bench since 2026-09-28,
-   running the endurance test (item 0). `SleepU5` ran on it on 2026-10-02, once the port
-   cleared DBG_STANDBY too, which Debian's OpenOCD sets (`stm32u5.md`, "SleepU5 on the
-   NUCLEO-U575ZI-Q"); its longest wake-up, some 60 ticks of LPTIM1, is its HSE starting
-   in some 1.8 ms, the board having one after all.
-   Then the margin of the wake-up, 3 ms, where the longest wake-up measured is 885 µs:
-   the Sleep it leaves after waking may cost more than Stop 2 saves, which the PPK2
-   priced on 2026-10-03 (above).
-
    The plan for Stop 2, as read on 2026-09-26, and the two parts of it that changed the
    next day are in `stm32u5.md`, "The plan, as read on 2026-09-26".
 
-5. **A deeper sleep on the RP2350.** Its idle task sleeps by WFI with every clock
-   running. The RP2350 datasheet was read on 2026-09-27:
+5. **A deeper sleep on the RP2350.** Its idle task sleeps in SLEEP, PLL_SYS stopped,
+   with `make SLEEP_GATE=1` (Done); DORMANT is left. The RP2350 datasheet was read on
+   2026-09-27:
    - DORMANT stops every oscillator and keeps the state, the code going on after the
      instruction that entered it (§6.5.3, p. 489-490), as Stop 2 does on the U5;
    - TIMER0, the kernel's, stops with them (p. 570);
@@ -184,163 +151,186 @@ kernel is planned for it. The **STM32L4** is set aside.
    held 15 ppm. A sleep of 100 ms could move the kernel's time by some 1.5 ms. Second,
    the datasheet gives no current for WFI, SLEEP or DORMANT (§14.9.7), only 11 mA for a
    core at 150 MHz (p. 1347). The steps:
-   1. measure the three on a Pico 2 with the PPK2 — done on 2026-10-03, below;
+   1. measure the three on a Pico 2 with the PPK2 — done on 2026-10-03 (Done);
    2. if SLEEP saves enough, gate the clocks the kernel does not need while TIMER0 runs
-      on (SLEEP_EN1, p. 550), which keeps the time exact — done on 2026-10-04, below;
+      on (SLEEP_EN1, p. 550), which keeps the time exact — done on 2026-10-04 (Done);
    3. for DORMANT, either calibrate LPOSC against the crystal before each sleep and
       measure the error left, or give the always-on timer an external 32.768 kHz clock
       on GPIO 12, 14, 20 or 22 (§12.10.7), which is hardware for the bench.
 
-   `SleepPico2` (Examples/pico2) measured them on 2026-10-03: no kernel, some 100 µs of
-   work every 100 ms on core 0, core 1 off, the ring oscillator, PLL_USB and the USB, ADC
-   and HSTX clocks stopped, 30 s of each phase told apart on the PPK2's D0 and D1. The
-   PPK2 powered the board at 5 V on VSYS, its regulator included, the LED off; three
-   phases of each, one run:
+   Left: step 3. The measurements and the gate are in Done, "Sleep on the RP2350,
+   measured and gated".
 
-   | | mean | median, the level between wake-ups |
-   |---|---|---|
-   | WFI, every clock running | 13.15 mA | 12.6 mA |
-   | SLEEP, every clock gated but the tick and TIMER0 | 5.10 mA | 4.2 mA |
-   | DORMANT, the crystal and PLL_SYS stopped | 1.29 mA | 0.36 mA |
+6. **LPUART1 at 115,200 baud through Stop 2 — done on 2026-10-02** (Done, "LPUART1 at
+   115,200 baud through Stop 2"). Left: how often a wake-up byte comes out wrong, which
+   no check of a minute can bound.
 
-   SLEEP alone takes 61 % off WFI and keeps the kernel's time exact: step 2 is worth
-   doing. DORMANT's mean is mostly its wake-ups, the crystal's start of 6 ms (its STARTUP
-   delay, 6 times the millisecond, as the port sets it) and PLL_SYS locked again, every
-   100 ms. Two things met on the way. The always-on timer's alarm did not wake this
-   DORMANT: its count runs on LPOSC, but its alarm is compared on the power manager's
-   clock, which follows clk_ref, here the stopped crystal; it fired awake and never
-   asleep. The image is woken instead by a byte the UNO Q sends every 100 ms on the
-   probe's UART, whose falling edge on GP1 is a DORMANT wake-up (`tools/
-   pico2_sleep_load.sh --wake`). A kernel would run clk_ref from LPOSC first, as the
-   pico-extras do, or take step 3's external clock.
-
-   The cheaper sleeps a kernel could take, `make DEEP=1`, the same night, three phases of
-   each, one run:
-
-   | | mean | median |
-   |---|---|---|
-   | SLEEP, PLL_SYS running (the first run read 5.10 mA) | 4.47 mA | 4.1 mA |
-   | SLEEP, clk_sys on the crystal, PLL_SYS stopped, locked again on waking | 1.99 mA | 1.4 mA |
-   | DORMANT, the crystal's start at 1 ms rather than 6 | 1.23 mA | 0.35 mA |
-
-   Stopping PLL_SYS through the sleep takes 55 % more off SLEEP, 85 % off WFI in all,
-   TIMER0 still counting the crystal: that is the idle task to write, as the U5's sleeps
-   its wake-up's margin on the MSIS. The crystal's start is a small part of DORMANT's
-   mean, 1.29 to 1.23 mA; the rest of its wake-ups was not told apart.
-
-   And TIMER0 ran at half speed: the
-   firmware in the Pico 2's flash leaves clk_ref divided by 2, which a debugger's reset
-   keeps, and both ports never set the divider back; they do since, for clk_ref, clk_sys
-   and, on the RP2350, clk_peri.
-
-   Step 2 was written on 2026-10-04: `Escapement_SleepGate.c` on the RP2350, as on the
-   RP2040, its idle task called through `_OSIdleHook`. It gates every clock but those the
-   image keeps, moves clk_sys onto the crystal and stops PLL_SYS, then sleeps until
-   150 µs before the first alarm of TIMER0 armed, on its alarm 3, and locks the PLL
-   again on waking. ALARMn cannot be read back: the port keeps what it wrote in
-   `_OSAlarmTime`. `IdlePico2` (Examples/pico2), a task of some 100 µs every 100 ms and a
-   timer event 40 ms after each, measured on the PPK2 as `SleepPico2` was, 30 s of each,
-   one run:
-
-   | `IdlePico2` | mean | median | instances' jitter, events' offset |
-   |---|---|---|---|
-   | WFI (`make`) | 13.76 mA | 13.3 mA | 1 µs, 5 µs |
-   | SLEEP, PLL_SYS stopped (`make SLEEP_GATE=1`) | 2.46 mA | 1.8 mA | 0 µs, 4 µs |
-
-   82 % off the idle task's current, the kernel's time kept: the jitter and offsets were
-   read while it ran, 251 instances. Without the early wake-up the PLL's lock made them
-   56 and 61 µs. Two defects met on the way, both fixed in the RP2040's port too: an image
-   loaded after one that gated its clocks slept with the bus gated, SLEEP_EN outliving
-   the debugger's reset, which `OSInitializeSystemClocks` now sets back; and core 0, its
-   gates and deep sleep already set, entered SLEEP while waiting for core 1's bootrom on
-   the inter-core FIFO, whose clock was gated: `OSInitSleepGate` launches core 1 first.
-
-6. **LPUART1 at 115,200 baud through Stop 2 — built and seen on the board on
-   2026-10-02.** It ran at 57,600 until then, and 57,600 stays the default; `SleepU5`
-   and `SoakU5` run at 115,200 (below). Its margin on waking was read on 2026-10-02
-   (`stm32u5.md`, "LPUART1 through Stop 2"):
-   - with its FIFO on, an overrun comes when a byte is complete and the 8 places are
-     full (RM0456, LPUART, "Overrun error"): from the byte that wakes the chip, 8 frames,
-     1.39 ms at 57,600 baud, 694 µs at 115,200;
-   - interrupts stay masked meanwhile: leaving Stop 2, 20 to 60 µs (DS13086, table 74),
-     then `_OSRaiseSystemClock`, 18 to 29 ticks of LPTIM1 measured over 454,487
-     wake-ups, at most 916 µs, then the timer's interrupt, of a higher priority: some
-     1.0 ms, a margin of about 30 % at 57,600 baud and none at 115,200;
-   - the HSE dominates, and has no maximum: 2 ms typical, "can vary significantly with
-     the crystal manufacturer" (DS13086, table 80). On this board at room temperature it
-     has always started in less, which nothing guarantees elsewhere or in the cold.
-
-   `SoakU5` never enters Stop 2, its pulse due every millisecond: the overrun of
-   2026-10-01 is not this. The ways weighed that day:
-   - hardware flow control, PG6, the LPUART's RTS and the Linux side's CTS, left to the
-     LPUART: the FIFO never overflows, but the first byte is still sampled while HSI16
-     starts, which keeps 57,600 baud;
-   - PG6 held at "stop" in Stop 2, with two frames of silence checked before, and "ready"
-     after the clock is raised: 115,200 baud and some 20 µA, but the UART no longer wakes
-     the chip, Linux waiting up to the length of a sleep, 1.83 s at most;
-   - HSI16 kept on in Stop 2 (HSIKERON): 115,200 baud and the UART wakes the chip, at
-     some 150 µA against 20.5, and the FIFO still needs flow control or draining;
-   - the LPDMA, autonomous in Stop 2, filling a ring in SRAM4: no limit, a new receive
-     path;
-   - the FIFO drained in the waits of `_OSRaiseSystemClock`, the handler then called with
-     the kernel's clock stopped;
-   - a wake-up byte, followed by an acknowledgement from the MCU before the message.
-
-   The way chosen and built on 2026-10-02: **a wake-up byte without acknowledgement**. The client
-   sends one byte, waits T, then its message. It holds on three conditions:
-   1. T is bounded by the code, not only measured: the wait for the HSE capped at 64
-      ticks of LPTIM1, 1.95 ms, beyond which that wake-up goes on PLL1 from the MSIS, as
-      on a board without the HSE, 160.017 MHz, some 100 ppm off, the HSE tried again at
-      the next; until then `NoHSE` gave it up for good, after some 20 ms, as it still does
-      at reset. T is then leaving Stop 2, the capped HSE, and
-      the maxima of the voltage range, booster and PLL1 lock, to read in DS13086; some
-      5 ms for the client;
-   2. the MCU stays awake W after each byte received, `_OSUARTIdle` refusing Stop 2
-      meanwhile, else it sleeps again as soon as the wake-up byte is read. W covers T, the
-      jitter of a Linux process and the gaps in a message, some 20 ms;
-   3. the wake-up byte can be dropped without doubt. Sampled while HSI16 starts, its value
-      is anything; received awake, it looks like data; and "the first byte after a
-      silence" does not tell it apart, the message's first byte coming T after it. A
-      framed protocol does, COBS with a CRC: the client sends 0x00, waits T, then 0x00,
-      the frame and 0x00, and whatever the wake-up byte became ends in an empty or invalid
-      frame, dropped as noise.
-
-   This keeps 115,200 baud, 20 µA in Stop 2, the UART waking the chip in some 5 ms, and
-   relies on no flow control. The order: the cap on the HSE first, which also keeps one
-   slow start from leaving the chip on the MSIS for good, testable under Renode, done on
-   2026-10-02 (`stm32u5.md`, "A bound on the HSE's start") and seen on the board the same
-   day; then the window W, done under Renode on 2026-10-02 (`stm32u5.md`, "The window
-   after a byte"); then the link of `SleepU5` and `tools/unoq_sleep.py` framed, at
-   115,200 baud, done under Renode on 2026-10-02 (`stm32u5.md`, "The wake-up byte"),
-   both seen on the board the same day, every byte received at 115,200 through Stop 2.
-   `SoakU5`, which never enters Stop 2, moved to 115,200 too on 2026-10-02, its link
-   raw as before. Awake, it ran without an overrun up to 921,600 baud the same day
-   (`stm32u5.md`, "Faster, awake"): a rate above 115,200 is open to a link that needs
-   it. Left open: how often a wake-up byte comes out wrong, which no check of a minute
-   can bound.
-
-7. **A stack overflow that faults rather than corrupts.** The one stack grows down toward
-   the globals, with nothing between them; ZottaOS's comment said an overflow corrupted
-   nothing. Since 2026-10-04 the Cortex-M33 ports set MSPLIM at the end of the globals
-   (`_OSResetHandler`), which the Renode suites of the Pico 2 and of the STM32U5 still
-   pass. Renode does not model MSPLIM, so that the limit holds is for the board to show.
-   On the Pico 2 it did, on 2026-10-04, `StackGuardPico2` loaded on probe3 from the Mac
-   over the gateway: with the limit, the core in its HardFault handler, CFSR 0x00100000
-   (STKOF) and HFSR FORCED, the main stack pointer stopped at 0x20001600 above the end of
-   the globals at 0x20001210, 513 levels deep; built without it, the stack went three
-   levels further, to 0x20000a24, through the globals and into the image's code, which
-   runs from SRAM below them, and the core was lost at 0x20000fce with no fault recorded.
-   `Sentinel` read 0xA5A5A5A5 both times, under Renode too: it is no witness, the stack
-   pointer is. On the STM32U5 of the UNO Q too, `StackGuardU5`, the same evening: with the
-   limit, the HardFault handler, CFSR 0x00100000 (STKOF), HFSR FORCED, the main stack
-   pointer at 0x20001b70 above the end of the globals at 0x20001878, 759 levels; without
-   it, three levels further, to 0x20000f70, `Sentinel` written over (0xFAFAFAFA, the low
-   byte of level 762) and the core faulting on an undefined instruction, the stack's bytes
-   run as code, which says nothing of the cause. Left: the Cortex-M0+ of the RP2040, which
-   has no stack limit: a region of its MPU, no access, just above the globals, which locks
-   the core up rather than fault it, written on 2026-10-04 on a branch and not yet run.
+7. **A stack overflow that faults rather than corrupts — done on the Cortex-M33 on
+   2026-10-04** (Done, "A stack that faults"). Left: the Cortex-M0+ of the RP2040, which
+   has no stack limit: a region of its MPU, no access, just above the globals, which
+   locks the core up rather than fault it, written on 2026-10-04 on the branch
+   `mutant-gaps` and not yet run.
 
 ## Done
+
+- **A day of endurance under Renode (2026-10-04).** Four instances, each with its own
+  build and seed, the hard, soft, deadline-monotonic and DRA kernels, ran a day of
+  virtual time each at 1b67f30, 80 wraps, with no error (`emulation.md`, status
+  `emulation/soak`).
+- **The Pico 2 on the board (2026-09-28 to 30).** On probe3, driven by Raspberry Pi's
+  OpenOCD: its clocks right, the six examples that count in memory passing the criteria
+  of the Renode suite, the litmus tests showing no reordering between the cores, the
+  periods right on the frequency counter, the UART echo and the two senders through the
+  probe's UART, and `SoakPico2` across two 2^30 wraps in 40 minutes without an error
+  (`architecture.md`, `tools/pico2_check.py`, `tools/pico2_uart.py`,
+  `tools/pico2_soak.py`). The bench checks all of it but the wrap, 18 minutes a time, at
+  each commit (status `board/pico2`).
+
+- **A stack that faults (2026-10-04).** The one stack grows down toward the globals,
+  with nothing between them; ZottaOS's comment said an overflow corrupted nothing. Since
+  2026-10-04 the Cortex-M33 ports set MSPLIM at the end of the globals
+  (`_OSResetHandler`), which the Renode suites of the Pico 2 and of the STM32U5 still
+  pass. Renode does not model MSPLIM, so that the limit holds is for the board to show.
+  On the Pico 2 it did, on 2026-10-04, `StackGuardPico2` loaded on probe3 from the Mac
+  over the gateway: with the limit, the core in its HardFault handler, CFSR 0x00100000
+  (STKOF) and HFSR FORCED, the main stack pointer stopped at 0x20001600 above the end of
+  the globals at 0x20001210, 513 levels deep; built without it, the stack went three
+  levels further, to 0x20000a24, through the globals and into the image's code, which
+  runs from SRAM below them, and the core was lost at 0x20000fce with no fault recorded.
+  `Sentinel` read 0xA5A5A5A5 both times, under Renode too: it is no witness, the stack
+  pointer is. On the STM32U5 of the UNO Q too, `StackGuardU5`, the same evening: with the
+  limit, the HardFault handler, CFSR 0x00100000 (STKOF), HFSR FORCED, the main stack
+  pointer at 0x20001b70 above the end of the globals at 0x20001878, 759 levels; without
+  it, three levels further, to 0x20000f70, `Sentinel` written over (0xFAFAFAFA, the low
+  byte of level 762) and the core faulting on an undefined instruction, the stack's bytes
+  run as code, which says nothing of the cause.
+
+- **Sleep on the RP2350, measured and gated (2026-10-03 and 04)**, steps 1 and 2 of item
+  5. `SleepPico2` (Examples/pico2) measured WFI, SLEEP and DORMANT on 2026-10-03: no
+  kernel, some 100 µs of work every 100 ms on core 0, core 1 off, the ring oscillator,
+  PLL_USB and the USB, ADC and HSTX clocks stopped, 30 s of each phase told apart on the
+  PPK2's D0 and D1. The PPK2 powered the board at 5 V on VSYS, its regulator included,
+  the LED off; three phases of each, one run:
+
+  | | mean | median, the level between wake-ups |
+  |---|---|---|
+  | WFI, every clock running | 13.15 mA | 12.6 mA |
+  | SLEEP, every clock gated but the tick and TIMER0 | 5.10 mA | 4.2 mA |
+  | DORMANT, the crystal and PLL_SYS stopped | 1.29 mA | 0.36 mA |
+
+  SLEEP alone takes 61 % off WFI and keeps the kernel's time exact: step 2 is worth
+  doing. DORMANT's mean is mostly its wake-ups, the crystal's start of 6 ms (its STARTUP
+  delay, 6 times the millisecond, as the port sets it) and PLL_SYS locked again, every
+  100 ms. Two things met on the way. The always-on timer's alarm did not wake this
+  DORMANT: its count runs on LPOSC, but its alarm is compared on the power manager's
+  clock, which follows clk_ref, here the stopped crystal; it fired awake and never
+  asleep. The image is woken instead by a byte the UNO Q sends every 100 ms on the
+  probe's UART, whose falling edge on GP1 is a DORMANT wake-up (`tools/
+  pico2_sleep_load.sh --wake`). A kernel would run clk_ref from LPOSC first, as the
+  pico-extras do, or take step 3's external clock.
+
+  The cheaper sleeps a kernel could take, `make DEEP=1`, the same night, three phases of
+  each, one run:
+
+  | | mean | median |
+  |---|---|---|
+  | SLEEP, PLL_SYS running (the first run read 5.10 mA) | 4.47 mA | 4.1 mA |
+  | SLEEP, clk_sys on the crystal, PLL_SYS stopped, locked again on waking | 1.99 mA | 1.4 mA |
+  | DORMANT, the crystal's start at 1 ms rather than 6 | 1.23 mA | 0.35 mA |
+
+  Stopping PLL_SYS through the sleep takes 55 % more off SLEEP, 85 % off WFI in all,
+  TIMER0 still counting the crystal: that is the idle task to write, as the U5's sleeps
+  its wake-up's margin on the MSIS. The crystal's start is a small part of DORMANT's
+  mean, 1.29 to 1.23 mA; the rest of its wake-ups was not told apart.
+
+  And TIMER0 ran at half speed: the
+  firmware in the Pico 2's flash leaves clk_ref divided by 2, which a debugger's reset
+  keeps, and both ports never set the divider back; they do since, for clk_ref, clk_sys
+  and, on the RP2350, clk_peri.
+
+  Step 2 was written on 2026-10-04: `Escapement_SleepGate.c` on the RP2350, as on the
+  RP2040, its idle task called through `_OSIdleHook`. It gates every clock but those the
+  image keeps, moves clk_sys onto the crystal and stops PLL_SYS, then sleeps until
+  150 µs before the first alarm of TIMER0 armed, on its alarm 3, and locks the PLL
+  again on waking. ALARMn cannot be read back: the port keeps what it wrote in
+  `_OSAlarmTime`. `IdlePico2` (Examples/pico2), a task of some 100 µs every 100 ms and a
+  timer event 40 ms after each, measured on the PPK2 as `SleepPico2` was, 30 s of each,
+  one run:
+
+  | `IdlePico2` | mean | median | instances' jitter, events' offset |
+  |---|---|---|---|
+  | WFI (`make`) | 13.76 mA | 13.3 mA | 1 µs, 5 µs |
+  | SLEEP, PLL_SYS stopped (`make SLEEP_GATE=1`) | 2.46 mA | 1.8 mA | 0 µs, 4 µs |
+
+  82 % off the idle task's current, the kernel's time kept: the jitter and offsets were
+  read while it ran, 251 instances. Without the early wake-up the PLL's lock made them
+  56 and 61 µs. Two defects met on the way, both fixed in the RP2040's port too: an image
+  loaded after one that gated its clocks slept with the bus gated, SLEEP_EN outliving
+  the debugger's reset, which `OSInitializeSystemClocks` now sets back; and core 0, its
+  gates and deep sleep already set, entered SLEEP while waiting for core 1's bootrom on
+  the inter-core FIFO, whose clock was gated: `OSInitSleepGate` launches core 1 first.
+
+- **LPUART1 at 115,200 baud through Stop 2 (2026-10-02).** It ran at 57,600 until then,
+  and 57,600 stays the default; `SleepU5` and `SoakU5` run at 115,200 (below). Its
+  margin on waking was read on 2026-10-02 (`stm32u5.md`, "LPUART1 through Stop 2"):
+  - with its FIFO on, an overrun comes when a byte is complete and the 8 places are
+    full (RM0456, LPUART, "Overrun error"): from the byte that wakes the chip, 8 frames,
+    1.39 ms at 57,600 baud, 694 µs at 115,200;
+  - interrupts stay masked meanwhile: leaving Stop 2, 20 to 60 µs (DS13086, table 74),
+    then `_OSRaiseSystemClock`, 18 to 29 ticks of LPTIM1 measured over 454,487
+    wake-ups, at most 916 µs, then the timer's interrupt, of a higher priority: some
+    1.0 ms, a margin of about 30 % at 57,600 baud and none at 115,200;
+  - the HSE dominates, and has no maximum: 2 ms typical, "can vary significantly with
+    the crystal manufacturer" (DS13086, table 80). On this board at room temperature it
+    has always started in less, which nothing guarantees elsewhere or in the cold.
+
+  `SoakU5` never enters Stop 2, its pulse due every millisecond: the overrun of
+  2026-10-01 is not this. The ways weighed that day:
+  - hardware flow control, PG6, the LPUART's RTS and the Linux side's CTS, left to the
+    LPUART: the FIFO never overflows, but the first byte is still sampled while HSI16
+    starts, which keeps 57,600 baud;
+  - PG6 held at "stop" in Stop 2, with two frames of silence checked before, and "ready"
+    after the clock is raised: 115,200 baud and some 20 µA, but the UART no longer wakes
+    the chip, Linux waiting up to the length of a sleep, 1.83 s at most;
+  - HSI16 kept on in Stop 2 (HSIKERON): 115,200 baud and the UART wakes the chip, at
+    some 150 µA against 20.5, and the FIFO still needs flow control or draining;
+  - the LPDMA, autonomous in Stop 2, filling a ring in SRAM4: no limit, a new receive
+    path;
+  - the FIFO drained in the waits of `_OSRaiseSystemClock`, the handler then called with
+    the kernel's clock stopped;
+  - a wake-up byte, followed by an acknowledgement from the MCU before the message.
+
+  The way chosen and built on 2026-10-02: **a wake-up byte without acknowledgement**.
+  The client sends one byte, waits T, then its message. It holds on three conditions:
+  1. T is bounded by the code, not only measured: the wait for the HSE capped at 64
+     ticks of LPTIM1, 1.95 ms, beyond which that wake-up goes on PLL1 from the MSIS, as
+     on a board without the HSE, 160.017 MHz, some 100 ppm off, the HSE tried again at
+     the next; until then `NoHSE` gave it up for good, after some 20 ms, as it still does
+     at reset. T is then leaving Stop 2, the capped HSE, and
+     the maxima of the voltage range, booster and PLL1 lock, to read in DS13086; some
+     5 ms for the client;
+  2. the MCU stays awake W after each byte received, `_OSUARTIdle` refusing Stop 2
+     meanwhile, else it sleeps again as soon as the wake-up byte is read. W covers T, the
+     jitter of a Linux process and the gaps in a message, some 20 ms;
+  3. the wake-up byte can be dropped without doubt. Sampled while HSI16 starts, its value
+     is anything; received awake, it looks like data; and "the first byte after a
+     silence" does not tell it apart, the message's first byte coming T after it. A
+     framed protocol does, COBS with a CRC: the client sends 0x00, waits T, then 0x00,
+     the frame and 0x00, and whatever the wake-up byte became ends in an empty or invalid
+     frame, dropped as noise.
+
+  This keeps 115,200 baud, 20 µA in Stop 2, the UART waking the chip in some 5 ms, and
+  relies on no flow control. The order: the cap on the HSE first, which also keeps one
+  slow start from leaving the chip on the MSIS for good, testable under Renode, done on
+  2026-10-02 (`stm32u5.md`, "A bound on the HSE's start") and seen on the board the same
+  day; then the window W, done under Renode on 2026-10-02 (`stm32u5.md`, "The window
+  after a byte"); then the link of `SleepU5` and `tools/unoq_sleep.py` framed, at
+  115,200 baud, done under Renode on 2026-10-02 (`stm32u5.md`, "The wake-up byte"),
+  both seen on the board the same day, every byte received at 115,200 through Stop 2.
+  `SoakU5`, which never enters Stop 2, moved to 115,200 too on 2026-10-02, its link
+  raw as before. Awake, it ran without an overrun up to 921,600 baud the same day
+  (`stm32u5.md`, "Faster, awake"): a rate above 115,200 is open to a link that needs
+  it.
 
 - **The order between the cores, as far as it can be verified (closed 2026-09-30).** The
   queue between the cores (`Escapement_CoreQueue.c`) had a DMB between any two of its
@@ -373,10 +363,10 @@ kernel is planned for it. The **STM32L4** is set aside.
   `tools/schedule_figure.py`).
 
 - **The STM32U5 port, under Renode (2026-09-25).** `Escapement/CORTEX-Mx/STM32U5` runs
-  the hard and the soft kernel under both algorithms. It has eight examples with the
+  the hard and the soft kernel under both algorithms. It has its examples with the
   endurance test, and `SleepWrapU5` and `Stop2EventWrapU5`, scaled to cross the 2^30
   wrap under Renode. Its Renode platform is our own (`escapement_u5.repl`), and the suite
-  passes its 12 tests under each of the four builds, in the CI (`stm32u5.md`).
+  passes under each of the four builds, in the CI (`stm32u5.md`).
 
 - **The STM32U5 on the board (2026-09-26).** On the Arduino UNO Q, from SRAM. On the
   first day the clock set-up ran and `SoakU5` ran 22 s without error. The clock has come
@@ -413,15 +403,16 @@ kernel is planned for it. The **STM32L4** is set aside.
   2^30 wrap three times. The host test also covers what no example runs: event-driven
   tasks, the queue, the slot buffers, tasks that take time (`test/host/README.md`).
 - **Every interleaving of the lock-free mechanisms**, in exhaustive models. They found
-  four defects, all fixed, the last two between cores (`method.md`).
+  six defects, all fixed, two of them in the queue between the cores (`method.md`).
 - **The RP2040 port on the board**: all three kernels, the DVFS driver on the silicon,
   the timer events, the cost of a scheduling round, the periods on a frequency counter,
   the regulator's response, the 4-slot buffer between the cores. All of it was watched
   through a trace rather than a halted core (`rp2040.md`).
 - **Checks on the board on every change of `main`**, on the images the CI builds. The
   bench pulls them rather than being pushed to a self-hosted runner. Since 2026-09-26 the
-  bench is an Arduino UNO Q, which checks the Pico (status `board/pico`) and its own
-  STM32U5 (status `board/u5`) (`tools/board_ci.md`).
+  bench is an Arduino UNO Q, which checks the Pico (status `board/pico`), its own
+  STM32U5 (status `board/u5`) and, since 2026-09-28, the Pico 2 (status `board/pico2`)
+  (`tools/board_ci.md`).
 - **The RP2350 port (from 2026-09-24).** The generic layer was taken to ARMv8-M, and both
   cores run under Renode, with `ACTLR.EXTEXCLALL` set and memory barriers between the
   cores (`architecture.md`). The CI checks their compiled order against the models
