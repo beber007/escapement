@@ -1599,6 +1599,8 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
            if (TimedRun == TIMED_FIRMWAIT)
               CountStillReady();
         #endif
+        if (TraceOut != NULL)
+           fprintf(TraceOut, "I %d\n", TimedNow());
         TimerHandler();
         CheckSimQueue();
         #if defined(ESCAPEMENT_VERSION_SOFT)

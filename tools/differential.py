@@ -27,7 +27,9 @@ apart under DM, a total bandwidth server under EDF. At every instant of a trace:
   having to keep that at the speeds they pick;
 - under EDF at the fastest speed (hard_edf, soft_edf), within the worst response
   Spuri's analysis gives its task (tools/response_times.py, without the kernel's costs,
-  which the host does not have).
+  which the host does not have);
+- the timer interrupts only at a release, and once at an instant (lines "I"): the kernel
+  has no periodic tick.
 
 What it does not check: the speeds the power-aware kernel picks, beyond that they keep
 the deadlines. A policy that runs faster than it needs passes.
@@ -270,9 +272,19 @@ def check(build, tasks, trace):
 
     now = 0
     pending_end = None                            # (time, task) the last segment must end
+    release_times = {x[1] for x in todo}
+    last_interrupt = None
     for line in trace.splitlines():
         fields = line.split()
         if not fields:
+            continue
+        if fields[0] == "I":
+            t = int(fields[1])
+            if t not in release_times:
+                raise Failure("t=%d: the timer interrupts where nothing is released" % t)
+            if t == last_interrupt:
+                raise Failure("t=%d: the timer interrupts twice at one instant" % t)
+            last_interrupt = t
             continue
         if fields[0] == "E":
             t, i = int(fields[1]), int(fields[2])
@@ -356,19 +368,21 @@ def check(build, tasks, trace):
 def self_test():
     """Traces made wrong by hand must fail, each for its reason."""
     tasks = [periodic(20, 100, 100, 15), periodic(30, 150, 120, 30)]
-    good = "S 0 15 0 2\nE 15 0\nS 15 30 1 2\nE 45 1\nS 45 55 -1 0\nS 100 15 0 2\nE 115 0\n" \
-           "S 115 35 -1 0\nS 150 30 1 2\nE 180 1\nS 180 20 -1 0\nT 200\n"
+    good = "S 0 15 0 2\nE 15 0\nS 15 30 1 2\nE 45 1\nS 45 55 -1 0\nI 100\nS 100 15 0 2\n" \
+           "E 115 0\nS 115 35 -1 0\nI 150\nS 150 30 1 2\nE 180 1\nS 180 20 -1 0\nT 200\n"
     global DURATION
     check("pa_edf", tasks, good)
     wrong = {
         "the wrong task first": good.replace("S 0 15 0 2\nE 15 0\nS 15 30 1 2\nE 45 1",
                                              "S 0 30 1 2\nE 30 1\nS 30 15 0 2\nE 45 0"),
-        "idle while waiting": good.replace("S 45 55 -1 0\nS 100 15 0 2",
-                                           "S 45 60 -1 0\nS 105 10 0 2"),
+        "idle while waiting": good.replace("S 45 55 -1 0\nI 100\nS 100 15 0 2",
+                                           "S 45 60 -1 0\nI 100\nS 105 10 0 2"),
         "an end too early": good.replace("S 0 15 0 2\nE 15 0\nS 15 30 1 2",
                                          "S 0 10 0 2\nE 10 0\nS 10 35 1 2"),
         "too slow for the deadline": "S 0 15 0 2\nE 15 0\nS 15 109 1 0\nE 124 1\n",
         "no end printed": good.replace("E 45 1\n", ""),
+        "a tick": good.replace("S 45 55 -1 0\n", "S 45 5 -1 0\nI 50\nS 50 50 -1 0\n"),
+        "two interrupts at one instant": good.replace("I 100\n", "I 100\nI 100\n"),
     }
     for name, trace in wrong.items():
         try:

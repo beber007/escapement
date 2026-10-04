@@ -173,6 +173,10 @@ to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
 
 ## Done
 
+- **No periodic tick, checked (2026-10-05).** The host test's trace prints each
+  interrupt of the comparator, and `tools/differential.py` fails a trace in which the
+  timer interrupts where nothing is released, or twice at an instant. Every build
+  passes; a host port made to interrupt every 500 ticks fails its first task set.
 - **A day of endurance under Renode (2026-10-04).** Four instances, each with its own
   build and seed, the hard, soft, deadline-monotonic and DRA kernels, ran a day of
   virtual time each at 1b67f30, 80 wraps, with no error (`emulation.md`, status
