@@ -89,9 +89,22 @@ $(shell mkdir -p build)
 all: build/TaskLEDPico.elf build/UARTEchoPico.elf build/UARTSendersPico.elf build/TaskWrapPico.elf \
      build/TestTimerEventPico.elf build/FourSlotCoresPico.elf build/IPCPico.elf \
      build/SoakPico.elf
+# The program of the README, built from the page itself, so that the two cannot part; it
+# is written for the hard kernel.
+ifeq ($(KERNEL),)
+all: build/ReadmeExample.elf
+endif
 
 clean:
-	rm -f build/*.o build/*.elf build/*.bin build/*.d
+	rm -f build/*.o build/*.elf build/*.bin build/*.d build/*.c
+
+build/ReadmeExample.c : ../../../../../README.md
+	awk '/^## An application/ { a = 1 } a && /^```c$$/ { c = 1; next } c && /^```$$/ { exit } c' $< > $@
+	test -s $@
+build/ReadmeExample.o : build/ReadmeExample.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/ReadmeExample.elf : $(COMMON) build/ReadmeExample.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/ReadmeExample.o -T$(LINKERFILE) -lgcc
 
 bin: all build/TaskLEDPico.bin build/UARTEchoPico.bin build/UARTSendersPico.bin build/TaskWrapPico.bin \
      build/TestTimerEventPico.bin build/FourSlotCoresPico.bin build/IPCPico.bin \

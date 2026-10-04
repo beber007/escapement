@@ -84,6 +84,21 @@ The probe task runs every millisecond
 
     Assert LED Is Blinking    testDuration=0.1  onDuration=0.001  offDuration=0.001  tolerance=0.02  testerId=${probe}  pauseEmulation=true
 
+The program of the README blinks the LED
+    [Documentation]           ReadmeExample, the program the README shows, which the Makefile
+    ...                       builds from the page itself: GPIO 25 toggled every 0.5 s, the LED
+    ...                       blinking at 1 Hz. It is written for the hard kernel, and the
+    ...                       Makefile builds it for that one only.
+    ${built}=                 Evaluate  os.path.exists(r"${EXAMPLE}/build/ReadmeExample.elf")  modules=os
+    Skip If                   not ${built}  built for the hard kernel only
+    Load Escapement           ReadmeExample
+
+    ${led}=                   Create LED Tester  sysbus.gpio.led
+
+    Execute Command           emulation RunFor "0.1"
+
+    Assert LED Is Blinking    testDuration=3  onDuration=0.5  offDuration=0.5  tolerance=0.02  testerId=${led}  pauseEmulation=true
+
 The three periodic tasks are scheduled
     [Documentation]           The three other tasks, of periods 10, 20 and 60 ms, each raise
     ...                       their output on GPIO 25, 2 and 3 and lower it before ending.

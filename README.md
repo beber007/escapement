@@ -80,10 +80,19 @@ and slows down only as far as those times still meet every deadline.
 ## An application
 
 Each task gives its period and its deadline in microseconds. Here is a whole program
-for the Pico, using the hard kernel ([`docs/api.md`](docs/api.md)):
+for the Pico, using the hard kernel ([`docs/api.md`](docs/api.md)). The CI builds it
+from this page and checks under Renode that the LED blinks at 1 Hz:
 
 ```c
 #include "Escapement.h"
+
+#define VTOR             *((volatile UINT32 *)0xE000ED08)
+#define RESETS_RESET     *((volatile UINT32 *)0x4000C000)
+#define RESETS_DONE      *((volatile UINT32 *)0x4000C008)
+#define IO_AND_PADS      ((1u << 5) | (1u << 8))
+#define GPIO25_CTRL      *((volatile UINT32 *)0x400140CC)
+#define SIO_GPIO_OE_SET  *((volatile UINT32 *)0xD0000024)
+#define SIO_GPIO_OUT_XOR *((volatile UINT32 *)0xD000001C)
 
 static void Blink(void *argument);
 
@@ -92,18 +101,22 @@ int main(void)
   extern void (* const CortexMxVectorTable[])(void);
   VTOR = (UINT32)CortexMxVectorTable;   /* the image runs from SRAM */
   OSInitializeSystemClocks();           /* crystal, PLL, 125 MHz */
+  RESETS_RESET &= ~IO_AND_PADS;         /* the GPIO out of reset */
+  while ((RESETS_DONE & IO_AND_PADS) != IO_AND_PADS);
+  GPIO25_CTRL = 5;                      /* GPIO 25, the LED, driven by the SIO */
+  SIO_GPIO_OE_SET = 1u << 25;
   OSCreateTask(Blink,0,500000,500000,NULL);   /* every 0.5 s, due within it */
   return OSStartMultitasking(NULL,NULL);
 }
 
 static void Blink(void *argument)
 {
-  SIO_GPIO_OUT_XOR = 1u << 25;          /* the LED of the Pico */
+  SIO_GPIO_OUT_XOR = 1u << 25;          /* the LED, toggled */
   OSEndTask();
 }
 ```
 
-`VTOR` and `SIO_GPIO_OUT_XOR` are register addresses the application defines itself.
+The addresses are the RP2040's registers (datasheet, sections 2.14, 2.19 and 2.3.1.7).
 
 ## On the silicon
 

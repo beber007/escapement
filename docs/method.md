@@ -149,13 +149,14 @@ behaviour, a test, a model, the board or an instrument.
 | 87 to 90 % of each kernel's lines run | `tools/coverage.py` | **stale**: every line runs or is excluded with its reason, 90.5 % of the branches |
 | How much current Stop 2 saves is not measured | `docs/stm32u5.md` | **stale**: measured on 2026-10-03 with a PPK2 |
 | Whether DVFS saves energy is not settled | `docs/roadmap.md`, items 3 and 4 | **stale**: settled against it on the U5, some 10 % at best on the RP2350; open on the RP2040 |
-| The program shown is a whole program for the Pico | nothing | to add: build it in CI |
+| The program shown is a whole program for the Pico | since 2026-10-04 the Pico's Makefile builds it from the page, and the Renode suite checks that its LED blinks at 1 Hz | **false**: it never routed GPIO 25 to the SIO nor made it an output, and on the chip the LED would not have lit. The page now shows the whole program |
 | Responses stay under the bound of the analysis | `tools/response_times.py` on the traces in `docs/data` | holds, and since 2026-10-04 under EDF too |
 | The figures: 4,716 bytes, 3.2 µs, +28 ppm, 108,000 activations | each dated, with its source | measurements of a day, not claims about every build |
 
-Six claims had gone stale as the work moved on, one had become false, and two were read
-by nothing. The README was corrected the same day; the two checks wait for the mutation
-run of the kernels, which builds the host test, to end.
+Six claims had gone stale as the work moved on, two were false, and two were read by
+nothing. The README was corrected the same day, and its program is built and run from
+the page since; the check of the tick waits for the mutation run of the kernels, which
+builds the host test, to end.
 
 ## What this changes in the repository
 
