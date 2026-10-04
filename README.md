@@ -159,10 +159,10 @@ right. The host test says the scheduler made the decisions it should have.
 | Level | Means | What it establishes |
 |---|---|---|
 | Compilation | GitHub Actions, with the developer's GCC and a second one, 14.2, and clang | the examples of the Pico, the Pico 2 and the STM32U5, on each push to `main` and each pull request; the kernels and the ports also compiled by clang without a warning (`tools/clang_check.sh`) |
-| The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the hard, the soft and the power-aware kernel, each under EDF and DM scheduling: ten tasks over 200,000 ticks with every activation on time, tasks released together run in priority order, three wraps of the kernel clock, event-driven tasks, the FIFO queue and the slot buffers, (m,k)-firm tasks under overload, and the speeds the power-aware kernel asks for. Every line of the kernels runs or says why it cannot, and 91.15 % of the branches run (90.5 % on 2026-10-04), a check since that day (`tools/coverage.py`). Random task sets run by each build, every trace checked against EDF or DM and, under EDF, against Spuri's bound (`tools/differential.py`) |
-| Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue, preempted at every access, both slot buffers on two cores too, each core free to reorder its accesses as the architecture allows, and the queue of Evéquoz between the cores of the RP2350: no read mixes two records or goes backwards, every run of the queue is linearizable — with the faulty variants each model must catch |
-| Replayable execution | Renode and `renode-test` | tasks scheduled at their periods, the UART echo answering, event-driven tasks woken on time by a timer-event handler, and the 2^30 wrap of the kernel clock crossed, on the RP2040, the RP2350 and the STM32U5; on the RP2040 as well, the DVFS driver raising the voltage before the frequency and lowering it after, on the RP2350 both slot buffers between its two cores, and on the STM32U5 the idle task sleeping on its low-power timer and moving the kernel clock on, across the 2^30 wrap too — all as regression tests |
-| Internal state on hardware | OpenOCD and SWD on a Pico; the reports of an STM32U5 to the Linux of its Arduino UNO Q | a trace of the scheduling read without stopping a core: deadlines armed ahead of the counter, timer events delivered on the microsecond, the clock changed by the power-aware kernel; cost counters read back from SRAM; on the U5, an endurance test run for hours with every part checked each second, its causes of reset, and its clock measured against Linux's within some 25 ppm; at each commit, the idle task in Stop 2, every task starting on its period and every timer event and byte from Linux coming through it |
+| The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the three kernels, each under EDF and DM: activations on time, ties in priority order, three wraps of the kernel clock, event-driven tasks, the queue and the slot buffers, (m,k)-firm overload, the power-aware kernel's speeds;<br>every line run or excluded with its reason, branches above a floor (`tools/coverage.py`);<br>random task sets, every trace checked against EDF or DM and Spuri's bound (`tools/differential.py`) |
+| Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue preempted at every access, the slot buffers and Evéquoz's queue between two cores free to reorder;<br>no read mixes two records or goes backwards, every run of the queue is linearizable;<br>faulty variants each model must catch |
+| Replayable execution | Renode and `renode-test` | on the three chips: tasks at their periods, the UART, timer events, the 2^30 wrap;<br>the RP2040's DVFS driver raising the voltage before the frequency;<br>the RP2350's slot buffers and queue between its cores;<br>the STM32U5's idle task in Stop 2, across the wrap too |
+| Internal state on hardware | OpenOCD and SWD on the Picos; the reports of an STM32U5 to the Linux of its Arduino UNO Q | a trace read without stopping a core: deadlines armed ahead of the counter, timer events on the microsecond, the speeds of the power-aware kernel;<br>cost counters read back from SRAM;<br>endurance runs, every part checked each second;<br>at each commit, three boards checked on the CI's images (`tools/board_ci.md`) |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
 
 </details>
@@ -172,11 +172,10 @@ Read by that counter, the declared periods of 1, 20 and 60 ms give 500.02 Hz,
 under each of the three kernels ([`docs/rp2040.md`](docs/rp2040.md)).
 
 Levels have caught what the earlier ones missed. The host test found the kernel
-scheduling by DM while this page said EDF. The models found six bugs in the
-lock-free code that every test had let through. A test written for a branch the
-coverage showed untaken found an event-driven task released late under DM, a defect
-inherited from ZottaOS. The stories are in
-[`docs/method.md`](docs/method.md).
+scheduling by DM while this page said EDF. The models found six bugs in the lock-free
+code that every test had let through. A test written for a branch the coverage showed
+untaken found an event-driven task released late under DM, a defect inherited from
+ZottaOS. The stories are in [`docs/method.md`](docs/method.md).
 
 ## Watch it run
 
@@ -340,13 +339,18 @@ behind on a chip whose SC can also fail for no reason, so the queue retries that
 Each of the three has a model in [`test/model`](test/model), explored exhaustively in
 CI. The models cover the reader and writer of the slot buffers, the queue operations
 preempting each other at every access, and the load-linked/store-conditional pair as
-the Cortex-M0+ emulates it. They found six bugs, all fixed: a 3-slot reader that could
-read past its array, a signal that could wake two tasks, and, between two cores, a
-3-slot writer that could hand the reader the slot it was still writing, both slot
-buffers without the memory barriers that keep each core's accesses in order, and in the
-queue between the cores an index left behind by a store-conditional that fails for no
-reason, and an item lost to a store-conditional seen before the stores after it. None of
-them was in the published algorithms. They came from turning a compare-and-swap into a
+the Cortex-M0+ emulates it. They found six bugs, all fixed:
+
+- a 3-slot reader that could read past its array;
+- a signal that could wake two tasks;
+- between two cores, a 3-slot writer that could hand the reader the slot it was still
+  writing;
+- both slot buffers without the memory barriers that keep each core's accesses in order;
+- in the queue between the cores, an index left behind by a store-conditional that fails
+  for no reason;
+- and an item lost to a store-conditional seen before the stores after it.
+
+None was in the published algorithms. They came from turning a compare-and-swap into a
 single store-conditional attempt, from what ZottaOS added to Evéquoz's queue, and from
 code written for one core ([`docs/method.md`](docs/method.md)).
 
@@ -387,6 +391,7 @@ account is in [`docs/method.md`](docs/method.md).
 | | |
 |---|---|
 | [`docs/architecture.md`](docs/architecture.md) | kernel variants, targets, source tree |
+| [`docs/method.md`](docs/method.md) | how each claim was verified: levels, hypotheses that were wrong, mutants, audits |
 | [`docs/build.md`](docs/build.md) | toolchain, examples, memory footprint |
 | [`docs/api.md`](docs/api.md) | writing an application: tasks, events, queues and buffers, interrupts |
 | [`docs/emulation.md`](docs/emulation.md) | Renode, tests replayed in CI, fixes to the timer model |
@@ -395,7 +400,6 @@ account is in [`docs/method.md`](docs/method.md).
 | [`docs/stm32u5.md`](docs/stm32u5.md) | STM32U5 port on the Arduino UNO Q: clock, errata, endurance test, idle task in Stop 2 |
 | [`tools/board_ci.md`](tools/board_ci.md) | the bench: the checks run on the boards at each commit |
 | [`emulation/renode/RP2040.md`](emulation/renode/RP2040.md) | emulating the Pico under Renode |
-| [`docs/method.md`](docs/method.md) | verifying AI-assisted development |
 | [`test/host`](test/host) | the scheduler built for the machine it runs on |
 | [`docs/roadmap.md`](docs/roadmap.md) | current state and open work |
 
