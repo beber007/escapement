@@ -91,8 +91,11 @@ def response_times_hold(tasks):
 def run(build, tasks):
     binary = os.path.join(HOST, os.environ.get("BUILD", "build"), "test_scheduler_" + build)
     text = "".join("%d %d %d %d\n" % t for t in tasks)
+    # What OSMalloc hands out is never freed, by design: test/host/Makefile turns the leak
+    # check of AddressSanitizer off, which Linux runs and macOS does not.
+    env = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
     done = subprocess.run([binary, "trace", str(DURATION)], input=text, capture_output=True,
-                          text=True, timeout=60)
+                          text=True, timeout=60, env=env)
     if done.returncode != 0:
         said = [l for l in (done.stdout + done.stderr).splitlines()
                 if l.strip() and not l[:2] in ("S ", "E ")]
