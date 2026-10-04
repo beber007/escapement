@@ -110,12 +110,12 @@ message passing and load buffering between its two cores, each with and without 
 between its two accesses (Alglave, Maranget, Sarkar and Sewell, TACAS 2011). Each round
 the two cores start at a pseudo-random offset from each other, to the cycle. On a Pico 2
 on 2026-09-28, in 10 minutes, each of the six tests ran 69.4 million rounds and none
-ended in its weak outcome. Each also met the other core within a cycle or two: in store
-buffering without a DMB, both loads saw the other core's store in 109,901 rounds, in
-message passing the reader saw the data without the flag in 1.3 million, and in load
-buffering both loads came before both stores in 1.4 million. The chip showed no reordering between its cores.
-The DMBs stay: the architecture allows the reorderings, and a test that saw none does
-not show that none can happen.
+ended in its weak outcome. The two cores did meet within a cycle or two: without a
+DMB, both loads of store buffering saw the other core's store in 109,901 rounds, the
+reader of message passing saw the data without the flag in 1.3 million, and both loads
+of load buffering came before both stores in 1.4 million. The DMBs stay: the
+architecture allows the reorderings, and a test that saw none does not show that none
+can happen.
 
 The queue between the cores of the RP2350 (`Escapement_CoreQueue.c`, `OSInitCoreQueue`)
 is the array-based queue of Evéquoz's Figure 3. It is lock-free rather than wait-free,
@@ -170,8 +170,8 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
   | `GP3` | `TestTimerEventPico2`, 10 ms event | 100 Hz | 100.0031 Hz, 4 |
 
   Every output is +28 to +35 ppm off, as the Pico's were on the same instrument
-  (`rp2040.md`, 16.66713 and 100.0031 Hz there): two boards the same, it is the Bus
-  Pirate's reference that is some 30 ppm slow rather than either crystal.
+  (`rp2040.md`, 16.66713 and 100.0031 Hz there). Two boards reading the same offset, it
+  is the Bus Pirate's reference that is some 30 ppm slow, not either crystal.
 
   The UART, through the Debug Probe's own on GP0 and GP1, on 2026-09-30
   (`tools/pico2_uart.py`, the CI's images of 3c141ca): `UARTEchoPico2` sent back the

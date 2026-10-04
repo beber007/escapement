@@ -229,39 +229,46 @@ that reference tells and what a crystal gives. Over the 9.2 hours of the followi
 night, the seconds `SoakU5` counted matched Linux's to the second. A line through the
 543 readings gives 21 ppm slow, with a standard error of 1.7 ppm. That morning Linux's
 clock, kept by systemd-timesyncd, was itself 61 ms off NTP with 54 ms of jitter. Within
-those 25 ppm the U5's clock and Linux's cannot be told apart. Should the HSE not start,
-the MSIS remains PLL1's input. Until 2026-09-30 that was its range 4, 3.998 MHz, under
-the 4 MHz RM0456 gives as the floor of both the VCO's input and the booster's clock
-(RCC_PLL1CFGR). The port now raises it to range 2, whose MSIRC0 runs at 1,465 periods of
-the LSE, 48.00512 MHz, divided by 3: 16.0017 MHz, the booster's clock 8.0009 through its
-prescaler of 2, the VCO's input 5.3339 through M = 3, and 160.017 MHz after x 60 / 2,
-107 ppm fast by the datasheet's figures where range 4 gave 576 ppm slow. After each
-wake-up the MSI takes up to 0.8 ms to come within 1 % of its frequency again, running
-meanwhile as in MSI mode, within some 1.4 % at 30 °C and 3 V and a further −4 to +2 %
-over temperature (DS13086 rev. 10, table 83): at 5.4 % slow both inputs stay within
-their ranges, 7.6 and 5.05 MHz; range 3 divided by 3, 4.0004 MHz, would not. The SRAM
-the images run from reads at 0 wait states up to 16 MHz only in voltage range 4 (RM0456,
-table 47), where the chip starts and wakes from Stop 2; one is set before the MSIS goes
-to 16 MHz and before each Stop 2, and taken off in range 1. This commit read the 1 % as a
-bound during the lock and missed the SRAM; an independent review found both the same
-day. The system clock itself may run a few % above its 160 MHz until the MSI is locked,
-as it could with range 4. `escapement_u5.robot` checks the registers on a platform without
-the HSE (`escapement_u5_nohse.repl`). The NUCLEO-U575ZI-Q was taken for a board without
-it, and its endurance runs since 2026-09-30 (7d069ea) for a check of this path on the
-board. On 2026-10-02 its RCC read the HSE ready and PLL1 on it, M = 4: its crystal X3 is
-fitted (UM2861, 6.7, leaves it to the variant). Those runs checked the HSE, and the MSIS
-of range 2 had run under Renode only, on no board. `SleepNoHSEU5`, `SleepU5` built with
-`OS_NO_HSE` (`make NOHSE=1` for any image), starts as a board without the HSE would: PLL1
-takes the MSIS of range 2 at start and at every wake-up from Stop 2. A Renode test checks
-it on the platform that enters Stop 2, and fails when the option does nothing; the board
-check of each commit runs it on the UNO Q for a minute after `SleepU5`. Its first run on
-the board, in the check of d9a32eb on 2026-10-02, was the first of that path on a chip:
-600 instances, 1,225 entries into Stop 2, none late, every byte of the link received,
-and the longest wake-up 4 ticks of LPTIM1 against 19 waiting for the HSE. The check
-still failed, on TIM2 against LPTIM1: it expected TIM2 106.7 ppm ahead, PLL1 on the MSIS
-being that fast, and read -4.1. TIM2 is set from LPTIM1 at every wake-up from Stop 2,
-where the image spends most of its time, and runs on PLL1 only awake; it is now checked
-as `SleepU5`'s, within 20 ppm.
+those 25 ppm the U5's clock and Linux's cannot be told apart.
+
+### Without the HSE
+
+Should the HSE not start, the MSIS remains PLL1's input. Until 2026-09-30 that was its
+range 4, 3.998 MHz, under the 4 MHz RM0456 gives as the floor of both the VCO's input
+and the booster's clock (RCC_PLL1CFGR). The port now raises it to range 2, whose MSIRC0
+runs at 1,465 periods of the LSE, 48.00512 MHz, divided by 3: 16.0017 MHz, the booster's
+clock 8.0009 through its prescaler of 2, the VCO's input 5.3339 through M = 3, and
+160.017 MHz after x 60 / 2, 107 ppm fast by the datasheet's figures where range 4 gave
+576 ppm slow. After each wake-up the MSI takes up to 0.8 ms to come within 1 % of its
+frequency again, running meanwhile as in MSI mode, within some 1.4 % at 30 °C and 3 V
+and a further −4 to +2 % over temperature (DS13086 rev. 10, table 83): at 5.4 % slow
+both inputs stay within their ranges, 7.6 and 5.05 MHz; range 3 divided by 3, 4.0004
+MHz, would not. The SRAM the images run from reads at 0 wait states up to 16 MHz only in
+voltage range 4 (RM0456, table 47), where the chip starts and wakes from Stop 2; one is
+set before the MSIS goes to 16 MHz and before each Stop 2, and taken off in range 1. The
+first version of this change read the 1 % as a bound during the lock and missed the
+SRAM; an independent review found both the same day. The system clock itself may run a
+few % above its 160 MHz until the MSI is locked, as it could with range 4.
+`escapement_u5.robot` checks the registers on a platform without the HSE
+(`escapement_u5_nohse.repl`).
+
+The NUCLEO-U575ZI-Q was taken for a board without the HSE, and its endurance runs since
+2026-09-30 (7d069ea) for a check of this path on the board. On 2026-10-02 its RCC read
+the HSE ready and PLL1 on it, M = 4: its crystal X3 is fitted (UM2861, 6.7, leaves it to
+the variant). Those runs checked the HSE, and the MSIS of range 2 had run under Renode
+only, on no board. `SleepNoHSEU5`, `SleepU5` built with `OS_NO_HSE` (`make NOHSE=1` for
+any image), starts as a board without the HSE would: PLL1 takes the MSIS of range 2 at
+start and at every wake-up from Stop 2.
+
+A Renode test checks it on the platform that enters Stop 2, and fails when the option
+does nothing; the board check of each commit runs it on the UNO Q for a minute after
+`SleepU5`. Its first run on the board, in the check of d9a32eb on 2026-10-02, was the
+first of that path on a chip: 600 instances, 1,225 entries into Stop 2, none late, every
+byte of the link received, and the longest wake-up 4 ticks of LPTIM1 against 19 waiting
+for the HSE. The check still failed, on TIM2 against LPTIM1: it expected TIM2 106.7 ppm
+ahead, PLL1 on the MSIS being that fast, and read -4.1. TIM2 is set from LPTIM1 at every
+wake-up from Stop 2, where the image spends most of its time, and runs on PLL1 only
+awake; it is now checked as `SleepU5`'s, within 20 ppm.
 
 Since 2026-09-28 the board check times the U5 against `CLOCK_MONOTONIC_RAW`, the crystal
 of the board's Qualcomm processor as it is, which NTP does not pull (`tools/unoq_drift.py`).
@@ -489,20 +496,17 @@ period in both. D13 itself has not yet been observed.
 The absolute currents are for a NUCLEO-U575ZI-Q, whose board has a jumper for the MCU's
 current, JP5 (UM2861, 6.4.5). `Examples/nucleo-u575` builds `SleepU5` for it from the
 same sources. Its outputs are on pins that drive no LED, since the LEDs sit on the rail
-that jumper measures. This one has its HSE crystal, X3, fitted, which this page denied
-until 2026-10-02 on a reading of UM2861 (6.7), that leaves it to the variant: its RCC
-read the HSE ready and PLL1 on it. Without it the port runs PLL1 on the MSIS of range 2:
-the HSE is not tried again once it failed to start, and a wake-up it misses goes on the
-MSIS (`SleepNoHSEU5`, checked on the UNO Q at each commit). The board's STM32U575ZIT6Q
-has the SMPS that the UNO Q's U585 lacks: 8.2 against 20.5 µA in Stop 2 with every SRAM
-retained at 25 °C, by the datasheet (DS13737 rev. 4, tables 54 and 56). The port keeps
-the LDO, as reset leaves it, unless built with `make SMPS=1`. That option selects the
-SMPS before the voltage range is raised (PWR_CR3.REGSEL), so that both can be measured
-on the same board. The NUCLEO on the bench has its VDD at 1.8 V, JP4 on [2-3], not at
-the 3.3 V it ships with (UM2861, 6.4.4.3): OpenOCD read a target voltage of 1.80 V on
-2026-10-02, the first time it was read, and the jumper was found there; it was set back
-to [1-2], 3.3 V, the same evening, while looking for the hang below. A current measured
-at 1.8 V is to be weighed against the datasheet at the VDD of each table. The CI builds both images at each commit
+that jumper measures. This one has its HSE crystal fitted ("Without the HSE"). The
+board's STM32U575ZIT6Q has the SMPS that the UNO Q's U585 lacks: 8.2 against 20.5 µA in
+Stop 2 with every SRAM retained at 25 °C, by the datasheet (DS13737 rev. 4, tables 54
+and 56). The port keeps the LDO, as reset leaves it, unless built with `make SMPS=1`.
+That option selects the SMPS before the voltage range is raised (PWR_CR3.REGSEL), so
+that both can be measured on the same board. The NUCLEO on the bench has its VDD at 1.8
+V, JP4 on [2-3], not at the 3.3 V it ships with (UM2861, 6.4.4.3): OpenOCD read a target
+voltage of 1.80 V on 2026-10-02, the first time it was read, and the jumper was found
+there; it was set back to [1-2], 3.3 V, the same evening, while looking for the hang
+below. A current measured at 1.8 V is to be weighed against the datasheet at the VDD of
+each table. The CI builds both images at each commit
 (`ppk2_u5/SleepU5-nucleo-phases30.elf` and `SleepU5-nucleo-smps-phases30.elf`). The
 board has run the endurance test on the bench since 2026-09-28. The PPK2 measured
 `SleepU5` from the flash instead (`SleepU5Flash`, below).
