@@ -301,6 +301,39 @@ another version or optimisation level until it runs there. Without the barriers'
 clobber, GCC 16.2 happened to keep the same order at -O2 (2026-09-25). The clobber is a
 guarantee, not a fix to an observed fault.
 
+### Between the cores, on a processor that reorders
+
+The Pico 2 keeps its accesses in order: `LitmusPico2.c` found none reordered. On the
+board, then, the queue between the cores shows that it runs, not that its seven barriers
+are needed. `test/litmus` (2026-10-04) compiles `Escapement_CoreQueue.c` unchanged for an
+Apple M3 Pro, its LL and SC made LDXR and STXR, its DMB a `DMB ISH`. That processor does
+use the freedom Armv8-M gives Normal memory. Two threads first run the three classic
+litmus tests, then each enqueues its own numbered items and dequeues in turns, under a
+check of each item's contents, of each producer's order and, at the end, of every item
+dequeued once. Each mutant then leaves one barrier out of the processor while keeping it
+in the compiler.
+
+| Run, 2026-10-04 | Result |
+|---|---|
+| SB, MP, LB without a DMB, 19,999,744 instances each | 12,233,728 SB and 26,428 MP reordered; LB never |
+| The same with a DMB | none |
+| The queue, two places, its seven barriers, 4 runs of 1 to 20 million items each way | 0 errors |
+| Without the barrier after E9 | caught in 5 runs of 5: an enqueuer's items out of order |
+| Without the barrier after D9 | caught in 1 run of 5, with four pairs of threads running |
+| Without the one after E5, E15, D5, D6 or D15 | caught in none of 2 runs each |
+
+Two barriers are now shown needed on a real processor, not only in the model. The five
+the bench does not catch are no less needed: `fifo_mp.py` finds each one's run against
+the architecture, and this processor does not happen to take it. The bench stands for a
+processor that reorders, not for a Cortex-M, none of which is known to reorder as far.
+
+The first version of the bench had a fault of its own. In place of the barrier it left
+out, it counted the passes with an atomic add. Between an LDXR and its STXR, that
+exclusive access cleared the reservation, so every SC failed and the mutant without the
+barrier after E9 looped for ten minutes. The bench looked like it had found a livelock
+in the queue. Its mutants now add no access to memory, and a watchdog stops a thread
+that makes no progress for 10 s.
+
 ### Store order on one core
 
 The same holds on one core for the stores a task makes that the timer interrupt may

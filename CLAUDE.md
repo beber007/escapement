@@ -79,6 +79,10 @@ python3 test/model/threeslot.py      # ~1 min, up to 1.2 GB; --jobs N in paralle
 python3 test/model/fifo.py           # ~35 s
 python3 test/model/fifo_mp.py        # the queue between the cores, ~100 s, 2.3 GB
 
+# The queue between the cores on a processor that reorders: an Armv8-A host, the Mac
+# (test/litmus, docs/method.md); litmus tests, the queue, then without each barrier, ~30 s
+sh test/litmus/run.sh
+
 # The compiled order of the slot buffers and of the queue between the cores against the
 # models, and of the task-level stores the timer interrupt relies on (run by the CI)
 tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement*.o
