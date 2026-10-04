@@ -131,7 +131,8 @@ def main():
     kept = [k for k in branches if k[:2] not in excluded]
     taken = sum(1 for k in kept if branches[k] > 0)
     counted = [k for k in lines if k not in excluded]
-    percent = 100.0 * taken / len(kept) if kept else 100.0
+    # Compared as printed, to the hundredth: the floor is written from that figure.
+    percent = round(100.0 * taken / len(kept), 2) if kept else 100.0
 
     print("%d lines in %d binaries, %d excluded; %d of %d branches taken, %.2f %%" %
           (len(counted), len(binaries), sum(1 for k in lines if k in excluded), taken,
