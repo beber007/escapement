@@ -13,7 +13,7 @@ anyone else. It is established when something outside the claim confirms it.
 
 | Level | Means | Catches |
 |---|---|---|
-| Compilation | GitHub Actions on each push to `main` and each pull request, with the developer's GCC 16.2 and, for every variant, the compiled order and the Pico 2 suite, the GCC 14.2 of the stable distributions (since 2026-09-26; 14.2 alone before) | code that does not build, and anything one compiler forgives that the other does not |
+| Compilation | GitHub Actions, each push to `main` and each pull request: GCC 16.2, GCC 14.2 (since 2026-09-26) and clang | code that does not build, and anything one compiler forgives that the other does not |
 | The scheduler alone | the kernel built for the host, with time as a variable, in CI | a kernel that does not run the algorithm it claims, the 2^30 wrap of its clock, which the board reaches only after eighteen minutes, and the parts of the kernel no example exercises: event-driven tasks, FIFO queue, slot buffers |
 | Every interleaving | small models of the slot buffers and of the FIFO queue, explored exhaustively in CI (`test/model`) | what no test that runs one path at a time can reach: an interrupt at the one instruction where it matters |
 | Replayable execution | Renode, replayed by `renode-test` in CI | a kernel that builds but does not schedule |
@@ -22,18 +22,22 @@ anyone else. It is established when something outside the claim confirms it.
 
 The levels are ordered by how much they cost and by how little they assume. The sixth
 exists because the fifth still runs through a debugger, and that turned out to matter
-(the `TIMER_DBGPAUSE` investigation in `rp2040.md`). Beside these levels, the CI runs
-static analysis (cppcheck over each port, GCC's `-fanalyzer`) and checks the compiled
-order of the accesses the lock-free code depends on (below). Since 2026-10-04 it also
-fails a commit that leaves a line of the kernels unrun by the host test without saying
-why (`tools/coverage.py`), and checks the traces of random task sets, run by the kernels
-on the host, against the algorithm each build claims (`tools/differential.py`): who runs
-must be a valid choice of EDF or deadline-monotonic scheduling at every instant, the
-processor never idles while work waits, every instance ends when its work is done and
-by its deadline, and under EDF within the bound of Spuri's response time analysis
-(`tools/response_times.py`). Kernels made wrong on purpose — either order reversed, arrivals sorted
-the wrong way, a speed one step too low or always the slowest — fail it within the first
-few task sets of each build.
+(the `TIMER_DBGPAUSE` investigation in `rp2040.md`). Beside these levels, the CI runs:
+
+- static analysis: cppcheck over each port, GCC's `-fanalyzer`, clang
+  (`tools/clang_check.sh`);
+- the compiled order of the accesses the lock-free code depends on (below);
+- since 2026-10-04, coverage: a commit fails that leaves a line of the kernels unrun by
+  the host test without saying why (`tools/coverage.py`);
+- since 2026-10-04, a differential test: the traces of random task sets, run by the
+  kernels on the host, checked against the algorithm each build claims
+  (`tools/differential.py`). Who runs must be a valid choice of EDF or deadline-monotonic
+  scheduling at every instant, the processor never idles while work waits, every
+  instance ends when its work is done and by its deadline, and under EDF within the
+  bound of Spuri's response time analysis (`tools/response_times.py`). Kernels made
+  wrong on purpose — either order reversed, arrivals sorted the wrong way, a speed one
+  step too low or always the slowest — fail it within the first few task sets of each
+  build.
 
 ## Hypotheses that were wrong
 
@@ -130,6 +134,64 @@ fallback, and every example selects EDF. All three emulation suites still pass. 
 test also checks that no deadline is missed, a check that could not be written while
 the field it reads did not exist.
 
+## Mutants: how strong the tests are
+
+Coverage says a line runs; it does not say a test would notice the line being wrong.
+`tools/mutants.py` makes one small fault at a time in a kernel's source, a comparison
+turned round, `+` for `-`, `&&` for `||`, 0 for 1, a statement of one line left out, and
+runs the host test and `tools/differential.py` on the builds of that kernel. A mutant is
+killed when a test fails, survives when none does. Lines no build of the host compiles,
+code of a variant the host does not build, are left out: a mutant there changes nothing
+the host runs.
+
+The first run, on 2026-10-04, killed 355 of the hard kernel's 484 mutants that compiled,
+73.3 %; 487 of the soft one's 718, 67.8 %; and 536 of the power-aware one's 798, 67.2 %.
+Read one by one, the survivors of
+the hard kernel fell in five kinds:
+
+| Kind | Hard | What they were |
+|---|---:|---|
+| Equivalent: nothing a run can see changes | ~20 | ties broken the other way, a field set to the 0 it already held, a bound moved where no value reaches it |
+| The target's only | ~30 | interrupts masked, compiler and memory barriers, the timer started, PendSV pended: the host's port does nothing there, and `check_order.py`, Renode and the boards are what read them |
+| Hidden by the host | ~30 | every field a creation sets: the host's `OSMalloc` handed out zeroed blocks, where the target's SRAM holds what the last image left, so a field left unset read 0 and passed |
+| The helpers of the wait-free queue | 7 | an operation finding its work done, which two nested interrupts reach: `test/model/fifo.py` explores them |
+| Behaviour no test read | ~30 | below |
+
+The last kind was the work, and it found three things beyond tests to write:
+
+- the host test's blocks are now filled with 0xA5, as SRAM is not zeros: no field the
+  kernels set turned out forgotten, but leaving one out now fails;
+- `RunAcross`, the loop that jumps the host's clock from event to event, ran a task of
+  a period past 2^30 a whole turn late, which no test had; fixed, and `longperiod` tests
+  it (`test/host/README.md`);
+- the variant of `EnqueueRescheduleQueue` for a port without `NonMaskableSoftwareTimer`
+  was compiled by no build: the three ports and the host defined it. It was ZottaOS's,
+  and went on 2026-10-05, the 97 images of the examples the same byte for byte.
+
+The tests added for the rest: the edges of what a creation accepts (`createbounds`), a
+period past 2^30 run over three wraps (`longperiod`), two events signalled at once
+(`twosignals`), an event-driven task started at its signal and spaced by its workload
+from the arrival queue (`eventspacing`), the edges of the slot buffers, and the harness
+checking that a task ending leaves its context unsaved and asks for a switch, as the
+timer handler must, which the host's port only counts.
+
+`tools/differential.py` now also draws event-driven tasks, a workload apart under DM and
+a total bandwidth server under EDF, and (m,k)-firm sets that overload unless optional
+instances are dropped. Each task takes its WCET, so an optional instance wrongly admitted
+misses its deadline.
+
+Run again on the survivors, the hard kernel's score rose to 80.4 % (389 of 484), the soft
+one's to 74.2 % (533 of 718), and the power-aware one's to 71.8 % (573 of 798).
+
+Most of the soft kernel's survivors are in the test of its optional instances,
+`IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
+window under-counts by one WCET at most, and random task sets seldom come that close. A
+reference of that test, computed apart and compared decision by decision, would read
+them; it is not written. A quarter of the power-aware kernel's survivors are in the
+choice of speed (`GetProcessorSpeed`, DRA's simulation, DM_SLACK's slack): a mutant that
+picks a faster speed than it needs keeps every deadline, and nothing holds the policies
+to the speeds their papers give. A reference of each policy would.
+
 ## What the README claims, and what checks it
 
 That lesson, a claim no test reads is not checked, was applied to the README on
@@ -139,13 +201,13 @@ behaviour, a test, a model, the board or an instrument.
 | Claim | What reads it | Found |
 |---|---|---|
 | Scheduling by EDF or DM | the host test's view of the task control block; `tools/differential.py`, each trace checked against the algorithm of its build | holds |
-| No periodic tick: the timer interrupts at a release only | nothing on the host; on the U5, the idle task's 454,487 Stop 2 in three hours, which a tick would have cut short | to add: the trace's timer interrupts set against the releases |
-| The power-aware kernel slows down only as far as every deadline holds | `tools/differential.py` under its five policies, with kernels made to run too slow; the host test's speeds | holds |
+| No periodic tick: the timer interrupts at a release only | nothing on the host; on the U5, the idle task's 454,487 Stop 2 in three hours, which a tick would have cut short | to add: the trace's timer interrupts set against the releases. Done on 2026-10-05: `tools/differential.py` reads every interrupt of the comparator, and a host port made to interrupt every 500 ticks fails its first task set |
+| The power-aware kernel slows down only as far as every deadline holds | `tools/differential.py` under its five builds, with kernels made to run too slow; the host test's speeds | holds |
 | Overload drops chosen (m,k)-firm instances, not deadlines at random | the host test's `firm` runs, `firmoverload*` | holds |
 | The queues take no lock | `docs/architecture.md` | **false since 2026-09-25**: `OSSuspendSynchronousTask` masks interrupts around the enqueue of a task on its event. The README now says so |
 | The queue between the cores went from fifteen barriers to six | the model `fifo_mp.py` | **stale**: seven since 2026-09-29 |
 | The models found four bugs | `docs/method.md`, "Hypotheses that were wrong" | **stale**: six, two of them in the queue between the cores |
-| Two boards checked at each commit | `tools/board_ci.md` | **stale**: three, the Pico 2 since 2026-09-30 |
+| Two boards checked at each commit | `tools/board_ci.md` | **stale**: three, the Pico 2 since 2026-09-28 |
 | 87 to 90 % of each kernel's lines run | `tools/coverage.py` | **stale**: every line runs or is excluded with its reason, 90.5 % of the branches |
 | How much current Stop 2 saves is not measured | `docs/stm32u5.md` | **stale**: measured on 2026-10-03 with a PPK2 |
 | Whether DVFS saves energy is not settled | `docs/roadmap.md`, items 3 and 4 | **stale**: settled against it on the U5, some 10 % at best on the RP2350; open on the RP2040 |
@@ -155,8 +217,7 @@ behaviour, a test, a model, the board or an instrument.
 
 Six claims had gone stale as the work moved on, two were false, and two were read by
 nothing. The README was corrected the same day, and its program is built and run from
-the page since; the check of the tick waits for the mutation run of the kernels, which
-builds the host test, to end.
+the page since. The check of the tick was added on 2026-10-05.
 
 ## What this changes in the repository
 
@@ -166,7 +227,7 @@ its date and its deviation (the +28 ppm of the frequency counter, `rp2040.md`). 
 that did not reproduce is said so. A commit message gives its reasoning, wrong turns
 included.
 
-## What it does not prove
+## Audits, and what they leave unproved
 
 ### The line-by-line audit
 
@@ -218,21 +279,15 @@ to images in SRAM; `OSInitUART` said TRUE with its queue unallocated, and
 `OSInitTimerEvent`, which said nothing, wrote past an empty block for no node; the Pico
 ports released blocks from reset by a read-modify-write of `RESETS`, which could put
 back in reset what core 1 had just released; `OSGetStop2Counts` unmasked the interrupts
-whatever the caller's state. Left for later: the MSIS locked on the LSE feeds PLL1 at
-3.998 MHz, under the 4 MHz RM0456 gives as the floor of both the VCO's input and the
-booster's clock, on a board without the HSE, which the NUCLEO-U575ZI-Q was then taken
-for. The comment on the booster's
-clock, read against RM0456 the same day, was wrong: the booster takes the source of
-PLL1 before its divider M, 16 MHz from the HSE, not 4, still within its 4 to 16 MHz.
-Done on 2026-09-30: PLL1 takes the MSIS of range 2, 16.0017 MHz, whose booster clock
-(8.0009) and VCO input (5.3339) stay within their ranges even at the few % the MSI may be
-off before it locks again after a wake-up. An independent review of that change found
-the same day that it had missed the SRAM's wait state in voltage range 4 above 16 MHz,
-and read the datasheet's 1 % as a bound during the lock where it is its end; both
-fixed. A Renode test checks what the port writes, and
-fails on the code before. The NUCLEO was said to have run it since without error: it
-runs on its HSE (the hypotheses above). The path first ran on a chip as `SleepNoHSEU5`
-on the UNO Q on 2026-10-02 (`stm32u5.md`).
+whatever the caller's state. The comment on the booster's clock was wrong too: it takes
+PLL1's source before the divider M, 16 MHz from the HSE, not 4.
+
+One finding was left for later: without the HSE, PLL1 took the MSIS at 3.998 MHz, under
+the 4 MHz floor of its input. Since 2026-09-30 it takes the MSIS of range 2, 16.0017
+MHz; an independent review of that change found two faults the same day, both fixed.
+The NUCLEO-U575ZI-Q, taken for a board without the HSE, has one (the hypotheses above):
+the path first ran on a chip as `SleepNoHSEU5` on the UNO Q on 2026-10-02 (`stm32u5.md`,
+"Without the HSE").
 
 ### Two fixes that were wrong
 
@@ -322,17 +377,17 @@ the compiled code keeps the order they need is checked by `tools/check_order.py`
 CI, on every build of the Pico and the Pico 2, and of the STM32U5 since its port
 (2026-09-25), on every path through the buffers' functions.
 `tools/check_order_mutants.sh` shows the check failing without any one of the barriers.
-There are nine since the status of a buffer, which the models leave out, is set after
-its slot is handed over (2026-09-25). The queue between the cores had no such check
-until 2026-09-30: only its source and its model named its seven barriers. The check now
-follows the queue through its LL and SC, which are calls, and each barrier removed from
-the source is caught, each by the pair of accesses it stands between. An independent
-review found two holes in it the same day, both closed: a path went on past a return GCC
-writes as `ldmia.w sp!, {..., pc}`, which the check took for an ordinary load, and the
-pairs let the E5 of the next round stand for the E10 that must follow the LL of the
-place, so that a queue without E10, or with it before the LL, passed. Changes to the
-algorithm that keep its order, as a test turned around at E11, are not the check's to
-find.
+There are nine in the two buffers' source since the status of a buffer, which the models
+leave out, is set after its slot is handed over (2026-09-25). The queue between the
+cores had no such check until 2026-09-30: only its source and its model named its seven
+barriers. The check now follows the queue through its LL and SC, which are calls, and
+each barrier removed from the source is caught, each by the pair of accesses it stands
+between. An independent review found two holes in it the same day, both closed: a path
+went on past a return GCC writes as `ldmia.w sp!, {..., pc}`, which the check took for
+an ordinary load, and the pairs let the E5 of the next round stand for the E10 that must
+follow the LL of the place, so that a queue without E10, or with it before the LL,
+passed. Changes to the algorithm that keep its order, as a test turned around at E11,
+are not the check's to find.
 
 The check cannot see a reordering by the processor that the architecture does not
 allow, which is the models' premise. Nor can it see code the compiler might emit for
