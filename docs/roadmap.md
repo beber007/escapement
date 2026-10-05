@@ -34,9 +34,11 @@ to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
 
 0. **Two weeks of endurance on a board** (`rp2040.md`, "The endurance test"). `SoakPico`
    runs on the Pico W, on a probe of its own, since 2026-09-28 at 20:03 UTC: a week under
-   the hard kernel, EDF, at 69825e4, then a week under the power-aware one. On 2026-10-04
-   at 22:36 UTC it had run 6 days 1 h 48 min across 488 wraps of the kernel clock, with
-   no error and no restart. Two STM32U5 run alongside until stopped (`stm32u5.md`, "The
+   the hard kernel, EDF, at 69825e4, then a week under the power-aware one. The first
+   week ended on 2026-10-05 at 20:03 UTC: 7 days across 563 wraps of the kernel clock, no
+   error, no restart, no interruption, the pulse at most 129 µs late and the timer events
+   137. The second began at 20:18 UTC on 80cc6dc, the power-aware kernel under OTE with
+   the RP2040's stack guard and the speed reclaimed at every release. Two STM32U5 run alongside until stopped (`stm32u5.md`, "The
    endurance test"): the UNO Q's own, restarted by each board check on its commit, and a
    NUCLEO-U575ZI-Q, 25 h 56 min across 86 wraps at f197a35 on 2026-10-04, no error and no
    overrun. The statuses `board/soak`, `board/soak-u5` and `board/soak-nucleo` of each
