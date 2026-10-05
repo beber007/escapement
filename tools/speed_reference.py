@@ -42,8 +42,12 @@ DR_OTE does. The others are taken over here as the kernel has them:
 - DM_SLACK keeps one slack, the last one left, which runs out with all the time elapsed,
   where the manual keeps one per task.
 
-Only task sets of periodic tasks are referenced: the manual gives event-driven tasks no
-dynamic speed under OTE, and leaves their place in DRA's simulation unsaid.
+Event-driven tasks are referenced under OTE: their instances run at the fastest speed,
+the manual giving them no dynamic one, and the next event OTE stretches to is also the
+earliest an event-driven task may be released again (p. 93), its previous deadline under
+EDF, a workload after its previous release under DM, as tools/differential.py's
+instances() derive them. The manual leaves their place in DRA's simulation and in
+DM_SLACK's slack unsaid: those policies are referenced on periodic tasks only.
 """
 
 from fractions import Fraction
@@ -73,9 +77,13 @@ def check_speeds(build, tasks, trace, releases):
     not the reference's. releases: the instances of tasks, (task, release, deadline, key,
     optional), as tools/differential.py derives them from the algorithms."""
     policy = POLICIES[build]
+    dm = build in ("pa_dm", "pa_dmslack")
     todo = sorted(releases, key=lambda x: (x[1], x[0]))
     ready = {}                                 # task -> [release, deadline, remaining]
-    released = [-x["period"] for x in tasks]   # the time of each task's last release
+    released = [-x.get("period", 0) for x in tasks]   # each task's last release
+    earliest = [0] * len(tasks)                # each event-driven task's next release, at
+                                               # the earliest; 0 until its first
+    signals = {s for x in tasks if x["kind"] == "E" for s in x["signals"]}
     sim = []                                   # DRA: [deadline, release, task, left]
     sim_now = 0                                # the time DRA's simulation is drained to
     slack = [Fraction(0), None]                # DM_SLACK: the slack, the task that left it
@@ -106,6 +114,10 @@ def check_speeds(build, tasks, trace, releases):
     def release_until(t):
         while todo and todo[0][1] <= t:
             i, r, d, _, _ = todo.pop(0)
+            if tasks[i]["kind"] == "E":
+                ready[i] = [r, d, Fraction(tasks[i]["takes"])]
+                earliest[i] = r + tasks[i]["workload"] if dm else d
+                continue
             ready[i] = [r, d, Fraction(tasks[i]["wcet"])]
             released[i] = r
             if policy in ("DRA", "DR_OTE"):
@@ -123,13 +135,18 @@ def check_speeds(build, tasks, trace, releases):
         when an end decides before the timer's release, is the next event."""
         if len(ready) != 1:
             return None
-        window = min([released[j] + x["period"] for j, x in enumerate(tasks)] +
-                     [ready[i][1]]) - t
+        events = [earliest[j] for j, x in enumerate(tasks) if x["kind"] == "E"]
+        if events and min(events) <= t:
+            return None
+        window = min([released[j] + x["period"] for j, x in enumerate(tasks)
+                      if x["kind"] == "P"] + events + [ready[i][1]]) - t
         if ready[i][2] > window:
             return None
         return ready[i][2] / window
 
     def reference(t, i):
+        if tasks[i]["kind"] == "E":
+            return FASTEST
         remaining = ready[i][2]
         if remaining <= 0:
             # Past its WCET, an instance has no work left on record: the kernel runs it at
@@ -189,6 +206,8 @@ def check_speeds(build, tasks, trace, releases):
             continue
         t, step, i, speed = (int(f) for f in fields[1:])
         release_until(t)
+        if t in signals:
+            dispatch = True
         if i != stretch[0] or speed != stretch[2]:
             flush()
             stretch[:] = [i, 0, speed]

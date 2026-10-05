@@ -31,8 +31,8 @@ apart under DM, a total bandwidth server under EDF. At every instant of a trace:
 - the timer interrupts only at a release, and once at an instant (lines "I"): the kernel
   has no periodic tick.
 
-The speeds the power-aware kernel picks are checked apart, on task sets of periodic
-tasks: tools/speed_reference.py computes the speed of each dispatch from the policy's
+The speeds the power-aware kernel picks are checked apart, on every task set under OTE
+and on those of periodic tasks under the other policies: tools/speed_reference.py computes the speed of each dispatch from the policy's
 specification, and a speed other than its own fails, a policy that runs faster than it
 needs among them, which keeps every deadline.
 
@@ -420,7 +420,8 @@ def check(build, tasks, trace, speeds=True):
             if job[1] <= now and (not job[4] or job[5]):
                 raise Failure("task %d: the instance released at %d never ended by its "
                               "deadline %d" % (i, job[0], job[1]))
-    if speeds and power_aware and all(t["kind"] == "P" for t in tasks):
+    if speeds and power_aware and (build in ("pa_edf", "pa_dm") or
+                                   all(t["kind"] == "P" for t in tasks)):
         try:
             speed_reference.check_speeds(build, tasks, trace, instances(tasks, dm))
         except speed_reference.Failure as e:
@@ -503,6 +504,25 @@ def self_test():
         except speed_reference.Failure:
             continue
         sys.exit("self-test: a trace with %s passed" % name)
+    # With an event-driven task signalled at 50, its deadline 350: the periodic task alone
+    # at 300 may stretch to 350 only, its 20 ticks in 50 needing the fastest speed; and
+    # the event-driven instance runs at the fastest.
+    events = [periodic(20, 100, 100, 15), event_driven(10, 300, [50])]
+    good = "S 0 15 0 2\nE 15 0\nS 15 35 -1 0\nS 50 10 1 2\nE 60 1\nS 60 40 -1 0\n" \
+           "I 100\nS 100 38 0 1\nE 138 0\nS 138 62 -1 0\nI 200\nS 200 38 0 1\nE 238 0\n" \
+           "S 238 62 -1 0\nI 300\nS 300 15 0 2\nE 315 0\nS 315 85 -1 0\nT 400\n"
+    check("pa_edf", events, good)
+    wrong_events = {
+        "a stretch past an event-driven release": good.replace("S 300 15 0 2", "S 300 15 0 1"),
+        "an event-driven instance slowed down": good.replace("S 50 10 1 2", "S 50 10 1 1"),
+    }
+    for name, trace in wrong_events.items():
+        try:
+            speed_reference.check_speeds("pa_edf", events, trace, instances(events, False))
+        except speed_reference.Failure:
+            continue
+        sys.exit("self-test: a trace with %s passed" % name)
+    wrong_speeds.update(wrong_events)
     print("self-test: %d faulty traces caught" %
           (len(wrong) + len(wrong_events) + len(wrong_speeds)))
 

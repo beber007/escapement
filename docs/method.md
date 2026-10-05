@@ -219,9 +219,12 @@ keeps one per task. The reference agreed with the kernel on 1,000 task sets of e
 the five builds, before and after the corrections, on the Mac and in the CI's image
 before. Of the 171 mutants of the code that chose a speed before the corrections, 100
 were killed without the reference, 109 with it, and 112 at the 300 task sets a build the
-CI runs (`tools/mutants.py --sets`); after them, 104 of the 164 of the same code. The survivors left are mostly code of the event-driven tasks,
-which the reference leaves out, the manual not saying where they stand in DRA's
-simulation, and comparisons whose edge gives the same speed.
+CI runs (`tools/mutants.py --sets`); after them, 104 of the 164 of the same code. The survivors left are mostly code of the event-driven tasks under
+DRA and DM_SLACK, which the reference leaves out, the manual not saying where they stand
+in DRA's simulation or DM_SLACK's slack, and comparisons whose edge gives the same speed.
+Under OTE the reference takes event-driven tasks in too since the same evening, their
+next release bounding the stretch: of the 17 mutants of that code, the 6 left are such
+comparisons.
 
 ## What the README claims, and what checks it
 
