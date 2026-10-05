@@ -29,21 +29,18 @@ integers: at each timer interrupt and at each switch, the work done since the la
 update, rounded down.
 
 Run against the kernel on 2026-10-05, the reference disagreed where the manual leaves a
-choice open or the kernel departs from it. Each case was read in the kernel and taken over
-here as the kernel has it, all of them erring towards the faster speed, none towards a
-missed deadline:
+choice open or the kernel departed from it, each time towards the faster speed, none
+towards a missed deadline. Two departures were the kernel's to correct, and were the same
+day: it set the speed only when the task to run changed, not at every timer interrupt as
+the manual's figures 5.10 and 6.7 have it, so that a release that did not preempt the
+running task reclaimed nothing; and DM_SLACK left the slack out of an instance alone in
+the ready queue, OTE deciding by itself, where it now takes the slower of the two as
+DR_OTE does. The others are taken over here as the kernel has them:
 
-- the kernel sets the speed when the task to run changes, not at every timer interrupt
-  as the manual's figures 5.10 and 6.7 have it: a release that does not preempt the
-  running task leaves its speed, and reclaims nothing;
-- an end sets the speed of the task it hands over to before the timer releases what is
-  due at that instant;
 - EDF* breaks ties of deadline the other way from the paper (EscapementHardPA.h): the
   instance released last first, then the larger TCB address;
 - DM_SLACK keeps one slack, the last one left, which runs out with all the time elapsed,
-  where the manual keeps one per task; and it takes the slack only for an instance not
-  alone in the ready queue, OTE deciding alone by itself, where DR_OTE takes the slower
-  of its two.
+  where the manual keeps one per task.
 
 Only task sets of periodic tasks are referenced: the manual gives event-driven tasks no
 dynamic speed under OTE, and leaves their place in DRA's simulation unsaid.
@@ -88,8 +85,6 @@ def check_speeds(build, tasks, trace, releases):
     running = -1                               # the task of the last segment
     decided = None                             # the speed of the last dispatch
     dispatch = True                            # the next segment follows a dispatch
-    interrupted = None                         # the task the last interrupt found running
-    at_end = None                              # the speeds the last end decided, its time
 
     def priority(i):
         """Deadline-monotonic priority, a larger value lower: the deadline, then the
@@ -156,7 +151,7 @@ def check_speeds(build, tasks, trace, releases):
             else:
                 raise Failure("t=%d: task %d dispatched, gone from DRA's simulation" %
                               (t, i))
-        if policy == "DM_SLACK" and len(ready) > 1 and slack[1] is not None and \
+        if policy == "DM_SLACK" and slack[1] is not None and \
                 slack[0] > 0 and priority(i) > priority(slack[1]):
             slowdowns.append(remaining / (slack[0] + remaining))
         return level_for(min(slowdowns)) if slowdowns else FASTEST
@@ -174,8 +169,7 @@ def check_speeds(build, tasks, trace, releases):
             continue
         if fields[0] == "I":
             t = int(fields[1])
-            if not dispatch:
-                interrupted = running
+            dispatch = True
             if policy == "DM_SLACK":
                 slack[0] = max(Fraction(0), slack[0] - (t - updated))
             updated = t
@@ -189,33 +183,18 @@ def check_speeds(build, tasks, trace, releases):
             del ready[i]
             stretch[:] = [-1, 0, FASTEST]
             updated = t
-            decisions = {}
-            for j in ready:
-                try:
-                    decisions[j] = reference(t, j)
-                except Failure as e:
-                    decisions[j] = e
-            at_end = (t, decisions)
             dispatch = True
             continue
         if fields[0] != "S":
             continue
         t, step, i, speed = (int(f) for f in fields[1:])
         release_until(t)
-        if interrupted is not None and i != interrupted:
-            dispatch = True
-        interrupted = None
-        if i != stretch[0]:
+        if i != stretch[0] or speed != stretch[2]:
             flush()
             stretch[:] = [i, 0, speed]
         if i >= 0:
             if dispatch:
-                if at_end is not None and at_end[0] == t and i in at_end[1]:
-                    expected = at_end[1][i]
-                    if isinstance(expected, Failure):
-                        raise expected
-                else:
-                    expected = reference(t, i)
+                expected = reference(t, i)
                 if speed != expected:
                     state = {"OTE": "", "DRA": "; simulated queue %s" % sim,
                              "DR_OTE": "; simulated queue %s" % sim,

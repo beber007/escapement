@@ -806,29 +806,19 @@ void _OSTimerInterruptHandler(void)
      _OSClearSoftTimerInterrupt();
   } while (_OSOverflowInterruptFlag || _OSComparatorInterruptFlag || RescheduleSynchronousTaskList != NULL);
   #if POWER_MANAGEMENT != NONE
-     /* We may need to change the processor speed if a new task is scheduled. */
-     arrival = _OSActiveTask;
      /* Return to the task with highest priority or start a new instance. */
      _OSActiveTask = _OSQueueHead->Next[READYQ];
      if (_OSActiveTask != OSQueueTail) {
+        /* The speed is chosen again at every timer interrupt, as the ZottaOS manual has it
+        ** (figures 5.10 and 6.7), and not only when the task to run changes, as ZottaOS
+        ** did: a release that does not preempt the running task kept its speed, and
+        ** reclaimed nothing (tools/speed_reference.py, 2026-10-05). */
         #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
-           if (_OSActiveTask != arrival || _OSNoSaveContext) {
-              if (doSimUpdateElapseTime)
-                 DRASimUpdateElapseTime(currentTime);
-              LastRemainingWorkUpdate = currentTime;
-              SavedCurrentSpeed = GetProcessorSpeed(currentTime);
-           }
-        #elif POWER_MANAGEMENT == DM_SLACK
-           if (_OSActiveTask != arrival || _OSNoSaveContext) {
-              LastRemainingWorkUpdate = currentTime;
-              SavedCurrentSpeed = GetProcessorSpeed(currentTime);
-           }
-        #else /*  POWER_MANAGEMENT == OTE */
-           if (_OSActiveTask != arrival || _OSNoSaveContext) {
-              LastRemainingWorkUpdate = currentTime;
-              SavedCurrentSpeed = GetProcessorSpeed(currentTime);
-           }
+           if (doSimUpdateElapseTime)
+              DRASimUpdateElapseTime(currentTime);
         #endif
+        LastRemainingWorkUpdate = currentTime;
+        SavedCurrentSpeed = GetProcessorSpeed(currentTime);
         OSSetProcessorSpeed(SavedCurrentSpeed);
      }
      else {
@@ -1608,40 +1598,33 @@ UINT8 GetProcessorSpeed(INT32 time)
      #elif POWER_MANAGEMENT == DRA
         completionTime = GetDRASlackTime() + AperiodicExcess;
      #else /* POWER_MANAGEMENT == DM_SLACK */
-        /* Check if we can apply OTE: Get next arrival time and correct for deadlines that
-        ** are smaller than periods. */
+        /* OTE when the active task is the only one ready, the slack otherwise, and the
+        ** slower of the two when both apply, as DR_OTE does: ZottaOS left the slack out
+        ** of a task alone (tools/speed_reference.py, 2026-10-05). 0 grants no time. */
+        completionTime = 0;
         if (_OSActiveTask->Next[READYQ] == OSQueueTail) {
            /* The active task is periodic, and a periodic task stays in the arrival queue
            ** from its release on, for its next arrival: the queue is never empty here. The
            ** branch ZottaOS had for an empty queue was never taken, and bounded the time
            ** with a length, 2^30 - time, where it needed a time (2026-10-04). */
-           completionTime = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
-           if (SynchronousTaskList != NULL && (tmp = GetEarliestAperiodicArrival()) < completionTime) {
-              if (tmp <= time)
-                 #ifdef STATIC_POWER_MANAGEMENT
-                    return _OSActiveTask->FrequencyIndex;
-                 #else
-                    return OS_MAX_SPEED;
-                 #endif
-              else
-                 completionTime = tmp;
+           tmp = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
+           if (SynchronousTaskList != NULL) {
+              INT32 aperiodic = GetEarliestAperiodicArrival();
+              /* An event-driven task that may be released now leaves OTE no time. */
+              if (aperiodic < tmp)
+                 tmp = aperiodic > time ? aperiodic : time;
            }
-           if (completionTime > _OSActiveTask->NextDeadline)
-              completionTime = _OSActiveTask->NextDeadline;
-           completionTime -= time;
-           if (completionTime <= _OSActiveTask->RemainingWork)
-              #ifdef STATIC_POWER_MANAGEMENT
-                 return _OSActiveTask->FrequencyIndex;
-              #else
-                 return OS_MAX_SPEED;
-              #endif
+           if (tmp > _OSActiveTask->NextDeadline)
+              tmp = _OSActiveTask->NextDeadline;
+           completionTime = tmp - time;
         }
         /* The slack goes to tasks of lower priority than its owner, a larger number:
         ** only they counted the owner's WCET in their response time. A task of higher
         ** priority never did, and given the slack it could miss its deadline. */
-        else if (_OSActiveTask->Priority > DMSlackPriority && DMSlackAmount > 0)
+        if (_OSActiveTask->Priority > DMSlackPriority && DMSlackAmount > 0 &&
+            DMSlackAmount + _OSActiveTask->RemainingWork > completionTime)
            completionTime = DMSlackAmount + _OSActiveTask->RemainingWork;
-        else
+        if (completionTime <= _OSActiveTask->RemainingWork)
            #ifdef STATIC_POWER_MANAGEMENT
               return _OSActiveTask->FrequencyIndex;
            #else

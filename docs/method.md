@@ -208,16 +208,18 @@ in the kernel before anything was changed: three were the reference's own mistak
 releases past the end of the run, which the kernel knows; the work received, which the
 kernel keeps in whole ticks as the manual's figure does in integers; and when an end
 decides, before the release at the same instant); the rest were the kernel departing from
-the manual, each towards a faster speed, none towards a missed deadline. The kernel sets
-the speed only when the task to run changes, where the manual does at every timer
-interrupt, so that a release that does not preempt reclaims nothing; its EDF* breaks ties
-the other way from the paper, as its header says; and DM_SLACK keeps one slack, the last
-left, where the manual keeps one per task, and takes it only for an instance not alone,
-where DR_OTE takes the slower of its two. The reference follows the kernel there, each
-case written in it. It then agreed on 1,000 task sets of each of the five builds, on the
-Mac and in the CI's image. Of the 171 mutants of the code that chooses a speed, 100 were
-killed before it, 109 with it, and 112 at the 300 task sets a build the CI runs
-(`tools/mutants.py --sets`). The survivors left are mostly code of the event-driven tasks,
+the manual, each towards a faster speed, none towards a missed deadline. The kernel set
+the speed only when the task to run changed, where the manual does at every timer
+interrupt, so that a release that did not preempt reclaimed nothing; and DM_SLACK took
+its slack only for an instance not alone, where DR_OTE takes the slower of its two. Both
+were ZottaOS's, and both were corrected the same day, the reference agreeing again. Two
+departures stay, written in the reference: its EDF* breaks ties the other way from the
+paper, as its header says, and DM_SLACK keeps one slack, the last left, where the manual
+keeps one per task. The reference agreed with the kernel on 1,000 task sets of each of
+the five builds, before and after the corrections, on the Mac and in the CI's image
+before. Of the 171 mutants of the code that chose a speed before the corrections, 100
+were killed without the reference, 109 with it, and 112 at the 300 task sets a build the
+CI runs (`tools/mutants.py --sets`). The survivors left are mostly code of the event-driven tasks,
 which the reference leaves out, the manual not saying where they stand in DRA's
 simulation, and comparisons whose edge gives the same speed.
 
