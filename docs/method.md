@@ -219,7 +219,7 @@ keeps one per task. The reference agreed with the kernel on 1,000 task sets of e
 the five builds, before and after the corrections, on the Mac and in the CI's image
 before. Of the 171 mutants of the code that chose a speed before the corrections, 100
 were killed without the reference, 109 with it, and 112 at the 300 task sets a build the
-CI runs (`tools/mutants.py --sets`). The survivors left are mostly code of the event-driven tasks,
+CI runs (`tools/mutants.py --sets`); after them, 104 of the 164 of the same code. The survivors left are mostly code of the event-driven tasks,
 which the reference leaves out, the manual not saying where they stand in DRA's
 simulation, and comparisons whose edge gives the same speed.
 
@@ -234,6 +234,7 @@ behaviour, a test, a model, the board or an instrument.
 | Scheduling by EDF or DM | the host test's view of the task control block; `tools/differential.py`, each trace checked against the algorithm of its build | holds |
 | No periodic tick: the timer interrupts at a release only | nothing on the host; on the U5, the idle task's 454,487 Stop 2 in three hours, which a tick would have cut short | to add: the trace's timer interrupts set against the releases. Done on 2026-10-05: `tools/differential.py` reads every interrupt of the comparator, and a host port made to interrupt every 500 ticks fails its first task set |
 | The power-aware kernel slows down only as far as every deadline holds | `tools/differential.py` under its five builds, with kernels made to run too slow; the host test's speeds | holds |
+| It slows down as far as DRA, OTE and DM_SLACK compute | nothing until 2026-10-05: a kernel faster than its policy kept every deadline. Since, `tools/speed_reference.py`, from the ZottaOS manual, each speed of `tools/differential.py`'s traces | **did not quite**: a release that did not preempt reclaimed nothing, and DM_SLACK left its slack out of a task alone. Both corrected the same day (80cc6dc) |
 | Overload drops chosen (m,k)-firm instances, not deadlines at random | the host test's `firm` runs, `firmoverload*` | holds |
 | The queues take no lock | `docs/architecture.md` | **false since 2026-09-25**: `OSSuspendSynchronousTask` masks interrupts around the enqueue of a task on its event. The README now says so |
 | The queue between the cores went from fifteen barriers to six | the model `fifo_mp.py` | **stale**: seven since 2026-09-29 |
