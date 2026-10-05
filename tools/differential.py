@@ -31,8 +31,10 @@ apart under DM, a total bandwidth server under EDF. At every instant of a trace:
 - the timer interrupts only at a release, and once at an instant (lines "I"): the kernel
   has no periodic tick.
 
-What it does not check: the speeds the power-aware kernel picks, beyond that they keep
-the deadlines. A policy that runs faster than it needs passes.
+The speeds the power-aware kernel picks are checked apart, on task sets of periodic
+tasks: tools/speed_reference.py computes the speed of each dispatch from the policy's
+specification, and a speed other than its own fails, a policy that runs faster than it
+needs among them, which keeps every deadline.
 
   python3 tools/differential.py                 every build, 300 task sets each
   python3 tools/differential.py hard_edf 2000   one build, more sets
@@ -52,6 +54,11 @@ _spec = importlib.util.spec_from_file_location(
                                    "response_times.py"))
 response_times = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(response_times)
+_spec = importlib.util.spec_from_file_location(
+    "speed_reference", os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    "speed_reference.py"))
+speed_reference = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(speed_reference)
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 HOST = os.path.join(ROOT, "test", "host")
@@ -281,8 +288,9 @@ def worst_case_end(tasks, jobs, todo, i, target, t, dm):
             ready.remove(run)
 
 
-def check(build, tasks, trace):
-    """Raises Failure at the first point the trace breaks the algorithm."""
+def check(build, tasks, trace, speeds=True):
+    """Raises Failure at the first point the trace breaks the algorithm, or, speeds
+    True, a speed the power-aware policy of build would not pick."""
     dm = build in DEADLINE_MONOTONIC
     power_aware = build.startswith("pa_")
     todo = instances(tasks, dm)                   # not yet released, in release order
@@ -412,6 +420,11 @@ def check(build, tasks, trace):
             if job[1] <= now and (not job[4] or job[5]):
                 raise Failure("task %d: the instance released at %d never ended by its "
                               "deadline %d" % (i, job[0], job[1]))
+    if speeds and power_aware and all(t["kind"] == "P" for t in tasks):
+        try:
+            speed_reference.check_speeds(build, tasks, trace, instances(tasks, dm))
+        except speed_reference.Failure as e:
+            raise Failure(str(e))
     if build in ("hard_edf", "soft_edf") and all(t["kind"] == "P" for t in tasks):
         analysed = [{"period": t["period"], "deadline": t["deadline"], "wcet": t["wcet"]}
                     for t in tasks]
@@ -428,7 +441,7 @@ def self_test():
     good = "S 0 15 0 2\nE 15 0\nS 15 30 1 2\nE 45 1\nS 45 55 -1 0\nI 100\nS 100 15 0 2\n" \
            "E 115 0\nS 115 35 -1 0\nI 150\nS 150 30 1 2\nE 180 1\nS 180 20 -1 0\nT 200\n"
     global DURATION
-    check("pa_edf", tasks, good)
+    check("pa_edf", tasks, good, speeds=False)
     wrong = {
         "the wrong task first": good.replace("S 0 15 0 2\nE 15 0\nS 15 30 1 2\nE 45 1",
                                              "S 0 30 1 2\nE 30 1\nS 30 15 0 2\nE 45 0"),
@@ -443,7 +456,7 @@ def self_test():
     }
     for name, trace in wrong.items():
         try:
-            check("pa_edf", tasks, trace)
+            check("pa_edf", tasks, trace, speeds=False)
         except Failure:
             continue
         sys.exit("self-test: a trace with %s passed" % name)
@@ -453,7 +466,7 @@ def self_test():
     events = [periodic(20, 100, 100, 15), event_driven(10, 300, [50])]
     good = "S 0 15 0 2\nE 15 0\nS 15 35 -1 0\nS 50 10 1 2\nE 60 1\nS 60 40 -1 0\n" \
            "S 100 15 0 2\nE 115 0\nS 115 85 -1 0\nT 200\n"
-    check("pa_edf", events, good)
+    check("pa_edf", events, good, speeds=False)
     late = events[:1] + [event_driven(10, 300, [95])]
     wrong_events = {
         "an event released late": (events, good.replace(
@@ -465,11 +478,33 @@ def self_test():
     }
     for name, (tasks, trace) in wrong_events.items():
         try:
-            check("pa_edf", tasks, trace)
+            check("pa_edf", tasks, trace, speeds=False)
         except Failure:
             continue
         sys.exit("self-test: a trace with %s passed" % name)
-    print("self-test: %d faulty traces caught" % (len(wrong) + len(wrong_events)))
+    # The speeds, on a trace of the kernel under OTE: the second task, alone from 15, has
+    # 30 ticks of WCET to do in the 85 before the first one's release at 100, which 102/256
+    # of the fastest speed does; the first, alone at 200, 20 in the 100 before 300.
+    tasks = [periodic(20, 100, 100, 15), periodic(30, 150, 120, 30)]
+    good = "S 0 15 0 2\nE 15 0\nS 15 76 1 1\nE 91 1\nS 91 9 -1 0\nI 100\nS 100 15 0 2\n" \
+           "E 115 0\nS 115 35 -1 0\nI 150\nS 150 30 1 2\nE 180 1\nS 180 20 -1 0\nI 200\n" \
+           "S 200 38 0 1\nE 238 0\nS 238 62 -1 0\nT 300\n"
+    check("pa_edf", tasks, good)
+    wrong_speeds = {
+        "faster than OTE needs": good.replace("S 15 76 1 1", "S 15 76 1 2"),
+        "slower than OTE allows": good.replace("S 15 76 1 1", "S 15 76 1 0"),
+        "faster alone at 200": good.replace("S 200 38 0 1", "S 200 38 0 2"),
+        "a change of speed without a dispatch": good.replace(
+            "S 200 38 0 1\n", "S 200 20 0 1\nS 220 18 0 2\n"),
+    }
+    for name, trace in wrong_speeds.items():
+        try:
+            speed_reference.check_speeds("pa_edf", tasks, trace, instances(tasks, False))
+        except speed_reference.Failure:
+            continue
+        sys.exit("self-test: a trace with %s passed" % name)
+    print("self-test: %d faulty traces caught" %
+          (len(wrong) + len(wrong_events) + len(wrong_speeds)))
 
 
 def main():

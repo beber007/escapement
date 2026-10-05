@@ -77,7 +77,8 @@ python3 tools/coverage.py            # every kernel line covered or excluded wit
                                      # floor in test/host/coverage-floor (run by the CI)
 python3 tools/differential.py        # random task sets run by each build, every trace
                                      # checked against EDF or DM, events and (m,k)-firm
-                                     # sets included (run by the CI, ~30 s)
+                                     # sets included, and the power-aware speeds against
+                                     # tools/speed_reference.py (run by the CI, ~40 s)
 python3 tools/mutants.py hard --jobs 2   # one fault at a time in a kernel, the host test
                                      # and differential.py on each (some 2 h a kernel)
 

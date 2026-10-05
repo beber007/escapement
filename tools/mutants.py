@@ -28,6 +28,8 @@ one): each is to be read.
   python3 tools/mutants.py hard --list          the mutants only, none run
   python3 tools/mutants.py hard --only 120-180  the mutants of those lines
   python3 tools/mutants.py hard --survivors R.jsonl   those that survived a run, again
+  python3 tools/mutants.py pa --sets 300        differential.py on 300 task sets a build,
+                                                as the CI runs it, not 100
 
 Results go to test/host/build-mutants/<kernel>.jsonl as they come, one line a mutant,
 and a run started again skips those already there.
@@ -170,7 +172,7 @@ def mutants(path):
     return [(k, *m) for k, m in enumerate(found)]
 
 
-def run_mutant(kernel, mutant):
+def run_mutant(kernel, mutant, sets=100):
     """Builds and tests one mutant; returns its record."""
     ident, op, number, original, mutated = mutant
     source, variable, builds = KERNELS[kernel]
@@ -202,7 +204,7 @@ def run_mutant(kernel, mutant):
         env = dict(os.environ, BUILD=build)
         for b in builds:
             diff = subprocess.run(["nice", "-n", "10", sys.executable,
-                                   os.path.join(ROOT, "tools", "differential.py"), b, "100"],
+                                   os.path.join(ROOT, "tools", "differential.py"), b, str(sets)],
                                   capture_output=True, text=True, timeout=LIMIT, env=env)
             if diff.returncode:
                 record["verdict"] = "killed"
@@ -220,6 +222,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("kernel", choices=sorted(KERNELS))
     parser.add_argument("--jobs", type=int, default=1)
+    parser.add_argument("--sets", type=int, default=100,
+                        help="task sets per build for tools/differential.py (the CI runs 300)")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--only", help="FIRST-LAST: the lines whose mutants to run")
     parser.add_argument("--survivors", help="RESULTS.jsonl: run again those that survived "
@@ -256,7 +260,7 @@ def main():
           (len(todo), len(done), len(skipped)), flush=True)
     with open(results, "a") as out, \
          concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        for record in pool.map(lambda m: run_mutant(args.kernel, m), todo):
+        for record in pool.map(lambda m: run_mutant(args.kernel, m, args.sets), todo):
             out.write(json.dumps(record) + "\n")
             out.flush()
             print("%4d %-8s %s %d: %s" % (record["id"], record["verdict"], record["op"],

@@ -78,6 +78,8 @@ wrong with confidence, and the record has to show how each conclusion was reache
 | The host test covered 97 % of the kernels' lines, as clang's coverage merged over the nine builds said (2026-10-04) | Reading each test binary on its own, then writing a test for each branch never taken | The merged view had left out lines compiled in one build only, two of DM_SLACK never run; 68 lines in all had never run. A test written for one of them found a defect inherited from ZottaOS: the soft kernel set an event-driven task's next release again each time it elected it, and under deadline-monotonic scheduling an instance ended 419 ticks after its signal, its deadline 300 and its response by analysis 210 |
 | CBMC could prove the kernels' FIFO queue as compiled, `goto-instrument --isr` placing an interrupt before each shared access, nested as on one core (2026-10-04) | A first run successful in half a second, while an assertion that the interrupt never preempted the operation held too; then the same with the interrupt in place | The interrupt routine had been dropped as unused before it was instrumented, and nothing ran inside the operation. In place, one operation and one interrupt did not conclude in 20 minutes and 3.6 GB. The proof stays with `test/model/fifo.py`, a model written anew, and the compiled order with `tools/check_order.py` |
 | The kernel schedules by earliest deadline first — the first line of the README, and what sets the project apart | Running the scheduler on the host, where a mirror of the task control block read a pointer where a deadline belonged | Every example shipped was scheduling deadline-monotonic. `EscapementHard.h` set the algorithm itself, with no `#ifndef`, and no configuration file overrode it |
+| The RP2040's region of the MPU over the 1 KB below the stack would lock the core up on an overflow, the HardFault's own stacking faulting in the region — written by the assistant on 2026-10-04, and in the code's comment | `StackGuardPico` on the Pico (2026-10-05): DHCSR's S_LOCKUP at 0, the core in its HardFault handler | HFNMIENA at 0 turns the MPU off at the HardFault's priority: its stacking lands in the region, and the handler runs, the globals untouched |
+| `Sentinel` written over under Renode in the deadline-monotonic build came from Renode, whose stacking of the fault walked down past the region — stated by the assistant, since the EDF build kept it and Renode takes a MemManage that ARMv6-M does not have | The disassembly of `Recurse` | GCC had put two levels of it in one frame of 1,536 bytes, which stepped over the 1 KB region: the test now keeps it out of line, and a frame of 1 KB or more is a limit of the guard, written in its comment |
 
 One more mistake was of a different kind. An early rebranding pass deleted a comment
 terminator in 32 files, and the first attempt to repair them corrupted 57 healthy ones.
@@ -193,10 +195,31 @@ their WCET, and simulates from each optional instance admitted the schedule in w
 every instance takes its WCET; the instance must end by its deadline. Kernels made to
 leave out the instance's own WCET, half the mandatory work or the partial instance fail
 it under DM, and hang on the overload guard under EDF. The survivors pass: they
-under-count within what still fits. A quarter of the power-aware kernel's survivors are in the
-choice of speed (`GetProcessorSpeed`, DRA's simulation, DM_SLACK's slack): a mutant that
-picks a faster speed than it needs keeps every deadline, and nothing holds the policies
-to the speeds their papers give. A reference of each policy would.
+under-count within what still fits. A quarter of the power-aware kernel's survivors were in
+the choice of speed (`GetProcessorSpeed`, DRA's simulation, DM_SLACK's slack): a mutant
+that picks a faster speed than it needs keeps every deadline, and nothing held the
+policies to the speeds their specification gives.
+
+Since 2026-10-05 `tools/speed_reference.py` does, on task sets of periodic tasks. It
+computes the speed of each dispatch from the ZottaOS manual's chapter 6, written before
+the kernel's code was read, and `tools/differential.py` fails a speed other than its own.
+Run against the kernel, it first disagreed on most builds, and each disagreement was read
+in the kernel before anything was changed: three were the reference's own mistakes (the
+releases past the end of the run, which the kernel knows; the work received, which the
+kernel keeps in whole ticks as the manual's figure does in integers; and when an end
+decides, before the release at the same instant); the rest were the kernel departing from
+the manual, each towards a faster speed, none towards a missed deadline. The kernel sets
+the speed only when the task to run changes, where the manual does at every timer
+interrupt, so that a release that does not preempt reclaims nothing; its EDF* breaks ties
+the other way from the paper, as its header says; and DM_SLACK keeps one slack, the last
+left, where the manual keeps one per task, and takes it only for an instance not alone,
+where DR_OTE takes the slower of its two. The reference follows the kernel there, each
+case written in it. It then agreed on 1,000 task sets of each of the five builds, on the
+Mac and in the CI's image. Of the 171 mutants of the code that chooses a speed, 100 were
+killed before it, 109 with it, and 112 at the 300 task sets a build the CI runs
+(`tools/mutants.py --sets`). The survivors left are mostly code of the event-driven tasks,
+which the reference leaves out, the manual not saying where they stand in DRA's
+simulation, and comparisons whose edge gives the same speed.
 
 ## What the README claims, and what checks it
 
