@@ -46,8 +46,10 @@ Event-driven tasks are referenced under OTE: their instances run at the fastest 
 the manual giving them no dynamic one, and the next event OTE stretches to is also the
 earliest an event-driven task may be released again (p. 93), its previous deadline under
 EDF, a workload after its previous release under DM, as tools/differential.py's
-instances() derive them. The manual leaves their place in DRA's simulation and in
-DM_SLACK's slack unsaid: those policies are referenced on periodic tasks only.
+instances() derive them. Under DM_SLACK too, where an event-driven instance that ends
+leaves its slack like any other, at the priority of its workload, as the kernel has it
+(OSSuspendSynchronousTask). The manual leaves their place in DRA's simulation unsaid:
+DRA and DR_OTE are referenced on periodic tasks only.
 """
 
 from fractions import Fraction
@@ -95,9 +97,10 @@ def check_speeds(build, tasks, trace, releases):
     dispatch = True                            # the next segment follows a dispatch
 
     def priority(i):
-        """Deadline-monotonic priority, a larger value lower: the deadline, then the
-        order of creation, as GetTaskPriority numbers the tasks."""
-        return (tasks[i]["deadline"], i)
+        """Deadline-monotonic priority, a larger value lower: the deadline, an
+        event-driven task's its workload, then the order of creation, as GetTaskPriority
+        numbers the tasks."""
+        return (tasks[i]["deadline"] if tasks[i]["kind"] == "P" else tasks[i]["workload"], i)
 
     def drain(t):
         """DRA's simulation at full speed, from sim_now to t."""
@@ -180,17 +183,22 @@ def check_speeds(build, tasks, trace, releases):
             ready[i][2] -= ticks * RATES[speed] // 256
         stretch[1] = 0
 
+    def interrupt(t):
+        """The timer's handler: the work of the task it finds running brought up to date
+        (figure 6.7), and DM_SLACK's slack run out with the time since the last update."""
+        nonlocal updated
+        if policy == "DM_SLACK":
+            slack[0] = max(Fraction(0), slack[0] - (t - updated))
+        updated = t
+        flush()
+
     for line in trace.splitlines():
         fields = line.split()
         if not fields:
             continue
         if fields[0] == "I":
-            t = int(fields[1])
+            interrupt(int(fields[1]))
             dispatch = True
-            if policy == "DM_SLACK":
-                slack[0] = max(Fraction(0), slack[0] - (t - updated))
-            updated = t
-            flush()
             continue
         if fields[0] == "E":
             t, i = int(fields[1]), int(fields[2])
@@ -207,6 +215,9 @@ def check_speeds(build, tasks, trace, releases):
         t, step, i, speed = (int(f) for f in fields[1:])
         release_until(t)
         if t in signals:
+            # A signal is served by the timer's handler too, through its software
+            # interrupt (test/host prints no line for it).
+            interrupt(t)
             dispatch = True
         if i != stretch[0] or speed != stretch[2]:
             flush()
