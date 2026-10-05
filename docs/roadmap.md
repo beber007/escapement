@@ -165,12 +165,6 @@ to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
    115,200 baud through Stop 2"). Left: how often a wake-up byte comes out wrong, which
    no check of a minute can bound.
 
-7. **A stack overflow that faults rather than corrupts — done on the Cortex-M33 on
-   2026-10-04** (Done, "A stack that faults"). Left: the Cortex-M0+ of the RP2040, which
-   has no stack limit: a region of its MPU, no access, just above the globals, which
-   locks the core up rather than fault it, written on 2026-10-04 on the branch
-   `mutant-gaps` and not yet run.
-
 ## Done
 
 - **No periodic tick, checked (2026-10-05).** The host test's trace prints each
@@ -190,9 +184,9 @@ to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
   `tools/pico2_uart.py`, `tools/pico2_soak.py`). The bench checks all of it but the
   wrap, 18 minutes a time, at each commit (status `board/pico2`).
 
-- **A stack that faults (2026-10-04).** The one stack grows down toward the globals,
-  with nothing between them; ZottaOS's comment said an overflow corrupted nothing. Since
-  2026-10-04 the Cortex-M33 ports set MSPLIM at the end of the globals
+- **A stack that faults (2026-10-04 and 05).** The one stack grows down toward the
+  globals, with nothing between them; ZottaOS's comment said an overflow corrupted
+  nothing. Since 2026-10-04 the Cortex-M33 ports set MSPLIM at the end of the globals
   (`_OSResetHandler`), which the Renode suites of the Pico 2 and of the STM32U5 still
   pass. Renode does not model MSPLIM, so that the limit holds is for the board to show.
   On the Pico 2 it did, on 2026-10-04, `StackGuardPico2` loaded on probe3 from the Mac
@@ -202,12 +196,25 @@ to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
   levels further, to 0x20000a24, through the globals and into the image's code, which
   runs from SRAM below them, and the core was lost at 0x20000fce with no fault recorded.
   `Sentinel` read 0xA5A5A5A5 both times, under Renode too: it is no witness, the stack
-  pointer is. On the STM32U5 of the UNO Q too, `StackGuardU5`, the same evening: with the
-  limit, the HardFault handler, CFSR 0x00100000 (STKOF), HFSR FORCED, the main stack
+  pointer is. On the STM32U5 of the UNO Q too, `StackGuardU5`, the same evening: with
+  the limit, the HardFault handler, CFSR 0x00100000 (STKOF), HFSR FORCED, the main stack
   pointer at 0x20001b70 above the end of the globals at 0x20001878, 759 levels; without
   it, three levels further, to 0x20000f70, `Sentinel` written over (0xFAFAFAFA, the low
-  byte of level 762) and the core faulting on an undefined instruction, the stack's bytes
-  run as code, which says nothing of the cause.
+  byte of level 762) and the core faulting on an undefined instruction, the stack's
+  bytes run as code, which says nothing of the cause. The Cortex-M0+ of the RP2040 has
+  no stack limit: since 2026-10-05 the linker script keeps 1 KB between the globals and
+  the stack, which a region of the MPU closes to any access. On the Pico (probe1),
+  `StackGuardPico` ended in the HardFault handler, 507 levels of 512 bytes, the stack
+  pointer at 0x20001780 inside the region, above the end of the globals at 0x20001258,
+  `Sentinel` kept; without the region, five levels further, to 0x20000f84, through the
+  globals and into the code, `Sentinel` written over (0xFFFFFFFF) and the core still
+  recursing. The core does not lock up, as was expected: HFNMIENA at 0 turns the MPU off
+  at the HardFault's priority, and its stacking lands in the region. A frame of 1 KB or
+  more steps over it: GCC first put two levels of the test in one frame of 1,536 bytes,
+  which wrote over `Sentinel` in the deadline-monotonic build under Renode; the test now
+  keeps its function from being inlined. Renode stops the overflow too, but in a
+  MemManage handler, a fault ARMv6-M does not have. `SoakPico` paints and reads its
+  stack from the end of the region.
 
 - **Sleep on the RP2350, measured and gated (2026-10-03 and 04)**, steps 1 and 2 of item
   5. `SleepPico2` (Examples/pico2) measured WFI, SLEEP and DORMANT on 2026-10-03: no

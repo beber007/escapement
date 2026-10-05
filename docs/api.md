@@ -319,9 +319,9 @@ or a slot buffer, and signals the task that does the rest.
 `OSMalloc(size)` allocates for good, and only before `OSStartMultitasking`. It draws
 from `OSMALLOC_INTERNAL_HEAP_SIZE` bytes set in `Escapement_Config.h`, and the queues,
 buffers, events and tasks take their memory from it. The stack takes all the RAM left.
-On the Cortex-M33 a stack that reaches the globals faults (MSPLIM, since 2026-10-04); on
-the Cortex-M0+ it overwrites them unseen. There is no `free` and no C library: the code
-is built freestanding.
+A stack that reaches the globals faults: MSPLIM on the Cortex-M33, a region of the MPU
+over the 1 KB kept below the stack on the Cortex-M0+, which a frame of 1 KB or more
+steps over. There is no `free` and no C library: the code is built freestanding.
 
 ## On the Pico
 

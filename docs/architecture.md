@@ -142,7 +142,9 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
   Its 64-bit timer has four alarms and is clocked **independently of the core clock**.
   The kernel takes two of the alarms, the timer events one of the other two. This is the
   target of the power-aware kernel, with the project's own DVFS driver
-  (`power-aware.md`).
+  (`power-aware.md`). The Cortex-M0+ has no stack limit: since 2026-10-05 a region of
+  its MPU, no access, covers 1 KB the linker script keeps between the globals and the
+  stack, and an overflow ends in the HardFault handler (`StackGuardPico`).
 - **Raspberry Pi RP2350** (Pico 2): Cortex-M33, port under
   `Escapement/CORTEX-Mx/RP2350/`. It was transposed from the RP2040 port on 2026-09-24:
   the clocks at 150 MHz, TIMER0 with its tick from the TICKS block, 52 interrupts, the
@@ -175,8 +177,8 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
   built without the floating-point unit (`-mcpu=cortex-m33+nofp`). Since 2026-10-04 the
   port sets MSPLIM to the end of the globals: a stack that grows into them faults
   instead of overwriting them, as a Pico 2 and the UNO Q showed (`StackGuardPico2`,
-  `StackGuardU5`, roadmap item 7). The errata of the
-  core itself were read on 2026-09-26. Arm's notice (SDEN-756493, v9.0, April 2018)
+  `StackGuardU5`, roadmap, "A stack that faults"). The errata of the core itself were
+  read on 2026-09-26. Arm's notice (SDEN-756493, v9.0, April 2018)
   leaves only 1080541 open in r0p4, the STM32U585's core, and that one concerns the MPU,
   which the port does not use. The errata of the context switch, 851802, 937163 and
   1015127 among them, are fixed by r0p4. The RP2350's core is r1p0. That version of the

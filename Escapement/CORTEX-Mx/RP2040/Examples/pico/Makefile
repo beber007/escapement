@@ -88,7 +88,7 @@ $(shell mkdir -p build)
 
 all: build/TaskLEDPico.elf build/UARTEchoPico.elf build/UARTSendersPico.elf build/TaskWrapPico.elf \
      build/TestTimerEventPico.elf build/FourSlotCoresPico.elf build/IPCPico.elf \
-     build/SoakPico.elf
+     build/SoakPico.elf build/StackGuardPico.elf
 # The program of the README, built from the page itself, so that the two cannot part; it
 # is written for the hard kernel.
 ifeq ($(KERNEL),)
@@ -164,6 +164,8 @@ build/IPCPico.o : IPCPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SoakPico.o : SoakPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/StackGuardPico.o : StackGuardPico.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TestTimerEventPico.o : TestTimerEventPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/FourSlotCoresPico.o : FourSlotCoresPico.c
@@ -185,6 +187,8 @@ build/IPCPico.elf : $(COMMON) build/IPCPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/IPCPico.o -T$(LINKERFILE) -lgcc
 build/SoakPico.elf : $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakPico.o -T$(LINKERFILE) -lgcc
+build/StackGuardPico.elf : $(COMMON) build/StackGuardPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/StackGuardPico.o -T$(LINKERFILE) -lgcc
 build/TestTimerEventPico.elf : $(COMMON) $(SLEEPGATE) build/Escapement_TimerEvent.o build/TestTimerEventPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(SLEEPGATE) build/Escapement_TimerEvent.o build/TestTimerEventPico.o -T$(LINKERFILE) -lgcc
 build/FourSlotCoresPico.elf : $(COMMON) build/Escapement_Core1.o build/FourSlotCoresPico.o

@@ -336,3 +336,27 @@ The power-aware kernel scales the frequency and the voltage
     # Both operating points on the PLL, 50 and 125 MHz, are taken.
     ${speeds}=                Read Counter  0x4006410C
     Should Be Equal As Integers  ${speeds}  6
+
+The MPU stops a stack run past its end
+    [Documentation]           StackGuardPico overflows the one stack on purpose, 512 bytes a
+    ...                       level. The region of the MPU over the 1 KB between the globals
+    ...                       and the stack must stop it before it writes any global: Sentinel,
+    ...                       the last of them, keeps its value, and the core end in a fault
+    ...                       handler: HardFault on the Pico (2026-10-05), MemManage under
+    ...                       Renode, which ARMv6-M does not have.
+    Load Escapement           StackGuardPico
+
+    Execute Command           emulation RunFor "0.3"
+
+    ${sentinel}=              Execute Command  sysbus GetSymbolAddress "Sentinel"
+    ${value}=                 Execute Command  sysbus ReadDoubleWord ${sentinel}
+    Should Be Equal As Integers  ${value.strip()}  0xA5A5A5A5
+    # Some 260 KB of stack, at under 600 bytes a level: the task went most of the way
+    # down, it did not stop early on some other fault. The Pico reached 507 (2026-10-05).
+    ${depth}=                 Execute Command  sysbus GetSymbolAddress "Depth"
+    ${value}=                 Execute Command  sysbus ReadDoubleWord ${depth}
+    Should Be True            ${value.strip()} >= 430
+    ${pc}=                    Execute Command  sysbus.cpu0 PC
+    ${hardfault}=             Execute Command  sysbus GetSymbolAddress "HardFaultException"
+    ${memmanage}=             Execute Command  sysbus GetSymbolAddress "MemManageException"
+    Should Be True            ${pc.strip()} in (${hardfault.strip()}, ${memmanage.strip()})

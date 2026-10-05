@@ -44,13 +44,14 @@ was read, not copied into the repository.
 The examples in `Examples/uno-q` are those of the Pico 2, transposed: `TaskLEDU5`,
 `UARTEchoU5`, `TestTimerEventU5`, `TaskWrapU5`, `IPCU5` and `SoakU5`, the endurance
 test; then `TestLPTimerU5`, `SleepU5` and `Stop2EventWrapU5` for Stop 2, and
-`StackGuardU5`, a stack that overflows on purpose (roadmap item 7). In `SoakU5`, the
-part that the Pico 2 runs between its two cores becomes a 4-slot buffer written by the
-interrupt of TIM3 and read by a task that this interrupt preempts. The independent
-watchdog stands in for the RP2350's. The examples drive four outputs (`BoardU5.h`): the
-green of LED3 on PH11 and the blue of LED4 on PH15, both lit when low, and PB13 and
-PB14, which are D13 and D12 of the connector. The hard and the soft kernel build under
-EDF and deadline-monotonic scheduling. The power-aware kernel is not ported.
+`StackGuardU5`, a stack that overflows on purpose (roadmap, "A stack that faults"). In
+`SoakU5`, the part that the Pico 2 runs between its two cores becomes a 4-slot buffer
+written by the interrupt of TIM3 and read by a task that this interrupt preempts. The
+independent watchdog stands in for the RP2350's. The examples drive four outputs
+(`BoardU5.h`): the green of LED3 on PH11 and the blue of LED4 on PH15, both lit when
+low, and PB13 and PB14, which are D13 and D12 of the connector. The hard and the soft
+kernel build under EDF and deadline-monotonic scheduling. The power-aware kernel is not
+ported.
 
 ## On the board
 
@@ -140,7 +141,7 @@ On 2026-10-04 `StackGuardU5` overflowed the one stack on purpose. With MSPLIM se
 end of the globals, as the port does since that day, the core faulted on a stack
 overflow (CFSR 0x00100000, STKOF), the stack pointer above the globals. Built without
 it, the stack went into the globals and the core faulted on an undefined instruction
-(roadmap item 7). Renode does not model MSPLIM.
+(roadmap, "A stack that faults"). Renode does not model MSPLIM.
 
 ### Under Renode
 

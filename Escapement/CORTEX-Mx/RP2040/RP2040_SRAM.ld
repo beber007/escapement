@@ -60,6 +60,18 @@ SECTIONS
         . = ALIGN(4);
         _ebss = .;
     } > SRAM
+
+    /* No access to this, through a region of the MPU (Escapement_CortexMx.c): the one
+    ** stack runs down onto it before the globals. The MPU of the Cortex-M0+ wants a
+    ** region aligned on its size; 1 KB stops any frame smaller than that, at the cost of
+    ** up to 2 KB of the 264. */
+    .stack_guard (NOLOAD) :
+    {
+        . = ALIGN(1024);
+        _OSStackGuard = .;
+        . += 1024;
+        _OSStackGuardEnd = .;
+    } > SRAM
 }
 
 /* Top of the stack and upper bound of the dynamic allocation of Escapement. */

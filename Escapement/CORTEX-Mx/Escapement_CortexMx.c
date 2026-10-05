@@ -147,6 +147,25 @@ void _OSResetHandler(void)
      ** write below it: an overflow stops the image instead of corrupting the kernel's
      ** variables unseen. MSPLIM ignores its three low bits; _ebss is taken up to 8. */
      __asm volatile ("MSR MSPLIM, %0" :: "r" (((UINT32)&_ebss + 7) & ~7u) : "memory");
+  #elif defined(CORTEX_M0)
+     /* The Cortex-M0+ has no stack limit, but the RP2040's has an MPU of 8 regions: one,
+     ** no access and no execution, over the 1 KB the linker script keeps between the
+     ** globals and the stack, faults the first store of a stack run past its end. A frame
+     ** of 1 KB or more may step over it, and GCC may make one by inlining a function
+     ** into itself. Every other address keeps the default map (PRIVDEFENA), the kernel
+     ** and its tasks running privileged. HFNMIENA left at 0 turns the MPU off at the
+     ** HardFault's priority: its stacking lands in the region, not in the globals, and
+     ** the core runs the handler rather than lock up (on the Pico, 2026-10-05). */
+     extern UINT32 _OSStackGuard;
+     #define MPU_CTRL *((volatile UINT32 *)0xE000ED94)
+     #define MPU_RNR  *((volatile UINT32 *)0xE000ED98)
+     #define MPU_RBAR *((volatile UINT32 *)0xE000ED9C)
+     #define MPU_RASR *((volatile UINT32 *)0xE000EDA0)
+     MPU_RNR = 0;
+     MPU_RBAR = (UINT32)&_OSStackGuard;
+     MPU_RASR = (1u << 28) | (9u << 1) | 1u;   // XN, AP no access, 2^(9+1) bytes, enabled
+     MPU_CTRL = 5u;                            // PRIVDEFENA, ENABLE
+     __asm volatile ("DSB\n ISB" ::: "memory");
   #endif
   /* Initialize interrupts priority system */
   #if defined(CORTEX_M3) || defined(CORTEX_M4) || defined(CORTEX_M33)

@@ -395,7 +395,7 @@ static void ReaderTask(void *argument)
 ** that memory holds, and switches the load between its phases. */
 static void HeartbeatTask(void *argument)
 {
-  extern UINT32 _ebss;
+  extern UINT32 _OSStackGuardEnd;
   extern void *_OSStackBasePointer;
   static UINT32 seen[PARTS], phaseEnd = 0, draw;
   UINT32 i;
@@ -411,8 +411,8 @@ static void HeartbeatTask(void *argument)
            Results.Errors[HEARTBEAT] += 1;
   for (i = 0; i < PARTS; i += 1)
      seen[i] = Results.Activity[i];
-  /* The stack of core 0 runs down from the heap towards the end of .bss. */
-  Results.Stack0Free = Unused(&_ebss,(UINT32 *)_OSStackBasePointer);
+  /* The stack of core 0 runs down from the heap towards the guard above .bss. */
+  Results.Stack0Free = Unused(&_OSStackGuardEnd,(UINT32 *)_OSStackBasePointer);
   if (SoakLaunchCore1)
      Results.Stack1Free = Unused(Core1Stack,
                                  &Core1Stack[sizeof Core1Stack / sizeof Core1Stack[0]]);
@@ -448,14 +448,15 @@ static UINT32 *NewGuard(void)
 } /* end of NewGuard */
 
 
-/* PaintStack: Fills what the stack of core 0 may use, from the end of .bss to a little
-** below this frame, with a pattern, before anything runs on it. */
+/* PaintStack: Fills what the stack of core 0 may use, from the end of the guard the MPU
+** keeps from any access to a little below this frame, with a pattern, before anything
+** runs on it. */
 static void PaintStack(void)
 {
-  extern UINT32 _ebss;
+  extern UINT32 _OSStackGuardEnd;
   UINT32 *word, sp;
   __asm volatile ("MOV %0, SP" : "=r" (sp));
-  for (word = &_ebss; (UINTPTR)word < sp - 128; word += 1)
+  for (word = &_OSStackGuardEnd; (UINTPTR)word < sp - 128; word += 1)
      *word = STACK_FILL;
 } /* end of PaintStack */
 
