@@ -159,7 +159,16 @@ to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
       on GPIO 12, 14, 20 or 22 (§12.10.7), which is hardware for the bench.
 
    Left: step 3. The measurements and the gate are in Done, "Sleep on the RP2350,
-   measured and gated".
+   measured and gated". Its first half measured on 2026-10-05: `LposcPico2` (Examples/
+   pico2) counts the always-on timer, on LPOSC at its nominal 32.768 kHz, against TIMER0
+   on the crystal, in windows of 60 s, awake, at room temperature. On the bench's Pico
+   2, 35 windows: LPOSC at 30.099 kHz, 8.1 % slow; from one window to the next it moved
+   135 ppm on average and 432 at most, against 18 ppm of resolution. Calibrated a
+   minute before, a sleep of 100 ms would then be off by 43 µs at most, and one of a
+   second by 0.4 ms, where the uncalibrated 8 % gives 8 ms. FC0 alone cannot calibrate
+   it: its 1/32 kHz is some 1,000 ppm of LPOSC; the comparison with TIMER0 can. Left:
+   the same across temperature and supply, and asleep, where the timer runs from LPOSC
+   with clk_ref on it (`SleepPico2.c`).
 
 6. **LPUART1 at 115,200 baud through Stop 2 — done on 2026-10-02** (Done, "LPUART1 at
    115,200 baud through Stop 2"). Left: how often a wake-up byte comes out wrong, which
