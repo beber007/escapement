@@ -8,7 +8,11 @@
 # frequencies. These tests say that the kernel runs and schedules on a Cortex-M33 with the
 # timers, the USART and the GPIO of the STM32U385, and that the set-up keeps to the
 # manual's sequence, not that the chip runs at the frequency meant, which only the board
-# can say.
+# can say. The platform enters Stop 2 when the port asks for it (PWR_SR.CSSF with LPMS =
+# 010) and lays out the state RM0487 gives the wake-up, so that the tests tagged stop2 see
+# the idle task replay the raise of the clock from there, by the same rules; they take
+# the frequency of the build as MHZ and its platform as PLATFORM (escapement_u3_48mhz.repl
+# for MHZ=48, and so on for 24 and 12), 96 MHz and escapement_u3.repl by default.
 *** Settings ***
 Suite Setup                   Setup
 Suite Teardown                Teardown
@@ -16,12 +20,15 @@ Test Setup                    Reset Emulation
 Test Teardown                 Test Teardown
 Test Timeout                  2 minutes
 Resource                      ${RENODEKEYWORDS}
+Library                       link_frame.py
 
 *** Variables ***
 ${EXAMPLE}                    ${CURDIR}/../../Escapement/CORTEX-Mx/STM32U3/Examples/nucleo-u385
 ${RCC}                        ${0x40030C00}
 ${PWR}                        ${0x40030800}
 ${FLASH}                      ${0x40022000}
+${MHZ}                        96
+${PLATFORM}                   escapement_u3.repl
 
 *** Keywords ***
 Load Escapement
@@ -37,6 +44,68 @@ Load Escapement
     Execute Command           sysbus LoadELF @${EXAMPLE}/build/${binary}.elf
     ${table}=                 Execute Command  sysbus GetSymbolAddress "CortexMxVectorTable"
     Execute Command           sysbus.cpu VectorTableOffset ${table.strip()}
+
+Send On LPUART1
+    [Documentation]           Bytes into LPUART1 as a sender writes them, all at once.
+    [Arguments]               @{bytes}
+    FOR  ${byte}  IN  @{bytes}
+        Execute Command       sysbus.lpuart1 WriteChar ${byte}
+    END
+
+Symbol
+    [Documentation]           The address of a symbol of the image loaded, as an integer.
+    [Arguments]               ${name}
+    ${address}=               Execute Command  sysbus GetSymbolAddress "${name}"
+    ${address}=               Convert To Integer  ${address.strip()}
+    RETURN                    ${address}
+
+The Clock Is Back At Its Frequency
+    [Documentation]           After the last wake-up, the clock as OSInitializeSystemClocks left
+    ...                       it for the build's MHZ: the MSIS on MSIRC0 and its divider, the
+    ...                       system clock on the MSIS (SWS 00), range 1 ready at 96 MHz and
+    ...                       range 2 chosen below, the booster on and ready above 24 MHz.
+    ${icscr1}=                Read Word  ${RCC + 0x008}
+    ${cfgr1}=                 Read Word  ${RCC + 0x01C}
+    ${vosr}=                  Read Word  ${PWR + 0x3F8}
+    ${div}=                   Evaluate  {96: 0, 48: 1, 24: 2, 12: 3}[int(${MHZ})]
+    # R1RDY at 96 MHz, which the raise waits for; R2RDY is not, the chip waking in range 2.
+    ${range}=                 Evaluate  0x10001 if int(${MHZ}) == 96 else 0x2
+    ${boost}=                 Evaluate  0x1000100 if int(${MHZ}) > 24 else 0
+    Log To Console            ICSCR1 ${icscr1} CFGR1 ${cfgr1} VOSR ${vosr}
+    Should Be Equal As Integers  ${{ (${icscr1} >> 29) & 3 }}  ${div}
+    Should Be Equal As Integers  ${{ (${icscr1} >> 31) & 1 }}  0
+    Should Be Equal As Integers  ${{ (${cfgr1} >> 2) & 3 }}  0
+    Should Be Equal As Integers  ${{ ${vosr} & (0x30003 if int(${MHZ}) == 96 else 0x3) }}  ${range}
+    Should Be Equal As Integers  ${{ ${vosr} & 0x1000100 }}  ${boost}
+
+Sleep In Stop 2 Within Its Times
+    [Documentation]           SleepU3's results after a run: the instances on their period,
+    ...                       none late, the timer events on time, and as many entries into
+    ...                       Stop 2 as instances at least, which the platform counts too.
+    ${results}=               Symbol  Results
+    ${instances}=             Read Word  ${results + 4}
+    ${ticks}=                 Read Word  ${results + 8}
+    ${micros}=                Read Word  ${results + 12}
+    ${jitter}=                Read Word  ${results + 16}
+    ${entries}=               Read Word  ${results + 20}
+    ${wake}=                  Read Word  ${results + 24}
+    ${late}=                  Read Word  ${results + 28}
+    ${nolse}=                 Read Word  ${results + 32}
+    ${events}=                Read Word  ${results + 36}
+    ${eventoff}=              Read Word  ${results + 40}
+    ${missed}=                Read Word  ${results + 56}
+    ${stops}=                 Read Word  ${PWR + 0x3F0}
+    Log To Console            ${instances} instances, ${entries} into Stop 2 (${stops} on the platform), longest wake-up ${wake} ticks, ${missed} locks missed, gap off by ${jitter} us, ${events} events off by ${eventoff} us
+    Should Be True            ${instances} >= 25
+    Should Be Equal As Integers  ${nolse}  0
+    Should Be Equal As Integers  ${late}  0
+    Should Be True            ${jitter} <= 5
+    Should Be True            ${events} >= ${instances}
+    Should Be True            ${eventoff} <= 20
+    Should Be True            ${entries} >= ${instances}
+    Should Be True            ${stops} >= ${entries}
+    Should Be True            abs(${ticks} * 1000000 - ${micros} * 32768) <= ${micros} * 32768 / 10000
+    RETURN                    ${entries}  ${wake}  ${missed}
 
 Read Word
     [Documentation]           One 32-bit word of the emulated memory, as an integer.
@@ -78,6 +147,7 @@ The clock set-up follows RM0487 to 96 MHz
     ...                       ready, 2 wait states on the flash and its prefetch off, the unlock
     ...                       interrupt of the RCC enabled, the backup domain locked again; and
     ...                       no rule of the manual broken on the way (escapement_u3.repl).
+    [Tags]                    stop2at96
     Load Escapement           TaskLEDU3
     Execute Command           emulation RunFor "0.01"
     No Rule Broken
@@ -194,6 +264,345 @@ The platform catches a set-up that breaks the manual's rules
     Should Be Equal As Integers  ${{ (${cr} >> 6) & 1 }}  0
     Should Be Equal As Integers  ${bdcr}  0
     Should Be Equal As Integers  ${{ ${vosr} & 3 }}  2
+
+LPTIM1 counts the crystal of 32.768 kHz
+    [Documentation]           TestLPTimerU3: LPTIM1 on the LSE against TIM2, every 250 ms for
+    ...                       3 s, 32768 ticks for 1,000,000 us, and the compare it sets each
+    ...                       time found reached at the next. LPTIM1 on the LSE, its clock
+    ...                       enabled, reset through the RCC rather than by its ENABLE bit
+    ...                       (ES0626, 2.11.1). No rule broken.
+    Load Escapement           TestLPTimerU3
+    Execute Command           emulation RunFor "3"
+    No Rule Broken
+    ${results}=               Symbol  Results
+    ${instances}=             Read Word  ${results + 4}
+    ${ticks}=                 Read Word  ${results + 8}
+    ${micros}=                Read Word  ${results + 12}
+    ${missed}=                Read Word  ${results + 16}
+    ${nolse}=                 Read Word  ${results + 20}
+    ${ccipr3}=                Read Word  ${RCC + 0x108}
+    ${apb3enr}=               Read Word  ${RCC + 0x0A8}
+    ${apb3rstr}=              Read Word  ${RCC + 0x080}
+    Log To Console            ${instances} instances, ${ticks} ticks for ${micros} us
+    Should Be True            ${instances} >= 10
+    Should Be Equal As Integers  ${nolse}  0
+    Should Be Equal As Integers  ${missed}  0
+    Should Be True            abs(${ticks} * 1000000 - ${micros} * 32768) <= ${micros} * 32768 / 1000
+    Should Be Equal As Integers  ${{ (${ccipr3} >> 10) & 3 }}  3
+    Should Be Equal As Integers  ${{ (${apb3enr} >> 11) & 1 }}  1
+    Should Be Equal As Integers  ${{ (${apb3rstr} >> 11) & 1 }}  0
+
+The idle task sleeps in Stop 2 and the wake-up replays the raise of the clock
+    [Documentation]           SleepU3: the idle task arms LPTIM1 short of each 100 ms period,
+    ...                       stops TIM2, TIM4 and USART1 and enters Stop 2, from which the
+    ...                       platform wakes it in range 2, the MSIS at 48 MHz, unlocked; the
+    ...                       idle task waits for the lock, sleeps the margin, raises range 1
+    ...                       and the clock again and moves TIM2 and TIM4 on by what LPTIM1
+    ...                       counted. Every instance on its period, none late, the events on
+    ...                       time, every wake-up locked within its bound and part of its
+    ...                       margin slept, the clock back as at start, and no rule of the
+    ...                       manual broken on the way, though each wake-up starts afresh.
+    [Tags]                    stop2
+    Load Escapement           SleepU3  ${PLATFORM}
+    Execute Command           emulation RunFor "3"
+    ${entries}  ${wake}  ${missed}=    Sleep In Stop 2 Within Its Times
+    No Rule Broken
+    The Clock Is Back At Its Frequency
+    ${counts}=                Symbol  Counts
+    ${slow}=                  Read Word  ${counts + 20}
+    ${pwrcr1}=                Read Word  ${PWR}
+    ${stpenr}=                Read Word  ${RCC + 0x0F8}
+    ${cr}=                    Read Word  ${RCC}
+    Should Be Equal As Integers  ${missed}  0
+    Should Be True            ${wake} < 64
+    # Counts holds the idle task's counts at every instant, Results only at each report.
+    Should Be True            ${slow} >= ${entries}
+    Should Be Equal As Integers  ${{ ${pwrcr1} & 7 }}  2
+    Should Be Equal As Integers  ${{ (${stpenr} >> 11) & 1 }}  1
+    Should Be Equal As Integers  ${{ (${stpenr} >> 6) & 1 }}  1
+    # HSI16 back for LPUART1 after each wake-up, which clears it.
+    Should Be Equal As Integers  ${{ (${cr} >> 11) & 1 }}  1
+
+The wake-up keeps to the manual when R1EN reads 1 after Stop 2
+    [Documentation]           RM0487 does not say what PWR_VOSR reads after a Stop 2 entered in
+    ...                       range 1. Here the platform keeps R1EN, its ready flag coming back
+    ...                       4 reads later (PWR 0x3F4): the idle task waits for R1RDY rather
+    ...                       than write R1EN again, and runs as with R1EN cleared, no rule
+    ...                       broken.
+    [Tags]                    stop2
+    Load Escapement           SleepU3  ${PLATFORM}
+    Execute Command           sysbus WriteDoubleWord ${PWR + 0x3F4} 1
+    Execute Command           emulation RunFor "3"
+    ${entries}  ${wake}  ${missed}=    Sleep In Stop 2 Within Its Times
+    No Rule Broken
+    The Clock Is Back At Its Frequency
+    Should Be Equal As Integers  ${missed}  0
+
+A lock that does not come is waited for no longer than its bound
+    [Documentation]           The MSI's PLL mode never locking again after Stop 2 (RCC 0x3EC):
+    ...                       the idle task waits OS_STOP2_LOCK_TICKS of LPTIM1, 1.95 ms, counts
+    ...                       the miss, and raises the clock on the MSI unlocked, which the
+    ...                       platform flags as the one rule broken (RCC bit 9); every wake-up
+    ...                       still in time, the margin of 3 ms covering the wait. Without the
+    ...                       bound the idle task hung there.
+    [Tags]                    stop2
+    Load Escapement           SleepU3  ${PLATFORM}
+    Execute Command           sysbus WriteDoubleWord ${RCC + 0x3EC} 0x7FFFFFFF
+    Execute Command           emulation RunFor "3"
+    ${entries}  ${wake}  ${missed}=    Sleep In Stop 2 Within Its Times
+    ${in_rcc}=                Read Word  ${RCC + 0x3FC}
+    ${in_pwr}=                Read Word  ${PWR + 0x3FC}
+    Should Be Equal As Integers  ${missed}  ${entries}
+    Should Be True            64 <= ${wake} < 98
+    ${expected}=              Evaluate  0x200 if int(${MHZ}) > 48 else 0
+    Should Be Equal As Integers  ${in_rcc}  ${expected}
+    Should Be Equal As Integers  ${in_pwr}  0
+
+With MSIPLL0FAST the chip wakes locked
+    [Documentation]           SleepFastU3, SleepU3 built with FAST=1: MSIPLL0FAST set once the
+    ...                       PLL mode has locked, which keeps it through Stop 2 (RM0487, p. 415,
+    ...                       419). The platform never locking again otherwise (RCC 0x3EC), no
+    ...                       wake-up misses its lock, and no rule is broken.
+    [Tags]                    stop2
+    Load Escapement           SleepFastU3  ${PLATFORM}
+    Execute Command           sysbus WriteDoubleWord ${RCC + 0x3EC} 0x7FFFFFFF
+    Execute Command           emulation RunFor "3"
+    ${entries}  ${wake}  ${missed}=    Sleep In Stop 2 Within Its Times
+    No Rule Broken
+    ${cr}=                    Read Word  ${RCC}
+    Should Be Equal As Integers  ${missed}  0
+    Should Be Equal As Integers  ${{ (${cr} >> 8) & 1 }}  1
+
+SleepU3 reports on USART1 across Stop 2
+    [Documentation]           SleepU3's reports go out on USART1, the ST-LINK's virtual COM port,
+    ...                       which the idle task disables before each Stop 2 and enables again
+    ...                       after it: two lines of SLEEP and its 16 numbers, a second apart,
+    ...                       the instances between them counted.
+    [Tags]                    stop2
+    Load Escapement           SleepU3  ${PLATFORM}
+    ${usart1}=                Create Terminal Tester  sysbus.usart1  defaultPauseEmulation=true
+    ${first}=                 Wait For Line On Uart  SLEEP  timeout=2.5  testerId=${usart1}
+    ${second}=                Wait For Line On Uart  SLEEP  timeout=2.5  testerId=${usart1}
+    Log To Console            ${first.Line} / ${second.Line}
+    Should Be Equal As Integers  ${{ len($second.Line.split()) }}  17
+    Should Be Equal As Integers  ${{ int($second.Line.split()[1], 16) - int($first.Line.split()[1], 16) }}  10
+    No Rule Broken
+
+A byte on LPUART1 keeps the idle task out of Stop 2 for the window
+    [Documentation]           SleepU3: a wake-up byte sent 50 ms into a period, the chip in
+    ...                       Stop 2 since the event at 40 ms, wakes it, and the idle task stays
+    ...                       in Sleep for the window after it, 20 ms, TIM2 running, for the
+    ...                       bytes of a message to come on a running clock; LPTIM1 ends the
+    ...                       window and the idle task enters Stop 2 again before the next
+    ...                       period, TIM2 standing still. No rule broken.
+    [Tags]                    stop2
+    Load Escapement           SleepU3  ${PLATFORM}
+    ${counts}=                Symbol  Counts
+    Execute Command           emulation RunFor "1.05"
+    ${entries}=               Read Word  ${counts}
+    Execute Command           sysbus.lpuart1 WriteChar 0
+    # Within the window: TIM2 runs.
+    Execute Command           emulation RunFor "0.014"
+    ${a}=                     Read Word  0x40000024
+    Execute Command           emulation RunFor "0.001"
+    ${b}=                     Read Word  0x40000024
+    Should Be True            ${b} - ${a} > 900
+    # Past it: Stop 2 again, TIM2 standing still, the sleep held once.
+    Execute Command           emulation RunFor "0.010"
+    ${a}=                     Read Word  0x40000024
+    Execute Command           emulation RunFor "0.001"
+    ${b}=                     Read Word  0x40000024
+    Should Be Equal As Integers  ${a}  ${b}
+    ${held}=                  Read Word  ${counts + 16}
+    Should Be True            ${held} >= 1
+    # The entry into Stop 2 is counted on waking, before the next period.
+    Execute Command           emulation RunFor "0.030"
+    ${after}=                 Read Word  ${counts}
+    ${late}=                  Read Word  ${counts + 8}
+    Should Be Equal As Integers  ${after}  ${entries + 2}
+    Should Be Equal As Integers  ${late}  0
+    No Rule Broken
+
+Bytes on LPUART1 every 10 ms keep the idle task out of Stop 2
+    [Documentation]           SleepU3 sent a wake-up byte then a frame of 47 bytes, a byte every
+    ...                       10 ms, half a second, less than the window apart: the idle task
+    ...                       never enters Stop 2 meanwhile and every byte is received in
+    ...                       order, none dropped; once they stop, it enters Stop 2 again, and
+    ...                       no period was late.
+    [Tags]                    stop2
+    Load Escapement           SleepU3  ${PLATFORM}
+    ${counts}=                Symbol  Counts
+    ${results}=               Symbol  Results
+    ${frame}=                 Link Frame  0  47
+    Execute Command           emulation RunFor "1.003"
+    Execute Command           sysbus.lpuart1 WriteChar 0
+    Execute Command           emulation RunFor "0.001"
+    ${entries}=               Read Word  ${counts}
+    FOR  ${byte}  IN  @{frame}
+        Execute Command       emulation RunFor "0.010"
+        Execute Command       sysbus.lpuart1 WriteChar ${byte}
+    END
+    Execute Command           emulation RunFor "0.001"
+    ${during}=                Read Word  ${counts}
+    ${held}=                  Read Word  ${counts + 16}
+    ${received}=              Read Word  ${results + 44}
+    ${errors}=                Read Word  ${results + 48}
+    ${dropped}=               Read Word  ${results + 64}
+    Log To Console            ${during} - ${entries} entries into Stop 2 during the bytes, ${held} sleeps held, ${received} bytes received
+    Should Be Equal As Integers  ${during}  ${entries}
+    Should Be True            ${held} >= 10
+    Should Be Equal As Integers  ${received}  47
+    Should Be Equal As Integers  ${errors}  0
+    Should Be Equal As Integers  ${dropped}  0
+    Execute Command           emulation RunFor "0.5"
+    ${after}=                 Read Word  ${counts}
+    ${late}=                  Read Word  ${counts + 8}
+    Should Be True            ${after} >= ${entries} + 8
+    Should Be Equal As Integers  ${late}  0
+
+A wake-up byte that comes out wrong is dropped with the frames it spoils
+    [Documentation]           SleepU3's link at 115,200 baud: the byte that wakes the chip from
+    ...                       Stop 2 is sampled while HSI16 starts and may come out as anything.
+    ...                       Sent as 0x5A instead of 0x00, 50 ms into a period, it ends as a
+    ...                       frame of its own at the 0x00 that opens the next, too short, and is
+    ...                       dropped; the frame after it 5 ms later is received whole, one with
+    ...                       its CRC wrong is dropped, and the count goes on in the frame after,
+    ...                       none out of it.
+    [Tags]                    stop2
+    Load Escapement           SleepU3  ${PLATFORM}
+    ${results}=               Symbol  Results
+    ${first}=                 Link Frame  0  10
+    ${bad}=                   Link Frame  10  10  bad_crc=True
+    ${second}=                Link Frame  10  20
+    Execute Command           emulation RunFor "1.05"
+    Execute Command           sysbus.lpuart1 WriteChar 0x5A
+    Execute Command           emulation RunFor "0.005"
+    Send On LPUART1           @{first}
+    Execute Command           emulation RunFor "0.005"
+    Send On LPUART1           @{bad}
+    Execute Command           emulation RunFor "0.005"
+    Send On LPUART1           @{second}
+    Execute Command           emulation RunFor "0.005"
+    ${received}=              Read Word  ${results + 44}
+    ${errors}=                Read Word  ${results + 48}
+    ${overruns}=              Read Word  ${results + 52}
+    ${dropped}=               Read Word  ${results + 64}
+    Log To Console            ${received} bytes received, ${errors} out of the count, ${dropped} frames dropped
+    Should Be Equal As Integers  ${received}  30
+    Should Be Equal As Integers  ${errors}  0
+    Should Be Equal As Integers  ${overruns}  0
+    Should Be Equal As Integers  ${dropped}  2
+
+The idle task sleeps in Stop 2 across the 2^30 wrap of the kernel clock
+    [Documentation]           SleepWrapU3, SleepU3 with its times a thousand times longer, on
+    ...                       TIM2, TIM4 and LPTIM1 a thousand times faster
+    ...                       (escapement_u3_wrap.repl): 2.5 s cross the wrap at 2^30 twice
+    ...                       while the idle task sleeps in Stop 2 and moves TIM2 and TIM4 on, in
+    ...                       ticks of a nanosecond, its margins scaled with them. Every start
+    ...                       one period after the last within 5 us, none late, and every timer
+    ...                       event within 20 us of its time, as on the U5. No rule broken.
+    [Tags]                    stop2at96
+    Load Escapement           SleepWrapU3  escapement_u3_wrap.repl
+    Execute Command           emulation RunFor "2.5"
+    ${results}=               Symbol  Results
+    ${instances}=             Read Word  ${results + 4}
+    ${jitter}=                Read Word  ${results + 16}
+    ${entries}=               Read Word  ${results + 20}
+    ${late}=                  Read Word  ${results + 28}
+    ${nolse}=                 Read Word  ${results + 32}
+    ${events}=                Read Word  ${results + 36}
+    ${eventoff}=              Read Word  ${results + 40}
+    Log To Console            ${instances} instances, ${entries} into Stop 2, ${late} late, gap off by ${jitter} ns at most, ${events} events off by ${eventoff} ns at most
+    Should Be True            ${instances} >= 20
+    Should Be Equal As Integers  ${nolse}  0
+    Should Be Equal As Integers  ${late}  0
+    Should Be True            ${entries} >= ${instances}
+    Should Be True            ${jitter} <= 5000
+    Should Be True            ${events} >= ${instances}
+    Should Be True            ${eventoff} <= 20000
+    No Rule Broken
+
+The idle task sleeps up to the wrap when an arrival lies beyond it
+    [Documentation]           Stop2EventWrapU3: an event-driven task of 300 ms, signalled 10 ms
+    ...                       after each start, waits for the rest of its period in the arrival
+    ...                       queue, its time beyond the 2^30 wrap for the period that crosses
+    ...                       it, which the kernel arms TIM2's compare with. The idle task, in
+    ...                       Stop 2 on LPTIM1, must sleep no further than the wrap: TIM2 and
+    ...                       TIM4, both moved on by what LPTIM1 counted, must drift apart by as
+    ...                       much over the period across the wrap as over the others, within
+    ...                       5 us, and every start come one period after the last. Scaled as
+    ...                       SleepWrapU3, in ns.
+    [Tags]                    stop2at96
+    Load Escapement           Stop2EventWrapU3  escapement_u3_wrap.repl
+    Execute Command           emulation RunFor "2.5"
+    ${results}=               Symbol  Results
+    ${marker}=                Read Word  ${results}
+    ${instances}=             Read Word  ${results + 4}
+    ${gapoff}=                Read Word  ${results + 8}
+    ${skewmin}=               Read Word  ${results + 12}
+    ${skewmax}=               Read Word  ${results + 16}
+    ${spread}=                Evaluate  ((${skewmax} - ${skewmin}) & 0xFFFFFFFF)
+    ${entries}=               Read Word  ${results + 20}
+    ${nolse}=                 Read Word  ${results + 28}
+    Log To Console            ${instances} instances, ${entries} into Stop 2, gap off by ${gapoff} ns at most, TIM4 less TIM2 over a period spread over ${spread} ns
+    Should Be Equal As Integers  ${marker}  0x53574556
+    Should Be True            ${instances} >= 6
+    Should Be True            ${entries} >= ${instances}
+    Should Be Equal As Integers  ${nolse}  0
+    Should Be True            ${gapoff} <= 5000
+    Should Be True            ${spread} <= 5000
+    No Rule Broken
+
+The endurance test runs with the idle task of Stop 2 installed
+    [Documentation]           SoakStop2U3, SoakU3 calling OSInitStop2: its pulse every
+    ...                       millisecond and USART1's reception leave the idle task no Stop 2,
+    ...                       which it declines each time, and every part runs without error
+    ...                       for 3.5 s as without it.
+    [Timeout]                 10 minutes
+    [Tags]                    stop2at96
+    Load Escapement           SoakStop2U3
+    Execute Command           emulation RunFor "3.5"
+    ${results}=               Symbol  Results
+    ${counts}=                Symbol  Counts
+    ${seconds}=               Read Word  ${results + 4}
+    ${entries}=               Read Word  ${counts}
+    ${stops}=                 Read Word  ${PWR + 0x3F0}
+    Should Be True            ${seconds} >= 3
+    Should Be Equal As Integers  ${entries}  0
+    Should Be Equal As Integers  ${stops}  0
+    Every Part Of Soak Without Error
+    No Rule Broken
+
+The platform catches a wake-up from Stop 2 that breaks the manual's rules
+    [Documentation]           The checks of escapement_u3.repl on Stop 2, shown able to fail:
+    ...                       SleepU3 running at 96 MHz, the robot clears the booster, then
+    ...                       enters Stop 2 itself with TIM2 counting and USART1 enabled, and
+    ...                       raises the MSIS back to 96 MHz at once, before range 1, the
+    ...                       booster, the wait states, the MSIS's ready flag and the lock;
+    ...                       then enters a Stop mode with LPMS cleared. Each sets its bit.
+    [Tags]                    stop2at96
+    Load Escapement           SleepU3
+    Execute Command           emulation RunFor "0.12"
+    No Rule Broken
+    ${vosr}=                  Read Word  ${PWR + 0x0C}
+    Execute Command           sysbus WriteDoubleWord ${PWR + 0x0C} ${{ ${vosr} & 0x3 }}
+    Execute Command           sysbus WriteDoubleWord 0x40000000 0x5
+    Execute Command           sysbus WriteDoubleWord 0x40013800 0x2000000D
+    Execute Command           sysbus WriteDoubleWord ${PWR + 0x38} 1
+    ${icscr1}=                Read Word  ${RCC + 0x008}
+    Should Be Equal As Integers  ${{ (${icscr1} >> 29) & 3 }}  1
+    Execute Command           sysbus WriteDoubleWord ${RCC + 0x008} ${{ ${icscr1} & ~(3 << 29) }}
+    Execute Command           sysbus WriteDoubleWord ${PWR} 0
+    Execute Command           sysbus WriteDoubleWord ${PWR + 0x38} 1
+    ${in_rcc}=                Read Word  ${RCC + 0x3FC}
+    ${in_pwr}=                Read Word  ${PWR + 0x3FC}
+    Log To Console            rules broken: RCC ${in_rcc}, PWR ${in_pwr}
+    # Above 48 MHz before R1RDY (3), above 24 before BOOSTRDY (4), before the wait states
+    # (5), while the MSIS is not ready (8), before the lock (9).
+    Should Be Equal As Integers  ${in_rcc}  0x338
+    # Stop 2 from 96 MHz without the booster (5), another Stop mode (6), TIM2 counting (7),
+    # USART1 enabled (8).
+    Should Be Equal As Integers  ${in_pwr}  0x1E0
 
 The probe task runs every millisecond
     [Documentation]           TaskLEDU3 toggles D12, PA6, from a task of period 1000 ticks of the

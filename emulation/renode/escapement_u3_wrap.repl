@@ -2,10 +2,17 @@
 // LICENSE at the root of this repository.
 //
 // escapement_u3.repl with TIM2, the kernel clock, 1000 times faster, for TaskWrapU3 (see
-// escapement_u3.robot). The frequency is set here rather than at run time: the model's
-// compare channels take the timer's frequency when they are built, and would stay at
-// the old one (escapement_u5_wrap.repl).
+// escapement_u3.robot); TIM4 and LPTIM1 as much, for SleepWrapU3 and Stop2EventWrapU3,
+// whose idle task moves TIM2 and TIM4 on by the ticks of LPTIM1. The frequency is set here
+// rather than at run time: the model's compare channels take the timer's frequency when
+// they are built, and would stay at the old one (escapement_u5_wrap.repl).
 using "escapement_u3.repl"
 
 timer2:
     frequency: 96000000000
+
+timer4:
+    frequency: 96000000000
+
+lptim1:
+    frequency: 32768000

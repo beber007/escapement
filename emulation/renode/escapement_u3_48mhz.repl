@@ -1,0 +1,23 @@
+// Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+// LICENSE at the root of this repository.
+//
+// escapement_u3.repl for the images built with make MHZ=48: the timers and USART1 count
+// the 48 MHz the system clock then runs at, as on the chip, where they follow HCLK (RM0487
+// rev. 3, "Timer clock", p. 408), so that their prescalers give the microsecond. For the
+// tests of escapement_u3.robot tagged stop2, run with MHZ:48 and this platform.
+using "escapement_u3.repl"
+
+nvic:
+    systickFrequency: 48000000
+
+timer2:
+    frequency: 48000000
+
+timer3:
+    frequency: 48000000
+
+timer4:
+    frequency: 48000000
+
+usart1:
+    frequency: 48000000

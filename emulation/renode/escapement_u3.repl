@@ -24,11 +24,22 @@
 //              bit 5  the MSIS raised before the flash's wait states (7.3.3, p. 227-228)
 //              bit 6  RCC_BDCR written while PWR_DBPR.DBP is 0 (ignored: p. 471)
 //              bit 7  BOOSTSEL cleared while the booster is on (caution, p. 334)
+//              bit 8  MSISSEL or MSISDIV changed while the MSIS is not ready, or the
+//                     same of the MSIK (RCC_ICSCR1, p. 421-422)
+//              bit 9  the MSIS raised after a wake-up from Stop 2 before its PLL mode is
+//                     locked again (10.3, p. 415)
 //   PWR 0x3FC  bit 0  R1EN and R2EN written equal (ignored: PWR_VOSR, p. 369)
 //              bit 1  R1EN or R2EN changed while the range is not ready (ignored: p. 369)
 //              bit 2  BOOSTEN set before BOOSTSEL chose its clock (p. 368, 429)
 //              bit 3  range 2 chosen with the MSIS above 48 MHz (p. 334)
 //              bit 4  PWR written before its clock, RCC_AHB1ENR2.PWREN (p. 410, 444)
+//              bit 5  Stop 2 entered from an MSIS above 24 MHz without the booster on and
+//                     fed by the MSIS, which a wake-up at 48 MHz needs (p. 405)
+//              bit 6  a Stop mode entered other than Stop 2, LPMS not 010 (p. 365)
+//              bit 7  Stop 2 entered with TIM2 or TIM4 counting, which do not run there
+//                     (caution, p. 351; table 416, p. 1685)
+//              bit 8  Stop 2 entered with USART1 enabled, which does not run there (table
+//                     563, note 1, p. 2406)
 //   FLASH 0x3FC bit 0 LATENCY set below what the MSIS needs in its range (table 43)
 // The ready flags come some reads after their enable: R1RDY and R2RDY 4 reads of
 // PWR_VOSR, BOOSTRDY 2, so that a booster ready says nothing of the range; LSERDY 3
@@ -39,9 +50,17 @@
 // unlocks the MSI's PLL mode, MSIPLLUF set in RCC_CIFR and MSIPLL0RDY cleared until
 // MSIPLL0EN is set again, the robot raising interrupt 9 itself.
 //
+// Stop 2 (see PWR below) is entered when the port writes CSSF, its last step before the
+// WFI; the wake-up state is then laid out at once: range 2, the MSIS's divider at 48 MHz
+// if it was at 96, the MSIS and the MSIK ready 2 reads of RCC_CR later, MSIPLL0RDY
+// cleared and set again after the reads of RCC_CR written at RCC 0x3EC, 8 by default, at
+// once with MSIPLL0FAST once the mode has locked, HSION cleared, SW set from STOPWUCK.
+// PWR 0x3F0 reads the Stop 2 entered. RCC_CFGR1 reads SWS as SW.
+//
 // So the platform checks the order the port writes in and that it waits, not the times
 // or the frequencies: a booster that takes too long, a crystal that needs another drive,
-// the 107 ppm of the MSI's lock, only the board tells. The timers count at 96 MHz before
+// the 107 ppm of the MSI's lock, how long a wake-up or a relock takes, the current in
+// Stop 2, only the board tells. The timers count at 96 MHz before
 // their prescaler, the rate OSInitializeSystemClocks sets, not the 96.010 of the lock.
 
 cpu: CPU.CortexM @ sysbus
@@ -81,6 +100,19 @@ usart1: UART.STM32F7_USART @ sysbus 0x40013800
     frequency: 96000000
     IRQ -> nvic@61
 
+// LPUART1, on D1 and D0, which receives through Stop 2, as USART1: the registers the driver
+// uses sit at the same offsets (52.7, p. 2478-2502); the model takes its divisor as a
+// USART's, which only its baud rate shows, the robot writing its bytes in at once.
+lpuart1: UART.STM32F7_USART @ sysbus 0x40042400
+    frequency: 16000000
+    IRQ -> nvic@66
+
+// LPTIM1 on the 32.768 kHz crystal, Renode's model of the STM32L0's low-power timer, as
+// on the U5: its first registers, ISR to CNT, lie as this chip's do (42.7, p. 1922-1940).
+lptim1: Timers.STM32L0_LpTimer @ sysbus 0x40044400
+    frequency: 32768
+    -> nvic@67
+
 // Reset values of MODER, OSPEEDR and PUPDR from RM0487, 12.6.1, 12.6.3, 12.6.4.
 gpioPortA: GPIOPort.STM32_GPIOPort @ sysbus <0x42020000, +0x400>
     modeResetValue: 0xABFFFFFF
@@ -116,6 +148,11 @@ if request.IsInit:
     pllcount = -1
     lserdy = False
     sysrdy = False
+    msiscount = 0
+    msikcount = 0
+    relock = 8
+    afterwake = False
+    fastok = False
 elif request.IsRead:
     r = request.Offset
     v = regs.get(r, 0)
@@ -123,8 +160,17 @@ elif request.IsRead:
         v = viol
     elif r == 0x3F0:
         v = lsedead
+    elif r == 0x3EC:
+        v = relock
     elif r == 0x000:
-        v |= (1 << 2) | (1 << 4)
+        if msiscount > 0:
+            msiscount -= 1
+        if msiscount == 0:
+            v |= 1 << 2
+        if msikcount > 0:
+            msikcount -= 1
+        if msikcount == 0:
+            v |= 1 << 4
         if v & (1 << 11):
             v |= 1 << 13
         if v & (1 << 16):
@@ -133,6 +179,10 @@ elif request.IsRead:
             pllcount -= 1
         if (v & (1 << 6)) and pllcount == 0:
             v |= 1 << 10
+            afterwake = False
+            fastok = True
+    elif r == 0x01C:
+        v = (v & ~0xC) | ((v & 3) << 2)
     elif r == 0x110:
         if lsecount > 0:
             lsecount -= 1
@@ -155,9 +205,30 @@ else:
     bus = self.GetMachine().SystemBus
     if r == 0x3F0:
         lsedead = v
+    elif r == 0x3EC:
+        relock = v
     elif r == 0x3F4:
         regs[0x054] = regs.get(0x054, 0) | (1 << 8)
         pllcount = -1
+    elif r == 0x3F8:
+        # Stop 2, told by PWR: what it stops and what the wake-up leaves (RCC_CR, p. 417-420;
+        # 10.3, p. 414-415; RCC_ICSCR1, p. 421-423; RCC_CFGR1, p. 426).
+        cr = regs.get(0x000, 0) & ~((1 << 11) | (1 << 16))
+        regs[0x000] = cr
+        cfgr1 = regs.get(0x01C, 0)
+        regs[0x01C] = (cfgr1 & ~3) | (1 if (cfgr1 >> 4) & 1 else 0)
+        msiscount = 2
+        msikcount = -1 if (cfgr1 >> 5) & 1 else 2
+        i = regs.get(0x008, 0)
+        if (i >> 23) & 1:
+            if not (i >> 31) & 1 and ((i >> 29) & 3) == 0:
+                i = (i & ~(3 << 29)) | (1 << 29)
+            if not (i >> 28) & 1 and ((i >> 26) & 3) == 0:
+                i = (i & ~(3 << 26)) | (1 << 26)
+            regs[0x008] = i
+        if cr & (1 << 6):
+            pllcount = 0 if ((cr >> 8) & 1 and fastok) else relock
+            afterwake = pllcount != 0
     elif r == 0x000:
         v &= ~((1 << 2) | (1 << 4) | (1 << 9) | (1 << 10) | (1 << 13) | (1 << 15) | (1 << 17))
         if (v & (1 << 6)) and not (old & (1 << 6)):
@@ -171,12 +242,22 @@ else:
                 pllcount = 3
         if not (v & (1 << 6)):
             pllcount = -1
+            afterwake = False
         regs[r] = v
     elif r == 0x008:
         v |= old & (1 << 23)
+        if ((v ^ old) & ((1 << 31) | (3 << 29))) and msiscount != 0:
+            viol |= 1 << 8
+        if ((v ^ old) & ((1 << 28) | (3 << 26))) and msikcount != 0:
+            viol |= 1 << 8
         msis = 12
         if (v >> 23) & 1:
             msis = (96 if not (v >> 31) & 1 else 24) >> ((v >> 29) & 3)
+        was = 12
+        if (old >> 23) & 1:
+            was = (96 if not (old >> 31) & 1 else 24) >> ((old >> 29) & 3)
+        if msis > was and afterwake and (regs.get(0x000, 0) >> 6) & 1 and pllcount != 0:
+            viol |= 1 << 9
         vosr = bus.ReadDoubleWord(0x40030800 + 0x3F8)
         r1 = (vosr >> 16) & 1
         if msis > 48 and not r1:
@@ -217,6 +298,13 @@ else:
 '''
 
 // PWR (9.5, p. 363-376): VOSR reset 0x00020002, range 2 enabled and ready (p. 368).
+// Writing CSSF in PWR_SR (p. 375) stands for the port's last step before its WFI: with
+// LPMS = 010 (PWR_CR1, p. 365) the chip then enters Stop 2, STOPF set, and leaves the
+// state the wake-up finds: range 2, its ready flag 4 reads later (9.3.5, p. 351), R1EN
+// cleared, or kept with R1RDY 4 reads later once 1 is written at 0x3F4, RM0487 not saying
+// which; the booster kept on and ready, its setup being part of the wake-up (table 91,
+// p. 352), so that a wait for it covers no missing wait for R1RDY; and the RCC told at
+// its 0x3F8.
 pwr: Python.PythonPeripheral @ sysbus 0x40030800
     size: 0x400
     initable: true
@@ -226,10 +314,16 @@ if request.IsInit:
     viol = 0
     rangecount = 0
     boostcount = 0
+    wakemode = 0
+    stops = 0
 elif request.IsRead:
     r = request.Offset
     if r == 0x3FC:
         request.Value = viol
+    elif r == 0x3F4:
+        request.Value = wakemode
+    elif r == 0x3F0:
+        request.Value = stops
     elif r == 0x3F8 or r == 0x0C:
         v = regs[0x0C] & 0x103
         if r == 0x0C and rangecount > 0:
@@ -247,31 +341,59 @@ else:
     r = request.Offset
     v = request.Value & 0xFFFFFFFF
     bus = self.GetMachine().SystemBus
-    if not (bus.ReadDoubleWord(0x40030C00 + 0x094) >> 2) & 1:
-        viol |= 1 << 4
-    if r == 0x0C:
-        old = regs[0x0C]
-        en = v & 3
-        if en != (old & 3):
-            if en == 0 or en == 3:
-                viol |= 1 << 0
-                en = old & 3
-            elif rangecount > 0:
-                viol |= 1 << 1
-                en = old & 3
-            else:
-                rangecount = 4
-                if en == 2:
-                    i = bus.ReadDoubleWord(0x40030C00 + 0x008)
-                    if (i >> 23) & 1 and not (i >> 31) & 1 and ((i >> 29) & 3) == 0:
-                        viol |= 1 << 3
-        if (v & (1 << 8)) and not (old & (1 << 8)):
-            if not bus.ReadDoubleWord(0x40030C00 + 0x028) & 3:
-                viol |= 1 << 2
-            boostcount = 2
-        regs[0x0C] = en | (v & (1 << 8))
+    if r == 0x3F4:
+        wakemode = v
     else:
-        regs[r] = v
+        if not (bus.ReadDoubleWord(0x40030C00 + 0x094) >> 2) & 1:
+            viol |= 1 << 4
+        if r == 0x0C:
+            old = regs[0x0C]
+            en = v & 3
+            if en != (old & 3):
+                if en == 0 or en == 3:
+                    viol |= 1 << 0
+                    en = old & 3
+                elif rangecount > 0:
+                    viol |= 1 << 1
+                    en = old & 3
+                else:
+                    rangecount = 4
+                    if en == 2:
+                        i = bus.ReadDoubleWord(0x40030C00 + 0x008)
+                        if (i >> 23) & 1 and not (i >> 31) & 1 and ((i >> 29) & 3) == 0:
+                            viol |= 1 << 3
+            if (v & (1 << 8)) and not (old & (1 << 8)):
+                if not bus.ReadDoubleWord(0x40030C00 + 0x028) & 3:
+                    viol |= 1 << 2
+                boostcount = 2
+            regs[0x0C] = en | (v & (1 << 8))
+        elif r == 0x38:
+            if v & 1:
+                regs[0x38] = 0
+                if (regs.get(0x00, 0) & 7) != 2:
+                    viol |= 1 << 6
+                else:
+                    if (bus.ReadDoubleWord(0x40000000) & 1) or (bus.ReadDoubleWord(0x40000800) & 1):
+                        viol |= 1 << 7
+                    if bus.ReadDoubleWord(0x40013800) & 1:
+                        viol |= 1 << 8
+                    i = bus.ReadDoubleWord(0x40030C00 + 0x008)
+                    msis = 12
+                    if (i >> 23) & 1:
+                        msis = (96 if not (i >> 31) & 1 else 24) >> ((i >> 29) & 3)
+                    fed = (bus.ReadDoubleWord(0x40030C00 + 0x028) & 3) == 1
+                    if msis > 24 and not ((regs[0x0C] >> 8) & 1 and fed):
+                        viol |= 1 << 5
+                    regs[0x38] = 1 << 1
+                    stops += 1
+                    en = regs[0x0C] & 3
+                    if wakemode == 0:
+                        en = 2
+                    regs[0x0C] = en | (regs[0x0C] & (1 << 8))
+                    rangecount = 4
+                    bus.WriteDoubleWord(0x40030C00 + 0x3F8, 1)
+        else:
+            regs[r] = v
 '''
 
 // FLASH (7.10, p. 266-): ACR reset 0x00000001, 1 wait state (p. 266).
