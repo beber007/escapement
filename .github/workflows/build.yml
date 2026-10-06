@@ -405,8 +405,9 @@ jobs:
 
   emulation-stm32u3:
     # The STM32U3 port on a platform of our own (escapement_u3.repl), which also checks the
-    # order of the clock set-up against RM0487: written before the board came, Renode is
-    # all that runs it yet. Every kernel and algorithm the port builds.
+    # order of the clock set-up, and of its replay on each wake-up from Stop 2, against
+    # RM0487: written before the board came, Renode is all that runs it yet. Every kernel
+    # and algorithm the port builds.
     name: Execution under Renode (STM32U3, ${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
@@ -443,6 +444,33 @@ jobs:
       - name: Run the kernel
         run: renode-test emulation/renode/escapement_u3.robot
 
+      - name: Run the Stop 2 tests at 48, 24 and 12 MHz
+        # The idle task's wake-up from Stop 2 at each frequency the port builds: below 96 MHz
+        # the chip wakes at the frequency it had, in the range it had (docs/stm32u3.md), on
+        # a platform whose timers count that frequency (escapement_u3_<MHZ>mhz.repl).
+        run: |
+          D=Escapement/CORTEX-Mx/STM32U3/Examples/nucleo-u385
+          for m in 48 24 12; do
+            make -s -C $D clean
+            make -s -C $D ${{ matrix.make }} MHZ=$m
+            mkdir -p renode-$m
+            (cd renode-$m && renode-test --variable MHZ:$m \
+               --variable PLATFORM:escapement_u3_${m}mhz.repl --include stop2 \
+               ../emulation/renode/escapement_u3.robot)
+          done
+
+      - name: Every frequency and kernel builds without a warning
+        if: strategy.job-index == 0
+        run: |
+          D=Escapement/CORTEX-Mx/STM32U3/Examples/nucleo-u385
+          for v in "" KERNEL=SOFT; do
+            for m in 96 48 24 12; do
+              make -s -C $D clean
+              make -s -C $D $v MHZ=$m 2>&1 | tee build.log
+              if grep 'warning:' build.log | grep -v 'RWX permissions'; then exit 1; fi
+            done
+          done
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -451,6 +479,9 @@ jobs:
             report.html
             log.html
             robot_output.xml
+            renode-*/report.html
+            renode-*/log.html
+            renode-*/robot_output.xml
           retention-days: 14
 
   emulation-rp2040:
