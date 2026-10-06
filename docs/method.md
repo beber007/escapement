@@ -190,7 +190,13 @@ first written 80.4 % (389 of 484), and the run of 2026-10-06 seemed to lose four
 Its survivors run again at f7622b7, the source of that day, gave 30 killed, not 34, and
 left the same 99 survivors as the run of 2026-10-06: the 389 was miscounted, and nothing
 was lost. Under the hard kernel's builds, 300 task sets cannot kill fewer mutants than
-100, the first 100 being the same sets drawn from the same seed.
+100, the first 100 being the same sets drawn from the same seed. The power-aware kernel, run whole the same
+evening at 300 task sets: 76.9 % (610 of 793), from 71.8 %. Of the mutants both runs
+hold, 85 survived on 2026-10-04 and are killed now, by the tests and the speed reference
+added since and by the larger runs together, the runs not telling which: 12 of them in
+`DRASimUpdateElapseTime`, the excess of the event-driven tasks that the reference took
+in that day. The 183 left are mostly in the timer's handler (28), the choice of speed
+(21) and the initialisation of the slot buffers (15).
 
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
