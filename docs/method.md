@@ -242,6 +242,16 @@ ways:
 
 Both corrections of the kernels were made with the user's agreement.
 
+Run again across the wraparound, the power-aware kernel's mutants scored 77.5 % (621 of
+801), the hard kernel's survivors lost 3 more, the code that shifts its times (388 of 484,
+80.2 %). A mutant read and shown equivalent is since declared in
+`test/host/equivalent-mutants.jsonl`, with its reason, found by what it changes as
+`--survivors` finds them: it still runs, and one declared equivalent and killed is
+reported, the declaration being wrong. The score is given twice, of all the valid mutants
+and of those not declared: the power-aware kernel's 26 read that evening, the 21 of the
+choice of speed and 5 of DM_SLACK's slack, give 80.1 % of the 775 others. No mutant is
+declared that has not been read, and none for being hard to kill.
+
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
 window under-counts by one WCET at most, and random task sets seldom come that close. A

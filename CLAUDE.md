@@ -87,6 +87,8 @@ python3 tools/differential.py        # random task sets run by each build, every
                                      # tools/speed_reference.py (run by the CI, ~40 s)
 python3 tools/mutants.py hard --jobs 2   # one fault at a time in a kernel, the host test
                                      # and differential.py on each (some 2 h a kernel)
+                                     # (on home, not this Mac; --survivors R.jsonl, --score
+                                     # R.jsonl; equivalents: test/host/equivalent-mutants.jsonl)
 
 # Exhaustive models of the lock-free mechanisms (run by the CI)
 python3 test/model/fourslot.py

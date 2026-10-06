@@ -23,6 +23,12 @@ and is invalid when it does not compile; the score is the share killed of the va
 A survivor is a behaviour no test checks, or a mutant that changes nothing (an equivalent
 one): each is to be read.
 
+A mutant read and shown equivalent is declared in test/host/equivalent-mutants.jsonl,
+with its reason, and found by what it changes, not by its number. It still runs: one
+declared equivalent and killed is reported, the declaration being wrong, and one no
+longer in the source too. The score is then given twice, of all the valid mutants and of
+those not declared equivalent.
+
   python3 tools/mutants.py hard                 every mutant of EscapementHard.c
   python3 tools/mutants.py soft --jobs 2        two at a time, each nice'd
   python3 tools/mutants.py hard --list          the mutants only, none run
@@ -30,6 +36,7 @@ one): each is to be read.
   python3 tools/mutants.py hard --survivors R.jsonl   those that survived a run, again
   python3 tools/mutants.py pa --sets 300        differential.py on 300 task sets a build,
                                                 as the CI runs it, not 100
+  python3 tools/mutants.py pa --score R.jsonl   the score of a run made before, none run
 
 Results go to test/host/build-mutants/<kernel>.jsonl as they come, one line a mutant,
 and a run started again skips those already there.
@@ -47,6 +54,7 @@ import sys
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 HOST = os.path.join(ROOT, "test", "host")
 WORK = os.path.join(HOST, "build-mutants")
+EQUIVALENTS = os.path.join(HOST, "equivalent-mutants.jsonl")
 KERNELS = {
     "hard": ("EscapementHard.c", "HARD", ["hard_edf", "hard_dm"]),
     "soft": ("EscapementSoft.c", "SOFT", ["soft_edf", "soft_dm"]),
@@ -153,6 +161,30 @@ def compiled_lines(kernel):
     return lines
 
 
+def keyed(triples):
+    """Each mutant's key, what it changes, from (op, original, mutated) in the order of
+    the source: the operator, the line before and after, and its rank among those alike."""
+    seen = {}
+    for op, original, mutated in triples:
+        key = (op, original.strip(), mutated.strip())
+        seen[key] = seen.get(key, 0) + 1
+        yield key + (seen[key],)
+
+
+def equivalents(kernel):
+    """The mutants of kernel declared equivalent: key -> reason."""
+    declared = {}
+    if os.path.exists(EQUIVALENTS):
+        with open(EQUIVALENTS, encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    e = json.loads(line)
+                    if e["kernel"] == kernel:
+                        declared[(e["op"], e["original"].strip(), e["mutated"].strip(),
+                                  e.get("rank", 1))] = e["reason"]
+    return declared
+
+
 def mutants(path):
     """Every mutant of the source: (id, line, operator, original, mutated line)."""
     with open(path, encoding="utf-8") as f:
@@ -231,6 +263,8 @@ def main():
     parser.add_argument("--only", help="FIRST-LAST: the lines whose mutants to run")
     parser.add_argument("--survivors", help="RESULTS.jsonl: run again those that survived "
                         "there, into RESULTS-again.jsonl")
+    parser.add_argument("--score", help="RESULTS.jsonl: its score, of the current source's "
+                        "mutants, none run")
     args = parser.parse_args()
     source = os.path.join(ROOT, "Escapement", KERNELS[args.kernel][0])
     todo = mutants(source)
@@ -253,18 +287,15 @@ def main():
         # since numbers its mutants anew, and the numbers of the run before then named
         # other mutants (2026-10-06). Mutants that change the same line alike are told
         # apart by their rank among them.
-        def keyed(records):
-            seen = {}
-            for op, original, mutated in records:
-                key = (op, original.strip(), mutated.strip())
-                seen[key] = seen.get(key, 0) + 1
-                yield key + (seen[key],)
         with open(args.survivors) as f:
             before = sorted((json.loads(l) for l in f if l.strip()), key=lambda r: r["id"])
         again = {k for k, r in zip(keyed((r["op"], r["original"], r["mutated"]) for r in before),
                                    before) if r["verdict"] == "survived"}
         todo = [m for k, m in zip(keyed((m[1], m[3], m[4]) for m in todo), todo) if k in again]
         results = args.survivors.replace(".jsonl", "-again.jsonl")
+    if args.score:
+        results = args.score
+        todo = []
     done = set()
     if os.path.exists(results):
         with open(results) as f:
@@ -281,12 +312,30 @@ def main():
                                           record["line"], record["mutated"][:70]), flush=True)
     with open(results) as f:
         records = [json.loads(l) for l in f if l.strip()]
-    records = [r for r in records if r["line"] in compiled]
+    records = sorted((r for r in records if r["line"] in compiled), key=lambda r: r["id"])
     valid = [r for r in records if r["verdict"] != "invalid"]
     killed = [r for r in valid if r["verdict"] == "killed"]
     print("%d mutants: %d killed, %d survived, %d invalid; score %.1f %%" %
           (len(records), len(killed), len(valid) - len(killed), len(records) - len(valid),
            100.0 * len(killed) / len(valid) if valid else 0))
+    declared = equivalents(args.kernel)
+    found = {k: r for k, r in zip(keyed((r["op"], r["original"], r["mutated"])
+                                        for r in records), records)}
+    equivalent = 0
+    for key, reason in declared.items():
+        r = found.get(key)
+        if r is None:
+            print("declared equivalent, no such mutant now: %s %s => %s" % key[:3])
+        elif r["verdict"] == "killed":
+            print("declared equivalent, but killed: %d line %d, %s" % (r["id"], r["line"],
+                                                                      r["mutated"][:60]))
+        elif r["verdict"] == "survived":
+            equivalent += 1
+    if declared:
+        rest = len(valid) - equivalent
+        print("%d survivors declared equivalent (%s): score %.1f %% of the %d others" %
+              (equivalent, os.path.relpath(EQUIVALENTS, ROOT),
+               100.0 * len(killed) / rest if rest else 0, rest))
 
 
 if __name__ == "__main__":
