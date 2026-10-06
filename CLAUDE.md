@@ -68,6 +68,12 @@ tools/soak.py nucleo 0 1m SoakU5.elf          # on the UNO Q: SoakU5 of Examples
                                               # on a NUCLEO-U575ZI-Q, over its ST-LINK
                                               # (service escapement-soak-nucleo)
 
+# STM32U3 (NUCLEO-U385RG-Q, Cortex-M33) — written before the board came, from RM0487;
+# hard and soft kernels only, no Stop 2 nor KERNEL=PA yet; Renode on a platform of our
+# own whose RCC, PWR and FLASH check the manual's rules (docs/stm32u3.md)
+make -C Escapement/CORTEX-Mx/STM32U3/Examples/nucleo-u385 [MHZ=96|48|24|12]
+renode-test emulation/renode/escapement_u3.robot
+
 # The scheduler on the host, every kernel and algorithm, under AddressSanitizer; the CI
 # also runs it at -O2 under the whole of UndefinedBehaviorSanitizer
 make -C test/host run
@@ -112,7 +118,7 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
 ## Before a commit
 
 - Host tests, `coverage.py`, `differential.py`, the four models, the encoding check, the
-  static analysis (cppcheck, `-fanalyzer`, clang), and every Pico, Pico 2 and STM32U5
+  static analysis (cppcheck, `-fanalyzer`, clang), and every Pico, Pico 2, STM32U5 and STM32U3
   variant still build.
 - A change meant to leave a build alone (comments, an option off by default) must leave
   its images byte for byte identical: compare `arm-none-eabi-objcopy -O binary` outputs
