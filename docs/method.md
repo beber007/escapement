@@ -232,9 +232,16 @@ left out, the manual not saying where they stand in its simulation, and comparis
 whose edge gives the same speed. Under OTE and DM_SLACK the reference takes event-driven tasks
 in too since the same evening, their next release bounding the stretch, and under
 DM_SLACK the slack an event-driven instance leaves: of the 17 mutants of the code that
-bounds the stretch, the 6 left are such comparisons. Two of DM_SLACK's survivors are
-not: the owner of a slack left unrecorded, and a task taking its own slack back, which
-random task sets do not reach.
+bounds the stretch, the 6 left are such comparisons. Two of DM_SLACK's survivors were
+first written as behaviours no test reads; read again on 2026-10-06, neither is. Leaving out the
+`CompilerBarrier()` before the SC that hands a slack over changes nothing GCC emits for
+the RP2040, the only target that builds DM_SLACK: `DMSlackCalculateSlack` disassembles
+the same with and without it, which keeps it as a guard against a compiler that would
+sink the three stores past the call. And a task given its own slack back, `>=` for `>`
+on the priorities, never meets one: a task keeps every deadline running its remaining
+WCET at the fastest speed from any point, so that its end plus the slack it leaves is
+at most its deadline, and the slack, run out with the time elapsed, is gone by its next
+release, at least a deadline after the one before.
 
 On 2026-10-06 the reference took in the event-driven tasks under DRA and DR_OTE, where
 the manual is silent, as the kernel has them: an instance in the simulation by the
