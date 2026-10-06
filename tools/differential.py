@@ -240,8 +240,11 @@ def run(build, tasks):
     # What OSMalloc hands out is never freed, by design: test/host/Makefile turns the leak
     # check of AddressSanitizer off, which Linux runs and macOS does not.
     env = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
+    # A faulty kernel, a mutant among them, may print memory as it is: decoded with
+    # replacement, its output fails the checks rather than the script (2026-10-06).
     done = subprocess.run([binary, "trace", str(DURATION)], input="\n".join(lines) + "\n",
-                          capture_output=True, text=True, timeout=60, env=env)
+                          capture_output=True, text=True, errors="replace", timeout=60,
+                          env=env)
     if done.returncode != 0:
         said = [l for l in (done.stdout + done.stderr).splitlines()
                 if l.strip() and not l[:2] in ("S ", "E ")]

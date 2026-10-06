@@ -131,7 +131,7 @@ def compiled_lines(kernel):
         out = subprocess.run(["cc", "-E", "-I" + HOST, "-I" + os.path.join(ROOT, "Escapement"),
                               "-DCompilerBarrier()=HostCompilerBarrier()"] +
                              flags[build].split() + [path],
-                             capture_output=True, text=True, check=True).stdout
+                             capture_output=True, text=True, errors="replace", check=True).stdout
         current, number = None, 0
         for line in out.split("\n"):
             marker = re.match(r'^# (\d+) "([^"]*)"', line)
@@ -195,8 +195,10 @@ def run_mutant(kernel, mutant, sets=100):
         if subprocess.run(make + targets, capture_output=True, timeout=LIMIT).returncode:
             record["verdict"] = "invalid"
             return record
+        # A mutant may print memory as it is, the host's 0xA5 among it: decoded with
+        # replacement, rather than stop the run on the first byte that is not UTF-8.
         test = subprocess.run(make + ["run", "BUILDS=" + " ".join(builds), "IPC=" + kernel],
-                              capture_output=True, text=True, timeout=LIMIT)
+                              capture_output=True, text=True, errors="replace", timeout=LIMIT)
         if test.returncode:
             failed = [l for l in test.stdout.splitlines() if "FAILED" in l]
             record["verdict"], record["by"] = "killed", (failed or ["host test"])[0].strip()
@@ -205,7 +207,8 @@ def run_mutant(kernel, mutant, sets=100):
         for b in builds:
             diff = subprocess.run(["nice", "-n", "10", sys.executable,
                                    os.path.join(ROOT, "tools", "differential.py"), b, str(sets)],
-                                  capture_output=True, text=True, timeout=LIMIT, env=env)
+                                  capture_output=True, text=True, errors="replace",
+                                  timeout=LIMIT, env=env)
             if diff.returncode:
                 record["verdict"] = "killed"
                 record["by"] = "differential: " + diff.stdout.strip().splitlines()[-1][:160]
