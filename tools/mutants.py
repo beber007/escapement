@@ -249,10 +249,21 @@ def main():
     os.makedirs(WORK, exist_ok=True)
     results = os.path.join(WORK, args.kernel + ".jsonl")
     if args.survivors:
+        # A mutant is found again by what it changes, not by its number: a source changed
+        # since numbers its mutants anew, and the numbers of the run before then named
+        # other mutants (2026-10-06). Mutants that change the same line alike are told
+        # apart by their rank among them.
+        def keyed(records):
+            seen = {}
+            for op, original, mutated in records:
+                key = (op, original.strip(), mutated.strip())
+                seen[key] = seen.get(key, 0) + 1
+                yield key + (seen[key],)
         with open(args.survivors) as f:
-            again = {json.loads(l)["id"] for l in f
-                     if l.strip() and json.loads(l)["verdict"] == "survived"}
-        todo = [m for m in todo if m[0] in again]
+            before = sorted((json.loads(l) for l in f if l.strip()), key=lambda r: r["id"])
+        again = {k for k, r in zip(keyed((r["op"], r["original"], r["mutated"]) for r in before),
+                                   before) if r["verdict"] == "survived"}
+        todo = [m for k, m in zip(keyed((m[1], m[3], m[4]) for m in todo), todo) if k in again]
         results = args.survivors.replace(".jsonl", "-again.jsonl")
     done = set()
     if os.path.exists(results):
