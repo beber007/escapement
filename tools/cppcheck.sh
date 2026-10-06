@@ -34,6 +34,8 @@ check "$M/RP2040" "$M/RP2040/Examples/pico" "$M/RP2040/Examples/pico"/*.c
 check "$M/RP2350" "$M/RP2350/Examples/pico2" "$M/RP2350/Examples/pico2"/*.c
 check "$M/STM32U5" "$M/STM32U5/Examples/uno-q" \
     "$M/STM32U5/Examples/uno-q"/*.c
+check "$M/STM32U3" "$M/STM32U3/Examples/nucleo-u385" \
+    "$M/STM32U3/Examples/nucleo-u385"/*.c
 echo "== host test"
 cppcheck --quiet --error-exitcode=1 --inline-suppr --std=c99 \
     --enable=warning,portability,performance \

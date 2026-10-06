@@ -4,8 +4,8 @@
 #
 # The static analyser of GCC (-fanalyzer) over our C code, compiled as each target
 # builds it: the three kernels under both scheduling algorithms, the Cortex-M layer and
-# each port, for the Cortex-M0+ of the RP2040 and the Cortex-M33 of the RP2350 and of the
-# STM32U585. It follows paths through each function and between them, looking for a null
+# each port, for the Cortex-M0+ of the RP2040 and the Cortex-M33 of the RP2350, of the
+# STM32U585 and of the STM32U385. It follows paths through each function and between them, looking for a null
 # pointer dereferenced, a value read before it is set, a leak or a double free: what
 # cppcheck (tools/cppcheck.sh) reasons about without following paths.
 # Any warning fails the check.
@@ -38,6 +38,7 @@ analyze() {   # analyze CPU PORT_DIR EXAMPLE_DIR [KERNELS]
 analyze cortex-m0plus "$M/RP2040" "$M/RP2040/Examples/pico"
 analyze cortex-m33+nofp "$M/RP2350" "$M/RP2350/Examples/pico2" "HARD SOFT"
 analyze cortex-m33+nofp "$M/STM32U5" "$M/STM32U5/Examples/uno-q" "HARD SOFT"
+analyze cortex-m33+nofp "$M/STM32U3" "$M/STM32U3/Examples/nucleo-u385" "HARD SOFT"
 if grep -q "warning:" "$LOG"; then
     cat "$LOG"
     exit 1
