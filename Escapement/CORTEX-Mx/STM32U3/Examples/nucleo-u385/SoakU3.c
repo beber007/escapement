@@ -80,6 +80,12 @@
 ** them, then clears them, so that each run finds the resets since the one before it — the
 ** independent watchdog's among them, and the reset of the load that followed (RM0487,
 ** RCC_CSR, p. 474-475).
+**
+** Like SoakU5, this image never enters Stop 2: the pulse every millisecond leaves the idle
+** task no wait of OS_STOP2_MIN_US, and USART1, which receives the link, would keep it out
+** anyway (_OSUARTIdle, Escapement_UART.c). Built as SoakStop2U3 (SOAK_STOP2, Makefile), it
+** calls OSInitStop2 all the same: its idle task is then Stop 2's, LPTIM1 counting, which
+** must decline Stop 2 each time and leave every part as it was without it.
 ** Platform version: STM32U385 (NUCLEO-U385RG-Q).
 */
 
@@ -87,6 +93,9 @@
 #include "Escapement_TimerEvent.h"
 #include "Escapement_Timer.h"   /* _OSGetActualTime, for the wraps and the queue's work */
 #include "Escapement_UART.h"
+#ifdef SOAK_STOP2
+   #include "Escapement_Stop2.h"
+#endif
 
 #define PARTS       8
 #define MARKER      0x534F414Bu        /* "SOAK" */
@@ -230,6 +239,9 @@ int main(void)
   Guard[4] = NewGuard();
   OSInitTimerEvent(2,1,EVENT_TIMER_INDEX);
   OSInitUART(2,REPORT_SIZE,LinkReceive,LINK_UART);
+  #ifdef SOAK_STOP2
+     (void)OSInitStop2();
+  #endif
   PERIODIC(PulseTask,20,1000);
   PERIODIC(PokerTask,50,2000);
   PERIODIC(ReaderTask,400,2000);

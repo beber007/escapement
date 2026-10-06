@@ -1,9 +1,9 @@
 # Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
 # LICENSE at the root of this repository.
 #
-# The NUCLEO-U385RG-Q (STM32U385, Cortex-M33): the examples of the STM32U5 port that need
-# no Stop 2, transposed, run from SRAM (STM32U3_SRAM.ld) and loaded by the debugger of the
-# board's ST-LINK, which leaves its flash as it was. Built for a Cortex-M33 without its
+# The NUCLEO-U385RG-Q (STM32U385, Cortex-M33): the examples of the STM32U5 port,
+# transposed, run from SRAM (STM32U3_SRAM.ld) and loaded by the debugger of the board's
+# ST-LINK, which leaves its flash as it was. Built for a Cortex-M33 without its
 # floating-point unit, so that the compiler can never use it: the generic layer saves the
 # context of a Cortex-M33 as that of a Cortex-M4 without one (Escapement_CortexMx_a.S).
 # Written before the board came: Renode runs them (emulation/renode/escapement_u3.robot),
@@ -30,7 +30,8 @@ LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
 # Build variants, which the CI also runs:
 #   make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING    the other scheduling algorithm
 #   make KERNEL=SOFT                                the soft real-time kernel
-# Also: make TRACE=1, a trace of the scheduling in RAM (not built by the CI).
+# Also: make TRACE=1, a trace of the scheduling in RAM (not built by the CI), and
+# make PHASES=30, SleepU3 alternating 30 s in Stop 2 and 30 s in Sleep (SleepU3.c).
 # The power-aware kernel is not ported yet.
 ifeq ($(KERNEL),PA)
    $(error the power-aware kernel is not ported to the STM32U3 yet)
@@ -46,6 +47,24 @@ endif
 ifdef TRACE
    CFLAGS += -DESCAPEMENT_TRACE
 endif
+ifdef PHASES
+   CFLAGS += -DSLEEP_PHASES=$(PHASES)
+endif
+# make PHASES=30 WAKE=2200: the second phase in Stop 2 too, woken 2,200 us before each
+# event rather than OS_STOP2_WAKE_US (SleepU3.c).
+ifdef WAKE
+   CFLAGS += -DSLEEP_WAKE_B=$(WAKE)u
+endif
+# make PHASES=30 RUN=80000: the second phase computes for 80,000 us of each instance, the
+# current of the core running (SleepU3.c).
+ifdef RUN
+   CFLAGS += -DSLEEP_RUN_B=$(RUN)u
+endif
+# make FAST=1: the MSI's PLL mode kept through Stop 2 (MSIPLL0FAST), the chip waking
+# locked, at the cost of the MSI's current in Stop 2 (Escapement_Processor.c).
+ifdef FAST
+   CFLAGS += -DOS_MSIPLL_FAST
+endif
 # make MHZ=48: the system clock at 48 MHz rather than 96; 24 and 12 too, each in the
 # lowest voltage range that runs it (Escapement_Processor.c).
 ifdef MHZ
@@ -55,7 +74,8 @@ endif
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p build)
 
-EXAMPLES = TaskLEDU3 UARTEchoU3 TestTimerEventU3 TaskWrapU3 IPCU3 SoakU3 StackGuardU3
+EXAMPLES = TaskLEDU3 UARTEchoU3 TestTimerEventU3 TaskWrapU3 IPCU3 SoakU3 StackGuardU3 \
+           TestLPTimerU3 SleepU3 SleepFastU3 SleepWrapU3 Stop2EventWrapU3 SoakStop2U3
 
 all: $(EXAMPLES:%=build/%.elf)
 
@@ -111,6 +131,51 @@ build/IPCU3.elf : $(COMMON) build/IPCU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/SoakU3.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
                    build/SoakU3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+# SoakU3 with the idle task of Stop 2 installed, which its load never lets enter Stop 2
+# (SoakU3.c).
+build/SoakStop2U3.o : SoakU3.c
+	$(CC) $(CFLAGS) -DSOAK_STOP2 $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SoakStop2U3.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
+                        build/Escapement_LPTimer.o build/Escapement_Stop2.o build/SoakStop2U3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+build/TestLPTimerU3.elf : $(COMMON) build/Escapement_LPTimer.o build/TestLPTimerU3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+# LPUART1 at 115,200 baud: SleepU3's link wakes the chip with a byte before each frame
+# (SleepU3.c); an image that does without that byte keeps 57,600 (Escapement_UART.c).
+build/Escapement_UARTLink.o : ../../Escapement_UART.c
+	$(CC) $(CFLAGS) -DOS_LPUART1_BAUD_RATE=115200u $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SleepU3.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2.o \
+                    build/Escapement_UARTLink.o build/Escapement_TimerEvent.o build/SleepU3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+# SleepU3 with MSIPLL0FAST, as make FAST=1 builds it, for escapement_u3.robot.
+build/Escapement_ProcessorFast.o : ../../Escapement_Processor.c
+	$(CC) $(CFLAGS) -DOS_MSIPLL_FAST $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SleepFastU3.elf : $(filter-out build/Escapement_Processor.o,$(COMMON)) \
+                        build/Escapement_ProcessorFast.o build/Escapement_LPTimer.o \
+                        build/Escapement_Stop2.o build/Escapement_UARTLink.o \
+                        build/Escapement_TimerEvent.o build/SleepU3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+# SleepU3 with its times a thousand times longer, for the wrap under Renode (SleepU3.c),
+# the margins of the idle task in Stop 2 with them; the part kept for the raise is 1.2 ms
+# there, the sleep before it held under 60,000 ticks of LPTIM1, and the wait for the
+# lock, in ticks of an LPTIM1 a thousand times faster, near its 16 bits.
+SCALED = -DTIME_SCALE=1000 -DOS_STOP2_WAKE_US=3000000u -DOS_STOP2_MIN_US=5000000u \
+         -DOS_STOP2_RAISE_US=1200000u -DOS_STOP2_LOCK_TICKS=60000u
+build/SleepWrapU3.o : SleepU3.c
+	$(CC) $(CFLAGS) $(SCALED) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Stop2Wrap.o : ../../Escapement_Stop2.c
+	$(CC) $(CFLAGS) $(SCALED) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SleepWrapU3.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2Wrap.o \
+                        build/Escapement_UARTLink.o build/Escapement_TimerEvent.o \
+                        build/SleepWrapU3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+# The idle task in Stop 2 while an event-driven task's arrival lies beyond the wrap, scaled
+# as SleepWrapU3 for Renode (Stop2EventWrapU3.c).
+build/Stop2EventWrapU3.o : Stop2EventWrapU3.c
+	$(CC) $(CFLAGS) $(SCALED) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Stop2EventWrapU3.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2Wrap.o \
+                             build/Escapement_TimerEvent.o build/Stop2EventWrapU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 
 # The .d files produced by -MMD list the headers of each object: without them, a change
