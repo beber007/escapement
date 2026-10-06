@@ -32,6 +32,8 @@
 #define RESETS_RESET_DONE *((volatile UINT32 *)0x40020008)
 #define RESETS_TIMER0     (1u << 23)
 #define TIMER0_TIMERAWL   *((volatile UINT32 *)(0x400B0000 + 0x28))
+#define TICKS_TIMER0_CTRL *((volatile UINT32 *)(0x40108000 + 0x18))
+#define TICKS_TIMER0_CYCLES *((volatile UINT32 *)(0x40108000 + 0x1C))
 
 /* POWMAN, every write with its password in the upper half (RP2350 datasheet, 6.4). */
 #define POWMAN_BASE       0x40100000
@@ -71,6 +73,11 @@ int main(void)
   OSInitializeSystemClocks();
   RESETS_CLR = RESETS_TIMER0;
   while ((RESETS_RESET_DONE & RESETS_TIMER0) == 0);
+  /* TIMER0 counts the crystal's microseconds, without the kernel that starts its tick:
+  ** left stopped, the first window would never end (a review, 2026-10-06). */
+  TICKS_TIMER0_CTRL = 0;
+  TICKS_TIMER0_CYCLES = 12;
+  TICKS_TIMER0_CTRL = 1;
   Results[0] = MARKER;
   Results[1] = 0;
   /* Stopped, set to 0, then run from LPOSC at the nominal frequency of its registers. */
