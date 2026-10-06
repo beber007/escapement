@@ -22,6 +22,9 @@
 ** (CYCLES - 1) * SLEEP_MS of the always-on timer, each after a wake-up of the same delay;
 ** the line of cycle 0 follows none, and would count one delay, a millisecond or more.
 **
+** Built with STAY_AWAKE, the crystal is not put dormant: the core waits for the alarm
+** awake, the clocks as asleep, the control of what DORMANT itself adds.
+**
 ** Results, in words: 0 marker, 1 cycles done, 2 LPOSC's frequency found, in 1/65536 kHz.
 ** Platform version: RP2350 (Raspberry Pi Pico 2).
 */
@@ -256,7 +259,9 @@ static void SleepUntil(UINT32 ms)
   /* Only the comparison armed when the crystal stops wakes the chip, not the ALARM status
   ** (6.5.3.1): the write read back first, in POWMAN's clock, now LPOSC's. */
   while ((POWMAN_TIMER & TIMER_ALARM_ENAB) == 0);
+#ifndef STAY_AWAKE
   XOSC_DORMANT = XOSC_DORMANT_WORD;
+#endif
   __asm volatile ("DSB\n\tISB" ::: "memory");
   /* The core may run a few instructions before the crystal's output stops: none may disarm
   ** the alarm before it has fired. */

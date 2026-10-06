@@ -193,8 +193,15 @@ to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
    same evening (`docs/data/dormant-pico2-2026-10-06-clkref.txt`): calibrated so, LPOSC
    read 30.118 to 30.128 kHz, against 30.085 to 30.096 with clk_ref on the crystal, some
    1,150 ppm faster; and asleep it kept time to 493, 705 and 618 ppm, against 1,648,
-   1,987 and 1,877 for the runs calibrated awake. Left: the some 600 ppm DORMANT still
-   adds, the supply or the stopped crystal, and the external 32.768 kHz clock on a GPIO,
+   1,987 and 1,877 for the runs calibrated awake.
+
+   The rest is DORMANT itself. `AwakeCalAsleepPico2`, calibrated the same way, sets the
+   clocks as asleep but waits for the alarm awake, the crystal running: it kept time to
+   +249 and +443 ppm, against -360 for the DORMANT run between them
+   (`docs/data/dormant-pico2-2026-10-06-awake.txt`). Asleep LPOSC runs some 900 ppm faster
+   than in the same clocks awake, which this bench cannot tell between the core's supply
+   in DORMANT and the stopped crystal; awake it moved some 250 to 450 ppm between its
+   calibration and the run. Left: those two, and the external 32.768 kHz clock on a GPIO,
    an oscillator ordered on 2026-10-06.
 
 6. **LPUART1 at 115,200 baud through Stop 2 — done on 2026-10-02** (Done, "LPUART1 at
