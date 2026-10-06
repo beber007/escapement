@@ -23,10 +23,10 @@
 */
 /* File Escapement_Processor.h: Clock set-up of the STM32U385. The kernel's timer counts
 ** microseconds through a prescaler set for the system clock this file chooses, so the
-** clock is set once, first, and not changed afterwards. Neither the power-aware kernel,
-** whose DVFS driver would have to rescale TIM2 at each change of speed (TIM2 follows
-** HCLK on this chip, RM0487 rev. 3, 10.2.3, "Timer clock", p. 408), nor the idle task in
-** Stop 2 are ported yet.
+** clock is set once, first, and not changed afterwards, but for its restart on waking
+** from Stop 2 (Escapement_Stop2.c), TIM2 stopped meanwhile. The power-aware kernel is not
+** ported yet: its DVFS driver would have to rescale TIM2 at each change of speed (TIM2
+** follows HCLK on this chip, RM0487 rev. 3, 10.2.3, "Timer clock", p. 408).
 ** Platform version: STM32U385 (NUCLEO-U385RG-Q), any STM32U375/385.
 */
 
@@ -58,6 +58,25 @@
 ** 32.768 kHz crystal, or running free should the crystal not start. To be called first,
 ** before the timer and before any peripheral whose rate depends on the clock. */
 void OSInitializeSystemClocks(void);
+
+/* _OSRaiseSystemClock: The second half of OSInitializeSystemClocks, from the MSIS in range
+** 2 to OS_SYSTEM_CLOCK_HZ: the booster, range 1, the flash's wait states and the MSIS's
+** divider, each as the registers read it. Escapement_Stop2.c calls it again on waking from
+** Stop 2, after _OSWaitMSILock, which waits for the MSI's PLL mode to lock again, at most
+** ticks of the caller's clock, and returns TRUE if it did not. */
+void _OSRaiseSystemClock(void);
+BOOL _OSWaitMSILock(UINT16 (*clock)(void), UINT16 ticks);
+
+/* The idle task sleeps through _OSIdleHook once OSInitStop2 has set it, so that an image
+** without Stop 2 links neither it nor LPTIM1; the hook returns with interrupts enabled. */
+extern void (*_OSIdleHook)(void);
+#undef _OSSleep
+#define _OSSleep() while (TRUE) { \
+                      if (_OSIdleHook != NULL) \
+                         _OSIdleHook(); \
+                      else \
+                         __asm volatile ("WFI" ::: "memory"); \
+                   };
 
 /* OSGetMSIRelocks: Returns the times the MSI, having left its PLL mode on the LSE, was put
 ** back in it (Escapement_Processor.c). */

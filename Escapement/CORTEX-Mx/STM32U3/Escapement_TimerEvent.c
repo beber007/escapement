@@ -33,8 +33,10 @@
 ** never on a time already past: such an event is handed to the handler by generating the
 ** compare event of the channel (CC1G). The queue is guarded by masking interrupts for the
 ** length of a walk through at most nbNode nodes.
-** The idle task does not enter Stop 2 on this port yet: the functions that carried TIM5
-** through it on the U5 are left out.
+** TIM4 stops in Stop 2, its registers kept (RM0487, table 416, p. 1685), and is carried
+** through it as TIM5 is on the U5: halted with TIM2 and moved on by the same time
+** (Escapement_Stop2.c). Halted, its counter enable cleared, it is disabled as RM0487 asks
+** of a peripheral that does not run in Stop 2 (caution, p. 351).
 ** Platform version: STM32U385 (NUCLEO-U385RG-Q), any STM32U375/385.
 */
 
@@ -195,6 +197,46 @@ static void ArmComparator(TIMER_ISR_DATA *device)
   if ((INT32)(head->Time - TIM_CNT) <= 0)
      TIM_EGR = CC1_BIT;
 } /* end of ArmComparator */
+
+
+/* _OSTimerEventNext, _OSTimerEventHalt and _OSTimerEventResume: TIM4 through Stop 2
+** (Escapement_Stop2.c), where it stops. The idle task asks how far off the next event
+** is, to wake before it; halts TIM4 with TIM2, on the same edge of LPTIM1; and on waking
+** moves it on by the same time, the events then due at the times they were set for.
+** All three are called with interrupts masked. */
+BOOL _OSTimerEventNext(UINT32 *delay)
+{
+  TIMER_ISR_DATA *device = (TIMER_ISR_DATA *)OSGetISRDescriptor(OS_IO_TIM4);
+  INT32 left;
+  if (device == NULL || device->EventQueue == NULL)
+     return FALSE;
+  left = (INT32)(device->EventQueue->Time - TIM_CNT);
+  *delay = left > 0 ? (UINT32)left : 0;
+  return TRUE;
+} /* end of _OSTimerEventNext */
+
+void _OSTimerEventHalt(void)
+{
+  if (OSGetISRDescriptor(OS_IO_TIM4) != NULL)
+     TIM_CR1 = 0;
+} /* end of _OSTimerEventHalt */
+
+/* Returns FALSE when an event fell due while TIM4 stood still: it is handed to the
+** handler at once, late by what the wake-up overran. */
+BOOL _OSTimerEventResume(UINT32 micros)
+{
+  TIMER_ISR_DATA *device = (TIMER_ISR_DATA *)OSGetISRDescriptor(OS_IO_TIM4);
+  BOOL inTime = TRUE;
+  if (device == NULL)
+     return TRUE;
+  TIM_CNT += micros;
+  if (device->EventQueue != NULL && (INT32)(device->EventQueue->Time - TIM_CNT) <= 0) {
+     TIM_EGR = CC1_BIT;
+     inTime = FALSE;
+  }
+  TIM_CR1 = TIM_CR1_CEN;
+  return inTime;
+} /* end of _OSTimerEventResume */
 
 
 /* TimerIntHandler: Wakes the tasks of every event now due, then arms the comparator on the

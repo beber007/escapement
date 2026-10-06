@@ -39,6 +39,17 @@
 ** then puts it back, as the manual says to (p. 402). That is no erratum on this chip
 ** (ES0626 rev. 3 has none on the MSI), but erratum 2.2.1 disturbs the LSE when PC13
 ** toggles, and B1, the user button of the NUCLEO, is on PC13.
+**
+** Steps 4 and 5 are _OSRaiseSystemClock, which the idle task runs again on waking from
+** Stop 2 (Escapement_Stop2.c). The chip wakes on the MSIS in range 2, its divider kept
+** unless it gave more than 48 MHz, in which case the hardware sets it to 48 (9.3.5,
+** p. 351; 10.3, p. 415; RCC_ICSCR1, p. 421); the booster, left on through Stop 2 as a
+** wake-up at 48 MHz requires (p. 405), is kept. So the steps start from what the
+** registers read, PWR_VOSR, RCC_ICSCR1 and RCC_CFGR4, not from what reset leaves: RM0487
+** does not say whether R1EN reads 1 or 0 after a Stop 2 entered in range 1, and either
+** is taken. The MSI's PLL mode is cleared with the MSI in Stop 2 (MSIPLL0RDY, p. 418) and
+** locks again after it, which takes tSTAB unless MSIPLL0FAST is set (p. 415, 419):
+** _OSWaitMSILock waits for it, bounded.
 ** Platform version: STM32U385 (NUCLEO-U385RG-Q), any STM32U375/385.
 */
 
@@ -57,6 +68,7 @@
 #define RCC_CR_MSISRDY       (1u << 2)
 #define RCC_CR_MSIKRDY       (1u << 4)
 #define RCC_CR_MSIPLL0EN     (1u << 6)
+#define RCC_CR_MSIPLL0FAST   (1u << 8)
 #define RCC_CR_MSIPLL0RDY    (1u << 10)
 /* RCC_ICSCR1 (p. 420-423): MSISSEL 0 takes MSIRC0, MSISDIV divides it by 1, 2, 4 or 8;
 ** the same for the MSIK; MSIRGSEL makes them count, rather than RCC_CSR's. */
@@ -146,6 +158,8 @@ typedef struct UNLOCK_ISR_DATA {
   void (*UnlockHandler)(struct UNLOCK_ISR_DATA *);
 } UNLOCK_ISR_DATA;
 
+void (*_OSIdleHook)(void) = NULL;
+
 static UNLOCK_ISR_DATA UnlockDescriptor;
 static volatile UINT32 MSIRelocks;
 static BOOL Locked;
@@ -217,6 +231,13 @@ static void LockMSI(void)
      RCC_CR |= RCC_CR_MSIPLL0EN;
      for (turns = 0; (RCC_CR & RCC_CR_MSIPLL0RDY) == 0 && turns < LOCK_TURNS; turns += 1);
      Locked = (RCC_CR & RCC_CR_MSIPLL0EN) != 0;
+     #ifdef OS_MSIPLL_FAST
+        /* The PLL mode kept through Stop 2, the MSI powered and gated there, so that it
+        ** wakes locked (p. 403, 415): what that costs in Stop 2 against the wait for the
+        ** lock at each wake-up, only the board can tell (make FAST=1). It takes effect
+        ** from the first return from switch-off, not this first lock (p. 419). */
+        RCC_CR |= RCC_CR_MSIPLL0FAST;
+     #endif
      /* An unlock to the RCC's interrupt, 9 (table 106, p. 415-416; table 134, p. 627). */
      UnlockDescriptor.UnlockHandler = UnlockHandler;
      OSSetISRDescriptor(OS_IO_RCC,&UnlockDescriptor);
@@ -242,28 +263,62 @@ void OSInitializeSystemClocks(void)
   /* MSIRC0 at 12 MHz for both outputs, its PLL mode on the LSE. */
   SetMSIDividers(MSIDIV_12MHZ,MSIDIV_12MHZ);
   LockMSI();
+  _OSRaiseSystemClock();
+  ICACHE_CR |= ICACHE_CR_EN;                // for an image in the flash (8.7.1, p. 320)
+} /* end of OSInitializeSystemClocks */
+
+
+/* _OSRaiseSystemClock: From the MSIS on MSIRC0 in range 2, at 12 MHz after reset or at
+** what Stop 2 left, to OS_SYSTEM_CLOCK_HZ, each step taken only if the registers do not
+** already read it done. */
+void _OSRaiseSystemClock(void)
+{
   #if CLOCK_BOOST
      /* The booster's clock before the booster (p. 405, 429): the MSIS, which stays on
-     ** as the system clock, as it must while the booster is (caution, p. 334). */
-     RCC_CFGR4 = (RCC_CFGR4 & ~RCC_CFGR4_BOOSTSEL_MASK) | RCC_CFGR4_BOOSTSEL_MSIS;
+     ** as the system clock, as it must while the booster is (caution, p. 334). Stop 2
+     ** keeps it, as it keeps every register (9.3.5, p. 350). */
+     if ((RCC_CFGR4 & RCC_CFGR4_BOOSTSEL_MASK) != RCC_CFGR4_BOOSTSEL_MSIS)
+        RCC_CFGR4 = (RCC_CFGR4 & ~RCC_CFGR4_BOOSTSEL_MASK) | RCC_CFGR4_BOOSTSEL_MSIS;
   #endif
   #if CLOCK_RANGE == 1
      /* Range 1, from range 2 once it is ready: R1EN and R2EN change only then, and
-     ** together, a write of both to the same value being ignored (p. 369). */
-     while ((PWR_VOSR & (PWR_VOSR_R1RDY | PWR_VOSR_R2RDY)) != PWR_VOSR_R2RDY);
-     PWR_VOSR = (PWR_VOSR & ~(PWR_VOSR_R1EN | PWR_VOSR_R2EN)) | PWR_VOSR_R1EN;
+     ** together, a write of both to the same value being ignored (p. 369). An R1EN that
+     ** reads 1 already, as Stop 2 may leave it, is only waited for: written again it would
+     ** change nothing. */
+     if ((PWR_VOSR & PWR_VOSR_R1EN) == 0) {
+        while ((PWR_VOSR & (PWR_VOSR_R1RDY | PWR_VOSR_R2RDY)) != PWR_VOSR_R2RDY);
+        PWR_VOSR = (PWR_VOSR & ~(PWR_VOSR_R1EN | PWR_VOSR_R2EN)) | PWR_VOSR_R1EN;
+     }
      while ((PWR_VOSR & PWR_VOSR_R1RDY) == 0);
   #endif
   #if CLOCK_BOOST
+     /* Set again, it changes nothing after Stop 2, which keeps it on. */
      PWR_VOSR |= PWR_VOSR_BOOSTEN;
      while ((PWR_VOSR & PWR_VOSR_BOOSTRDY) == 0);
   #endif
   /* The wait states before the clock rises, read back until they hold (7.3.3, p. 228);
   ** at 12 MHz the one reset sets is taken off, the clock not changing. The prefetch stays
-  ** off: the images run from SRAM, and it is only for 1 wait state or more (p. 228). */
+  ** off: the images run from SRAM, and it is only for 1 wait state or more (p. 228). The
+  ** 48 MHz of a wake-up from 96 need the same 2 in range 2 as 96 in range 1 (table 43). */
   FLASH_ACR = (FLASH_ACR & ~(FLASH_ACR_LATENCY_MASK | FLASH_ACR_PRFTEN)) | FLASH_WAIT_STATES;
   while ((FLASH_ACR & FLASH_ACR_LATENCY_MASK) != FLASH_WAIT_STATES);
   /* The MSIS at its frequency; the MSIK stays at 12 MHz, which no part of the port uses. */
-  SetMSIDividers(MSIS_DIV,MSIDIV_12MHZ);
-  ICACHE_CR |= ICACHE_CR_EN;                // for an image in the flash (8.7.1, p. 320)
-} /* end of OSInitializeSystemClocks */
+  if ((RCC_ICSCR1 & (RCC_ICSCR1_MSISSEL | RCC_ICSCR1_MSISDIV_MASK | RCC_ICSCR1_MSIRGSEL)) !=
+      (RCC_ICSCR1_MSISDIV(MSIS_DIV) | RCC_ICSCR1_MSIRGSEL))
+     SetMSIDividers(MSIS_DIV,MSIDIV_12MHZ);
+} /* end of _OSRaiseSystemClock */
+
+
+/* _OSWaitMSILock: After a wake-up from Stop 2, until the MSI's PLL mode is locked again,
+** MSIPLL0RDY, or ticks of the caller's clock, LPTIM1, have passed; TRUE if they did, the
+** MSIS then running free, within about 1 %, until it locks. Nothing to wait for if the
+** PLL mode is off, the LSE never having started. */
+BOOL _OSWaitMSILock(UINT16 (*clock)(void), UINT16 ticks)
+{
+  UINT16 start;
+  if ((RCC_CR & RCC_CR_MSIPLL0EN) == 0)
+     return FALSE;
+  start = clock();
+  while ((RCC_CR & RCC_CR_MSIPLL0RDY) == 0 && (UINT16)(clock() - start) < ticks);
+  return (RCC_CR & RCC_CR_MSIPLL0RDY) == 0;
+} /* end of _OSWaitMSILock */

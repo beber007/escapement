@@ -34,7 +34,8 @@
 **   (1) (UINT8) number of buffers in the transmit queue;
 **   (2) (UINT8) size in bytes of each of these buffers;
 **   (3) pointer to the function called on every byte received, from interrupt context;
-**   (4) (UINT8) OS_IO_USART1, the virtual COM port of the board's ST-LINK.
+**   (4) (UINT8) OS_IO_USART1, the virtual COM port of the board's ST-LINK, or
+**       OS_IO_LPUART1, on D1 and D0, which receives through Stop 2.
 ** Returned value: TRUE when the allocation succeeded. */
 BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8),
                 UINT8 interruptIndex);
