@@ -77,7 +77,7 @@ and slows down only as far as those times still meet every deadline.
 | Arduino UNO Q (STM32U585) | Cortex-M33, 160 MHz | hard, soft; the idle task in Stop 2 | the board, checked at each commit; Renode |
 | Raspberry Pi Pico 2 (RP2350) | Cortex-M33, 150 MHz | hard, soft; two cores sharing lock-free buffers | the board, checked at each commit: the six examples that count in memory and the UART; Renode |
 | NUCLEO-U575ZI-Q (STM32U575) | Cortex-M33, 160 MHz | the hard kernel's example in Stop 2, for current measurement; the endurance test | the endurance test on the board since 2026-09-28; Renode |
-| NUCLEO-U385RG-Q (STM32U385) | Cortex-M33, 96 MHz | hard, soft; written from the reference manual before the board came ([`docs/stm32u3.md`](docs/stm32u3.md)) | Renode only, its platform checking the clock set-up against the manual |
+| NUCLEO-U385RG-Q (STM32U385) | Cortex-M33, 96 MHz | hard, soft; the idle task in Stop 2; written from the reference manual before the board came ([`docs/stm32u3.md`](docs/stm32u3.md)) | Renode only, its platform checking the clock set-up and the wake-up from Stop 2 against the manual |
 
 ## An application
 

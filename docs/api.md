@@ -399,3 +399,8 @@ counted. This asks the following of an application:
 `OSGetStop2Counts` gives the number of entries into Stop 2, the longest wake-up in ticks
 of LPTIM1, and the number of wake-ups that came past their event. `SleepU5` uses all of
 it.
+
+The STM32U3 port has the same interface (`stm32u3.md`, "The idle task in Stop 2"), with
+TIM4 in place of TIM5, LPUART1 on D1 and D0, and USART1 disabled across each Stop 2. Its
+counts give, in place of the HSE's misses, the wake-ups whose MSI did not lock again
+within `OS_STOP2_LOCK_TICKS`.

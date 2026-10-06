@@ -61,7 +61,8 @@ are chosen on the command line (`architecture.md`):
 | `UNDERVOLT=1` | `pico`, with `KERNEL=PA` | below the specified core voltage, bench only |
 | `SLEEP_SPEED=0` | `pico`, with `KERNEL=PA` | the idle task sleeps at 12 MHz rather than 125 |
 | `TRACE=1` | all three | a scheduling trace in RAM, not built by the CI |
-| `PHASES=30` | `uno-q`, `nucleo-u575` | `SleepU5` alternates 30 s in Stop 2 and 30 s in Sleep |
+| `PHASES=30` | `uno-q`, `nucleo-u575`, `nucleo-u385` | `SleepU5` or `SleepU3` alternates 30 s in Stop 2 and 30 s in Sleep |
+| `FAST=1` | `nucleo-u385` | the MSI's PLL mode kept through Stop 2 (MSIPLL0FAST) |
 | `SMPS=1` | `nucleo-u575` | the STM32U575's SMPS rather than its LDO |
 
 Other options, for the bench alone (`SLEEP_GATE`, `NOHSE`, `MHZ` and more), are

@@ -11,7 +11,7 @@ It says nothing of energy; the board and an instrument decide that.
 | RP2040 (Pico) | matgla/Renode_RP2040, with a fixed timer | 1.16.1, `linux-dotnet` | `escapement_pico.robot`, 10 | 11 |
 | RP2350 (Pico 2) | our own, `escapement_pico2.repl` | 1.17.0, portable | `escapement_pico2.robot`, 12 | 4, and 1 under GCC 14.2 |
 | STM32U585 (UNO Q) | our own, `escapement_u5.repl` | 1.17.0, portable | `escapement_u5.robot`, 23 | 4 |
-| STM32U385 (NUCLEO-U385RG-Q) | our own, `escapement_u3.repl`, which checks the clock set-up against RM0487 (`stm32u3.md`) | 1.17.0, portable | `escapement_u3.robot`, 12 | 4 |
+| STM32U385 (NUCLEO-U385RG-Q) | our own, `escapement_u3.repl`, which checks the clock set-up and its replay after Stop 2 against RM0487 (`stm32u3.md`) | 1.17.0, portable | `escapement_u3.robot`, 25, its 8 tagged `stop2` also at 48, 24 and 12 MHz | 4 |
 
 The RP2350 and STM32U5 suites run on a Mac as well as in the CI:
 

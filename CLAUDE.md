@@ -69,10 +69,14 @@ tools/soak.py nucleo 0 1m SoakU5.elf          # on the UNO Q: SoakU5 of Examples
                                               # (service escapement-soak-nucleo)
 
 # STM32U3 (NUCLEO-U385RG-Q, Cortex-M33) — written before the board came, from RM0487;
-# hard and soft kernels only, no Stop 2 nor KERNEL=PA yet; Renode on a platform of our
-# own whose RCC, PWR and FLASH check the manual's rules (docs/stm32u3.md)
-make -C Escapement/CORTEX-Mx/STM32U3/Examples/nucleo-u385 [MHZ=96|48|24|12]
+# hard and soft kernels, the idle task in Stop 2, no KERNEL=PA yet; Renode on a platform
+# of our own whose RCC, PWR and FLASH check the manual's rules, the wake-up from Stop 2
+# included (docs/stm32u3.md)
+make -C Escapement/CORTEX-Mx/STM32U3/Examples/nucleo-u385 [MHZ=96|48|24|12] [FAST=1]
+                                              # PHASES=30 [WAKE=|RUN=]: SleepU3 for the PPK2
 renode-test emulation/renode/escapement_u3.robot
+renode-test --variable MHZ:48 --variable PLATFORM:escapement_u3_48mhz.repl --include stop2 \
+    emulation/renode/escapement_u3.robot      # the Stop 2 tests on a MHZ=48 build (24, 12)
 
 # The scheduler on the host, every kernel and algorithm, under AddressSanitizer; the CI
 # also runs it at -O2 under the whole of UndefinedBehaviorSanitizer
