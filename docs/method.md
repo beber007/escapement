@@ -255,6 +255,23 @@ declared that has not been read, and none for being hard to kill. The term those
 of the excess changed, always 0 there, was then taken out of `GetProcessorSpeed`, with the
 user's agreement, and its mutants with it: 24 remain declared.
 
+The hard kernel's 96 survivors were read the same evening, each settled where it could be
+by a build of the mutant, a model given the fault, or a crafted task set. 47 change
+nothing the kernel promises: stores to zeroed sentinels or overwritten before any read,
+ties the algorithm leaves open, compiler barriers whose ARM code is the same without them,
+assertions of DEBUG_MODE. 46 of them are declared (one, the deadline-monotonic priorities
+all shifted by one, was left out, its argument near 255 tasks not tight enough): 88.6 % of
+the 438 others, from 80.2 % of all. 5 more the host cannot see and `tools/check_order.py`
+kills on the ARM builds. The 44 left are behaviours no test reads, 17 of them visible only
+on a board, where any example would catch most (the timer never started, the idle task
+left masked). Those the host can reach, ranked by what they would cost: an event-driven
+task elected still a zombie, its context then discarded; queue indices taken from leftover
+SRAM, which the host's uniform fill of 0xA5 hides; an event released late across the
+wraparound; the 3-slot writer taking the slot being read; a signal dropped until the next
+interrupt. The reading also found a fault of the host test, not of the kernel: a deadline
+armed past the wraparound made `HostTicksToNextEvent` skip the interrupt of the wrap, which
+the random task sets, their signals far apart, never met.
+
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
 window under-counts by one WCET at most, and random task sets seldom come that close. A

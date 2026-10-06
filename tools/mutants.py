@@ -312,7 +312,10 @@ def main():
                                           record["line"], record["mutated"][:70]), flush=True)
     with open(results) as f:
         records = [json.loads(l) for l in f if l.strip()]
-    records = sorted((r for r in records if r["line"] in compiled), key=lambda r: r["id"])
+    # A run scored after the source changed holds the lines of its own source, which the
+    # current one's numbers no longer name: its records were all compiled when it ran.
+    records = sorted((r for r in records if args.score or r["line"] in compiled),
+                     key=lambda r: r["id"])
     valid = [r for r in records if r["verdict"] != "invalid"]
     killed = [r for r in valid if r["verdict"] == "killed"]
     print("%d mutants: %d killed, %d survived, %d invalid; score %.1f %%" %
