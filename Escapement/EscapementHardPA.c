@@ -254,6 +254,14 @@ static ETCB *RescheduleSynchronousTaskList = NULL;
 #if POWER_MANAGEMENT == DM_SLACK
   static INT32 DMSlackAmount = 0;
   static UINT8 DMSlackPriority = 0;
+  /* When a task instance finishes its execution, the computation of the slack it leaves
+  ** behind for lower priority tasks is done in two steps. The task computes and stores
+  ** the results into temporary variables in a first step, and then later, in a second
+  ** step, it or the timer ISR transforms these temporaries into the true variables. */
+  static UINT8 DMSlackInterrupt = FALSE;     // True if temporaries should be transformed
+  static INT32 DMTmpRemaindingWork;          // New slack value
+  static UINT8 DMTmpPriority;                // Priority of the task that left the slack
+  static INT32 DMTmpLastRemainingWorkUpdate; // New starting interval for updates
 #endif
 /* Speeds are indices of the port's operating points, OS_xxMHZ_SPEED, slowest first (a
 ** frequency with its core voltage). The minimal one bounds the speeds GetProcessorSpeed
@@ -679,6 +687,15 @@ void _OSTimerInterruptHandler(void)
         }
         #if POWER_MANAGEMENT != NONE
            LastRemainingWorkUpdate -= ShiftTimeLimit;
+        #endif
+        #if POWER_MANAGEMENT == DM_SLACK
+           /* A slack computed by an ending task but not yet installed holds the time of its
+           ** end, which DMSlackUpdateSlack below makes LastRemainingWorkUpdate: unshifted,
+           ** a second turn of the arrival loop would credit the slack and the active task's
+           ** work with 2^30 (a review, 2026-10-06). The flag set, the values are final: an
+           ** interrupt before the SC makes the task compute them again. */
+           if (DMSlackInterrupt)
+              DMTmpLastRemainingWorkUpdate -= ShiftTimeLimit;
         #endif
         /* Time shift all event-driven tasks. */
         for (etcb = SynchronousTaskList; etcb != NULL; etcb = etcb->NextETCB) {
@@ -1264,17 +1281,6 @@ void UpdateRemainingWork(TCB *task, UINT8 currentSpeed, INT32 newTime)
 } /* end of UpdateRemainingWork */
 #endif
 
-
-#if POWER_MANAGEMENT == DM_SLACK
-   /* When a task instance finishes its execution, the computation of the slack it leaves
-   ** behind for lower priority tasks is done in two steps. The task computes and stores
-   ** the results into temporary variables in a first step, and then later, in a second
-   ** step, it or the timer ISR transforms these temporaries into the true variables. */
-   static UINT8 DMSlackInterrupt = FALSE;     // True if temporaries should be transformed
-   static INT32 DMTmpRemaindingWork;          // New slack value
-   static UINT8 DMTmpPriority;                // Priority of the task that left the slack
-   static INT32 DMTmpLastRemainingWorkUpdate; // New starting interval for updates
-#endif
 
 
 #if POWER_MANAGEMENT == DM_SLACK

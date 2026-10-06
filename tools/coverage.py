@@ -59,9 +59,11 @@ def build_and_run():
     os.makedirs(profiles)
     env = dict(os.environ, LLVM_PROFILE_FILE=os.path.join(profiles, "%p-%m.profraw"))
     # -O0, so that each line keeps its own counter; the sanitizers stay as the Makefile has
-    # them. The tests fork: each process writes a profile of its own (%p).
+    # them. The tests fork: each process writes a profile of its own (%p), a child ending
+    # with _exit through ChildExit, which writes it first under HOST_COVERAGE.
     run = subprocess.run(["make", "-s", "-C", HOST, "run", "BUILD=" + BUILD, "OPT=-O0",
-                          "CC=clang -fprofile-instr-generate -fcoverage-mapping"],
+                          "CC=clang -fprofile-instr-generate -fcoverage-mapping "
+                          "-DHOST_COVERAGE"],
                          env=env, capture_output=True, text=True)
     if run.returncode != 0:
         sys.stdout.write(run.stdout[-3000:] + run.stderr[-3000:])

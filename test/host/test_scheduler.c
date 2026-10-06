@@ -58,6 +58,20 @@
 #include <unistd.h>
 #include "Escapement.h"
 
+/* ChildExit: A child process ends with _exit, which skips the handler that writes its
+** profile under tools/coverage.py: what only a child ran, the ends at the wrap of the
+** counter among it, counted for nothing until 2026-10-06. The profile is written first. */
+#ifdef HOST_COVERAGE
+   int __llvm_profile_write_file(void);
+#endif
+static void ChildExit(int status)
+{
+  #ifdef HOST_COVERAGE
+     (void)__llvm_profile_write_file();
+  #endif
+  _exit(status);
+}
+
 /* Mirror of the head of the task control block, as far as the test reads it. Declared
 ** here rather than shared because the kernels keep it private; the compiler lays it out
 ** the same way from the same declaration. The layout is not the same in every build:
@@ -1804,7 +1818,7 @@ static void TestEndInside(TimedMode mode)
      FILE *quiet = freopen("/dev/null", "w", stdout);
      (void)quiet;
      TestTimed(mode);
-     _exit(write(fds[1], &TimedTrace, sizeof TimedTrace) == sizeof TimedTrace ? 0 : 1);
+     ChildExit(write(fds[1], &TimedTrace, sizeof TimedTrace) == sizeof TimedTrace ? 0 : 1);
   }
   close(fds[1]);
   AtBarriers = TRUE;
@@ -1843,7 +1857,7 @@ static void TestTimeWrap(TimedMode mode)
      (void)quiet;
      TimedPhase = 0x20000000;
      TestTimed(mode);
-     _exit(write(fds[1], Ends, sizeof ends) == sizeof ends ? 0 : 1);
+     ChildExit(write(fds[1], Ends, sizeof ends) == sizeof ends ? 0 : 1);
   }
   close(fds[1]);
   if (read(fds[0], ends, sizeof ends) != sizeof ends) {
@@ -1866,7 +1880,7 @@ static void TestTimeWrap(TimedMode mode)
            AtWrap = TRUE;
            WrapPoint = p;
            TestTimed(mode);
-           _exit(write(fds[1], &WrapsTaken, sizeof WrapsTaken) == sizeof WrapsTaken &&
+           ChildExit(write(fds[1], &WrapsTaken, sizeof WrapsTaken) == sizeof WrapsTaken &&
                  Failures == 0 ? 0 : 1);
         }
         close(fds[1]);
