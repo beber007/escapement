@@ -200,33 +200,34 @@ the choice of speed (`GetProcessorSpeed`, DRA's simulation, DM_SLACK's slack): a
 that picks a faster speed than it needs keeps every deadline, and nothing held the
 policies to the speeds their specification gives.
 
-Since 2026-10-05 `tools/speed_reference.py` does, on task sets of periodic tasks. It
-computes the speed of each dispatch from the ZottaOS manual's chapter 6, written before
-the kernel's code was read, and `tools/differential.py` fails a speed other than its own.
-Run against the kernel, it first disagreed on most builds, and each disagreement was read
-in the kernel before anything was changed: three were the reference's own mistakes (the
-releases past the end of the run, which the kernel knows; the work received, which the
-kernel keeps in whole ticks as the manual's figure does in integers; and when an end
-decides, before the release at the same instant); the rest were the kernel departing from
-the manual, each towards a faster speed, none towards a missed deadline. The kernel set
-the speed only when the task to run changed, where the manual does at every timer
-interrupt, so that a release that did not preempt reclaimed nothing; and DM_SLACK took
-its slack only for an instance not alone, where DR_OTE takes the slower of its two. Both
-were ZottaOS's, and both were corrected the same day, the reference agreeing again. Two
-departures stay, written in the reference: its EDF* breaks ties the other way from the
-paper, as its header says, and DM_SLACK keeps one slack, the last left, where the manual
-keeps one per task. The reference agreed with the kernel on 1,000 task sets of each of
-the five builds, before and after the corrections, on the Mac and in the CI's image
-before. Of the 171 mutants of the code that chose a speed before the corrections, 100
-were killed without the reference, 109 with it, and 112 at the 300 task sets a build the
-CI runs (`tools/mutants.py --sets`); after them, 104 of the 164 of the same code. The survivors left are mostly code of the event-driven tasks under
-DRA, which the reference leaves out, the manual not saying where they stand in its
-simulation, and comparisons whose edge gives the same speed. Under OTE and DM_SLACK the
-reference takes event-driven tasks in too since the same evening, their next release
-bounding the stretch, and under DM_SLACK the slack an event-driven instance leaves: of
-the 17 mutants of the code that bounds the stretch, the 6 left are such comparisons. Two
-of DM_SLACK's survivors are not: the owner of a slack left unrecorded, and a task taking
-its own slack back, which random task sets do not reach.
+Since 2026-10-05 `tools/speed_reference.py` does. It computes the speed of each dispatch
+from the ZottaOS manual's chapter 6, written before the kernel's code was read, and
+`tools/differential.py` fails a speed other than its own. Run against the kernel, it
+first disagreed on most builds, and each disagreement was read in the kernel before
+anything was changed: three were the reference's own mistakes (the releases past the end
+of the run, which the kernel knows; the work received, which the kernel keeps in whole
+ticks as the manual's figure does in integers; and when an end decides, before the
+release at the same instant); the rest were the kernel departing from the manual, each
+towards a faster speed, none towards a missed deadline. The kernel set the speed only
+when the task to run changed, where the manual does at every timer interrupt, so that a
+release that did not preempt reclaimed nothing; and DM_SLACK took its slack only for an
+instance not alone, where DR_OTE takes the slower of its two. Both were ZottaOS's, and
+both were corrected the same day, the reference agreeing again. Two departures stay,
+written in the reference: its EDF* breaks ties the other way from the paper, as its
+header says, and DM_SLACK keeps one slack, the last left, where the manual keeps one per
+task. The reference agreed with the kernel on 1,000 task sets of each of the five
+builds, before and after the corrections, on the Mac and in the CI's image before. Of
+the 171 mutants of the code that chose a speed before the corrections, 100 were killed
+without the reference, 109 with it, and 112 at the 300 task sets a build the CI runs
+(`tools/mutants.py --sets`); after them, 104 of the 164 of the same code. The survivors
+left are mostly code of the event-driven tasks under DRA, which the reference leaves
+out, the manual not saying where they stand in its simulation, and comparisons whose
+edge gives the same speed. Under OTE and DM_SLACK the reference takes event-driven tasks
+in too since the same evening, their next release bounding the stretch, and under
+DM_SLACK the slack an event-driven instance leaves: of the 17 mutants of the code that
+bounds the stretch, the 6 left are such comparisons. Two of DM_SLACK's survivors are
+not: the owner of a slack left unrecorded, and a task taking its own slack back, which
+random task sets do not reach.
 
 ## What the README claims, and what checks it
 
@@ -239,7 +240,7 @@ behaviour, a test, a model, the board or an instrument.
 | Scheduling by EDF or DM | the host test's view of the task control block; `tools/differential.py`, each trace checked against the algorithm of its build | holds |
 | No periodic tick: the timer interrupts at a release only | nothing on the host; on the U5, the idle task's 454,487 Stop 2 in three hours, which a tick would have cut short | to add: the trace's timer interrupts set against the releases. Done on 2026-10-05: `tools/differential.py` reads every interrupt of the comparator, and a host port made to interrupt every 500 ticks fails its first task set |
 | The power-aware kernel slows down only as far as every deadline holds | `tools/differential.py` under its five builds, with kernels made to run too slow; the host test's speeds | holds |
-| It slows down as far as DRA, OTE and DM_SLACK compute | nothing until 2026-10-05: a kernel faster than its policy kept every deadline. Since, `tools/speed_reference.py`, from the ZottaOS manual, each speed of `tools/differential.py`'s traces | **did not quite**: a release that did not preempt reclaimed nothing, and DM_SLACK left its slack out of a task alone. Both corrected the same day (80cc6dc) |
+| It slows down as far as DRA, OTE and DM_SLACK compute | nothing until 2026-10-05: a kernel faster than its policy kept every deadline. Since, `tools/speed_reference.py`, from the ZottaOS manual, each speed of `tools/differential.py`'s traces, but DRA's and DR_OTE's with event-driven tasks | **did not quite**: a release that did not preempt reclaimed nothing, and DM_SLACK left its slack out of a task alone. Both corrected the same day (80cc6dc) |
 | Overload drops chosen (m,k)-firm instances, not deadlines at random | the host test's `firm` runs, `firmoverload*` | holds |
 | The queues take no lock | `docs/architecture.md` | **false since 2026-09-25**: `OSSuspendSynchronousTask` masks interrupts around the enqueue of a task on its event. The README now says so |
 | The queue between the cores went from fifteen barriers to six | the model `fifo_mp.py` | **stale**: seven since 2026-09-29 |

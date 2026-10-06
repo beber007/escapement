@@ -48,7 +48,8 @@ earliest an event-driven task may be released again (p. 93), its previous deadli
 EDF, a workload after its previous release under DM, as tools/differential.py's
 instances() derive them. Under DM_SLACK too, where an event-driven instance that ends
 leaves its slack like any other, at the priority of its workload, as the kernel has it
-(OSSuspendSynchronousTask). The manual leaves their place in DRA's simulation unsaid:
+(OSSuspendSynchronousTask); on the host its WCET is the work it takes, at the fastest
+speed, so that slack is always 0 and only its replacing the slack before is checked. The manual leaves their place in DRA's simulation unsaid:
 DRA and DR_OTE are referenced on periodic tasks only.
 """
 
@@ -85,7 +86,17 @@ def check_speeds(build, tasks, trace, releases):
     released = [-x.get("period", 0) for x in tasks]   # each task's last release
     earliest = [0] * len(tasks)                # each event-driven task's next release, at
                                                # the earliest; 0 until its first
-    signals = {s for x in tasks if x["kind"] == "E" for s in x["signals"]}
+    # The signals, each with its task and its rank among the task's. A signal that finds
+    # its task suspended, every instance before ended, is served by the timer's handler
+    # and the kernel decides there, whether it releases the task at once or puts it in
+    # the arrival queue; one that finds it running, ready or already queued reschedules
+    # nothing (OSScheduleSuspendedTask).
+    signals = {}
+    for j, x in enumerate(tasks):
+        if x["kind"] == "E":
+            for k, t in enumerate(x["signals"]):
+                signals.setdefault(t, []).append((j, k))
+    ended = [0] * len(tasks)                   # each task's instances ended
     sim = []                                   # DRA: [deadline, release, task, left]
     sim_now = 0                                # the time DRA's simulation is drained to
     slack = [Fraction(0), None]                # DM_SLACK: the slack, the task that left it
@@ -206,6 +217,7 @@ def check_speeds(build, tasks, trace, releases):
             if policy == "DM_SLACK":
                 slack[:] = [max(Fraction(0), ready[i][2]), i]
             del ready[i]
+            ended[i] += 1
             stretch[:] = [-1, 0, FASTEST]
             updated = t
             dispatch = True
@@ -214,10 +226,14 @@ def check_speeds(build, tasks, trace, releases):
             continue
         t, step, i, speed = (int(f) for f in fields[1:])
         release_until(t)
-        if t in signals:
-            # A signal is served by the timer's handler too, through its software
-            # interrupt (test/host prints no line for it).
+        if any(ended[j] >= k for j, k in signals.get(t, [])):
+            # Served by the timer's handler, through its software interrupt (test/host
+            # prints no line for it).
             interrupt(t)
+            dispatch = True
+        # A change of task is a dispatch whatever line marked it, or none did: a trace
+        # that lost its timer line still has its speed checked there.
+        if i != running:
             dispatch = True
         if i != stretch[0] or speed != stretch[2]:
             flush()

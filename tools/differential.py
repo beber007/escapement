@@ -512,17 +512,27 @@ def self_test():
            "I 100\nS 100 38 0 1\nE 138 0\nS 138 62 -1 0\nI 200\nS 200 38 0 1\nE 238 0\n" \
            "S 238 62 -1 0\nI 300\nS 300 15 0 2\nE 315 0\nS 315 85 -1 0\nT 400\n"
     check("pa_edf", events, good)
-    wrong_events = {
+    wrong_event_speeds = {
         "a stretch past an event-driven release": good.replace("S 300 15 0 2", "S 300 15 0 1"),
         "an event-driven instance slowed down": good.replace("S 50 10 1 2", "S 50 10 1 1"),
     }
-    for name, trace in wrong_events.items():
+    for name, trace in wrong_event_speeds.items():
         try:
             speed_reference.check_speeds("pa_edf", events, trace, instances(events, False))
         except speed_reference.Failure:
             continue
         sys.exit("self-test: a trace with %s passed" % name)
-    wrong_speeds.update(wrong_events)
+    wrong_speeds.update(wrong_event_speeds)
+    # A preemption whose timer line is lost, at the speed decided before it: the change
+    # of task is a dispatch all the same (a review, 2026-10-06).
+    tasks = [periodic(10, 30, 30, 10), periodic(30, 100, 100, 5), periodic(10, 200, 200, 10)]
+    lost = "S 0 10 0 2\nE 10 0\nS 10 5 1 2\nE 15 1\nS 15 15 2 1\nS 30 26 0 1\nE 56 0\n"
+    try:
+        speed_reference.check_speeds("pa_dra", tasks, lost, instances(tasks, False))
+    except speed_reference.Failure:
+        wrong_speeds["a preemption without its timer line"] = lost
+    else:
+        sys.exit("self-test: a trace with a preemption without its timer line passed")
     print("self-test: %d faulty traces caught" %
           (len(wrong) + len(wrong_events) + len(wrong_speeds)))
 
