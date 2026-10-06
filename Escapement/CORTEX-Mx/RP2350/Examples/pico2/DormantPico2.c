@@ -23,7 +23,9 @@
 ** the line of cycle 0 follows none, and would count one delay, a millisecond or more.
 **
 ** Built with STAY_AWAKE, the crystal is not put dormant: the core waits for the alarm
-** awake, the clocks as asleep, the control of what DORMANT itself adds.
+** awake, the clocks as asleep, the control of what DORMANT itself adds. Built with
+** SLEEP_ON_ROSC, clk_sys goes to the ring oscillator for the sleep, which DORMANT stops
+** instead of the crystal, left running: whether the crystal stopping is what moves LPOSC.
 **
 ** Results, in words: 0 marker, 1 cycles done, 2 LPOSC's frequency found, in 1/65536 kHz.
 ** Platform version: RP2350 (Raspberry Pi Pico 2).
@@ -82,6 +84,10 @@
 #define CLK_SYS_AUX_PLL   (0u << 5)
 #define XOSC_DORMANT      *((volatile UINT32 *)(0x40048000 + 0x08))
 #define XOSC_DORMANT_WORD 0x636F6D61u   /* "coma" */
+#define CLK_SYS_AUX_ROSC  (2u << 5)
+#define ROSC_DORMANT      *((volatile UINT32 *)(0x400E8000 + 0x10))   /* pico-sdk, rosc.h */
+#define ROSC_STATUS       *((volatile UINT32 *)(0x400E8000 + 0x1C))
+#define ROSC_STABLE       (1u << 31)
 
 /* POWMAN, every write with its password in the upper half (pico-sdk, hardware/regs/
 ** powman.h). */
@@ -259,7 +265,15 @@ static void SleepUntil(UINT32 ms)
   /* Only the comparison armed when the crystal stops wakes the chip, not the ALARM status
   ** (6.5.3.1): the write read back first, in POWMAN's clock, now LPOSC's. */
   while ((POWMAN_TIMER & TIMER_ALARM_ENAB) == 0);
-#ifndef STAY_AWAKE
+#if defined(SLEEP_ON_ROSC)
+  /* clk_sys onto the ROSC through clk_ref, the auxiliary changed while not selected. */
+  CLK_SYS_CTRL = CLK_SYS_AUX_XOSC | CLK_SYS_SRC_REF;
+  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_REF)) == 0);
+  CLK_SYS_CTRL = CLK_SYS_AUX_ROSC | CLK_SYS_SRC_REF;
+  CLK_SYS_CTRL = CLK_SYS_AUX_ROSC | CLK_SYS_SRC_AUX;
+  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_AUX)) == 0);
+  ROSC_DORMANT = XOSC_DORMANT_WORD;     // the same keyword (rosc.h)
+#elif !defined(STAY_AWAKE)
   XOSC_DORMANT = XOSC_DORMANT_WORD;
 #endif
   __asm volatile ("DSB\n\tISB" ::: "memory");
@@ -267,6 +281,11 @@ static void SleepUntil(UINT32 ms)
   ** the alarm before it has fired. */
   while ((POWMAN_TIMER & TIMER_ALARM) == 0);
   POWMAN_TIMER = POWMAN_KEY | TIMER_RUN | TIMER_ALARM;
+#if defined(SLEEP_ON_ROSC)
+  while ((ROSC_STATUS & ROSC_STABLE) == 0);
+  CLK_SYS_CTRL = CLK_SYS_AUX_ROSC | CLK_SYS_SRC_REF;
+  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_REF)) == 0);
+#endif
   ClocksAwake();
 } /* end of SleepUntil */
 

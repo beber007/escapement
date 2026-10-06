@@ -98,7 +98,8 @@ all: build/TaskLEDPico2.elf build/UARTEchoPico2.elf build/TestTimerEventPico2.el
      build/FIFOCoresPico2.elf build/IPCPico2.elf build/SoakPico2.elf build/LitmusPico2.elf \
      build/UARTSendersPico2.elf build/SleepPico2.elf build/IdlePico2.elf \
      build/StackGuardPico2.elf build/LposcPico2.elf build/DormantPico2.elf \
-     build/DormantCalAsleepPico2.elf build/AwakeCalAsleepPico2.elf
+     build/DormantCalAsleepPico2.elf build/AwakeCalAsleepPico2.elf \
+     build/RoscCalAsleepPico2.elf
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
@@ -162,6 +163,8 @@ build/DormantCalAsleepPico2.o : DormantPico2.c
 	$(CC) $(CFLAGS) -DCAL_ASLEEP_CLOCKS $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/AwakeCalAsleepPico2.o : DormantPico2.c
 	$(CC) $(CFLAGS) -DCAL_ASLEEP_CLOCKS -DSTAY_AWAKE $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/RoscCalAsleepPico2.o : DormantPico2.c
+	$(CC) $(CFLAGS) -DCAL_ASLEEP_CLOCKS -DSLEEP_ON_ROSC $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/UARTEchoPico2.o : UARTEchoPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/UARTSendersPico2.o : UARTSendersPico2.c
@@ -201,6 +204,8 @@ build/DormantCalAsleepPico2.elf : $(COMMON) build/DormantCalAsleepPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/DormantCalAsleepPico2.o -T$(LINKERFILE) -lgcc
 build/AwakeCalAsleepPico2.elf : $(COMMON) build/AwakeCalAsleepPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/AwakeCalAsleepPico2.o -T$(LINKERFILE) -lgcc
+build/RoscCalAsleepPico2.elf : $(COMMON) build/RoscCalAsleepPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/RoscCalAsleepPico2.o -T$(LINKERFILE) -lgcc
 build/UARTEchoPico2.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_UART.o build/UARTEchoPico2.o -T$(LINKERFILE) -lgcc
 build/UARTSendersPico2.elf : $(COMMON) build/Escapement_UART.o build/UARTSendersPico2.o
