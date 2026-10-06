@@ -1,0 +1,312 @@
+// Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
+// LICENSE at the root of this repository.
+//
+// The STM32U385 of the NUCLEO-U385RG-Q for Escapement: a platform of our own, adapted from
+// escapement_u5.repl, Renode modelling no STM32U3 (checked 2026-10-06: none in 1.17.0).
+// Only what the examples of Escapement/CORTEX-Mx/STM32U3 touch: a Cortex-M33 with its
+// NVIC, 4 bits of priority, 1 MB of flash, the 256 KB of SRAM1 and SRAM2 the images run
+// from, TIM2, TIM3 and TIM4 (the fixed timer model, Escapement_STM32_Timer.cs, all three
+// 32 bits as on this chip), the independent watchdog, USART1 and ports A and C of GPIO,
+// which Renode models for the STM32L552, with the outputs of BoardU3.h as LEDs; and the
+// blocks the clock set-up writes. Addresses from RM0487 rev. 3 (memory map, p. 112-115)
+// and cmsis-device-u3, stm32u385xx.h; IRQ numbers from its table 134.
+//
+// RCC, PWR and FLASH are Python peripherals that model what the set-up waits for and
+// check the order it writes in, against the rules RM0487 states; a rule broken sets a bit
+// of a word at offset 0x3FC of the block, which no register uses, and escapement_u3.robot
+// asks it to stay 0:
+//   RCC 0x3FC  bit 0  MSIPLL0EN set before LSERDY and LSESYSRDY (refused, as the
+//                     hardware does: RCC_CR, p. 419; p. 405)
+//              bit 1  MSIPLL0EN set with neither the MSIS nor the MSIK on MSIRC0 (p. 402)
+//              bit 2  LSEDRV changed while the LSE is on or ready (ignored: p. 473)
+//              bit 3  the MSIS above 48 MHz before range 1 is ready (table 104, p. 406)
+//              bit 4  the MSIS above 24 MHz before the booster is ready (p. 368, 405)
+//              bit 5  the MSIS raised before the flash's wait states (7.3.3, p. 227-228)
+//              bit 6  RCC_BDCR written while PWR_DBPR.DBP is 0 (ignored: p. 471)
+//              bit 7  BOOSTSEL cleared while the booster is on (caution, p. 334)
+//   PWR 0x3FC  bit 0  R1EN and R2EN written equal (ignored: PWR_VOSR, p. 369)
+//              bit 1  R1EN or R2EN changed while the range is not ready (ignored: p. 369)
+//              bit 2  BOOSTEN set before BOOSTSEL chose its clock (p. 368, 429)
+//              bit 3  range 2 chosen with the MSIS above 48 MHz (p. 334)
+//              bit 4  PWR written before its clock, RCC_AHB1ENR2.PWREN (p. 410, 444)
+//   FLASH 0x3FC bit 0 LATENCY set below what the MSIS needs in its range (table 43)
+// The ready flags come some reads after their enable: R1RDY and R2RDY 4 reads of
+// PWR_VOSR, BOOSTRDY 2, so that a booster ready says nothing of the range; LSERDY 3
+// reads of RCC_BDCR, LSESYSRDY 2, MSIPLL0RDY 3 reads of RCC_CR: code that does not wait
+// for one reads it clear. PWR also reads its VOSR without
+// that count at 0x3F8, for the other blocks. Writing 1 at RCC 0x3F0 before the image runs
+// makes the LSE never start, as on a board whose crystal fails; writing at RCC 0x3F4
+// unlocks the MSI's PLL mode, MSIPLLUF set in RCC_CIFR and MSIPLL0RDY cleared until
+// MSIPLL0EN is set again, the robot raising interrupt 9 itself.
+//
+// So the platform checks the order the port writes in and that it waits, not the times
+// or the frequencies: a booster that takes too long, a crystal that needs another drive,
+// the 107 ppm of the MSI's lock, only the board tells. The timers count at 96 MHz before
+// their prescaler, the rate OSInitializeSystemClocks sets, not the 96.010 of the lock.
+
+cpu: CPU.CortexM @ sysbus
+    cpuType: "cortex-m33"
+    nvic: nvic
+
+nvic: IRQControllers.NVIC @ sysbus 0xE000E000
+    priorityMask: 0xF0
+    systickFrequency: 96000000
+    IRQ -> cpu@0
+
+flash: Memory.MappedMemory @ sysbus 0x08000000
+    size: 0x100000
+
+sram: Memory.MappedMemory @ sysbus 0x20000000
+    size: 0x40000
+
+timer2: Timers.Escapement_STM32_Timer @ sysbus 0x40000000
+    -> nvic@45
+    frequency: 96000000
+    initialLimit: 0xFFFFFFFF
+
+timer3: Timers.Escapement_STM32_Timer @ sysbus 0x40000400
+    -> nvic@46
+    frequency: 96000000
+    initialLimit: 0xFFFFFFFF
+
+timer4: Timers.Escapement_STM32_Timer @ sysbus 0x40000800
+    -> nvic@47
+    frequency: 96000000
+    initialLimit: 0xFFFFFFFF
+
+iwdg: Timers.STM32_IndependentWatchdog @ sysbus 0x40003000
+    frequency: 32000
+
+usart1: UART.STM32F7_USART @ sysbus 0x40013800
+    frequency: 96000000
+    IRQ -> nvic@61
+
+// Reset values of MODER, OSPEEDR and PUPDR from RM0487, 12.6.1, 12.6.3, 12.6.4.
+gpioPortA: GPIOPort.STM32_GPIOPort @ sysbus <0x42020000, +0x400>
+    modeResetValue: 0xABFFFFFF
+    outputSpeedResetValue: 0x0C000000
+    pullUpPullDownResetValue: 0x64000000
+    numberOfAFs: 16
+    8 -> flag1@0
+    5 -> flag3@0
+    6 -> probe@0
+
+gpioPortC: GPIOPort.STM32_GPIOPort @ sysbus <0x42020800, +0x400>
+    modeResetValue: 0xFFFFFFFF
+    numberOfAFs: 16
+    7 -> flag2@0
+
+flag1: Miscellaneous.LED @ gpioPortA 8
+flag2: Miscellaneous.LED @ gpioPortC 7
+flag3: Miscellaneous.LED @ gpioPortA 5
+probe: Miscellaneous.LED @ gpioPortA 6
+
+// RCC (10.5, p. 417-476): CR reset 0x0000001D, the MSIS and the MSIK on and ready;
+// ICSCR1 0xB4000000, both on MSIRC1 divided by 2, 12 MHz (p. 420); CSR 0x0C005500.
+rcc: Python.PythonPeripheral @ sysbus 0x40030C00
+    size: 0x400
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {0x000: 0x0000001D, 0x008: 0xB4000000, 0x114: 0x0C005500}
+    viol = 0
+    lsedead = 0
+    lsecount = -1
+    syscount = -1
+    pllcount = -1
+    lserdy = False
+    sysrdy = False
+elif request.IsRead:
+    r = request.Offset
+    v = regs.get(r, 0)
+    if r == 0x3FC:
+        v = viol
+    elif r == 0x3F0:
+        v = lsedead
+    elif r == 0x000:
+        v |= (1 << 2) | (1 << 4)
+        if v & (1 << 11):
+            v |= 1 << 13
+        if v & (1 << 16):
+            v |= 1 << 17
+        if pllcount > 0:
+            pllcount -= 1
+        if (v & (1 << 6)) and pllcount == 0:
+            v |= 1 << 10
+    elif r == 0x110:
+        if lsecount > 0:
+            lsecount -= 1
+            if lsecount == 0 and not lsedead:
+                lserdy = True
+        if syscount > 0:
+            syscount -= 1
+            if syscount == 0:
+                sysrdy = True
+        v = v & ~((1 << 1) | (1 << 11))
+        if lserdy:
+            v |= 1 << 1
+        if sysrdy:
+            v |= 1 << 11
+    request.Value = v
+else:
+    r = request.Offset
+    v = request.Value & 0xFFFFFFFF
+    old = regs.get(r, 0)
+    bus = self.GetMachine().SystemBus
+    if r == 0x3F0:
+        lsedead = v
+    elif r == 0x3F4:
+        regs[0x054] = regs.get(0x054, 0) | (1 << 8)
+        pllcount = -1
+    elif r == 0x000:
+        v &= ~((1 << 2) | (1 << 4) | (1 << 9) | (1 << 10) | (1 << 13) | (1 << 15) | (1 << 17))
+        if (v & (1 << 6)) and not (old & (1 << 6)):
+            i = regs.get(0x008, 0)
+            if not (lserdy and sysrdy):
+                viol |= 1 << 0
+                v &= ~(1 << 6)
+            elif not ((i >> 23) & 1 and (not (i >> 31) & 1 or not (i >> 28) & 1)):
+                viol |= 1 << 1
+            else:
+                pllcount = 3
+        if not (v & (1 << 6)):
+            pllcount = -1
+        regs[r] = v
+    elif r == 0x008:
+        v |= old & (1 << 23)
+        msis = 12
+        if (v >> 23) & 1:
+            msis = (96 if not (v >> 31) & 1 else 24) >> ((v >> 29) & 3)
+        vosr = bus.ReadDoubleWord(0x40030800 + 0x3F8)
+        r1 = (vosr >> 16) & 1
+        if msis > 48 and not r1:
+            viol |= 1 << 3
+        if msis > 24 and not (vosr >> 24) & 1:
+            viol |= 1 << 4
+        step = 32 if r1 else 16
+        need = (msis - 1) // step
+        if (bus.ReadDoubleWord(0x40022000) & 0xF) < need:
+            viol |= 1 << 5
+        regs[r] = v
+    elif r == 0x028:
+        if (old & 3) and not (v & 3) and (bus.ReadDoubleWord(0x40030800 + 0x3F8) >> 8) & 1:
+            viol |= 1 << 7
+        regs[r] = v
+    elif r == 0x058:
+        regs[0x054] = regs.get(0x054, 0) & ~v
+    elif r == 0x110:
+        if not bus.ReadDoubleWord(0x40030800 + 0x28) & 1:
+            viol |= 1 << 6
+        else:
+            if ((v ^ old) & (3 << 3)) and ((old & 1) or lserdy):
+                viol |= 1 << 2
+                v = (v & ~(3 << 3)) | (old & (3 << 3))
+            if (v & 1) and not (old & 1):
+                lsecount = 3
+            if not (v & 1):
+                lsecount = -1
+                lserdy = False
+                sysrdy = False
+                syscount = -1
+                regs[0x000] = regs.get(0x000, 0) & ~(1 << 6)
+            if (v & (1 << 7)) and not (old & (1 << 7)) and lserdy:
+                syscount = 2
+            regs[r] = v
+    else:
+        regs[r] = v
+'''
+
+// PWR (9.5, p. 363-376): VOSR reset 0x00020002, range 2 enabled and ready (p. 368).
+pwr: Python.PythonPeripheral @ sysbus 0x40030800
+    size: 0x400
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {0x0C: 0x00020002}
+    viol = 0
+    rangecount = 0
+    boostcount = 0
+elif request.IsRead:
+    r = request.Offset
+    if r == 0x3FC:
+        request.Value = viol
+    elif r == 0x3F8 or r == 0x0C:
+        v = regs[0x0C] & 0x103
+        if r == 0x0C and rangecount > 0:
+            rangecount -= 1
+        if r == 0x0C and boostcount > 0:
+            boostcount -= 1
+        if rangecount == 0:
+            v |= (v & 3) << 16
+        if (v & (1 << 8)) and boostcount == 0:
+            v |= 1 << 24
+        request.Value = v
+    else:
+        request.Value = regs.get(r, 0)
+else:
+    r = request.Offset
+    v = request.Value & 0xFFFFFFFF
+    bus = self.GetMachine().SystemBus
+    if not (bus.ReadDoubleWord(0x40030C00 + 0x094) >> 2) & 1:
+        viol |= 1 << 4
+    if r == 0x0C:
+        old = regs[0x0C]
+        en = v & 3
+        if en != (old & 3):
+            if en == 0 or en == 3:
+                viol |= 1 << 0
+                en = old & 3
+            elif rangecount > 0:
+                viol |= 1 << 1
+                en = old & 3
+            else:
+                rangecount = 4
+                if en == 2:
+                    i = bus.ReadDoubleWord(0x40030C00 + 0x008)
+                    if (i >> 23) & 1 and not (i >> 31) & 1 and ((i >> 29) & 3) == 0:
+                        viol |= 1 << 3
+        if (v & (1 << 8)) and not (old & (1 << 8)):
+            if not bus.ReadDoubleWord(0x40030C00 + 0x028) & 3:
+                viol |= 1 << 2
+            boostcount = 2
+        regs[0x0C] = en | (v & (1 << 8))
+    else:
+        regs[r] = v
+'''
+
+// FLASH (7.10, p. 266-): ACR reset 0x00000001, 1 wait state (p. 266).
+flashRegisters: Python.PythonPeripheral @ sysbus 0x40022000
+    size: 0x400
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {0x00: 0x00000001}
+    viol = 0
+elif request.IsRead:
+    request.Value = viol if request.Offset == 0x3FC else regs.get(request.Offset, 0)
+else:
+    r = request.Offset
+    v = request.Value & 0xFFFFFFFF
+    if r == 0x00:
+        bus = self.GetMachine().SystemBus
+        i = bus.ReadDoubleWord(0x40030C00 + 0x008)
+        msis = 12
+        if (i >> 23) & 1:
+            msis = (96 if not (i >> 31) & 1 else 24) >> ((i >> 29) & 3)
+        step = 32 if (bus.ReadDoubleWord(0x40030800 + 0x3F8) >> 16) & 1 else 16
+        if (v & 0xF) < (msis - 1) // step:
+            viol |= 1 << 0
+    regs[r] = v
+'''
+
+icache: Python.PythonPeripheral @ sysbus 0x40030400
+    size: 0x400
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+elif request.IsRead:
+    request.Value = regs.get(request.Offset, 0)
+else:
+    regs[request.Offset] = request.Value & 0xFFFFFFFF
+'''
