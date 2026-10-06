@@ -244,7 +244,8 @@ Both corrections of the kernels were made with the user's agreement.
 
 Run again across the wraparound, the power-aware kernel's mutants scored 77.5 % (621 of
 801), the hard kernel's survivors lost 3 more, the code that shifts its times (388 of 484,
-80.2 %). A mutant read and shown equivalent is since declared in
+80.2 %), and the soft kernel's 4 of the 179 found again, all in the code that carries the
+arrivals of its mandatory instances past the wraparound. A mutant read and shown equivalent is since declared in
 `test/host/equivalent-mutants.jsonl`, with its reason, found by what it changes as
 `--survivors` finds them: it still runs, and one declared equivalent and killed is
 reported, the declaration being wrong. The score is given twice, of all the valid mutants
