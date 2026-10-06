@@ -183,7 +183,11 @@ instances are dropped. Each task takes its WCET, so an optional instance wrongly
 misses its deadline.
 
 Run again on the survivors, the hard kernel's score rose to 80.4 % (389 of 484), the soft
-one's to 74.2 % (533 of 718), and the power-aware one's to 71.8 % (573 of 798).
+one's to 74.2 % (533 of 718), and the power-aware one's to 71.8 % (573 of 798). Run whole
+on 2026-10-06 at the 300 task sets a build the CI runs, rather than 100: the soft kernel
+74.2 % again (533 of 718), the hard one 79.5 % (385 of 484). The hard kernel's source had
+lost a variant no build compiled (ef37cff), and its mutants with it: the two runs do not
+hold the same mutants, and the four fewer were not traced one by one.
 
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
