@@ -198,6 +198,19 @@ added since and by the larger runs together, the runs not telling which: 12 of t
 in that day. The 183 left are mostly in the timer's handler (28), the choice of speed
 (21) and the initialisation of the slot buffers (15).
 
+The 21 of the choice of speed, `GetProcessorSpeed`, were read one by one that evening,
+and none is a behaviour left unchecked. One is the task given its own slack back, read
+above. Fourteen move the edge of a comparison where both
+sides give the same speed: a bound set to the value it is compared with, or a time left
+equal to the work, which the fastest speed alone does at the operating points of the
+RP2040 and the host, 24 and 102 in 256ths. Two read DRA's excess with the opposite sign:
+`DRASimUpdateElapseTime`, called before each choice, has already spent it, and a build
+made to trap on a non-zero excess there ran 4,000 task sets under DRA and DR_OTE and the
+host test without trapping. Two give DM_SLACK a slack of 0 or 1 tick, which the fastest
+speed absorbs at those points. One starts the slack's bound at 1 rather than 0, the same
+again; and the last runs at the slowest speed a task with no work left on record, which
+the task ends at the instant it is dispatched, no trace showing it run.
+
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
 window under-counts by one WCET at most, and random task sets seldom come that close. A
