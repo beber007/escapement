@@ -169,9 +169,23 @@ to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
    135 ppm on average and 432 at most, against 18 ppm of resolution. Calibrated a
    minute before, a sleep of 100 ms would then be off by 43 µs at most, and one of a
    second by 0.4 ms, where the uncalibrated 8 % gives 8 ms. FC0 alone cannot calibrate
-   it: its 1/32 kHz is some 1,000 ppm of LPOSC; the comparison with TIMER0 can. Left:
-   the same across temperature and supply, and asleep, where the timer runs from LPOSC
-   with clk_ref on it (`SleepPico2.c`).
+   it: its 1/32 kHz is some 1,000 ppm of LPOSC; the comparison with TIMER0 can.
+
+   Asleep, measured on 2026-10-06: `DormantPico2` (Examples/pico2) calibrates LPOSC so
+   for 60 s, then sleeps in DORMANT 60 times, each until the always-on timer's alarm 10 s
+   of its time after the one before, clk_sys on the crystal, which DORMANT stops, and
+   clk_ref on LPOSC, without which the alarm never woke the chip (`SleepPico2.c`). It
+   woke every time. The UNO Q stamped the line sent at each wake-up on its own clock
+   (`tools/pico2_dormant_stamp.py`, the lines in `docs/data/dormant-pico2-2026-10-06.txt`):
+   from the first wake-up to the last, 588.754 s for
+   590 s of the timer, LPOSC asleep 2,113 ppm faster than calibrated awake, a sleep of
+   10 s some 21 ms short. From one sleep to the next it moved 139 ppm on average, 658 at
+   most, in steps of some 135 ppm, between 1,560 and 2,630 ppm, and drifted from some
+   2,350 over the first minutes to 2,080 over the last. The UNO Q's clock, slewed by NTP
+   or not, gave the same within 23 ppm. Calibrated awake, LPOSC keeps time asleep to some
+   0.2 %, a sleep of 100 ms off by 0.2 ms, five times the error awake. Left: why asleep
+   differs, the supply or the load; whether a calibration made asleep holds better; and
+   the external 32.768 kHz clock on a GPIO, an oscillator ordered on 2026-10-06.
 
 6. **LPUART1 at 115,200 baud through Stop 2 — done on 2026-10-02** (Done, "LPUART1 at
    115,200 baud through Stop 2"). Left: how often a wake-up byte comes out wrong, which
