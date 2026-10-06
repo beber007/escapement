@@ -16,7 +16,8 @@
 ** CYCLES sleeps follow, each until an alarm SLEEP_MS after the one before, on the timer's
 ** own milliseconds. At each wake a line goes out on UART0, GP0, to the probe's UART at
 ** 115,200 baud: "WAKE", the cycle, and the microseconds Send took in the cycle before,
-** its bytes left in the UART's FIFO (2 or 3 on the board): not the time awake. The
+** its bytes left in the UART's FIFO (2 or 3 on the board): not the time awake; on the
+** line of cycle 0, the frequency the calibration found, in 1/65536 kHz. The
 ** UNO Q stamps each line on its own clock: between the lines of cycles 1 and CYCLES,
 ** (CYCLES - 1) * SLEEP_MS of the always-on timer, each after a wake-up of the same delay;
 ** the line of cycle 0 follows none, and would count one delay, a millisecond or more.
@@ -98,6 +99,8 @@
 volatile UINT32 Results[3];
 
 static UINT32 Calibrate(void);
+static void ClocksAsleep(void);
+static void ClocksAwake(void);
 static void StartTimer(UINT32 ms);
 static void SleepUntil(UINT32 ms);
 static void Send(UINT32 cycle, UINT32 awake);
@@ -105,7 +108,7 @@ static void Send(UINT32 cycle, UINT32 awake);
 int main(void)
 {
   extern void (* const CortexMxVectorTable[])(void);
-  UINT32 cycle, alarm, woke = 0, awake = 0;
+  UINT32 cycle, alarm, woke = 0, awake;
   VTOR = (UINT32)CortexMxVectorTable;
   _OSDisableInterrupts();               // DORMANT ends without an interrupt
   OSInitializeSystemClocks();
@@ -135,6 +138,7 @@ int main(void)
   POWMAN_LPOSC_KHZ_INT = POWMAN_KEY | (Results[2] >> 16);
   POWMAN_LPOSC_KHZ_FRAC = POWMAN_KEY | (Results[2] & 0xFFFFu);
   StartTimer(alarm);
+  awake = Results[2];                   // the first line gives the frequency found
   for (cycle = 0; cycle <= CYCLES; cycle += 1) {
      Send(cycle, awake);
      alarm += SLEEP_MS;
@@ -162,21 +166,76 @@ static void StartTimer(UINT32 ms)
 
 /* Calibrate: LPOSC's frequency in 1/65536 kHz, from the timer's milliseconds at its
 ** nominal 32.768 kHz against TIMER0's microseconds, between two steps of the millisecond
-** CAL_S seconds apart (LposcPico2.c). */
+** CAL_S seconds apart (LposcPico2.c).
+** Built with CAL_ASLEEP_CLOCKS, the clocks are set as SleepUntil sets them before DORMANT,
+** clk_ref on LPOSC, which then feeds the clock tree of clk_ref too: whether that load is
+** what moves LPOSC asleep (docs/roadmap.md, item 5). TIMER0 ticks from clk_ref and no
+** longer counts microseconds then: the cycles of clk_sys, the crystal's 12 MHz, are
+** counted instead, by the DWT's cycle counter. */
+#define DEMCR             *((volatile UINT32 *)0xE000EDFC)
+#define DEMCR_TRCENA      (1u << 24)
+#define DWT_CTRL          *((volatile UINT32 *)0xE0001000)
+#define DWT_CYCCNT        *((volatile UINT32 *)0xE0001004)
 static UINT32 Calibrate(void)
 {
   UINT32 before, ms0, ms1, us0, us1;
-  before = POWMAN_READ_TIME_LOWER;
-  while ((ms0 = POWMAN_READ_TIME_LOWER) == before);
-  us0 = TIMER0_TIMERAWL;
-  while (TIMER0_TIMERAWL - us0 < CAL_S * 1000000u);
-  before = POWMAN_READ_TIME_LOWER;
-  while ((ms1 = POWMAN_READ_TIME_LOWER) == before);
-  us1 = TIMER0_TIMERAWL;
-  /* 32.768 kHz times the milliseconds counted per millisecond elapsed, in 1/65536 kHz:
-  ** 32768 * 65536 * ms / us. */
-  return (UINT32)(((unsigned long long)32768u * 65536u * (ms1 - ms0)) / (us1 - us0));
+  #ifdef CAL_ASLEEP_CLOCKS
+     UINT32 c0, c1;
+     ClocksAsleep();
+     DEMCR |= DEMCR_TRCENA;
+     DWT_CYCCNT = 0;
+     DWT_CTRL |= 1u;                    // CYCCNTENA
+     before = POWMAN_READ_TIME_LOWER;
+     while ((ms0 = POWMAN_READ_TIME_LOWER) == before);
+     c0 = DWT_CYCCNT;
+     while (DWT_CYCCNT - c0 < CAL_S * 12000000u);
+     before = POWMAN_READ_TIME_LOWER;
+     while ((ms1 = POWMAN_READ_TIME_LOWER) == before);
+     c1 = DWT_CYCCNT;
+     ClocksAwake();
+     (void)us0;
+     (void)us1;
+     return (UINT32)(((unsigned long long)32768u * 65536u * 12u * (ms1 - ms0)) / (c1 - c0));
+  #else
+     before = POWMAN_READ_TIME_LOWER;
+     while ((ms0 = POWMAN_READ_TIME_LOWER) == before);
+     us0 = TIMER0_TIMERAWL;
+     while (TIMER0_TIMERAWL - us0 < CAL_S * 1000000u);
+     before = POWMAN_READ_TIME_LOWER;
+     while ((ms1 = POWMAN_READ_TIME_LOWER) == before);
+     us1 = TIMER0_TIMERAWL;
+     /* 32.768 kHz times the milliseconds counted per millisecond elapsed, in 1/65536 kHz:
+     ** 32768 * 65536 * ms / us. */
+     return (UINT32)(((unsigned long long)32768u * 65536u * (ms1 - ms0)) / (us1 - us0));
+  #endif
 } /* end of Calibrate */
+
+
+/* ClocksAsleep: clk_sys on the crystal itself and clk_ref on LPOSC, PLL_SYS stopped. */
+static void ClocksAsleep(void)
+{
+  _OSLowerSystemClock();                // clk_sys on clk_ref, the crystal; PLL_SYS off
+  CLK_SYS_CTRL = CLK_SYS_AUX_XOSC | CLK_SYS_SRC_REF;
+  CLK_SYS_CTRL = CLK_SYS_AUX_XOSC | CLK_SYS_SRC_AUX;
+  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_AUX)) == 0);
+  CLK_REF_CTRL = CLK_REF_SRC_LPOSC;
+  while ((CLK_REF_SELECTED & (1u << CLK_REF_SRC_LPOSC)) == 0);
+} /* end of ClocksAsleep */
+
+
+/* ClocksAwake: clk_ref and clk_sys back as the port has them. */
+static void ClocksAwake(void)
+{
+  CLK_REF_CTRL = CLK_REF_SRC_XOSC;
+  while ((CLK_REF_SELECTED & (1u << CLK_REF_SRC_XOSC)) == 0);
+  CLK_SYS_CTRL = CLK_SYS_AUX_XOSC | CLK_SYS_SRC_REF;
+  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_REF)) == 0);
+  /* The auxiliary source back on the PLL while clk_sys is on clk_ref: _OSRaiseSystemClock
+  ** takes the auxiliary in the write that would otherwise change its source too, a
+  ** glitch the datasheet forbids (8.1.3.2; a review, 2026-10-06). */
+  CLK_SYS_CTRL = CLK_SYS_AUX_PLL | CLK_SYS_SRC_REF;
+  _OSRaiseSystemClock();
+} /* end of ClocksAwake */
 
 
 /* SleepUntil: DORMANT until the timer reaches ms. clk_sys goes to the crystal itself and
@@ -185,12 +244,7 @@ static UINT32 Calibrate(void)
 static void SleepUntil(UINT32 ms)
 {
   while (UART0_FR & UART_FR_BUSY);
-  _OSLowerSystemClock();                // clk_sys on clk_ref, the crystal; PLL_SYS off
-  CLK_SYS_CTRL = CLK_SYS_AUX_XOSC | CLK_SYS_SRC_REF;
-  CLK_SYS_CTRL = CLK_SYS_AUX_XOSC | CLK_SYS_SRC_AUX;
-  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_AUX)) == 0);
-  CLK_REF_CTRL = CLK_REF_SRC_LPOSC;
-  while ((CLK_REF_SELECTED & (1u << CLK_REF_SRC_LPOSC)) == 0);
+  ClocksAsleep();
   /* USE_LPOSC is a request to switch, which may cost up to two LPOSC periods (12.10.5.1):
   ** the timer already runs on it, and these writes leave it out. */
   POWMAN_TIMER = POWMAN_KEY | TIMER_RUN | TIMER_ALARM;
@@ -208,15 +262,7 @@ static void SleepUntil(UINT32 ms)
   ** the alarm before it has fired. */
   while ((POWMAN_TIMER & TIMER_ALARM) == 0);
   POWMAN_TIMER = POWMAN_KEY | TIMER_RUN | TIMER_ALARM;
-  CLK_REF_CTRL = CLK_REF_SRC_XOSC;
-  while ((CLK_REF_SELECTED & (1u << CLK_REF_SRC_XOSC)) == 0);
-  CLK_SYS_CTRL = CLK_SYS_AUX_XOSC | CLK_SYS_SRC_REF;
-  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_REF)) == 0);
-  /* The auxiliary source back on the PLL while clk_sys is on clk_ref: _OSRaiseSystemClock
-  ** takes the auxiliary in the write that would otherwise change its source too, a
-  ** glitch the datasheet forbids (8.1.3.2; a review, 2026-10-06). */
-  CLK_SYS_CTRL = CLK_SYS_AUX_PLL | CLK_SYS_SRC_REF;
-  _OSRaiseSystemClock();
+  ClocksAwake();
 } /* end of SleepUntil */
 
 

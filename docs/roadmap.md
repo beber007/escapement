@@ -185,9 +185,17 @@ to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
    most, in steps of some 135 ppm, between 1,560 and 2,630 ppm, and drifted from some
    2,350 over the first minutes to 2,080 over the last. The UNO Q's clock, slewed by NTP
    or not, gave the same within 23 ppm. Calibrated awake, LPOSC keeps time asleep to some
-   0.2 %, a sleep of 100 ms off by 0.2 ms, five times the error awake. Left: why asleep
-   differs, the supply or the load; whether a calibration made asleep holds better; and
-   the external 32.768 kHz clock on a GPIO, an oscillator ordered on 2026-10-06.
+   0.2 %, a sleep of 100 ms off by 0.2 ms, five times the error awake.
+
+   Most of it is clk_ref, which asleep runs on LPOSC and loads it. `DormantCalAsleepPico2`
+   calibrates with the clocks as asleep, clk_ref on LPOSC, against the cycles of clk_sys on
+   the crystal (the DWT's counter, TIMER0 ticking from clk_ref then). Six runs in turn the
+   same evening (`docs/data/dormant-pico2-2026-10-06-clkref.txt`): calibrated so, LPOSC
+   read 30.118 to 30.128 kHz, against 30.085 to 30.096 with clk_ref on the crystal, some
+   1,150 ppm faster; and asleep it kept time to 493, 705 and 618 ppm, against 1,648,
+   1,987 and 1,877 for the runs calibrated awake. Left: the some 600 ppm DORMANT still
+   adds, the supply or the stopped crystal, and the external 32.768 kHz clock on a GPIO,
+   an oscillator ordered on 2026-10-06.
 
 6. **LPUART1 at 115,200 baud through Stop 2 — done on 2026-10-02** (Done, "LPUART1 at
    115,200 baud through Stop 2"). Left: how often a wake-up byte comes out wrong, which
