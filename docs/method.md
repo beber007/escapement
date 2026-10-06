@@ -250,7 +250,9 @@ Run again across the wraparound, the power-aware kernel's mutants scored 77.5 % 
 reported, the declaration being wrong. The score is given twice, of all the valid mutants
 and of those not declared: the power-aware kernel's 26 read that evening, the 21 of the
 choice of speed and 5 of DM_SLACK's slack, give 80.1 % of the 775 others. No mutant is
-declared that has not been read, and none for being hard to kill.
+declared that has not been read, and none for being hard to kill. The term those two mutants
+of the excess changed, always 0 there, was then taken out of `GetProcessorSpeed`, with the
+user's agreement, and its mutants with it: 24 remain declared.
 
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the

@@ -1575,8 +1575,10 @@ UINT8 GetProcessorSpeed(INT32 time)
            #endif
      #elif POWER_MANAGEMENT == DR_OTE
         /* Check if we can apply OTE: Get next arrival time and correct for deadlines that
-        ** are smaller than periods. */
-        completionTime = GetDRASlackTime() + AperiodicExcess;
+        ** are smaller than periods. DRA's excess is not added: DRASimUpdateElapseTime,
+        ** called before each choice of speed, has spent it, and it is 0 here (a build
+        ** trapping on it, 2026-10-06). */
+        completionTime = GetDRASlackTime();
         if (_OSActiveTask->Next[READYQ] == OSQueueTail) {
            /* The active task is periodic, and a periodic task stays in the arrival queue
            ** from its release on, for its next arrival: the queue is never empty here. The
@@ -1601,7 +1603,7 @@ UINT8 GetProcessorSpeed(INT32 time)
               #endif
         }
      #elif POWER_MANAGEMENT == DRA
-        completionTime = GetDRASlackTime() + AperiodicExcess;
+        completionTime = GetDRASlackTime();
      #else /* POWER_MANAGEMENT == DM_SLACK */
         /* OTE when the active task is the only one ready, the slack otherwise, and the
         ** slower of the two when both apply, as DR_OTE does: ZottaOS left the slack out
