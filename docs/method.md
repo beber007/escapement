@@ -182,12 +182,15 @@ a total bandwidth server under EDF, and (m,k)-firm sets that overload unless opt
 instances are dropped. Each task takes its WCET, so an optional instance wrongly admitted
 misses its deadline.
 
-Run again on the survivors, the hard kernel's score rose to 80.4 % (389 of 484), the soft
+Run again on the survivors, the hard kernel's score rose to 79.5 % (385 of 484), the soft
 one's to 74.2 % (533 of 718), and the power-aware one's to 71.8 % (573 of 798). Run whole
 on 2026-10-06 at the 300 task sets a build the CI runs, rather than 100: the soft kernel
-74.2 % again (533 of 718), the hard one 79.5 % (385 of 484). The hard kernel's source had
-lost a variant no build compiled (ef37cff), and its mutants with it: the two runs do not
-hold the same mutants, and the four fewer were not traced one by one.
+74.2 % again (533 of 718), the hard one 79.5 % (385 of 484). The hard kernel's score was
+first written 80.4 % (389 of 484), and the run of 2026-10-06 seemed to lose four mutants.
+Its survivors run again at f7622b7, the source of that day, gave 30 killed, not 34, and
+left the same 99 survivors as the run of 2026-10-06: the 389 was miscounted, and nothing
+was lost. Under the hard kernel's builds, 300 task sets cannot kill fewer mutants than
+100, the first 100 being the same sets drawn from the same seed.
 
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
