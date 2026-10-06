@@ -674,8 +674,9 @@ BOOL IsTaskSchedulable(void)
 ** (tools/differential.py across the wraparound, 2026-10-06). The handler, which runs at
 ** each wraparound and each release, reads the time last: a time half the range of the
 ** counter before it has wrapped, and is taken past 2^30, where the handler shifts it back
-** with the rest. */
-INT32 GetTaskTime(void)
+** with the rest. Not inlined: copied into each test of ScheduleNextTask's loop, its branch
+** doubled the paths through it past what tools/check_order.py follows. */
+__attribute__((noinline)) INT32 GetTaskTime(void)
 {
   INT32 time = _OSGetActualTime();
   if (LastHandlerTime - time > ShiftTimeLimit / 2)
