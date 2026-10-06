@@ -31,8 +31,8 @@ apart under DM, a total bandwidth server under EDF. At every instant of a trace:
 - the timer interrupts only at a release, and once at an instant (lines "I"): the kernel
   has no periodic tick.
 
-The speeds the power-aware kernel picks are checked apart, on every task set under OTE
-and DM_SLACK and on those of periodic tasks under DRA and DR_OTE: tools/speed_reference.py computes the speed of each dispatch from the policy's
+The speeds the power-aware kernel picks are checked apart, on every task set of its five
+builds: tools/speed_reference.py computes the speed of each dispatch from the policy's
 specification, and a speed other than its own fails, a policy that runs faster than it
 needs among them, which keeps every deadline.
 
@@ -423,8 +423,7 @@ def check(build, tasks, trace, speeds=True):
             if job[1] <= now and (not job[4] or job[5]):
                 raise Failure("task %d: the instance released at %d never ended by its "
                               "deadline %d" % (i, job[0], job[1]))
-    if speeds and power_aware and (build in ("pa_edf", "pa_dm", "pa_dmslack") or
-                                   all(t["kind"] == "P" for t in tasks)):
+    if speeds and power_aware and all(t["kind"] in "PE" for t in tasks):
         try:
             speed_reference.check_speeds(build, tasks, trace, instances(tasks, dm))
         except speed_reference.Failure as e:

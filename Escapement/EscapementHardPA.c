@@ -1579,16 +1579,11 @@ UINT8 GetProcessorSpeed(INT32 time)
            ** branch ZottaOS had for an empty queue was never taken, and bounded the time
            ** with a length, 2^30 - time, where it needed a time (2026-10-04). */
            oteCompletionTime = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
-           if (SynchronousTaskList != NULL && (tmp = GetEarliestAperiodicArrival()) < oteCompletionTime) {
-              if (tmp <= time)
-                 #ifdef STATIC_POWER_MANAGEMENT
-                    return _OSActiveTask->FrequencyIndex;
-                 #else
-                    return OS_MAX_SPEED;
-                 #endif
-              else
-                 oteCompletionTime = tmp;
-           }           
+           /* An event-driven task that may be released now leaves OTE no time, and DRA
+           ** decides alone: ZottaOS returned the fastest speed there, DRA's time left out
+           ** (tools/speed_reference.py, 2026-10-06). */
+           if (SynchronousTaskList != NULL && (tmp = GetEarliestAperiodicArrival()) < oteCompletionTime)
+              oteCompletionTime = tmp > time ? tmp : time;
            if (oteCompletionTime > _OSActiveTask->NextDeadline)
               oteCompletionTime = _OSActiveTask->NextDeadline;
            oteCompletionTime -= time;

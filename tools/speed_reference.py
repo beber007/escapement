@@ -49,8 +49,22 @@ EDF, a workload after its previous release under DM, as tools/differential.py's
 instances() derive them. Under DM_SLACK too, where an event-driven instance that ends
 leaves its slack like any other, at the priority of its workload, as the kernel has it
 (OSSuspendSynchronousTask); on the host its WCET is the work it takes, at the fastest
-speed, so that slack is always 0 and only its replacing the slack before is checked. The manual leaves their place in DRA's simulation unsaid:
-DRA and DR_OTE are referenced on periodic tasks only.
+speed, so that slack is always 0 and only its replacing the slack before is checked.
+
+The manual leaves the place of event-driven tasks in DRA's simulation unsaid; they are
+referenced there as the kernel has them, read in its code on 2026-10-06. An instance
+enters the simulation at its release, its WCET to run by the server's deadline. The time
+the server has nothing pending, past its last deadline, is excess: its share of the
+processor of that time, taken first at each update of the simulation as time that drains
+no instance (DRASimUpdateElapseTime). It is counted afresh at each update and rounded
+down there, so that the instants of the updates matter: at each end, and in the timer's
+handler at the first release that changes the head of the ready queue, or else once all
+are made. A release the handler serves at its signal sets the server's deadline before
+the update, and the excess counted since the last one is lost. The share is the one of
+the event-driven task created last, as OSCreateSynchronousTask keeps it. Under DR_OTE,
+an event-driven task that may be released at once leaves OTE no time and DRA decides
+alone, where the kernel returned the fastest speed, DRA left out: the kernel's to
+correct, and it was the same day.
 """
 
 from fractions import Fraction
@@ -99,6 +113,21 @@ def check_speeds(build, tasks, trace, releases):
     ended = [0] * len(tasks)                   # each task's instances ended
     sim = []                                   # DRA: [deadline, release, task, left]
     sim_now = 0                                # the time DRA's simulation is drained to
+    # DRA's excess of the total bandwidth server: the share of the processor it reserves,
+    # counted while it has no instance pending, past its last deadline. The kernel keeps
+    # the share of the event-driven task created last (OSCreateSynchronousTask), which
+    # test/host gives as its WCET over its workload, in 256ths rounded up.
+    events = [x for x in tasks if x["kind"] == "E"]
+    share = -(-256 * events[-1]["takes"] // events[-1]["workload"]) if events else 0
+    server = 0                                 # the server's last deadline
+    counted = 0                                # the time the excess was last counted to
+    # Each event-driven instance with its signal, to tell one the timer's handler serves
+    # at its signal from one that waited in the arrival queue for its previous deadline.
+    signal_of, rank = {}, [0] * len(tasks)
+    for i, r, d, _, _ in sorted(releases, key=lambda x: (x[1], x[0])):
+        if tasks[i]["kind"] == "E":
+            signal_of[(i, r)] = tasks[i]["signals"][rank[i]]
+            rank[i] += 1
     slack = [Fraction(0), None]                # DM_SLACK: the slack, the task that left it
     updated = 0                                # the time of the last update of the work
     stretch = [-1, 0, FASTEST]                 # the task running since that update, the
@@ -113,10 +142,23 @@ def check_speeds(build, tasks, trace, releases):
         numbers the tasks."""
         return (tasks[i]["deadline"] if tasks[i]["kind"] == "P" else tasks[i]["workload"], i)
 
-    def drain(t):
-        """DRA's simulation at full speed, from sim_now to t."""
-        nonlocal sim_now
-        elapsed = Fraction(t - sim_now)
+    def update(t):
+        """DRA's simulation brought to t, as DRASimUpdateElapseTime does: the excess of
+        the server counted since the last update and taken first, as time that drains
+        no instance, then the simulated instances drained at full speed for the rest. The
+        excess is counted afresh at each update, rounded down as ScaleBy256ths does, and
+        lost when the server has an instance pending at t."""
+        nonlocal sim_now, counted
+        excess = 0
+        if events:
+            if t > server:
+                x = t - max(counted, server)
+                excess = (x >> 8) * share + (((x & 0xFF) * share) >> 8)
+            counted = t
+        elapsed = Fraction(t - sim_now - excess)
+        if elapsed < 0:
+            raise Failure("t=%d: an excess of %d past the %d ticks since the last update"
+                          % (t, excess, t - sim_now))
         sim_now = t
         while sim and elapsed > 0:
             used = min(elapsed, sim[0][3])
@@ -125,22 +167,58 @@ def check_speeds(build, tasks, trace, releases):
             if sim[0][3] == 0:
                 sim.pop(0)
 
+    def head():
+        """The instance at the head of the ready queue under EDF*: at equal deadlines the
+        instance released last first, then the larger TCB address, the task created last
+        with the host's calloc."""
+        return min(ready, key=lambda j: (ready[j][1], -ready[j][0], -j), default=None)
+
     def release_until(t):
         while todo and todo[0][1] <= t:
-            i, r, d, _, _ = todo.pop(0)
-            if tasks[i]["kind"] == "E":
-                ready[i] = [r, d, Fraction(tasks[i]["takes"])]
-                earliest[i] = r + tasks[i]["workload"] if dm else d
-                continue
-            ready[i] = [r, d, Fraction(tasks[i]["wcet"])]
-            released[i] = r
+            r = todo[0][1]
+            batch = []
+            while todo and todo[0][1] == r:
+                batch.append(todo.pop(0))
             if policy in ("DRA", "DR_OTE"):
-                drain(r)
-                sim.append([d, r, i, Fraction(tasks[i]["wcet"])])
-                # EDF* as the kernel orders it: at equal deadlines the instance released
-                # last first, then the larger TCB address, the task created last with
-                # the host's calloc.
-                sim.sort(key=lambda x: (x[0], -x[1], -x[2]))
+                handler(r, batch)
+                continue
+            for i, r, d, _, _ in batch:
+                ready[i] = [r, d, Fraction(tasks[i]["takes" if tasks[i]["kind"] == "E"
+                                                  else "wcet"])]
+                if tasks[i]["kind"] == "E":
+                    earliest[i] = r + tasks[i]["workload"] if dm else d
+                else:
+                    released[i] = r
+
+    def handler(r, batch):
+        """The releases at r as the timer's handler makes them under DRA: those of the
+        arrival queue first, periodic instances and event-driven ones that waited for
+        their previous deadline, then those it serves at their signal. The simulation is
+        brought up to date at the first release that changes the head of the ready
+        queue, before that instance enters it, or else once all are made, if a task is
+        ready. A release served at its signal sets the server's deadline before: the
+        excess counted since the last update is then lost."""
+        nonlocal server
+        active = head()
+        signalled = [x for x in batch if tasks[x[0]]["kind"] == "E" and
+                     signal_of[(x[0], x[1])] == r]
+        pending = True
+        for i, r, d, _, _ in [x for x in batch if x not in signalled] + signalled:
+            if tasks[i]["kind"] == "E":
+                server = d
+                ready[i] = [r, d, Fraction(tasks[i]["takes"])]
+                earliest[i] = d
+            else:
+                ready[i] = [r, d, Fraction(tasks[i]["wcet"])]
+                released[i] = r
+            if pending and head() != active:
+                update(r)
+                pending = False
+            sim.append([d, r, i, Fraction(tasks[i]["takes" if tasks[i]["kind"] == "E"
+                                                     else "wcet"])])
+            sim.sort(key=lambda x: (x[0], -x[1], -x[2]))
+        if pending and ready:
+            update(r)
 
     def ote(t, i):
         """The slowdown OTE gives instance i, or None: not alone, or its work does not
@@ -172,7 +250,8 @@ def check_speeds(build, tasks, trace, releases):
             if s is not None:
                 slowdowns.append(s)
         if policy in ("DRA", "DR_OTE"):
-            drain(t)
+            if sim_now < t:
+                update(t)
             ahead = Fraction(0)
             for _, r, j, left in sim:
                 if j == i and r == ready[i][0]:
@@ -214,6 +293,11 @@ def check_speeds(build, tasks, trace, releases):
         if fields[0] == "E":
             t, i = int(fields[1]), int(fields[2])
             flush()
+            if policy in ("DRA", "DR_OTE"):
+                # OSEndTask and OSSuspendSynchronousTask bring the simulation up to date
+                # before the task leaves the ready queue.
+                release_until(t - 1)
+                update(t)
             if policy == "DM_SLACK":
                 slack[:] = [max(Fraction(0), ready[i][2]), i]
             del ready[i]

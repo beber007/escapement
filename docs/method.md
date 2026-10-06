@@ -227,14 +227,27 @@ builds, before and after the corrections, on the Mac and in the CI's image befor
 the 171 mutants of the code that chose a speed before the corrections, 100 were killed
 without the reference, 109 with it, and 112 at the 300 task sets a build the CI runs
 (`tools/mutants.py --sets`); after them, 104 of the 164 of the same code. The survivors
-left are mostly code of the event-driven tasks under DRA, which the reference leaves
-out, the manual not saying where they stand in its simulation, and comparisons whose
-edge gives the same speed. Under OTE and DM_SLACK the reference takes event-driven tasks
+left were mostly code of the event-driven tasks under DRA, which the reference then
+left out, the manual not saying where they stand in its simulation, and comparisons
+whose edge gives the same speed. Under OTE and DM_SLACK the reference takes event-driven tasks
 in too since the same evening, their next release bounding the stretch, and under
 DM_SLACK the slack an event-driven instance leaves: of the 17 mutants of the code that
 bounds the stretch, the 6 left are such comparisons. Two of DM_SLACK's survivors are
 not: the owner of a slack left unrecorded, and a task taking its own slack back, which
 random task sets do not reach.
+
+On 2026-10-06 the reference took in the event-driven tasks under DRA and DR_OTE, where
+the manual is silent, as the kernel has them: an instance in the simulation by the
+server's deadline, and the server's share of the time it has nothing pending taken as
+excess, counted and rounded at each update of the simulation, at the instants the
+kernel makes them. With its instances alone in the simulation, the reference disagreed,
+the kernel always slower; 10,000 task sets under the two builds, checked for deadlines
+only, missed none, before the excess was written in. With it, DRA agreed on 3,300 sets.
+DR_OTE disagreed once more, the kernel faster: an event-driven task that might be
+released at once sent it to the fastest speed, DRA's time left out, where OTE alone
+should have lost its time, as DM_SLACK has it since 80cc6dc. Corrected with the user's
+agreement, it agreed on 3,000 sets. A kernel made to count no excess fails its
+first task sets under both builds.
 
 ## What the README claims, and what checks it
 
@@ -247,7 +260,7 @@ behaviour, a test, a model, the board or an instrument.
 | Scheduling by EDF or DM | the host test's view of the task control block; `tools/differential.py`, each trace checked against the algorithm of its build | holds |
 | No periodic tick: the timer interrupts at a release only | nothing on the host; on the U5, the idle task's 454,487 Stop 2 in three hours, which a tick would have cut short | to add: the trace's timer interrupts set against the releases. Done on 2026-10-05: `tools/differential.py` reads every interrupt of the comparator, and a host port made to interrupt every 500 ticks fails its first task set |
 | The power-aware kernel slows down only as far as every deadline holds | `tools/differential.py` under its five builds, with kernels made to run too slow; the host test's speeds | holds |
-| It slows down as far as DRA, OTE and DM_SLACK compute | nothing until 2026-10-05: a kernel faster than its policy kept every deadline. Since, `tools/speed_reference.py`, from the ZottaOS manual, each speed of `tools/differential.py`'s traces, but DRA's and DR_OTE's with event-driven tasks | **did not quite**: a release that did not preempt reclaimed nothing, and DM_SLACK left its slack out of a task alone. Both corrected the same day (80cc6dc) |
+| It slows down as far as DRA, OTE and DM_SLACK compute | nothing until 2026-10-05: a kernel faster than its policy kept every deadline. Since, `tools/speed_reference.py`, from the ZottaOS manual, each speed of `tools/differential.py`'s traces, and since 2026-10-06 DRA's and DR_OTE's with event-driven tasks | **did not quite**: a release that did not preempt reclaimed nothing, and DM_SLACK left its slack out of a task alone. Both corrected the same day (80cc6dc). DR_OTE left DRA out when an event-driven task could be released at once, corrected on 2026-10-06 |
 | Overload drops chosen (m,k)-firm instances, not deadlines at random | the host test's `firm` runs, `firmoverload*` | holds |
 | The queues take no lock | `docs/architecture.md` | **false since 2026-09-25**: `OSSuspendSynchronousTask` masks interrupts around the enqueue of a task on its event. The README now says so |
 | The queue between the cores went from fifteen barriers to six | the model `fifo_mp.py` | **stale**: seven since 2026-09-29 |
