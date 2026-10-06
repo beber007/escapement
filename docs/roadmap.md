@@ -28,7 +28,9 @@ RP2350's. The older STM32 ports went on 2026-09-26 (9783ab4), the F4 last, once 
 ran on its board with a check of each commit. The U5 sleeps too well for DVFS to gain
 (`power-aware.md`): measured on 2026-10-03, a cycle costs least at 160 MHz, and racing
 to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
-**STM32L4** is set aside.
+**STM32L4** is set aside. The **STM32U3** port, for a NUCLEO-U385RG-Q ordered on
+2026-10-06, is written from RM0487 and runs under Renode only, until the board comes
+(`stm32u3.md`).
 
 ## Open work, in order
 
