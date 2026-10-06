@@ -327,6 +327,9 @@ static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30
 #ifndef INT32_MAX
    #define INT32_MAX 0x7FFFFFFF   /* 2^31 - 1 */
 #endif
+#if POWER_MANAGEMENT != NONE
+  static INT32 GetTaskTime(void);
+#endif
 
 
 /* INTERNAL FUNCTION PROTOTYPES AND MACROS */
@@ -374,6 +377,7 @@ static void (*EnqueueRescheduleQueue)(ETCB *etcb) = EnqueueRescheduleQueueBefore
 #endif
 #if POWER_MANAGEMENT == OTE || POWER_MANAGEMENT == DR_OTE || POWER_MANAGEMENT == DM_SLACK
   static INT32 GetEarliestAperiodicArrival(void);
+  static INT32 GetNextArrival(void);
 #endif
 #if POWER_MANAGEMENT == DR_OTE || POWER_MANAGEMENT == DRA
   static INT32 GetDRASlackTime(void);
@@ -565,7 +569,7 @@ void OSEndTask(void)
   CompilerBarrier();       // a zombie before it leaves the ready queue
   #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
      /* Update the timing used up by this task in the simulation queue. */
-     DRASimUpdateElapseTime(_OSGetActualTime());
+     DRASimUpdateElapseTime(GetTaskTime());
   #endif
   /* Remove the task from the ready queue */
   _OSQueueHead->Next[READYQ] = _OSActiveTask->Next[READYQ];
@@ -582,10 +586,10 @@ void OSEndTask(void)
            LastRemainingWorkUpdate = DRASimTime;
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #elif POWER_MANAGEMENT == OTE
-           LastRemainingWorkUpdate = _OSGetActualTime();
+           LastRemainingWorkUpdate = GetTaskTime();
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #else /* POWER_MANAGEMENT == DM_SLACK */
-           LastRemainingWorkUpdate = _OSGetActualTime();
+           LastRemainingWorkUpdate = GetTaskTime();
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #endif
      }
@@ -1112,7 +1116,7 @@ void OSSuspendSynchronousTask(void)
   CompilerBarrier();          // a zombie before it leaves the ready queue
   #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
      /* Update the timing used up by this task */
-     DRASimUpdateElapseTime(_OSGetActualTime());
+     DRASimUpdateElapseTime(GetTaskTime());
   #endif
   /* Remove the task from the ready queue */
   _OSQueueHead->Next[READYQ] = _OSActiveTask->Next[READYQ];
@@ -1132,10 +1136,10 @@ void OSSuspendSynchronousTask(void)
            LastRemainingWorkUpdate = DRASimTime;
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #elif POWER_MANAGEMENT == OTE
-           LastRemainingWorkUpdate = _OSGetActualTime();
+           LastRemainingWorkUpdate = GetTaskTime();
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #else /* POWER_MANAGEMENT == DM_SLACK */
-           LastRemainingWorkUpdate = _OSGetActualTime();
+           LastRemainingWorkUpdate = GetTaskTime();
            OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
         #endif
      }
@@ -1299,7 +1303,7 @@ void DMSlackCalculateSlack(TCB *task)
   do {
      OSUINT8_LL(&DMSlackInterrupt);
      currentSpeed = OSGetProcessorSpeed();
-     newTime = _OSGetActualTime();
+     newTime = GetTaskTime();
      dmRemaindingWork = newTime - LastRemainingWorkUpdate;
      if (currentSpeed != OS_MAX_SPEED)
         dmRemaindingWork = Slowdown(dmRemaindingWork,currentSpeed);
@@ -1541,7 +1545,7 @@ UINT8 GetProcessorSpeed(INT32 time)
            ** from its release on, for its next arrival: the queue is never empty here. The
            ** branch ZottaOS had for an empty queue was never taken, and bounded the time
            ** with a length, 2^30 - time, where it needed a time (2026-10-04). */
-           completionTime = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
+           completionTime = GetNextArrival();
            if (SynchronousTaskList != NULL && 
                (tmp = GetEarliestAperiodicArrival()) < completionTime) {
               if (tmp <= time)
@@ -1578,7 +1582,7 @@ UINT8 GetProcessorSpeed(INT32 time)
            ** from its release on, for its next arrival: the queue is never empty here. The
            ** branch ZottaOS had for an empty queue was never taken, and bounded the time
            ** with a length, 2^30 - time, where it needed a time (2026-10-04). */
-           oteCompletionTime = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
+           oteCompletionTime = GetNextArrival();
            /* An event-driven task that may be released now leaves OTE no time, and DRA
            ** decides alone: ZottaOS returned the fastest speed there, DRA's time left out
            ** (tools/speed_reference.py, 2026-10-06). */
@@ -1608,7 +1612,7 @@ UINT8 GetProcessorSpeed(INT32 time)
            ** from its release on, for its next arrival: the queue is never empty here. The
            ** branch ZottaOS had for an empty queue was never taken, and bounded the time
            ** with a length, 2^30 - time, where it needed a time (2026-10-04). */
-           tmp = _OSQueueHead->Next[ARRIVALQ]->NextArrivalTimeLow;
+           tmp = GetNextArrival();
            if (SynchronousTaskList != NULL) {
               INT32 aperiodic = GetEarliestAperiodicArrival();
               /* An event-driven task that may be released now leaves OTE no time. */
@@ -1657,6 +1661,43 @@ UINT8 GetProcessorSpeed(INT32 time)
         return OS_MAX_SPEED;
      #endif
 } /* end of GetProcessorSpeed */
+#endif
+
+
+#if POWER_MANAGEMENT != NONE
+/* GetTaskTime: The time, read by a task, in the epoch of the kernel's time values. Between
+** the counter passing 2^30 and the timer's handler shifting those values back, a time read
+** has already wrapped while they have not: a task ending at that instant read a time
+** 2^30 short, and DM_SLACK credited the slack it left with 2^30, the handler then taking
+** it from the work of the next task (tools/differential.py across the wraparound,
+** 2026-10-06). LastRemainingWorkUpdate, set at each update of the work, is never far
+** from the time: a time half the range of the counter before it has wrapped, and is
+** taken past 2^30, where the handler shifts it back with the rest. */
+INT32 GetTaskTime(void)
+{
+  INT32 time = _OSGetActualTime();
+  if (LastRemainingWorkUpdate - time > ShiftTimeLimit / 2)
+     time += ShiftTimeLimit;
+  return time;
+} /* end of GetTaskTime */
+#endif
+
+
+#if POWER_MANAGEMENT == OTE || POWER_MANAGEMENT == DR_OTE || POWER_MANAGEMENT == DM_SLACK
+/* GetNextArrival: The time of the next arrival, the head of the arrival queue, beyond the
+** next wraparound of the clock too: a periodic task counts the wraparounds before its
+** arrival apart, in NextArrivalTimeHigh, and its NextArrivalTimeLow alone, read as a time,
+** put an arrival past the wraparound in the past, which left OTE no time over the last
+** period before each wraparound (tools/differential.py, 2026-10-06). An event-driven
+** task keeps one time, which may lie beyond the wraparound. An arrival beyond the
+** wraparound after is taken at the next one's, which only bounds the stretch sooner. */
+INT32 GetNextArrival(void)
+{
+  TCB *arrival = _OSQueueHead->Next[ARRIVALQ];
+  if ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)
+     return arrival->NextArrivalTimeLow;
+  return arrival->NextArrivalTimeLow + ShiftTimeLimit;
+} /* end of GetNextArrival */
 #endif
 
 

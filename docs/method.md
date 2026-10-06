@@ -211,6 +211,37 @@ speed absorbs at those points. One starts the slack's bound at 1 rather than 0, 
 again; and the last runs at the slowest speed a task with no work left on record, which
 the task ends at the instant it is dispatched, no trace showing it run.
 
+The same evening the random task sets were taken across the wraparound: the host test's
+trace starts at any phase of the counter, and half the sets of `tools/differential.py`
+now start just short of 2^30, the trace still counting time from the start, so that
+every check and the speed reference read them unchanged. Every set had run within its
+first 6,000 ticks, far from the wraparound, which only the hand-written tests `timewrap`,
+`firmwrap` and `longperiod` reached. The hard kernels held. The others did not, three
+ways:
+
+- **OTE lost its time before each wraparound.** The power-aware kernel read the next
+  arrival from its low part alone: an arrival past 2^30 seemed past, and the last
+  instance before each wraparound ran at the fastest speed. Faster than needed, no
+  deadline at risk. `GetNextArrival` counts the wraparound in.
+- **A task ending at the very tick of the wraparound read a time 2^30 short.** The
+  counter had wrapped, the timer's handler not yet shifted the kernel's times. DM_SLACK
+  credited the slack that task left with 2^30, which the handler then took from the work
+  of the next task; the soft kernel saw every deadline 2^30 ahead, admitted an optional
+  instance that could not end in time, and the host test's scheduler never returned.
+  Slowed down on 2^30 of slack, tasks of lower priority could miss their deadlines: the
+  window is the few cycles between the counter's wrap and the handler, every eighteen
+  minutes on the RP2040. A time read by a task is now taken past 2^30 when it lies half
+  the range of the counter before the last time the kernel set (`GetTaskTime` in both
+  kernels); `timewrap` and `firmwrapend` end a task at that tick, and the second fails
+  without the correction.
+- **The reference was wrong twice**, the kernel right: the handler zeroes the server's
+  deadline and the time the excess was counted to when it shifts them below 0, losing the
+  excess counted before the wraparound, as the kernel's comment says; and a task whose
+  WCET the simulation has used up, dispatched again at the wraparound, gets no time from
+  DRA, as `GetDRASlackTime`'s comment says. The reference takes both now.
+
+Both corrections of the kernels were made with the user's agreement.
+
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
 window under-counts by one WCET at most, and random task sets seldom come that close. A

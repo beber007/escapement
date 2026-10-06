@@ -238,6 +238,9 @@ static const INT32 ShiftTimeLimit = 0x40000000; // = 2^30
 #ifndef INT32_MAX
    #define INT32_MAX 0x7FFFFFFF   /* 2^31 - 1 */
 #endif
+/* The time the timer's handler last read, in the epoch of the kernel's time values
+** (GetTaskTime). */
+static INT32 LastHandlerTime = 0;
 
 
 /* INTERNAL FUNCTION PROTOTYPES AND MACROS */
@@ -250,6 +253,7 @@ static void Multiply46_16(UINT16 a0, INT32 a1, UINT16 b, UINT32 *c0, INT32 *c1);
 #endif
 static void ScheduleNextTask(void);
 static BOOL IsTaskSchedulable(void);
+static INT32 GetTaskTime(void);
 typedef BOOL SEARCHFUNCTION(const TCB *, const TCB *);
 static void InsertQueue(SEARCHFUNCTION TestKey, UINT8 offsetNext, TCB *newNode);
 static BOOL ReadyQueueInsertTestKey(const TCB *searchKey, const TCB *node);
@@ -483,7 +487,7 @@ void ScheduleNextTask(void)
         /* For optional tasks, we need to check if the instance can finish its work once
         ** it begins its execution. And then if it can, promote the instance to its base
         ** priority so that higher priority optional instances cannot preempt it. */
-        if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > _OSGetActualTime() &&
+        if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > GetTaskTime() &&
             IsTaskSchedulable()) {
            _OSActiveTask->Priority = _OSActiveTask->StaticPriority;
            break;
@@ -503,7 +507,7 @@ void ScheduleNextTask(void)
         ** sentinel marked by _OSQueueTail. */
         while ((_OSActiveTask = _OSQueueTail->Next[READYQ]) != NULL) {
            if ((_OSActiveTask->TaskState & STATE_DROP) == 0) {
-              if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > _OSGetActualTime() &&
+              if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > GetTaskTime() &&
                   IsTaskSchedulable()) {
                  /* Move the optional instance to the head of the ready queue. The timer
                  ** handler, interrupting in between, completes a promotion it finds
@@ -613,7 +617,7 @@ BOOL IsTaskSchedulable(void)
   }
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      /* Scan through all event-driven tasks. */
-     partial = _OSGetActualTime();
+     partial = GetTaskTime();
      for (etcb = SynchronousTaskList; etcb != NULL; etcb = etcb->NextETCB)
         if (etcb->StaticPriority < _OSActiveTask->StaticPriority) {
            if (etcb->NextArrivalTimeLow > partial)
@@ -644,7 +648,7 @@ BOOL IsTaskSchedulable(void)
      ** an instance start that could not end in time (a review, 2026-09-30,
      ** test/host firmdiscount). */
      if (AperiodicUtilization > 0) {
-        partial = _OSGetActualTime();
+        partial = GetTaskTime();
         tmp = totalWork - (SynchronousTaskDeadlines > partial ?
                                                    SynchronousTaskDeadlines - partial : 0);
         if (tmp > 0) {
@@ -659,8 +663,25 @@ BOOL IsTaskSchedulable(void)
         }
      }
   #endif
-  return totalWork + _OSGetActualTime() < _OSActiveTask->NextDeadline;
+  return totalWork + GetTaskTime() < _OSActiveTask->NextDeadline;
 } /* end of IsTaskSchedulable */
+
+
+/* GetTaskTime: The time, read by a task, in the epoch of the kernel's time values. Between
+** the counter passing 2^30 and the timer's handler shifting those values back, a time read
+** has already wrapped while they have not: an instance ending at that instant saw every
+** deadline some 2^30 ahead, and admitted an optional instance that could not end in time
+** (tools/differential.py across the wraparound, 2026-10-06). The handler, which runs at
+** each wraparound and each release, reads the time last: a time half the range of the
+** counter before it has wrapped, and is taken past 2^30, where the handler shifts it back
+** with the rest. */
+INT32 GetTaskTime(void)
+{
+  INT32 time = _OSGetActualTime();
+  if (LastHandlerTime - time > ShiftTimeLimit / 2)
+     time += ShiftTimeLimit;
+  return time;
+} /* end of GetTaskTime */
 
 
 /* OSGetTaskInstance: Returns the instance number of the calling task. */
@@ -734,6 +755,7 @@ void _OSTimerInterruptHandler(void)
         _OSComparatorInterruptFlag = FALSE;
         /* Transfer all new arrivals to the ready queue. */
         currentTime = _OSGetActualTime();
+        LastHandlerTime = currentTime;
         arrival = _OSQueueHead->Next[ARRIVALQ];
         while (arrival->NextArrivalTimeLow <= currentTime &&
              ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {

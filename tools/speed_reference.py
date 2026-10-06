@@ -89,10 +89,11 @@ def level_for(slowdown):
     return FASTEST
 
 
-def check_speeds(build, tasks, trace, releases):
+def check_speeds(build, tasks, trace, releases, wrap=None):
     """Replays a trace of build and raises Failure at the first dispatch whose speed is
     not the reference's. releases: the instances of tasks, (task, release, deadline, key,
-    optional), as tools/differential.py derives them from the algorithms."""
+    optional), as tools/differential.py derives them from the algorithms. wrap: the instant
+    of the run at which the counter passes 2^30, if it does."""
     policy = POLICIES[build]
     dm = build in ("pa_dm", "pa_dmslack")
     todo = sorted(releases, key=lambda x: (x[1], x[0]))
@@ -259,8 +260,11 @@ def check_speeds(build, tasks, trace, releases):
                     break
                 ahead += left
             else:
-                raise Failure("t=%d: task %d dispatched, gone from DRA's simulation" %
-                              (t, i))
+                # Gone from the simulation, its WCET simulated in full while it runs on,
+                # slowed down on the time of others: no time left to give, and the fastest
+                # speed (GetDRASlackTime). A timer interrupt that releases nothing, at the
+                # wraparound, dispatches such a task again.
+                slowdowns.append(Fraction(1))
         if policy == "DM_SLACK" and slack[1] is not None and \
                 slack[0] > 0 and priority(i) > priority(slack[1]):
             slowdowns.append(remaining / (slack[0] + remaining))
@@ -287,7 +291,18 @@ def check_speeds(build, tasks, trace, releases):
         if not fields:
             continue
         if fields[0] == "I":
-            interrupt(int(fields[1]))
+            t = int(fields[1])
+            interrupt(t)
+            if t == wrap and events:
+                # The handler shifts the server's deadline and the time the excess was
+                # counted to back by 2^30, to 0 where they would go below it: the excess
+                # counted since the last update before the wraparound is lost.
+                server = max(server, t)
+                counted = max(counted, t)
+            if policy in ("DRA", "DR_OTE") and not (todo and todo[0][1] == t) and ready:
+                # An interrupt that releases nothing, at the wraparound of the counter: the
+                # handler still brings the simulation up to date, a task being ready.
+                update(t)
             dispatch = True
             continue
         if fields[0] == "E":

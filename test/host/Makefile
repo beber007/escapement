@@ -102,6 +102,7 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	                      ./$(BUILD)/test_scheduler_$$b firmoverloadinstances || exit 1;; esac; \
 	   case $$b in soft_dm) ./$(BUILD)/test_scheduler_$$b firmeventahead || exit 1;; esac; \
 	   case $$b in soft_edf) ./$(BUILD)/test_scheduler_$$b firmoverloadshare && \
+	                         ./$(BUILD)/test_scheduler_$$b firmwrapend && \
 	                         ./$(BUILD)/test_scheduler_$$b firmoverloadsum && \
 	                         ./$(BUILD)/test_scheduler_$$b firmdiscount && \
 	                         ./$(BUILD)/test_scheduler_$$b firmdiscountnear || exit 1;; esac; \

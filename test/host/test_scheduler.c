@@ -34,6 +34,8 @@
 **   test_scheduler minspeed  the same, the power-aware kernel kept above its slowest speed
 **   test_scheduler firm      (m,k)-firm tasks under overload, soft kernel only
 **   test_scheduler firmwrap  optional instances across the wraparound, soft kernel only
+**   test_scheduler firmwrapend an instance ending at the very tick of the wraparound,
+**                            soft kernel under EDF only
 **   test_scheduler firmlong  an optional instance of 2^23 ticks, soft kernel only
 **   test_scheduler firmevents (m,k)-firm tasks beside an event-driven one, soft kernel only
 **
@@ -1838,7 +1840,10 @@ static void TestEndInside(TimedMode mode)
 ** a time read before the shift. A first run, away from the wrap, finds when the instances
 ** end; the same run is then made to start so that one of them ends at the last tick
 ** before the wrap, the schedule being the same at any phase of the counter. Each run is a
-** child process, the kernel keeping its state in its own variables. */
+** child process, the kernel keeping its state in its own variables.
+** Then each end at the very tick of the wrap, before the timer's handler has shifted the
+** kernel's times: the task reads a time already wrapped, which the power-aware kernel
+** once took 2^30 short (tools/differential.py across the wraparound, 2026-10-06). */
 #define WRAP_ENDS   16
 #define WRAP_POINTS 4
 static void TestTimeWrap(TimedMode mode)
@@ -1894,8 +1899,28 @@ static void TestTimeWrap(TimedMode mode)
            printf("  the end at %d, point %u: FAILED\n", ends[e], p);
         }
      }
-  snprintf(label, sizeof label, "  %u runs, the wrap taken inside %u times: every check held",
-           (unsigned)(WRAP_ENDS * WRAP_POINTS), taken);
+  for (e = 0; e < WRAP_ENDS; e += 1) {
+     int status = 0;
+     if ((child = fork()) < 0) {
+        Check("  fork", FALSE);
+        return;
+     }
+     if (child == 0) {
+        FILE *quiet = freopen("/dev/null", "w", stdout);
+        (void)quiet;
+        TimedPhase = 0x40000000 - ends[e];
+        TestTimed(mode);
+        ChildExit(Failures == 0 ? 0 : 1);
+     }
+     waitpid(child, &status, 0);
+     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        failed += 1;
+        printf("  the end at %d, at the wrap: FAILED\n", ends[e]);
+     }
+  }
+  snprintf(label, sizeof label, "  %u runs, the wrap taken inside %u times, and %u ends at "
+           "the wrap: every check held", (unsigned)(WRAP_ENDS * WRAP_POINTS), taken,
+           (unsigned)WRAP_ENDS);
   Check(label, failed == 0 && taken >= WRAP_ENDS);
 }
 
@@ -1910,8 +1935,10 @@ static void TestTimeWrap(TimedMode mode)
 **                                  given in the order of their times
 **   F wcet period deadline takes m k   an (m,k)-firm task, soft kernel only, its pattern
 **                                  starting at instance 0
-** Tasks are numbered in the order of their lines, as the trace numbers them. */
-static void TestTrace(INT32 duration)
+** Tasks are numbered in the order of their lines, as the trace numbers them. The run
+** starts at phase of the counter, 0 unless given: a phase short of 2^30 takes the run
+** across the wraparound of the kernel clock, the trace counting time from the start. */
+static void TestTrace(INT32 duration, INT32 phase)
 {
   char kind[2];
   long a, b, c, d;
@@ -1960,6 +1987,7 @@ static void TestTrace(INT32 duration)
      }
   }
   StartKernel(NULL, NULL);
+  TimedPhase = phase;
   RunTimed(duration);
   printf("T %d\n", duration);
 }
@@ -2528,6 +2556,9 @@ static void TestFirmDiscount(INT32 workload, INT32 duration)
 ** 2000 has its optional instance 2 at 2^30 - 1000; a task of 1000 every 2^29 + 250 arrives
 ** at 2^30 + 500, once in the window. The instance fits by 499 ticks; counted 2^30 too
 ** early, that task's instances would take it over and drop it. */
+#if BY_DEADLINE
+static void TestFirmWrapEnd(void);
+#endif
 static void TestFirmWrapMandatory(void)
 {
   long long duration = 0x40000000LL + 1000000;
@@ -2546,6 +2577,40 @@ static void TestFirmWrapMandatory(void)
   Check("  the other task: every instance ran", WithinOne(Firm[1].Runs, 3));
   Check("  no deadline missed", LateArrivals == 0);
 }
+
+#if BY_DEADLINE
+/* TestFirmWrapEnd: A set of tools/differential.py (soft_edf, seed 2, set 785, its tasks
+** taking less than their WCET) whose third task ends at the very tick of the wraparound,
+** before the timer's handler has shifted the kernel's times. Reading a time already
+** wrapped, the end saw every deadline some 2^30 ahead, admitted an optional instance that
+** could not end in time, and the scheduler never returned (2026-10-06). Run as the trace
+** of differential.py, in a child process, its input on the standard input. */
+static void TestFirmWrapEnd(void)
+{
+  static const char input[] = "F 10 57 57 7 1 3\nF 6 33 33 4 1 1\nF 2 43 43 2 3 5\n"
+                              "F 51 202 202 38 3 3\nF 76 177 177 50 2 4\n";
+  int fds[2], status = 0;
+  pid_t child;
+  printf("\nAn instance ending at the tick of the wraparound\n\n");
+  if (pipe(fds) != 0 || (child = fork()) < 0) {
+     Check("  fork", FALSE);
+     return;
+  }
+  if (child == 0) {
+     FILE *quiet = freopen("/dev/null", "w", stdout);
+     (void)quiet;
+     close(fds[1]);
+     dup2(fds[0], 0);
+     TestTrace(6000, 0x40000000 - 5503);
+     ChildExit(Failures == 0 ? 0 : 1);
+  }
+  close(fds[0]);
+  Check("  the input written", write(fds[1], input, sizeof input - 1) == (ssize_t)(sizeof input - 1));
+  close(fds[1]);
+  waitpid(child, &status, 0);
+  Check("  the run ended, every check held", WIFEXITED(status) && WEXITSTATUS(status) == 0);
+}
+#endif
 
 /* TestFirmOverload: The test of an optional instance sums in 32 bits the work released
 ** before its deadline, and gives up once the sum passes 2^30: the instance cannot fit, and
@@ -2696,7 +2761,8 @@ int main(int argc, char *argv[])
   else if (argc > 1 && strcmp(argv[1], "notask") == 0)
      TestNoTask();
   else if (argc > 2 && strcmp(argv[1], "trace") == 0)
-     TestTrace((INT32)strtol(argv[2], NULL, 10));
+     TestTrace((INT32)strtol(argv[2], NULL, 10),
+               argc > 3 ? (INT32)strtol(argv[3], NULL, 10) : 0);
   else if (argc > 1 && strcmp(argv[1], "createbounds") == 0)
      TestCreateBounds();
   else if (argc > 1 && strcmp(argv[1], "longperiod") == 0)
@@ -2728,6 +2794,10 @@ int main(int argc, char *argv[])
      #endif
      else if (argc > 1 && strcmp(argv[1], "firmwrapmandatory") == 0)
         TestFirmWrapMandatory();
+     #if BY_DEADLINE
+        else if (argc > 1 && strcmp(argv[1], "firmwrapend") == 0)
+           TestFirmWrapEnd();
+     #endif
      else if (argc > 1 && strcmp(argv[1], "firmlong") == 0)
         TestFirmLong();
      else if (argc > 1 && strcmp(argv[1], "firmevents") == 0)

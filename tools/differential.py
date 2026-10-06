@@ -12,7 +12,9 @@ them, event-driven tasks signalled at random, runs them, and checks each trace o
 own, from the releases, the deadlines and the work each instance received: it shares no
 code with the kernels, and does not copy how they break ties. The releases and deadlines
 of event-driven tasks come from the algorithms' specification (instances()): a workload
-apart under DM, a total bandwidth server under EDF. At every instant of a trace:
+apart under DM, a total bandwidth server under EDF. Half the sets start just short of
+the 2^30 wraparound of the kernel clock and run across it, where the kernel shifts its
+times; the trace counts time from the start. At every instant of a trace:
 
 - the task running has an instance released and not done, its oldest;
 - no instance waiting has a deadline strictly earlier (EDF, EDF* of the power-aware
@@ -223,7 +225,7 @@ def instances(tasks, dm):
     return sorted(out, key=lambda x: (x[1], x[0]))
 
 
-def run(build, tasks):
+def run(build, tasks, phase=0):
     binary = os.path.join(HOST, os.environ.get("BUILD", "build"), "test_scheduler_" + build)
     lines = []
     for t in tasks:
@@ -242,7 +244,7 @@ def run(build, tasks):
     env = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
     # A faulty kernel, a mutant among them, may print memory as it is: decoded with
     # replacement, its output fails the checks rather than the script (2026-10-06).
-    done = subprocess.run([binary, "trace", str(DURATION)], input="\n".join(lines) + "\n",
+    done = subprocess.run([binary, "trace", str(DURATION), str(phase)], input="\n".join(lines) + "\n",
                           capture_output=True, text=True, errors="replace", timeout=60,
                           env=env)
     if done.returncode != 0:
@@ -291,9 +293,11 @@ def worst_case_end(tasks, jobs, todo, i, target, t, dm):
             ready.remove(run)
 
 
-def check(build, tasks, trace, speeds=True):
+def check(build, tasks, trace, speeds=True, phase=0):
     """Raises Failure at the first point the trace breaks the algorithm, or, speeds
-    True, a speed the power-aware policy of build would not pick."""
+    True, a speed the power-aware policy of build would not pick. A run started at
+    phase of the counter, not 0, crosses its 2^30 wraparound, where the timer interrupts
+    too, the kernel shifting its times."""
     dm = build in DEADLINE_MONOTONIC
     power_aware = build.startswith("pa_")
     todo = instances(tasks, dm)                   # not yet released, in release order
@@ -326,6 +330,8 @@ def check(build, tasks, trace, speeds=True):
     now = 0
     pending_end = None                            # (time, task) the last segment must end
     release_times = {x[1] for x in todo}
+    if phase:
+        release_times.add(0x40000000 - phase)
     last_interrupt = None
     for line in trace.splitlines():
         fields = line.split()
@@ -425,7 +431,8 @@ def check(build, tasks, trace, speeds=True):
                               "deadline %d" % (i, job[0], job[1]))
     if speeds and power_aware and all(t["kind"] in "PE" for t in tasks):
         try:
-            speed_reference.check_speeds(build, tasks, trace, instances(tasks, dm))
+            speed_reference.check_speeds(build, tasks, trace, instances(tasks, dm),
+                                         0x40000000 - phase if phase else None)
         except speed_reference.Failure as e:
             raise Failure(str(e))
     if build in ("hard_edf", "soft_edf") and all(t["kind"] == "P" for t in tasks):
@@ -555,15 +562,19 @@ def main():
                 tasks = draw_firm(rng, build in DEADLINE_MONOTONIC)
             else:
                 tasks = draw(rng, build in DEADLINE_MONOTONIC)
+            # Half the sets cross the 2^30 wraparound of the kernel clock, at a point drawn
+            # apart, so that the sets themselves stay those of the same seed.
+            wrap = random.Random("%s-%d-%d-wrap" % (build, seed, n))
+            phase = 0x40000000 - wrap.randint(1, DURATION) if wrap.random() < 0.5 else 0
             try:
-                check(build, tasks, run(build, tasks))
+                check(build, tasks, run(build, tasks, phase), phase=phase)
                 if any(t["kind"] == "F" for t in tasks):
                     light = random.Random("%s-%d-%d" % (build, seed, n))
                     tasks = [dict(t, takes=light.randint(1, t["wcet"])) for t in tasks]
-                    check(build, tasks, run(build, tasks))
+                    check(build, tasks, run(build, tasks, phase), phase=phase)
             except (Failure, subprocess.TimeoutExpired) as e:
                 failed += 1
-                print("%s, set %d %s: %s" % (build, n, tasks, e))
+                print("%s, set %d %s, phase %d: %s" % (build, n, tasks, phase, e))
                 break
         else:
             print("%s: %d task sets, every trace holds" % (build, count))
