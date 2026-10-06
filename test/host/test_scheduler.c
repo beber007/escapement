@@ -212,9 +212,14 @@ extern void _OSTimerInterruptHandler(void);
 ** it returns. Left out, each passed every run until 2026-10-04 (tools/mutants.py): on the
 ** target the next task would not be elected, or a context that ended would be restored. */
 static unsigned EndBreaks = 0, HandlerBreaks = 0;
+extern unsigned HostTimerStarted;
 static void TimerHandler(void)
 {
   unsigned asked = HostContextSwitchesRequested;
+  if (!HostTimerStarted) {
+     printf("FAILED: the timer's handler ran before the timer started\n");
+     exit(1);
+  }
   _OSTimerInterruptHandler();
   if (HostContextSwitchesRequested == asked)
      HandlerBreaks += 1;
@@ -281,10 +286,22 @@ static void CheckSpeeds(BOOL slowsDown)
 ** interrupt instead of waiting for the next tick. */
 static void StartKernel(void (*f)(void *), void *arg)
 {
+  unsigned asked = HostContextSwitchesRequested;
   OSStartMultitasking(f, arg);
+  /* On the target the start returns into the idle task through a context switch, with
+  ** interrupts unmasked; the idle task then sleeps (a reading of the surviving mutants,
+  ** 2026-10-06). */
+  if (HostContextSwitchesRequested == asked || HostMasked) {
+     printf("FAILED: the start asked no context switch, or left interrupts masked\n");
+     exit(1);
+  }
   IdleTCB = _OSActiveTask;
   _OSNoSaveContext = FALSE;   /* cleared by the context switch to the idle task */
   IdleTCB->TaskCodePtr(NULL);
+  if (HostMasked || HostSlept == 0) {
+     printf("FAILED: the idle task left interrupts masked, or never slept\n");
+     exit(1);
+  }
 }
 
 /* IsLate: Whether an elected task starts past its deadline. Under deadline-monotonic
@@ -350,6 +367,18 @@ static BOOL ReadyQueueHolds(void)
    #define PriorityKey(task) ((INT32)(task)->Priority)
 #endif
 
+/* ElectedNoZombie: A task the kernel elects to run is never a zombie, one that has left
+** the ready queue, but while it ends, its context not to be saved: an event-driven task
+** put back in the ready queue still a zombie was run, and the next timer interrupt
+** discarded a context (a reading of the surviving mutants, 2026-10-06). */
+static void ElectedNoZombie(HostTCB *task, BOOL ending)
+{
+  if ((task->TaskState & 0x02) && !ending) {                /* STATE_ZOMBIE */
+     printf("FAILED: a zombie elected\n");
+     exit(1);
+  }
+}
+
 /* RunElected: Calls each task the scheduler elects until only the idle task is left, which
 ** StartKernel() recognised when it ran it first. All of it happens at one instant, so the
 ** periodic tasks released by the last timer interrupt must come in priority order; the
@@ -364,6 +393,7 @@ static void RunElected(HostTCB *interrupted)
      task = _OSActiveTask;
      if (task == NULL || task == IdleTCB || task == interrupted)
         break;
+     ElectedNoZombie(task, FALSE);
      if (IsLate(task, HostClockNow()))
         LateArrivals += 1;
      if (IsOutOfReach(task, HostClockNow()))
@@ -1053,6 +1083,10 @@ static void ReaderTask(void *argument)
 /* StartEvents: Called by OSStartMultitasking() before the timer starts. */
 static void StartEvents(void *event)
 {
+  if (!HostMasked) {   /* the start runs its function before unmasking interrupts */
+     printf("FAILED: the start's function ran with interrupts unmasked\n");
+     exit(1);
+  }
   OSScheduleSuspendedTask(event);
 }
 
@@ -1572,6 +1606,7 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
      active = _OSActiveTask;
      if (active != IdleTCB) {
         TimedTask *task = (TimedTask *)active->Argument;
+        ElectedNoZombie(active, _OSNoSaveContext);
         UINT8 speed = Speed();
         INT32 rate = WorkPerTick(speed), toEnd = (task->Work + rate - 1) / rate;
         if (now < (INT32)task->Instance * task->Period)
@@ -1948,6 +1983,10 @@ static void TestTrace(INT32 duration, INT32 phase)
   TraceOut = stdout;
   TimedRun = TIMED_BUSY;
   while (scanf("%1s", kind) == 1) {
+     if (kind[0] != 'S' && NbTimed == TIMED_TASKS) {
+        printf("FAILED: more than %d tasks\n", TIMED_TASKS);   /* not one left out unseen */
+        exit(1);
+     }
      if (kind[0] == 'P' && scanf("%ld %ld %ld %ld", &a, &b, &c, &d) == 4 &&
          NbTimed < TIMED_TASKS)
         CreateTimedTask((INT32)a, (INT32)b, (INT32)c, (INT32)d, -1);

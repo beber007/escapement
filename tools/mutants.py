@@ -328,7 +328,8 @@ def main():
     for key, reason in declared.items():
         r = found.get(key)
         if r is None:
-            print("declared equivalent, no such mutant now: %s %s => %s" % key[:3])
+            if not (args.only or args.survivors):   # a part of the mutants run, not all
+                print("declared equivalent, no such mutant now: %s %s => %s" % key[:3])
         elif r["verdict"] == "killed":
             print("declared equivalent, but killed: %d line %d, %s" % (r["id"], r["line"],
                                                                       r["mutated"][:60]))

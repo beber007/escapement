@@ -44,6 +44,7 @@ needs among them, which keeps every deadline.
   BUILD=build-O2 python3 tools/differential.py  the binaries of another build of test/host
 """
 
+import heapq
 import importlib.util
 import math
 import os
@@ -71,7 +72,7 @@ DEADLINE_MONOTONIC = {"hard_dm", "soft_dm", "pa_dm", "pa_dmslack"}
 # as test/host/host_port.c gives them; the other builds run at the fastest only.
 RATES = {0: 24, 1: 102, 2: 256}
 DURATION = 6000
-MAX_TASKS = 8
+MAX_TASKS = 8                                # test/host's TIMED_TASKS: a set of more fails there
 
 
 class Failure(Exception):
@@ -169,6 +170,52 @@ def draw(rng, deadline_monotonic):
             return tasks
 
 
+def edge_signals(rng, tasks, phase, deadline_monotonic):
+    """tasks with one more event-driven task, signalled at the edges random signals miss:
+    across the wraparound, a signal just before it and a second within the workload, whose
+    release, deferred to the end of the first's, falls past it; or a signal at the very
+    tick of the wraparound; or, from phase 0, a signal at time 0 (a reading of the
+    surviving mutants, 2026-10-06). The set as it was if the task does not fit."""
+    workload = rng.randint(20, 400)
+    takes = rng.randint(1, max(1, workload // 4))
+    if phase:
+        at = 0x40000000 - phase                   # the wraparound, in the run's time
+        if rng.random() < 0.5:
+            first = at - rng.randint(1, workload - 1)
+            signals = [first, first + rng.randint(1, workload - 1)]
+        else:
+            signals = [at]
+    else:
+        signals = [0]
+    t = signals[-1] + 4 * workload
+    while t < DURATION:
+        signals.append(t)
+        t += rng.randint(4 * workload, 8 * workload)
+    if signals[0] < 0 or len(tasks) >= MAX_TASKS:   # test/host runs TIMED_TASKS at most
+        return tasks
+    more = tasks + [event_driven(takes, workload, signals)]
+    if coalesces(more, deadline_monotonic):
+        return tasks
+    if deadline_monotonic:
+        return more if response_times_hold(more) else tasks
+    load = sum(t["wcet"] / t["deadline"] if t["kind"] == "P" else t["takes"] / t["workload"]
+               for t in more)
+    return more if load <= 1 else tasks
+
+
+def coalesces(tasks, dm):
+    """Whether a signal of an event-driven task may come while the previous one still
+    waits for its release: the kernel keeps one signal pending per event and drops the
+    next (test/host, TestSignals), which depends on when instances end, and instances()
+    counts every signal. Such sets are left out rather than checked loosely."""
+    released = {}
+    for i, r, _, _, _ in instances(tasks, dm):
+        if tasks[i]["kind"] == "E":
+            released.setdefault(i, []).append(r)
+    return any(s < r for i, rs in released.items()
+               for s, r in zip(tasks[i]["signals"][1:], rs))
+
+
 def response_times_hold(tasks):
     """Response-time analysis for fixed priorities by deadline, every task released at
     time 0, an event-driven task as a sporadic one of period and deadline its workload:
@@ -208,20 +255,32 @@ def instances(tasks, dm):
                 out.append((i, r, r + t["deadline"], t["deadline"] if dm else r + t["deadline"],
                             optional))
                 k += 1
-    signals = sorted((s, i) for i, t in enumerate(tasks) if t["kind"] == "E"
-                     for s in t["signals"])
-    server, last = 0, {}
-    for s, i in signals:
-        w = tasks[i]["workload"]
-        if dm:
+    if dm:
+        signals = sorted((s, i) for i, t in enumerate(tasks) if t["kind"] == "E"
+                         for s in t["signals"])
+        last = {}
+        for s, i in signals:
+            w = tasks[i]["workload"]
             r = max(s, last.get(i, -w) + w)
             last[i] = r
             out.append((i, r, r + w, w, False))
-        else:
-            r = max(s, last.get(i, 0))
-            server = server + w if server > r else r + w
-            last[i] = server
-            out.append((i, r, server, server, False))
+        return sorted(out, key=lambda x: (x[1], x[0]))
+    # Under EDF the server gives deadlines in the order of the releases, not of the
+    # signals: a signal before its task's last deadline is released at that deadline, after
+    # signals of other tasks that came later. Releases at one instant: one deferred to a
+    # deadline first (the timer's arrival queue), then signals by task.
+    server, ahead = 0, []
+    for i, t in enumerate(tasks):
+        if t["kind"] == "E" and t["signals"]:
+            heapq.heappush(ahead, (t["signals"][0], 1, i, 0))
+    while ahead:
+        r, _, i, n = heapq.heappop(ahead)
+        w = tasks[i]["workload"]
+        server = server + w if server > r else r + w
+        out.append((i, r, server, server, False))
+        if n + 1 < len(tasks[i]["signals"]):
+            s = tasks[i]["signals"][n + 1]
+            heapq.heappush(ahead, (max(s, server), 0 if s < server else 1, i, n + 1))
     return sorted(out, key=lambda x: (x[1], x[0]))
 
 
@@ -566,6 +625,8 @@ def main():
             # apart, so that the sets themselves stay those of the same seed.
             wrap = random.Random("%s-%d-%d-wrap" % (build, seed, n))
             phase = 0x40000000 - wrap.randint(1, DURATION) if wrap.random() < 0.5 else 0
+            if all(t["kind"] in "PE" for t in tasks) and wrap.random() < 0.5:
+                tasks = edge_signals(wrap, tasks, phase, build in DEADLINE_MONOTONIC)
             try:
                 check(build, tasks, run(build, tasks, phase), phase=phase)
                 if any(t["kind"] == "F" for t in tasks):

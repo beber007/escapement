@@ -528,6 +528,35 @@ static void TestBuffer(UINT8 type, const char *name)
      Check("  a slot of one byte is read whole",
            OSWriteBuffer(tiny, &one, 1) == 1 && OSGetCopyBuffer(tiny, OS_READ_ONLY_ONCE, &got) == 1 &&
            got == 0x5A);
+     /* By reference too: a mutant that read a slot of one byte by reference as empty
+     ** survived (a reading of the surviving mutants, 2026-10-06). */
+     one = 0xC3;
+     Check("  and by reference",
+           OSWriteBuffer(tiny, &one, 1) == 1 &&
+           OSGetReferenceBuffer(tiny, OS_READ_ONLY_ONCE, &ref) == 1 && *(UINT8 *)ref == 0xC3);
+  }
+
+  /* A slot the reader holds by reference is never the writer's: written four times over
+  ** while the reference is held, it still reads what it held. Tables of the 3-slot buffer
+  ** that let the writer take the slot being read survived every other check (a reading of
+  ** the surviving mutants, 2026-10-06). */
+  {
+     unsigned before, reads, w;
+     ok = 1;
+     /* From each state the writer can leave: 1 to 4 writes, the slot taken by 1 to 3
+     ** reads, before the reference is held. */
+     for (before = 1; before <= 4; before += 1)
+        for (reads = 1; reads <= 3; reads += 1) {
+           void *held = OSInitBuffer(SLOT, type, NULL);
+           for (w = 0; w < before; w += 1)
+              OSWriteBuffer(held, bytes + w, SLOT);
+           for (w = 0; w < reads; w += 1)
+              ok = ok && OSGetReferenceBuffer(held, OS_READ_MULTIPLE, &ref) == SLOT;
+           for (w = 0; w < 4; w += 1)        /* never what is held, at offset before - 1 */
+              OSWriteBuffer(held, bytes + (before + w % 3) % 4, SLOT);
+           ok = ok && memcmp(ref, bytes + before - 1, SLOT) == 0;
+        }
+     Check("  a slot held by reference is not written over, from every state", ok);
   }
 
   /* An interrupt between an LL and its SC makes the SC fail although nothing changed:
@@ -720,21 +749,67 @@ static void TestFIFOIndexWrap(void)
   Check(label, bad == 0 && cases > 0);
 }
 
+/* TestFIFOWrapPhases: Queues of 2, 3 and 4 nodes taken across the value their indices
+** wrap at, from each of 12 phases, 1 to the queue's length of nodes in and out each round.
+** MaxIndex must be a multiple of the array's length for the index to land on the same
+** slot past the wrap; TestFIFO's one queue and phase let through a MaxIndex that was not,
+** and an index that did not wrap at all (a reading of the surviving mutants, 2026-10-06).
+** The first fields of the descriptor, as in TestFIFO. */
+static void TestFIFOWrapPhases(void)
+{
+  unsigned nodes, k, round, i, n, ok = 1;
+  UINT16 size;
+  for (nodes = 2; nodes <= 4; nodes += 1)
+     for (k = 0; k < 12; k += 1) {
+        void *queue = OSInitFIFOQueue((UINT8)nodes, NODE_SIZE);
+        struct { void *Q, *PendingOp; UINT32 Head, Tail, MaxIndex; } *fifo = queue;
+        UINT8 *node;
+        fifo->Head = fifo->Tail = fifo->MaxIndex - 5000 - k;
+        for (round = 0; round < 5000; round += 1) {
+           n = 1 + round % nodes;
+           for (i = 0; i < n; i += 1)
+              if ((node = OSGetFreeNodeFIFO(queue)) == NULL ||
+                  !OSEnqueueFIFO(queue, node, (UINT16)(round + i)))
+                 ok = 0;
+           for (i = 0; i < n; i += 1) {
+              node = OSDequeueFIFO(queue, &size);
+              if (node == NULL || size != (UINT16)(round + i))
+                 ok = 0;
+              if (node != NULL)
+                 OSReleaseNodeFIFO(queue, node);
+           }
+           if (OSDequeueFIFO(queue, &size) != NULL)
+              ok = 0;
+        }
+     }
+  Check("  queues of 2 to 4 nodes keep their order across the wrap of their indices, "
+        "from 12 phases", ok);
+}
+
 int main(void)
 {
+  int fill;
   setvbuf(stdout, NULL, _IOLBF, 0);   /* keep what was printed if the kernel crashes */
   signal(SIGALRM, Timeout);
   alarm(10);
-  TestFIFO();
-  TestFIFOPreempted();
-  TestFIFONested();
-  TestFIFOIndexWrap();
-  TestCoreQueue();
-  TestCoreQueueInterleaved();
-  TestBuffer(OS_BUFFER_TYPE_3_SLOT, "3-slot");
-  TestBuffer(OS_BUFFER_TYPE_4_SLOT, "4-slot");
-  TestPublication(OS_BUFFER_TYPE_3_SLOT, "3-slot");
-  TestPublication(OS_BUFFER_TYPE_4_SLOT, "4-slot");
+  /* Twice: what OSMalloc hands out filled with 0xA5, then each word with a small count of
+  ** its own. A field the kernels forget to set reads wrong under one fill or the other,
+  ** never both (host_port.c). */
+  for (fill = 0; fill < 2; fill += 1) {
+     HostMallocFill = fill == 0 ? 0xA5 : HOST_FILL_COUNT;
+     printf("\n%s\n", fill == 0 ? "Memory filled with 0xA5" : "Memory filled with counts");
+     TestFIFO();
+     TestFIFOPreempted();
+     TestFIFONested();
+     TestFIFOIndexWrap();
+     TestFIFOWrapPhases();
+     TestCoreQueue();
+     TestCoreQueueInterleaved();
+     TestBuffer(OS_BUFFER_TYPE_3_SLOT, "3-slot");
+     TestBuffer(OS_BUFFER_TYPE_4_SLOT, "4-slot");
+     TestPublication(OS_BUFFER_TYPE_3_SLOT, "3-slot");
+     TestPublication(OS_BUFFER_TYPE_4_SLOT, "4-slot");
+  }
   TestOutOfMemory();
   printf("\n%s\n", Failures ? "FAILURES" : "all checks passed");
   return Failures ? 1 : 0;

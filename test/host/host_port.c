@@ -14,6 +14,7 @@
 ** fail (HostFailingSC).
 */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "Escapement.h"
@@ -34,10 +35,27 @@ static BOOL  OverflowPending = FALSE;
 #define TIME_LIMIT 0x40000000      /* 2^30, the wraparound of the kernel clock */
 
 
-void _OSInitializeTimer(void) { }
+/* What the target needs of the kernel at start, which the host would otherwise let pass:
+** the timer initialised before it is started, and started with interrupts masked, so
+** that no interrupt runs before the time origin is set; the idle task sleeping. Left out,
+** each passed every test, and the target would not run (a reading of the surviving
+** mutants, 2026-10-06). */
+unsigned HostTimerInitialised = 0, HostTimerStarted = 0, HostSlept = 0;
+static void HostPortFails(const char *what)
+{
+  printf("FAILED: %s\n", what);
+  exit(1);
+}
+
+void _OSInitializeTimer(void) { HostTimerInitialised = 1; }
 
 void _OSStartTimer(void)
 {
+  if (!HostTimerInitialised)
+     HostPortFails("the timer started before it was initialised");
+  if (!HostMasked)
+     HostPortFails("the timer started with interrupts unmasked");
+  HostTimerStarted = 1;
   Clock = 0;
   ArmedDeadline = -1;
   OverflowPending = FALSE;
@@ -85,11 +103,14 @@ INT32 HostClockNow(void) { return Clock; }
 
 /* HostTicksToNextEvent: Returns how far the clock must move to reach the next instant the
 ** hardware would interrupt: the deadline the kernel armed, or else the wraparound of the
-** counter. An arrival beyond the wraparound is not armed until the time shift brings it
-** within reach, so the overflow is then the only event left. */
+** counter, whichever comes first. A periodic arrival beyond the wraparound is not armed
+** until the time shift brings it within reach; an event-driven task waiting for its
+** previous deadline keeps one time, which may lie past it and is armed so: the clock
+** stopped there skipped the interrupt of the wraparound (a reading of the surviving
+** mutants, 2026-10-06). */
 INT32 HostTicksToNextEvent(void)
 {
-  if (ArmedDeadline > Clock)
+  if (ArmedDeadline > Clock && ArmedDeadline < TIME_LIMIT)
      return ArmedDeadline - Clock;
   return TIME_LIMIT - Clock;
 }
@@ -98,6 +119,10 @@ INT32 HostTicksToNextEvent(void)
 void HostAdvanceBy(INT32 delta)
 {
   Clock += delta;
+  /* The comparator's flag rises at the deadline armed, as on the target, where a handler
+  ** that never clears it loops forever. */
+  if (ArmedDeadline >= 0 && ArmedDeadline < TIME_LIMIT && Clock >= ArmedDeadline)
+     _OSComparatorInterruptFlag = TRUE;
   if (Clock >= TIME_LIMIT) {
      Clock -= TIME_LIMIT;
      OverflowPending = TRUE;
@@ -118,7 +143,13 @@ void _OSIOHandler(void) { }
 ** filled with 0xA5, so that a field the kernel forgets to set does not read as 0. Zeroed,
 ** as calloc gave them until 2026-10-04, the blocks hid some thirty statements of the
 ** hard kernel that set a field: left out, each passed every test (tools/mutants.py).
-** A test may set another byte, or -1 for zeros. */
+** Filled with one byte, though, every word reads the same, so that two indices a kernel
+** forgot to set come out equal, as an empty queue's are, and a size forgotten reads huge,
+** so that no queue wraps in a test. HOST_FILL_COUNT gives each word a count of its own,
+** from 2, neither 0 nor 1, the bytes past the last whole word 0xA5: small counts, though,
+** leave the upper bytes of a word 0, which a narrow field forgotten then reads as if set.
+** Neither fill sees all (a reading of the surviving mutants, 2026-10-06): test_ipc runs
+** under both. A test may set a byte instead, or -1 for zeros. */
 int HostMallocFill = 0xA5;
 int HostMallocBudget = -1;       /* allocations left before OSMalloc fails, -1 for no limit */
 void *OSMalloc(UINT16 size)
@@ -129,7 +160,14 @@ void *OSMalloc(UINT16 size)
   if (HostMallocBudget > 0)
      HostMallocBudget -= 1;
   block = calloc(1, size);
-  if (block != NULL && HostMallocFill >= 0)
+  if (block != NULL && HostMallocFill == HOST_FILL_COUNT) {
+     static UINT32 count = 2;      /* small: a size or an index left so wraps early */
+     UINT16 k;
+     memset(block, 0xA5, size);
+     for (k = 0; k + 4 <= size; k += 4, count += 1)
+        memcpy((char *)block + k, &count, 4);
+  }
+  else if (block != NULL && HostMallocFill >= 0)
      memset(block, HostMallocFill, size);
   return block;
 }

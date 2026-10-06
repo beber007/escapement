@@ -272,6 +272,35 @@ interrupt. The reading also found a fault of the host test, not of the kernel: a
 armed past the wraparound made `HostTicksToNextEvent` skip the interrupt of the wrap, which
 the random task sets, their signals far apart, never met.
 
+Tests were then written for the survivors the host can reach, and each kill checked by
+running the mutant again:
+
+- a task the kernel elects is never a zombie but while it ends (212);
+- the host's port asks what a board needs at start: the timer initialised, then started
+  with interrupts masked; the handler only once it is; the start asking a context switch
+  and unmasking; the idle task sleeping; the comparator's flag raised at the deadline
+  armed. Eighteen mutants seen only on a board die so (12 to 19, 89, 222, 241 to 248);
+- memory from OSMalloc filled with a small count in each word rather than one byte, under
+  which two indices forgotten no longer read equal and a size forgotten no longer reads
+  huge (338, 340, 348, 370). It hid two others, a narrow field forgotten reading the 0 of
+  a small count's upper bytes as if set (46, 385): no fill sees all, and the IPC tests run
+  under both, 0xA5 staying the default;
+- queues of 2 to 4 nodes taken across the wrap of their indices from 12 phases (250 to
+  254, 330, 331), and a slot of one byte read by reference (460).
+
+Two of the 3-slot buffer's table, 413 and 416, the writer taking the slot being read,
+still survive a reference held from every state: the models and the litmus tests catch
+them, `mutants.py` does not. And `tools/differential.py` draws since the same night an
+event-driven task signalled at the edges, a signal just before the wraparound and a second
+within its workload, or one at the very tick of the wrap, or at time 0. Its first run
+failed on most builds; read with the trace, no failure was the kernel's. Its model gave
+the server's deadlines in the order of the signals where the kernel gives them in the
+order of the releases, a signal before its task's last deadline being released at that
+deadline, after later signals of other tasks; it counted signals the kernel coalesces, one
+kept pending per event, the rest dropped (TestSignals), which sets that may coalesce are now
+left out for; and a ninth task, past the host's eight, was dropped unseen, which the host
+now refuses aloud. 2,000 sets a build agree.
+
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
 window under-counts by one WCET at most, and random task sets seldom come that close. A

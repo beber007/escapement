@@ -48,7 +48,10 @@ void HostUnmask(void);
 #define _OSClearSoftTimerInterrupt()    ((void)0)
 #define _OSEnableInterrupts()           HostUnmask()
 #define _OSDisableInterrupts()          (HostMasked = 1)
-#define _OSSleep()                      ((void)0)
+extern int HostMallocFill;           /* the byte OSMalloc fills with, or one of: */
+#define HOST_FILL_COUNT (-2)         /* each word a count of its own (host_port.c) */
+extern unsigned HostSlept;           /* the idle task's sleeps, which the target needs */
+#define _OSSleep()                      ((void)(HostSlept += 1))
 #ifndef HOST_LITMUS
 #define _OSMemoryBarrier()              do { __asm volatile ("" ::: "memory"); \
                                              if (HostBarrierHook) HostBarrierHook(); } while (0)
