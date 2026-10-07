@@ -319,7 +319,46 @@ their WCET, and simulates from each optional instance admitted the schedule in w
 every instance takes its WCET; the instance must end by its deadline. Kernels made to
 leave out the instance's own WCET, half the mandatory work or the partial instance fail
 it under DM, and hang on the overload guard under EDF. The survivors pass: they
-under-count within what still fits. A quarter of the power-aware kernel's survivors were in
+under-count within what still fits.
+
+Two things kept that check short, found on 2026-10-07 from a question of the user's, about
+instances ending early. Every instance of a task took the same time, so an end never came
+earlier than the one before; and nothing compared the kernel's decisions with its test.
+The kernel tests an optional instance once, when it first reaches the head, and drops it
+for good: in `firmonce`, an instance dropped at 100 would pass the same test at 121, the
+task before it having ended in 1 tick of its 50, and is never tested again. That is no
+fault of safety, and the test pins it as the kernel has it. Since then the host's trace
+takes a time for each instance (`D task instance takes`), drawn apart for the second run
+of each (m,k)-firm set, and `tools/differential.py` holds the kernel to its test, written
+from `IsTaskSchedulable`'s header rather than its code. The kernel's count of mandatory
+instances rounds up, ceil(n m / k) over n whole periods, where an even pattern may hold
+fewer; the reference rounds as the kernel does, a rule taken from its code after the
+pattern alone had admitted instances the kernel dropped, two of them read in the trace to
+that rounding. An optional instance that
+starts must pass the test at its start or at an end before, where it may have been
+admitted, a release at that instant preempting it. An instance dropped must fail it where
+the trace shows when it was decided: at the first point the kernel considered optional
+instances while it waited, if it was the only one undecided there. The first version took
+for such a point an end where an instance admitted before, then preempted, was still due,
+and failed the kernel twice in 2,000 sets; read in the trace, the kernel was right. On
+1,000 sets of each build, of the 2,794 optional instances dropped under EDF, 2,231 are so
+checked; 2,160 would have ended in time every instance taking its WCET, and 331 would have
+passed the test at a later point the kernel scheduled from; under DM, 1,789, 1,457 and
+224 of 2,072. Testing a dropped instance again would win the last number; a test tighter
+than counting every mandatory instance up to the deadline, most of the one before.
+Run again on the soft kernel's 152 survivors at 300 sets a build, the reference killed 4:
+a mandatory arrival one tick before the deadline left out (151), a test that admits at
+the deadline itself (213), an optional instance put at the head of their queue rather
+than by its deadline (364), and,
+by a drop the test refuses, a partial instance counted whole (169). Of the survivors left
+in the periodic part of the test, 8 were read and change nothing (a scan that goes past
+the deadline adding 0, ties where both branches add the WCET), and are declared with the
+guard of the test, 107, which `IsTaskSchedulable` makes redundant; 3 more, overflow guards
+weakened or skipped for a WCET of 1, would differ only near 2^30 ticks of work, and stay
+counted. The rest are in the event-driven part, which the reference leaves out. The
+kernel scores 79.6 % (576 of 724), 80.6 % of the 715 not declared.
+
+A quarter of the power-aware kernel's survivors were in
 the choice of speed (`GetProcessorSpeed`, DRA's simulation, DM_SLACK's slack): a mutant
 that picks a faster speed than it needs keeps every deadline, and nothing held the
 policies to the speeds their specification gives.

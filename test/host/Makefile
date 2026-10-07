@@ -95,6 +95,7 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	                      ./$(BUILD)/test_scheduler_$$b firmlong && \
 	                      ./$(BUILD)/test_scheduler_$$b firmevents && \
 	                      ./$(BUILD)/test_scheduler_$$b firmwait && \
+	                      ./$(BUILD)/test_scheduler_$$b firmonce && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventwait && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventqueued && \
 	                      ./$(BUILD)/test_scheduler_$$b firmwrapmandatory && \

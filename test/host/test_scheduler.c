@@ -1360,10 +1360,14 @@ typedef struct TimedTask {
   INT32 Slow;                 /* ticks run below the fastest speed */
   UINT8 Ran[32];              /* firmwait: the instances that ran, from the first */
   void *Event;                /* the event of an event-driven task, NULL if periodic */
+  BOOL Each;                  /* trace: each instance takes what EachTakes says, its work
+                              ** drawn when it is first elected (Work 0) */
 } TimedTask;
 
 #define TIMED_TASKS 8
 static TimedTask Timed[TIMED_TASKS];
+#define MAX_EACH 1024
+static INT32 EachTakes[TIMED_TASKS][MAX_EACH];   /* by instance, from 0; 0 for its WCET */
 /* trace: who runs, from when, for how long and at what speed, and when each instance
 ** ends, for tools/differential.py to check against the algorithms. */
 static FILE *TraceOut = NULL;
@@ -1408,6 +1412,10 @@ static INT32 WorkPerTick(UINT8 speed)
 static INT32 NextWork(const TimedTask *task)
 {
   INT32 quarter = task->WCET / 4;
+  if (task->Each) {
+     INT32 takes = task->Instance < MAX_EACH ? EachTakes[task - Timed][task->Instance] : 0;
+     return (takes != 0 ? takes : task->WCET) * 256;
+  }
   if (task->Takes != 0 && (task->Only < 0 || task->Instance == (unsigned)task->Only))
      return task->Takes * 256;
   if (TimedRun != TIMED_EARLY)
@@ -1457,7 +1465,7 @@ static void TimedTaskCode(void *argument)
   if (TimedNow() > (INT32)task->Instance * task->Period + task->Deadline)
      task->Misses += 1;
   task->Instance += 1;
-  task->Work = NextWork(task);
+  task->Work = task->Each ? 0 : NextWork(task);
   OSEndTask();
 }
 
@@ -1607,6 +1615,14 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
      if (active != IdleTCB) {
         TimedTask *task = (TimedTask *)active->Argument;
         ElectedNoZombie(active, _OSNoSaveContext);
+        if (task->Each && task->Work == 0) {
+           /* An (m,k)-firm task's instances may be dropped: the one elected is known
+           ** from the time, every instance running within its period. */
+           task->Instance = (unsigned)(now / task->Period);
+           task->Work = NextWork(task);
+           if (task->Instance < sizeof task->Ran)
+              task->Ran[task->Instance] += 1;
+        }
         UINT8 speed = Speed();
         INT32 rate = WorkPerTick(speed), toEnd = (task->Work + rate - 1) / rate;
         if (now < (INT32)task->Instance * task->Period)
@@ -1970,6 +1986,8 @@ static void TestTimeWrap(TimedMode mode)
 **                                  given in the order of their times
 **   F wcet period deadline takes m k   an (m,k)-firm task, soft kernel only, its pattern
 **                                  starting at instance 0
+**   D task instance takes          what that instance of a periodic or (m,k)-firm task
+**                                  takes, the others of the task their WCET
 ** Tasks are numbered in the order of their lines, as the trace numbers them. The run
 ** starts at phase of the counter, 0 unless given: a phase short of 2^30 takes the run
 ** across the wraparound of the kernel clock, the trace counting time from the start. */
@@ -2023,6 +2041,17 @@ static void TestTrace(INT32 duration, INT32 phase)
               b >= 0 && b < (long)NbTimed) {
         SignalAt[NbSignals] = (INT32)a;
         SignalTo[NbSignals++] = Timed[b].Event;
+     }
+     else if (kind[0] == 'D' && scanf("%ld %ld %ld", &a, &b, &c) == 3 && a >= 0 &&
+              a < (long)NbTimed && Timed[a].Event == NULL && b >= 0 && b < MAX_EACH &&
+              c > 0) {
+        EachTakes[a][b] = (INT32)c;
+        Timed[a].Each = TRUE;
+        Timed[a].Work = 0;
+     }
+     else {
+        printf("FAILED: a line not understood, at \"%s\"\n", kind);
+        exit(1);
      }
   }
   StartKernel(NULL, NULL);
@@ -2394,6 +2423,51 @@ static void TestFirmWait(void)
   Check("  the ready queue stays whole", QueueBreaks == 0);
   snprintf(label, sizeof label, "  no deadline missed: %u", misses);
   Check(label, misses == 0);
+}
+
+/* TestFirmOnce: The kernel tests an optional instance once, when it first reaches the
+** head, and drops it for good if the test fails. An (m,k)-firm task of WCET 35 and period
+** 100, (1,2), its mandatory instance 0 taking 1 tick, and a periodic task of WCET 50,
+** period 60, taking 1. At 100 the optional instance 1 fails the test: its WCET and the
+** periodic task's instances released at 120 and 180, counted up to 200, end past it
+** (100 + 35 + 50 + 20 = 205). The periodic task then ends at 121 in 1 tick, and from there
+** the instance would pass (121 + 35 + 20 = 176) and end by 156 at worst; it is not tested
+** again. What this pins is what the kernel does, not what it should: tools/differential.py
+** counts such instances (docs/method.md), and testing them again would change the kernel. */
+static void TestFirmOnce(void)
+{
+  INT32 duration = 300;
+  char label[96];
+  TimedTask *firm = &Timed[0], *periodic = &Timed[1];
+
+  firm->WCET = firm->Takes = 35;
+  firm->Period = firm->Deadline = 100;
+  firm->Each = TRUE;
+  EachTakes[0][0] = 1;
+  periodic->WCET = 50;
+  periodic->Takes = 1;
+  periodic->Period = periodic->Deadline = 60;
+  periodic->Only = -1;
+  periodic->Work = NextWork(periodic);
+  NbTimed = 2;
+  OSCreateTask(TimedTaskCode, firm->WCET, 0, firm->Period, firm->Deadline, 1, 2, 0, firm);
+  OSCreateTask(TimedTaskCode, periodic->WCET, 0, periodic->Period, periodic->Deadline,
+               1, 1, 0, periodic);
+  StartKernel(NULL, NULL);
+  RunTimed(duration);
+
+  printf("\n%d ticks of simulated time, an optional instance tested once\n\n", duration);
+  snprintf(label, sizeof label, "  mandatory instances 0 and 2 ran: %u, %u", firm->Ran[0],
+           firm->Ran[2]);
+  Check(label, firm->Ran[0] == 1 && firm->Ran[2] == 1);
+  snprintf(label, sizeof label, "  optional instance 1, dropped at 100, never ran: %u",
+           firm->Ran[1]);
+  Check(label, firm->Ran[1] == 0);
+  snprintf(label, sizeof label, "  the periodic task: %u of %d instances", periodic->Instance,
+           duration / periodic->Period);
+  Check(label, periodic->Instance == (unsigned)(duration / periodic->Period));
+  snprintf(label, sizeof label, "  no deadline missed: %u", firm->Misses + periodic->Misses);
+  Check(label, firm->Misses + periodic->Misses == 0);
 }
 
 /* TestFirmEventWait: An optional instance started, then delayed by an event-driven task
@@ -2843,6 +2917,8 @@ int main(int argc, char *argv[])
         TestFirmEvents();
      else if (argc > 1 && strcmp(argv[1], "firmwait") == 0)
         TestFirmWait();
+     else if (argc > 1 && strcmp(argv[1], "firmonce") == 0)
+        TestFirmOnce();
      else if (argc > 1 && strcmp(argv[1], "firmeventwait") == 0)
         TestFirmEventWait();
      else if (argc > 1 && strcmp(argv[1], "firmeventqueued") == 0)

@@ -32,6 +32,10 @@ times; the trace counts time from the start. At every instant of a trace:
   which the host does not have);
 - the timer interrupts only at a release, and once at an instant (lines "I"): the kernel
   has no periodic tick.
+- an optional instance of an (m,k)-firm task starts only if it passes the soft kernel's
+  admission test (admission_test()), and, every instance taking its WCET, ends by its
+  deadline; the second run of each such set gives each instance a time of its own, and
+  counts the drops a WCET schedule, or the same test at a later point, would have admitted.
 
 The speeds the power-aware kernel picks are checked apart, on every task set of its five
 builds: tools/speed_reference.py computes the speed of each dispatch from the policy's
@@ -94,6 +98,13 @@ def mandatory(j, m, k):
     instances evenly over k (test/host, Mandatory), its first instance mandatory."""
     j %= k
     return j == (j * m + k - 1) // k * k // m
+
+
+def takes(task, r):
+    """What the instance of a periodic or (m,k)-firm task released at r takes: "each",
+    by instance, where given, else "takes"."""
+    each = task.get("each")
+    return each[r // task["period"]] if each else task["takes"]
 
 
 def event_driven(takes, workload, signals):
@@ -298,6 +309,9 @@ def run(build, tasks, phase=0):
     for s, i in sorted((s, i) for i, t in enumerate(tasks) if t["kind"] == "E"
                        for s in t["signals"]):
         lines.append("S %d %d" % (s, i))
+    for i, t in enumerate(tasks):
+        for k, c in enumerate(t.get("each", [])):
+            lines.append("D %d %d %d" % (i, k, c))
     # What OSMalloc hands out is never freed, by design: test/host/Makefile turns the leak
     # check of AddressSanitizer off, which Linux runs and macOS does not.
     env = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
@@ -327,7 +341,7 @@ def worst_case_end(tasks, jobs, todo, i, target, t, dm):
             if job is target:
                 continue
             if not job[4] or job[5]:
-                received = tasks[j]["takes"] * 256 - job[3]
+                received = job[7] - job[3]
                 left = -(-(tasks[j]["wcet"] * 256 - received) // 256)
                 if left > 0:
                     ready.append([job[0], job[2], left, False])
@@ -352,7 +366,41 @@ def worst_case_end(tasks, jobs, todo, i, target, t, dm):
             ready.remove(run)
 
 
-def check(build, tasks, trace, speeds=True, phase=0):
+def admission_test(tasks, i, target, t, rounded=True):
+    """The test the soft kernel makes of an optional instance of task i, about to start at
+    t, written from what IsTaskSchedulable's header promises, not from its code: the
+    instance starts only if its WCET still fits before its deadline D, and if t, its WCET
+    and every mandatory instance released from t on and before D, each counted up to D,
+    come before D. Nothing else is ready when an optional instance is considered, and an
+    instance of higher priority released after D cannot delay it. Under EDF the mandatory
+    instances whose deadline is past D do not delay it either: the test counts them all,
+    as the kernel does, and so overestimates. Rounded, as the kernel counts them, a rule
+    taken from its code where the header is silent: of the n whole periods from a task's
+    next mandatory release, ceil(n m / k) mandatory, which an even pattern may hold fewer
+    of, the period left as the pattern has it."""
+    d = target[1]
+    if d - tasks[i]["wcet"] <= t:
+        return False
+    work = tasks[i]["wcet"]
+    for task in tasks:
+        p, c = task["period"], task["wcet"]
+        first = -(-t // p)
+        while first * p < d and not mandatory(first, task["m"], task["k"]):
+            first += 1
+        if first * p >= d:
+            continue
+        whole = (d - first * p) // p
+        if rounded:
+            work += -(-whole * task["m"] // task["k"]) * c
+        else:
+            work += sum(c for k in range(first, first + whole)
+                        if mandatory(k, task["m"], task["k"]))
+        if mandatory(first + whole, task["m"], task["k"]):
+            work += min(c, d - (first + whole) * p)
+    return t + work < d
+
+
+def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
     """Raises Failure at the first point the trace breaks the algorithm, or, speeds
     True, a speed the power-aware policy of build would not pick. A run started at
     phase of the counter, not 0, crosses its 2^30 wraparound, where the timer interrupts
@@ -360,9 +408,11 @@ def check(build, tasks, trace, speeds=True, phase=0):
     dm = build in DEADLINE_MONOTONIC
     power_aware = build.startswith("pa_")
     todo = instances(tasks, dm)                   # not yet released, in release order
-    # pending: [release, deadline, key, work, optional, started, admissible]; an optional
-    # instance of an (m,k)-firm task may be dropped, and is not waited for until it starts;
-    # admissible, it may have been admitted at an end where nothing else was due
+    # pending: [release, deadline, key, work, optional, started, admissible, takes, first];
+    # an optional instance of an (m,k)-firm task may be dropped, and is not waited for until
+    # it starts; admissible, the times of the ends where nothing else was due, at which it
+    # may have been decided; first, the first point the kernel considered optional
+    # instances at while it waited, and whether it was the only one undecided there
     jobs = {i: [] for i in range(len(tasks))}
     longest = [0] * len(tasks)                    # the longest response seen, per task
 
@@ -370,8 +420,12 @@ def check(build, tasks, trace, speeds=True, phase=0):
         while todo and todo[0][1] <= t:
             i, r, d, k, optional = todo.pop(0)
             # An optional instance not started when its task arrives again is dropped.
+            for job in jobs[i]:
+                if job[4] and not job[5]:
+                    dropped(i, job)
             jobs[i] = [j for j in jobs[i] if not (j[4] and not j[5])]
-            jobs[i].append([r, d, k, tasks[i]["takes"] * 256, optional, False, False])
+            work = takes(tasks[i], r) * 256
+            jobs[i].append([r, d, k, work, optional, False, [], work, None])
 
     def due(i):
         """The instance of task i that must run: mandatory, or optional and started."""
@@ -392,6 +446,85 @@ def check(build, tasks, trace, speeds=True, phase=0):
     if phase:
         release_times.add(0x40000000 - phase)
     last_interrupt = None
+    firm_only = all(x["kind"] == "F" for x in tasks)
+
+    def decide(t, admitted=None):
+        """The optional instances the kernel decided on by t, nothing else due: admitted
+        the one that starts, if any, dropped those ahead of it, all of them if the
+        processor idles; those tied with it may come later. One admissible at an end before
+        (job[6]) may have been admitted there, a release at that instant preempting it,
+        and what was dropped then is not known: none is taken for dropped. Every one
+        admitted must pass the admission test at t or at one of those ends; the instant of
+        a drop is not known as surely, and decisions only counts the drops that every
+        instance taking its WCET would have let end in time (fits)."""
+        if not firm_only:
+            return
+        if admitted is not None and len(admitted) > 9:
+            raise Failure("t=%d: an optional instance released at %d starts, dropped "
+                          "before" % (t, admitted[0]))
+        undecided = [(job[2], j, job) for j, pending in jobs.items() for job in pending
+                     if job[4] and not job[5] and len(job) == 9 and job[0] <= t]
+        for k, j, job in sorted(undecided, key=lambda x: x[0]):
+            if admitted is not None and (k >= admitted[2] or admitted[6]):
+                break
+            job.append("dropped")
+            if decisions is not None:
+                decisions["dropped"] += 1
+                if worst_case_end(tasks, jobs, todo, j, job, (job[6] + [t])[0], dm) <= job[1]:
+                    decisions["fits"] += 1
+        if admitted is not None:
+            j = next(j for j, pending in jobs.items() if admitted in pending)
+            if not any(admission_test(tasks, j, admitted, at) for at in admitted[6] + [t]):
+                raise Failure("t=%d: an optional instance of task %d starts that the "
+                              "admission test refuses, at %s" % (t, j, admitted[6] + [t]))
+            admitted.append("admitted")
+            if decisions is not None:
+                decisions["admitted"] += 1
+
+    def consider(t, at_end):
+        """t is a point the kernel considers optional instances at, nothing being due: an
+        end (released before t) or a dispatch (released by t). An instance waiting there
+        for the first time is decided there if it is the only one undecided: the kernel
+        takes them in order, and stops at the first it admits. One decided before, alone,
+        may have been admitted, a release preempting it: if it starts after t, it was due
+        there, and t no point of decision (dropped())."""
+        if not firm_only:
+            return
+        unstarted = [job for pending in jobs.values() for job in pending
+                     if job[4] and not job[5] and (job[0] < t if at_end else job[0] <= t)]
+        decided = [job for job in unstarted if job[8] and job[8][1]]
+        waiting_optional = [job for job in unstarted if not (job[8] and job[8][1])]
+        for job in waiting_optional:
+            if job[8] is None:
+                job[8] = (t, len(waiting_optional) == 1, decided)
+
+    def dropped(i, job):
+        """An optional instance that never ran, its deadline gone: dropped, and where it
+        was the only one undecided at its first point, dropped there, which the admission
+        test must agree with."""
+        if not firm_only or job[8] is None or not job[8][1]:
+            return
+        if any(other[5] and other[5] - 1 >= job[8][0] for other in job[8][2]):
+            return
+        if admission_test(tasks, i, job, job[8][0]):
+            raise Failure("t=%d: an optional instance of task %d released at %d is dropped "
+                          "that the admission test admits" % (job[8][0], i, job[0]))
+        if decisions is not None:
+            decisions["sure"] += 1
+
+    def retest(t):
+        """At t, a point where the kernel schedules with nothing due, the instances
+        dropped before that the admission test would admit now: the kernel tests an
+        optional instance once, and what it drops stays dropped, though an instance
+        ending early since may leave it the time (decisions, later)."""
+        if decisions is None or not firm_only:
+            return
+        for j, pending in jobs.items():
+            for job in pending:
+                if len(job) > 9 and job[9] == "dropped" and admission_test(tasks, j, job, t):
+                    job[9] = "later"
+                    decisions["later"] += 1
+
     for line in trace.splitlines():
         fields = line.split()
         if not fields:
@@ -417,7 +550,9 @@ def check(build, tasks, trace, speeds=True, phase=0):
                 for pending in jobs.values():
                     for job in pending:
                         if job[4] and not job[5] and job[0] < t:
-                            job[6] = True
+                            job[6].append(t)
+                consider(t, True)
+                retest(t)
             continue
         if fields[0] == "T":
             if now != int(fields[1]):
@@ -435,6 +570,9 @@ def check(build, tasks, trace, speeds=True, phase=0):
         if i < 0:
             if waiting():
                 raise Failure("t=%d: idle while task %s waits" % (t, waiting()))
+            consider(t, False)
+            decide(t)
+            retest(t)
             if later:
                 raise Failure("t=%d: idle through the release of task %d at %d" %
                               (t, later[0][0], later[0][1]))
@@ -457,7 +595,9 @@ def check(build, tasks, trace, speeds=True, phase=0):
                     raise Failure("t=%d: an optional instance of task %d starts that, every "
                                   "task taking its WCET, ends at %d, past its deadline %d" %
                                   (t, i, end, job[1]))
-            job[5] = True
+            consider(t, False)
+            decide(t, job)
+            job[5] = t + 1
         best = min(key(j) for j in waiting())
         if key(i) > best:
             raise Failure("t=%d: task %d runs (%s %d) while %s waits with %d" %
@@ -485,6 +625,8 @@ def check(build, tasks, trace, speeds=True, phase=0):
     release_until(now - 1)
     for i in jobs:
         for job in jobs[i]:
+            if job[4] and not job[5] and job[1] <= now:
+                dropped(i, job)
             if job[1] <= now and (not job[4] or job[5]):
                 raise Failure("task %d: the instance released at %d never ended by its "
                               "deadline %d" % (i, job[0], job[1]))
@@ -601,8 +743,32 @@ def self_test():
         wrong_speeds["a preemption without its timer line"] = lost
     else:
         sys.exit("self-test: a trace with a preemption without its timer line passed")
+    # The soft kernel's test of optional instances: an (m,k)-firm task's instance released
+    # at 100, and a task of period 60 taking 1 tick of its WCET, 20 or 50. At 100 the
+    # instance passes the test with the first (35 + 20 + 20 before 200), and fails it with
+    # the second (35 + 50 + 20): each kernel's trace is the other's fault.
+    each = {"each": [1, 35, 35, 35]}
+    light = [dict(firm(35, 100, 35, 1, 2), **each), dict(firm(20, 60, 1, 1, 1), each=[1] * 6)]
+    heavy = [light[0], dict(firm(50, 60, 1, 1, 1), each=[1] * 6)]
+    head = "S 0 1 1 0\nE 1 1\nS 1 1 0 0\nE 2 0\nS 2 58 -1 0\nI 60\nS 60 1 1 0\nE 61 1\n" \
+           "S 61 39 -1 0\nI 100\n"
+    tail = "I 180\nS 180 1 1 0\nE 181 1\nS 181 19 -1 0\nI 200\nS 200 35 0 0\nE 235 0\n" \
+           "S 235 5 -1 0\nI 240\nS 240 1 1 0\nE 241 1\nS 241 59 -1 0\nI 300\nT 300\n"
+    admitted = head + "S 100 20 0 0\nI 120\nS 120 1 1 0\nE 121 1\nS 121 15 0 0\nE 136 0\n" \
+                      "S 136 44 -1 0\n" + tail
+    dropped = head + "S 100 20 -1 0\nI 120\nS 120 1 1 0\nE 121 1\nS 121 59 -1 0\n" + tail
+    check("soft_edf", light, admitted)
+    check("soft_edf", heavy, dropped)
+    wrong_firm = {"an instance admitted that the test refuses": (heavy, admitted),
+                  "an instance dropped that the test admits": (light, dropped)}
+    for name, (tasks, trace) in wrong_firm.items():
+        try:
+            check("soft_edf", tasks, trace)
+        except Failure:
+            continue
+        sys.exit("self-test: a trace with %s passed" % name)
     print("self-test: %d faulty traces caught" %
-          (len(wrong) + len(wrong_events) + len(wrong_speeds)))
+          (len(wrong) + len(wrong_events) + len(wrong_speeds) + len(wrong_firm)))
 
 
 def main():
@@ -616,6 +782,7 @@ def main():
     failed = 0
     for build in builds:
         rng = random.Random("%s-%d" % (build, seed))
+        decisions = {"admitted": 0, "dropped": 0, "sure": 0, "fits": 0, "later": 0}
         for n in range(count):
             if build.startswith("soft") and rng.random() < 0.5:
                 tasks = draw_firm(rng, build in DEADLINE_MONOTONIC)
@@ -628,17 +795,27 @@ def main():
             if all(t["kind"] in "PE" for t in tasks) and wrap.random() < 0.5:
                 tasks = edge_signals(wrap, tasks, phase, build in DEADLINE_MONOTONIC)
             try:
-                check(build, tasks, run(build, tasks, phase), phase=phase)
+                check(build, tasks, run(build, tasks, phase), phase=phase, decisions=decisions)
                 if any(t["kind"] == "F" for t in tasks):
+                    # Each instance takes from 1 tick to its WCET, drawn apart: an end
+                    # earlier than the one before moves the instant optional ones are
+                    # decided at, which a time per task kept the same.
                     light = random.Random("%s-%d-%d" % (build, seed, n))
-                    tasks = [dict(t, takes=light.randint(1, t["wcet"])) for t in tasks]
-                    check(build, tasks, run(build, tasks, phase), phase=phase)
+                    tasks = [dict(t, each=[light.randint(1, t["wcet"])
+                                           for _ in range(DURATION // t["period"] + 1)])
+                             for t in tasks]
+                    check(build, tasks, run(build, tasks, phase), phase=phase,
+                          decisions=decisions)
             except (Failure, subprocess.TimeoutExpired) as e:
                 failed += 1
                 print("%s, set %d %s, phase %d: %s" % (build, n, tasks, phase, e))
                 break
         else:
             print("%s: %d task sets, every trace holds" % (build, count))
+            if decisions["admitted"] + decisions["dropped"]:
+                print("  optional instances: %(admitted)d admitted, %(dropped)d dropped (%(sure)d "
+                      "checked), of which %(fits)d would end in time, every instance taking its WCET, "
+                      "and %(later)d the admission test would admit later" % decisions)
     sys.exit(1 if failed else 0)
 
 
