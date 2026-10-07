@@ -80,6 +80,7 @@ wrong with confidence, and the record has to show how each conclusion was reache
 | The kernel schedules by earliest deadline first — the first line of the README, and what sets the project apart | Running the scheduler on the host, where a mirror of the task control block read a pointer where a deadline belonged | Every example shipped was scheduling deadline-monotonic. `EscapementHard.h` set the algorithm itself, with no `#ifndef`, and no configuration file overrode it |
 | The RP2040's region of the MPU over the 1 KB below the stack would lock the core up on an overflow, the HardFault's own stacking faulting in the region — written by the assistant on 2026-10-04, and in the code's comment | `StackGuardPico` on the Pico (2026-10-05): DHCSR's S_LOCKUP at 0, the core in its HardFault handler | HFNMIENA at 0 turns the MPU off at the HardFault's priority: its stacking lands in the region, and the handler runs, the globals untouched |
 | `Sentinel` written over under Renode in the deadline-monotonic build came from Renode, whose stacking of the fault walked down past the region — stated by the assistant, since the EDF build kept it and Renode takes a MemManage that ARMv6-M does not have | The disassembly of `Recurse` | GCC had put two levels of it in one frame of 1,536 bytes, which stepped over the 1 KB region: the test now keeps it out of line, and a frame of 1 KB or more is a limit of the guard, written in its comment |
+| Under EDF the soft kernel's test of an optional instance need count only the mandatory instances due by its deadline, the others waiting for it; most of the instances it drops would then run — proposed by the assistant on 2026-10-07, and accepted | The kernel changed so, under `tools/differential.py`: a task set whose instances all take their WCET hung on the overload guard, a mandatory instance ending at 2,412, its deadline 2,384 | The instances that wait for it must still keep their own deadlines, which counting every one released before its deadline protected. `worst_case_end` simulated only to the optional instance's end, and counted as safe drops that made others miss; it now runs until the processor would first be free, and fails the kernel so changed at 1,703, before the hang. The change was not kept |
 
 One more mistake was of a different kind. An early rebranding pass deleted a comment
 terminator in 32 files, and the first attempt to repair them corrupted 57 healthy ones.
@@ -342,10 +343,12 @@ instances while it waited, if it was the only one undecided there. The first ver
 for such a point an end where an instance admitted before, then preempted, was still due,
 and failed the kernel twice in 2,000 sets; read in the trace, the kernel was right. On
 1,000 sets of each build, of the 2,794 optional instances dropped under EDF, 2,231 are so
-checked; 2,160 would have ended in time every instance taking its WCET, and 331 would have
-passed the test at a later point the kernel scheduled from; under DM, 1,789, 1,457 and
-224 of 2,072. Testing a dropped instance again would win the last number; a test tighter
-than counting every mandatory instance up to the deadline, most of the one before.
+checked; 2,141 could have run, every instance taking its WCET and keeping its deadline,
+and 331 would have passed the test at a later point the kernel scheduled from; under DM,
+1,789, 1,441 and 224 of 2,072. Testing a dropped instance again would win the last number.
+A tighter test could win most of the one before, but not by leaving out the instances due
+after the optional one's deadline, as tried the same day (see "Hypotheses that were
+wrong"): it has to hold the deadlines of the instances it delays.
 Run again on the soft kernel's 152 survivors at 300 sets a build, the reference killed 4:
 a mandatory arrival one tick before the deadline left out (151), a test that admits at
 the deadline itself (213), an optional instance put at the head of their queue rather

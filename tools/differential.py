@@ -329,13 +329,18 @@ def run(build, tasks, phase=0):
 
 def worst_case_end(tasks, jobs, todo, i, target, t, dm):
     """When the optional instance target of task i, starting at t, would end were every
-    instance to take its WCET: the instances pending at t, mandatory or optional and
-    started, their WCET less the work they received; every mandatory instance released
-    before its deadline; and the instance itself, which loses every tie. Optional instances
-    not yet started never delay it: the kernel considers one only when no other instance
-    waits (EDF), or behind the instances promoted to their base priority (DM). Event-driven
-    tasks are left out, as their worst case is the kernel's reservation, not a schedule."""
-    ready = []                                    # [release, key, ticks left, target]
+    instance to take its WCET, and the first instance that would then miss its deadline,
+    None if none would: the instances pending at t, mandatory or optional and started,
+    their WCET less the work they received; every mandatory instance released after, until
+    the processor would first be free once the instance has ended, from where the
+    schedule is the one without it; and the instance itself, which loses every tie. Its end
+    alone is not enough: under EDF it runs ahead of the instances released before its
+    deadline whose own deadline is later, and they may miss theirs (2026-10-07). Optional
+    instances not yet started never delay it: the kernel considers one only when no other
+    instance waits (EDF), or behind the instances promoted to their base priority (DM).
+    Event-driven tasks are left out, as their worst case is the kernel's reservation, not
+    a schedule."""
+    ready = []                          # [release, key, ticks left, target, task, deadline]
     for j, pending in jobs.items():
         for job in pending:
             if job is target:
@@ -344,26 +349,29 @@ def worst_case_end(tasks, jobs, todo, i, target, t, dm):
                 received = job[7] - job[3]
                 left = -(-(tasks[j]["wcet"] * 256 - received) // 256)
                 if left > 0:
-                    ready.append([job[0], job[2], left, False])
-    for j, r, _, key, optional in todo:
-        if r < target[1] and not optional:
-            ready.append([r, key, tasks[j]["wcet"], False])
-    ready.append([t, target[2], tasks[i]["wcet"], True])
-    now = t
+                    ready.append([job[0], job[2], left, False, j, job[1]])
+    later = [[r, key, tasks[j]["wcet"], False, j, d]
+             for j, r, d, key, optional in todo if not optional]
+    ready.append([t, target[2], tasks[i]["wcet"], True, i, target[1]])
+    now, end, missed = t, None, None
     while True:
-        released = [x for x in ready if x[0] <= now]
-        if not released:
-            now = min(x[0] for x in ready)
+        while later and later[0][0] <= now:
+            ready.append(later.pop(0))
+        if not ready:
+            if end is not None or not later:
+                return end, missed
+            now = later[0][0]
             continue
-        run = min(released, key=lambda x: (x[1], x[3]))
-        later = [x[0] for x in ready if x[0] > now]
-        step = min([run[2]] + [r - now for r in later])
+        run = min(ready, key=lambda x: (x[1], x[3]))
+        step = run[2] if not later else min(run[2], later[0][0] - now)
         run[2] -= step
         now += step
         if run[2] == 0:
-            if run[3]:
-                return now
             ready.remove(run)
+            if run[3]:
+                end = now
+            if now > run[5] and missed is None:
+                missed = (run[4], run[0], now, run[5])
 
 
 def admission_test(tasks, i, target, t, rounded=True):
@@ -454,9 +462,9 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
         processor idles; those tied with it may come later. One admissible at an end before
         (job[6]) may have been admitted there, a release at that instant preempting it,
         and what was dropped then is not known: none is taken for dropped. Every one
-        admitted must pass the admission test at t or at one of those ends; the instant of
-        a drop is not known as surely, and decisions only counts the drops that every
-        instance taking its WCET would have let end in time (fits)."""
+        admitted must pass the admission test at t or at one of those ends (a drop is
+        checked in dropped(), where its instant is sure); decisions counts the drops that
+        could have run, every instance taking its WCET and keeping its deadline (fits)."""
         if not firm_only:
             return
         if admitted is not None and len(admitted) > 9:
@@ -470,7 +478,8 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
             job.append("dropped")
             if decisions is not None:
                 decisions["dropped"] += 1
-                if worst_case_end(tasks, jobs, todo, j, job, (job[6] + [t])[0], dm) <= job[1]:
+                end, missed = worst_case_end(tasks, jobs, todo, j, job, (job[6] + [t])[0], dm)
+                if end <= job[1] and missed is None:
                     decisions["fits"] += 1
         if admitted is not None:
             j = next(j for j, pending in jobs.items() if admitted in pending)
@@ -590,11 +599,15 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
                 raise Failure("t=%d: an optional instance of task %d starts while %s must "
                               "run" % (t, i, before))
             if all(x["kind"] in "PF" for x in tasks):
-                end = worst_case_end(tasks, jobs, todo, i, job, t, dm)
+                end, missed = worst_case_end(tasks, jobs, todo, i, job, t, dm)
                 if end > job[1]:
                     raise Failure("t=%d: an optional instance of task %d starts that, every "
                                   "task taking its WCET, ends at %d, past its deadline %d" %
                                   (t, i, end, job[1]))
+                if missed is not None:
+                    raise Failure("t=%d: an optional instance of task %d starts after which, "
+                                  "every task taking its WCET, task %d released at %d ends "
+                                  "at %d, past its deadline %d" % ((t, i) + missed))
             consider(t, False)
             decide(t, job)
             job[5] = t + 1
@@ -767,8 +780,18 @@ def self_test():
         except Failure:
             continue
         sys.exit("self-test: a trace with %s passed" % name)
+    # An optional instance admitted at 100, due at 200, ahead of a mandatory instance
+    # released at 110 and due at 230, of WCET 100: it ends in time itself, the other at 235.
+    tasks = [firm(35, 100, 35, 1, 2), periodic(100, 110, 120, 1)]
+    target = [100, 200, 200, 35 * 256, True, False, [], 35 * 256, None]
+    end, missed = worst_case_end(tasks, {0: [], 1: []},
+                                 [x for x in instances(tasks, False) if x[1] > 100], 0,
+                                 target, 100, False)
+    if (end, missed) != (135, (1, 110, 235, 230)):
+        sys.exit("self-test: an instance delayed past its deadline was not seen: %s, %s" %
+                 (end, missed))
     print("self-test: %d faulty traces caught" %
-          (len(wrong) + len(wrong_events) + len(wrong_speeds) + len(wrong_firm)))
+          (len(wrong) + len(wrong_events) + len(wrong_speeds) + len(wrong_firm) + 1))
 
 
 def main():
@@ -814,7 +837,8 @@ def main():
             print("%s: %d task sets, every trace holds" % (build, count))
             if decisions["admitted"] + decisions["dropped"]:
                 print("  optional instances: %(admitted)d admitted, %(dropped)d dropped (%(sure)d "
-                      "checked), of which %(fits)d would end in time, every instance taking its WCET, "
+                      "checked), of which %(fits)d could have run, every instance taking its WCET "
+                      "and keeping its deadline, "
                       "and %(later)d the admission test would admit later" % decisions)
     sys.exit(1 if failed else 0)
 
