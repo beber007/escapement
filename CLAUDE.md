@@ -153,6 +153,32 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
 - A result stated in the docs is a measured one, with its date; one that did not
   reproduce is said so, not quietly replaced (`docs/method.md`).
 
+## Before a release
+
+Written on 2026-10-07; the user left the three open choices to the assistant, who made
+them as below. `docs/roadmap.md`, "Release 0.1", applies this list to the first release.
+
+1. **A freeze**: a tag `vX.Y.Z-rcN`. From it on, fixes only, each a new candidate.
+2. **The CI and the board checks pass** on the candidate (`build`, `board/pico`,
+   `board/pico2`, `board/u5`).
+3. **A week of endurance on the candidate** for each kernel and each port changed since
+   its last week (`git log` of `Escapement/`), on a board that runs it; one unchanged
+   keeps its week, cited with its commit.
+4. **Each measurement the release cites was made on the code it ships**, or is taken
+   out, or marked as made on an older version.
+5. **Each claim of `README.md` checked** on the candidate (`docs/method.md`, "What the
+   README claims"), and "Hypotheses that were wrong" up to date.
+6. **The mutants**: every survivor in code changed since the last release read, then
+   killed, declared equivalent with its reason, or explained in `docs/method.md`; the
+   scores measured again on the candidate. For 0.1, every survivor.
+7. **Coverage**: every line run or excluded with its reason, branches above the floor.
+8. **The licence**: `NOTICE` lists every third-party component; each file derived from
+   ZottaOS keeps its notice, each new one the project's header.
+9. **The known limits written**, and whether the API is stable (not before 1.0).
+10. **The version**: a number in `Escapement.h`, introduced at the first release; the
+    "Version identifier" lines of 2012 in the headers stay, as ZottaOS's.
+11. **The notes, the tag, a GitHub release.**
+
 ## Conventions
 
 - Commit messages in English, imperative subject, a body that explains why.
