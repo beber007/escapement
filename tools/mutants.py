@@ -48,6 +48,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 
@@ -204,6 +205,21 @@ def mutants(path):
     return [(k, *m) for k, m in enumerate(found)]
 
 
+def run(args, **kwargs):
+    """subprocess.run in a process group of its own, the whole group killed on the timeout:
+    killing make alone left the test it ran spinning, orphaned, long after the campaign."""
+    timeout = kwargs.pop("timeout")
+    with subprocess.Popen(args, start_new_session=True, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, **kwargs) as proc:
+        try:
+            out, err = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.communicate()
+            raise
+    return subprocess.CompletedProcess(args, proc.returncode, out, err)
+
+
 def run_mutant(kernel, mutant, sets=100):
     """Builds and tests one mutant; returns its record."""
     ident, op, number, original, mutated = mutant
@@ -224,23 +240,22 @@ def run_mutant(kernel, mutant, sets=100):
     targets = ["%s/test_scheduler_%s" % (build, b) for b in builds] + \
               ["%s/test_ipc_%s" % (build, kernel)]
     try:
-        if subprocess.run(make + targets, capture_output=True, timeout=LIMIT).returncode:
+        if run(make + targets, timeout=LIMIT).returncode:
             record["verdict"] = "invalid"
             return record
         # A mutant may print memory as it is, the host's 0xA5 among it: decoded with
         # replacement, rather than stop the run on the first byte that is not UTF-8.
-        test = subprocess.run(make + ["run", "BUILDS=" + " ".join(builds), "IPC=" + kernel],
-                              capture_output=True, text=True, errors="replace", timeout=LIMIT)
+        test = run(make + ["run", "BUILDS=" + " ".join(builds), "IPC=" + kernel],
+                   text=True, errors="replace", timeout=LIMIT)
         if test.returncode:
             failed = [l for l in test.stdout.splitlines() if "FAILED" in l]
             record["verdict"], record["by"] = "killed", (failed or ["host test"])[0].strip()
             return record
         env = dict(os.environ, BUILD=build)
         for b in builds:
-            diff = subprocess.run(["nice", "-n", "10", sys.executable,
-                                   os.path.join(ROOT, "tools", "differential.py"), b, str(sets)],
-                                  capture_output=True, text=True, errors="replace",
-                                  timeout=LIMIT, env=env)
+            diff = run(["nice", "-n", "10", sys.executable,
+                        os.path.join(ROOT, "tools", "differential.py"), b, str(sets)],
+                       text=True, errors="replace", timeout=LIMIT, env=env)
             if diff.returncode:
                 record["verdict"] = "killed"
                 record["by"] = "differential: " + diff.stdout.strip().splitlines()[-1][:160]

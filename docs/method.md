@@ -301,6 +301,14 @@ kept pending per event, the rest dropped (TestSignals), which sets that may coal
 left out for; and a ninth task, past the host's eight, was dropped unseen, which the host
 now refuses aloud. 2,000 sets a build agree.
 
+Run whole on 9d9157c, at 300 task sets a build, the hard kernel's mutants scored 86.4 %
+(418 of 484), 95.4 % of the 438 not declared; the power-aware kernel's 81.5 % (651 of
+799), 84.0 % of the 775 not declared; the soft kernel's 79.0 % (572 of 724). The run also
+showed a fault of `tools/mutants.py`: a test that ran past its time limit was reported
+killed, but only `make` was stopped, and three soft mutants (217, 218, 247) kept spinning
+an hour and forty minutes after the campaign, their parent gone. Each step now runs in a
+process group of its own, killed whole on the limit.
+
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
 window under-counts by one WCET at most, and random task sets seldom come that close. A
