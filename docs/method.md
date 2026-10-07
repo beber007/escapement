@@ -398,7 +398,14 @@ instance not started by its next release. The test takes the instant it is calle
 the instant the optional instance would start, and its own time, up to 420 µs where the
 shortest period is 283, is counted nowhere; the count's pessimism covered its 34 µs.
 The RP2040's core divides in software, and each count of an interval divides several
-times.
+times. With the user's agreement the kernel went back to the count the same night,
+under EDF as under DM, the reference of `tools/differential.py`, `docs/api.md` and the
+host tests with it; `DemandFits` stays in the history, its prototype in
+`tools/differential.py` and `tools/firm_admission.py` to count what a test that counted
+its own cost might win. The bench, now timing the count, stays. On the same tasks the count took 13.8 µs in the
+mean and 31.0 at most over 20,000 tests, interrupts masked, and 13.9 and 31.7 left
+unmasked, the board running on both times; the 16.6 µs of the run before went through
+the share reserved for event-driven tasks, which the bench no longer reserves.
 Of its 60 mutants that compiled, the random sets killed 40. Read, 7 of the 20 left were
 faults no set had met, killed by host tests. Four, at the edges, were found again by
 simulating the schedule under the fault (`tools/firm_admission.py`'s simulation, the

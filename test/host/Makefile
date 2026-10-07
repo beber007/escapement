@@ -96,9 +96,6 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	                      ./$(BUILD)/test_scheduler_$$b firmevents && \
 	                      ./$(BUILD)/test_scheduler_$$b firmwait && \
 	                      ./$(BUILD)/test_scheduler_$$b firmonce && \
-	                      ./$(BUILD)/test_scheduler_$$b firmdemand && \
-	                      ./$(BUILD)/test_scheduler_$$b firmdemandlong && \
-	                      ./$(BUILD)/test_scheduler_$$b firmdemandlongdue && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventwait && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventqueued && \
 	                      ./$(BUILD)/test_scheduler_$$b firmwrapmandatory && \
@@ -109,10 +106,7 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	                         ./$(BUILD)/test_scheduler_$$b firmwrapend && \
 	                         ./$(BUILD)/test_scheduler_$$b firmoverloadsum && \
 	                         ./$(BUILD)/test_scheduler_$$b firmdiscount && \
-	                         ./$(BUILD)/test_scheduler_$$b firmdiscountnear && \
-	                         ./$(BUILD)/test_scheduler_$$b firmdemandset 0 && \
-	                         ./$(BUILD)/test_scheduler_$$b firmdemandset 1 && \
-	                         ./$(BUILD)/test_scheduler_$$b firmdemandset 2 || exit 1;; esac; \
+	                         ./$(BUILD)/test_scheduler_$$b firmdiscountnear || exit 1;; esac; \
 	done
 	@for k in $(IPC); do echo; echo "=== $$k"; ./$(BUILD)/test_ipc_$$k || exit 1; done
 

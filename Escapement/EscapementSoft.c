@@ -567,127 +567,17 @@ void ScheduleNextTask(void)
 #define MulDivUp(a,b,c) ((a) / (c) * (b) + ((a) % (c) * (b) + (c) - 1) / (c))
 
 
-#if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
-/* The most mandatory instances DemandFits walks before refusing, which is always safe:
-** with 16, tools/firm_admission.py ran as many optional instances as with no bound on
-** 1,000 task sets (2026-10-07), 8 losing a few. */
-#ifndef OS_FIRM_DEMAND_BOUND
-   #define OS_FIRM_DEMAND_BOUND 16
-#endif
-
-/* MandatoryBefore: The mandatory instances of tcb released from its next mandatory one,
-** "from" ticks from now, and before "until" ticks from now. Of the instances numbered
-** [0, j) of the evenly spread pattern, ceil(j*m/k) are mandatory, the first being 0; the
-** pattern repeats every k instances, which leaves the next mandatory one's number in it,
-** NextMandatoryInstance, as good as its number from the start. */
-static INT32 MandatoryBefore(const TCB *tcb, INT32 from, INT32 until)
-{
-  INT32 instances;
-  if (until <= from)
-     return 0;
-  if (tcb->PeriodHigh != 0)      // a period of 2^30 or more: one instance in the interval
-     return 1;
-  instances = (until - from - 1) / tcb->PeriodLow + 1;
-  return MulDivUp(tcb->NextMandatoryInstance + instances,tcb->M,tcb->K) -
-         MulDivUp(tcb->NextMandatoryInstance,tcb->M,tcb->K);
-}
-
-/* NextMandatoryFromNow: When the next mandatory instance of tcb is released, in ticks
-** from now. */
-static INT32 NextMandatoryFromNow(const TCB *tcb, INT32 now)
-{
-  INT32 from = tcb->NextMandatoryArrivalTimeLow - now;
-  if (tcb->NextMandatoryArrivalTimeHigh)   // the arrival is 2^30 + its low part
-     from += ShiftTimeLimit;
-  return from;
-}
-
-/* WorkBefore: wcet and the WCET of the mandatory instances released from now on and
-** before "until" ticks from now, or, due set, due by "until"; past 0x3FFFFFFF, any value
-** past it. */
-static INT32 WorkBefore(INT32 until, INT32 wcet, INT32 now, BOOL due)
-{
-  TCB *tcb;
-  INT32 work = wcet, add;
-  for (tcb = _OSQueueHead; (tcb = tcb->Next[ARRIVALQ]) != _OSQueueTail; ) {
-     if (tcb->TaskState & TASKTYPE_BLOCKING)
-        continue;
-     add = MandatoryBefore(tcb,NextMandatoryFromNow(tcb,now),
-                           due ? until - tcb->Deadline + 1 : until);
-     if (add > (0x3FFFFFFF - work) / (tcb->WCET > 0 ? tcb->WCET : 1))
-        return 0x40000000;
-     work += add * tcb->WCET;
-  }
-  return work;
-}
-
-/* DemandFits: Whether the optional instance at the head of the ready queue (_OSActive-
-** Task) can start now and keep every deadline, its own and those of the mandatory
-** instances it would delay, every instance taking its WCET: the processor demand
-** criterion of EDF (Baruah, Rosier and Howell, 1990) from now, when nothing else is
-** ready. The instances released from now on are feasible without it. With it, each
-** deadline from its own on must have its WCET and the mandatory instances due by then
-** before it, until the processor would first be free: past that instant the schedule
-** is the one without it. Counting instead every mandatory instance released before its
-** own deadline, as IsTaskSchedulable does, dropped about a quarter of the optional
-** instances that could run (tools/firm_admission.py, 2026-10-07); leaving out those due
-** after it, which it delays, missed their deadlines (docs/method.md). Refuses past
-** OS_FIRM_DEMAND_BOUND mandatory instances in that stretch. Kept out of ScheduleNext-
-** Task: inlined there, its loops took the registers along the paths that drop an optional
-** instance, and tools/check_order.py, which checks the order of the stores on those
-** paths, could no longer tell which held _OSQueueTail (2026-10-07; the order was right).
-** Returned value: (BOOL) TRUE if the instance can be scheduled. */
-__attribute__((noinline)) static BOOL DemandFits(void)
-{
-  TCB *tcb;
-  INT32 now = GetTaskTime();
-  INT32 deadline = _OSActiveTask->NextDeadline - now;
-  INT32 wcet = _OSActiveTask->WCET;
-  INT32 busy, work, count, release, instance;
-  /* The first instant the processor would be free: the fixed point of the work released
-  ** before it. Each step that moves it takes one more instance at least. */
-  busy = wcet;
-  for (count = 0; (work = WorkBefore(busy,wcet,now,FALSE)) != busy; count += 1) {
-     if (count >= OS_FIRM_DEMAND_BOUND || work > 0x3FFFFFFF)
-        return FALSE;
-     busy = work;
-  }
-  /* Each deadline from the optional instance's on, up to that instant: its own, and those
-  ** of the mandatory instances released before it. Past it the demand is at most the
-  ** instant itself. */
-  if (WorkBefore(deadline,wcet,now,TRUE) > deadline)
-     return FALSE;
-  count = 0;
-  for (tcb = _OSQueueHead; (tcb = tcb->Next[ARRIVALQ]) != _OSQueueTail; ) {
-     if (tcb->TaskState & TASKTYPE_BLOCKING)
-        continue;
-     instance = tcb->NextMandatoryInstance;
-     for (release = NextMandatoryFromNow(tcb,now); release < busy;
-          release += tcb->PeriodLow, instance += 1) {
-        if (instance != MulDiv(MulDivUp(instance,tcb->M,tcb->K),tcb->K,tcb->M))
-           continue;                           // optional
-        if (++count > OS_FIRM_DEMAND_BOUND)
-           return FALSE;
-        if (release + tcb->Deadline > deadline && release + tcb->Deadline <= busy &&
-            WorkBefore(release + tcb->Deadline,wcet,now,TRUE) > release + tcb->Deadline)
-           return FALSE;
-        if (tcb->PeriodHigh != 0)              // one instance only before busy
-           break;
-     }
-  }
-  return TRUE;
-} /* end of DemandFits */
-#endif
-
-
 /* IsTaskSchedulable: Determines whether the optional instance at the head of the ready
 ** queue (_OSActiveTask) can start now and still meet its deadline. No mandatory instance
 ** is ready when an optional one reaches the head, so only work released later can delay
 ** it: its own WCET, the mandatory instances of every periodic task released before its
 ** deadline (all of them, which overestimates under DM once the instance is promoted),
 ** and either the event-driven tasks of higher priority (DM) or the bandwidth Aperiodic-
-** Utilization reserves for them (EDF). Under EDF with no such bandwidth, DemandFits
-** decides instead, exactly but for its bound.
+** Utilization reserves for them (EDF). A test by processor demand, exact for a kernel
+** that costs nothing, took this one's place under EDF on 2026-10-07 and was taken out
+** the same night: at 125 MHz on the RP2040 it took up to 420 us, which it counted
+** nowhere, and a task set missed its deadlines on the board, where this test, 34 us at
+** most, kept them (docs/method.md).
 ** Returned value: (BOOL) TRUE if the instance can be scheduled. */
 BOOL IsTaskSchedulable(void)
 {
@@ -698,10 +588,6 @@ BOOL IsTaskSchedulable(void)
   INT32 tmp, totalWork, fullInstances, partial, mandatory;
   UINT32 deadlineHigh = _OSActiveTask->NextDeadline > 0x3FFFFFFF;
   INT32 deadlineLow = _OSActiveTask->NextDeadline & 0x3FFFFFFF;
-  #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
-     if (AperiodicUtilization == 0)
-        return DemandFits();
-  #endif
   /* Because _OSActiveTask->NextDeadline - _OSGetActualTime() is <= 0x3FFFFFFF, the
   ** amount of work that can be done in this interval is also <= 0x3FFFFFFF. */
   totalWork = _OSActiveTask->WCET;

@@ -12,12 +12,11 @@ else is due, in the order of its deadline, admitted or dropped there for good, a
 soft kernel does, then runs ahead of the mandatory instances due later, losing ties. It
 shares the task sets of tools/differential.py and its two tests:
 
-  counting  counting_test(), the soft kernel's test under EDF until 2026-10-07, counting
-            every mandatory instance released before the optional one's deadline
-  kernel    admission_test(), the kernel's since: the demand criterion, refusing past
-            OS_FIRM_DEMAND_BOUND mandatory instances in the busy stretch
+  kernel    admission_test(), the soft kernel's test, counting every mandatory instance
+            released before the optional one's deadline
   demand    demand_test(), the processor demand criterion from the instant of decision
-            until the processor would first be free, with no bound
+            until the processor would first be free, with no bound: exact for a kernel
+            that costs nothing, too costly on the RP2040 to keep (docs/method.md)
   alone     admits whatever fits by itself: no test at all, which must miss deadlines,
             the witness that the simulation sees them
 
@@ -42,9 +41,7 @@ _spec.loader.exec_module(differential)
 
 DURATION = differential.DURATION
 TESTS = {
-    "counting": lambda tasks, i, target, t: differential.counting_test(tasks, i, target, t),
-    "kernel": lambda tasks, i, target, t: differential.admission_test(tasks, i, target, t,
-                                                                      False),
+    "kernel": lambda tasks, i, target, t: differential.admission_test(tasks, i, target, t),
     "demand": lambda tasks, i, target, t: differential.demand_test(tasks, i, target, t)[0],
     "alone": lambda tasks, i, target, t: target[1] - tasks[i]["wcet"] >= t,
 }

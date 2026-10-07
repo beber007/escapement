@@ -46,14 +46,11 @@ comes. The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
 
 **Tasks, in order, each finished before the next begins:**
 
-1. **What the soft kernel's test of an optional instance costs on the Pico** (measured on
-   2026-10-07, `method.md`, after "It went into the kernel"): the count 16.6 µs in the
-   mean and 34 at most over 20,000 tests; `DemandFits` 68 to 78 µs in the mean and 420 at
-   most, and the kernel's overload guard stopped the board after 42 tests, interrupts
-   masked around each, and after 634 left unmasked. Left: whether `DemandFits` stays as
-   it is, takes its own cost into account, is made cheaper, or gives way to the count,
-   which is the user's to decide; then that decision carried out and measured again on
-   the same bench.
+1. **What the soft kernel's test of an optional instance costs on the Pico — done on
+   2026-10-07** (`method.md`, after "It went into the kernel"). `DemandFits` took up to
+   420 µs and the board missed deadlines; the kernel went back to the count, as the user
+   decided, which took 13.8 µs in the mean and 31.0 at most over 20,000 tests and kept
+   every deadline (`make KERNEL=SOFT bench-admission`, `tools/admission_cost.py`).
 2. **An endurance run that exercises the soft kernel's optional instances.** `SoakPico`
    and `SoakU5`, built with `KERNEL=SOFT`, give every task m = k = 1: no optional
    instance, no test of one, ever runs. A variant with (m,k)-firm tasks under a load that
@@ -91,7 +88,9 @@ comes. The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
 **Not in 0.1**, open after it: the energy verdict on the RP2040 (item 1); DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
 the STM32U3 on its board; the PPK2 as a check of each commit on the STM32U5 (item 4); how
 often a wake-up byte of LPUART1 comes out wrong (item 6); testing a dropped optional
-instance again; an exhaustive enumeration of small task sets and fuzzing.
+instance again; an exhaustive enumeration of small task sets and fuzzing; a test of
+optional instances by processor demand that counts its own cost, bounded and measured on
+each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`).
 
 ## Open work, in order
 

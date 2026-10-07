@@ -102,11 +102,8 @@ Out of any `k` consecutive instances, `m` must meet their deadline. The others a
 optional. An optional instance runs only if the kernel can still meet every mandatory
 deadline, and that test reads the declared `wcet`, not the time a task actually takes.
 The kernel tests an optional instance once, when nothing else is ready, and a drop is
-final. Under EDF, with no event-driven bandwidth reserved, the test is exact by processor
-demand until the processor would first be free, and refuses past `OS_FIRM_DEMAND_BOUND`
-mandatory instances in that stretch, 16 unless defined; otherwise it counts every
-mandatory instance released before the optional one's deadline, which is safe but drops
-more.
+final. The test counts every mandatory instance released before the optional one's
+deadline, which is safe and drops more than an exact test would.
 `m = k` makes a task hard. `m` is at least 1 and at most `k`. `startInstance` staggers
 the pattern of mandatory instances between tasks, and `OSGetTaskInstance()` tells a
 task where in its pattern it stands. `wcet` may be 0 when every task has `m = k`.

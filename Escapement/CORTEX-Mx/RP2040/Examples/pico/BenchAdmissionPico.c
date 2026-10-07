@@ -8,12 +8,12 @@
 ** test runs here (_OSMeasureAdmission).
 **
 ** Eight (m,k)-firm tasks, the set tools/firm_admission.py's simulation found the most
-** costly for the test by processor demand (DemandFits) among 1,500 sets of eight
-** (2026-10-07): up to 169 counts of an interval in one decision, 44 in the mean. Each
-** instance spins on the 1 us counter for a pseudo-random quarter of its WCET to all of
-** it, so that the test is made at many instants. Built with COUNT, an event-driven task
-** that is never signalled reserves 1/256 of the processor, which sends the kernel back to
-** the count it made before 2026-10-07 (IsTaskSchedulable), on the same tasks.
+** costly for a test by processor demand among 1,500 sets of eight (2026-10-07): up to 169
+** counts of an interval in one decision, 44 in the mean. Each instance spins on the 1 us
+** counter for a pseudo-random quarter of its WCET to all of it, so that the test is made
+** at many instants. That test, timed here the same night, took up to 420 us and the
+** board missed deadlines; it was taken out, and the kernel's count is what this times
+** since (docs/method.md).
 **
 ** Each test is timed in cycles by SysTick, its counter running with no interrupt (the
 ** kernel only pends the exception by hand), interrupts masked around it: what is timed
@@ -111,14 +111,6 @@ static void FirmTask(void *argument)
   OSEndTask();
 } /* end of FirmTask */
 
-#ifdef COUNT
-static void EventTask(void *argument)
-{
-  (void)argument;
-  OSSuspendSynchronousTask();
-} /* end of EventTask */
-#endif
-
 #define VTOR *((volatile UINT32 *)0xE000ED08)
 
 
@@ -143,8 +135,5 @@ int main(void)
      OSCreateTask(FirmTask, (INT32)Set[i][0], 0, (INT32)Set[i][1], (INT32)Set[i][1],
                   (UINT8)Set[i][2], (UINT8)Set[i][3], 0, &Tasks[i]);
   }
-  #ifdef COUNT
-     OSCreateSynchronousTask(EventTask, 1, 1000, 1, OSCreateEventDescriptor(), NULL);
-  #endif
   return OSStartMultitasking(NULL,NULL);
 } /* end of main */

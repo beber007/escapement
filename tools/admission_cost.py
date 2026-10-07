@@ -9,10 +9,11 @@ instance costs.
 
 BenchAdmissionPico (make KERNEL=SOFT bench-admission) times in cycles, at 125 MHz, each
 test the kernel makes of an optional instance, eight (m,k)-firm tasks running under EDF,
-then raises AdmissionDone; BenchAdmissionCountPico does the same on the count the test
-by demand replaced. The tool loads each image in turn, waits for that, reads Admission
-without stopping a core, and prints the tests made and admitted, the cycles in the mean,
-the most and the fewest, in microseconds too, and how they spread by powers of two.
+then raises AdmissionDone; BenchAdmissionUnmaskedPico does the same with interrupts left
+unmasked while the test runs. The tool loads each image in turn, waits for that, reads
+Admission without stopping a core, and prints the tests made and admitted, the cycles in
+the mean, the most and the fewest, in microseconds too, and how they spread by powers of
+two.
 Needs OpenOCD and the Pico's Debug Probe (PROBE, tools/probe.sh), and its lock on the
 bench (tools/board_ci.md).
 """
