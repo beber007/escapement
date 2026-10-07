@@ -1362,6 +1362,7 @@ typedef struct TimedTask {
   void *Event;                /* the event of an event-driven task, NULL if periodic */
   BOOL Each;                  /* trace: each instance takes what EachTakes says, its work
                               ** drawn when it is first elected (Work 0) */
+  unsigned Runs;              /* the instances of a periodic task that ended */
 } TimedTask;
 
 #define TIMED_TASKS 8
@@ -1464,6 +1465,7 @@ static void TimedTaskCode(void *argument)
   }
   if (TimedNow() > (INT32)task->Instance * task->Period + task->Deadline)
      task->Misses += 1;
+  task->Runs += 1;
   task->Instance += 1;
   task->Work = task->Each ? 0 : NextWork(task);
   OSEndTask();
@@ -2470,6 +2472,177 @@ static void TestFirmOnce(void)
   Check(label, firm->Misses + periodic->Misses == 0);
 }
 
+/* TestFirmDemand: The test of an optional instance by demand (DemandFits under EDF), at
+** its own deadline. An (m,k)-firm task of WCET 35 and period 100, (1,2), its instance 0
+** taking 1 tick; a periodic task of WCET 70, period 110 and deadline 80, taking 1; and an
+** event-driven task of workload 50 declared a WCET of 0, which alone leaves the kernel no
+** bandwidth to reserve, taking 1, signalled at 95 and 96, then 295 and 296: each second
+** signal waits in the arrival queue for the first one's deadline, where the test passes
+** it over. At 100 the optional instance 1 must fail: the periodic instance released at
+** 110 is due at 190, before its own deadline, and with it 105 ticks are due in 100; the
+** busy stretch from 100 ends at 310, three steps on. A periodic task of period 50 declared
+** a WCET of 0, taking 1, counts for nothing, and must not stop the test, which divides by
+** the WCET of each task. At 300 instance 3 passes; under DM,
+** which still counts every mandatory instance released before its deadline, the one
+** released at 330 makes it fail (300 + 35 + 70 > 400). */
+static void TestFirmDemand(void)
+{
+  INT32 duration = 400;
+  char label[96];
+  TimedTask *firm = &Timed[0], *periodic = &Timed[1], *events = &Timed[2], *none = &Timed[3];
+
+  firm->WCET = firm->Takes = 35;
+  firm->Period = firm->Deadline = 100;
+  firm->Each = TRUE;
+  EachTakes[0][0] = 1;
+  periodic->WCET = 70;
+  periodic->Takes = 1;
+  periodic->Period = 110;
+  periodic->Deadline = 80;
+  periodic->Only = -1;
+  periodic->Work = NextWork(periodic);
+  events->WCET = 1;
+  events->Only = -1;
+  events->Work = events->WCET * 256;
+  events->Event = OSCreateEventDescriptor();
+  none->Takes = 1;
+  none->Period = none->Deadline = 50;
+  none->Only = -1;
+  none->Work = NextWork(none);
+  NbTimed = 4;
+  OSCreateTask(TimedTaskCode, firm->WCET, 0, firm->Period, firm->Deadline, 1, 2, 0, firm);
+  OSCreateTask(TimedTaskCode, 0, 0, none->Period, none->Deadline, 1, 1, 0, none);
+  OSCreateTask(TimedTaskCode, periodic->WCET, 0, periodic->Period, periodic->Deadline,
+               1, 1, 0, periodic);
+  OSCreateSynchronousTask(TimedTaskCode, 0, 50, 0, events->Event, events);
+  SignalAt[0] = 95; SignalTo[0] = events->Event;
+  SignalAt[1] = 96; SignalTo[1] = events->Event;
+  SignalAt[2] = 295; SignalTo[2] = events->Event;
+  SignalAt[3] = 296; SignalTo[3] = events->Event;
+  NbSignals = 4;
+  StartKernel(NULL, NULL);
+  RunTimed(duration);
+
+  printf("\n%d ticks of simulated time, an optional instance tested by demand\n\n",
+         duration);
+  snprintf(label, sizeof label, "  mandatory instances 0 and 2 ran: %u, %u", firm->Ran[0],
+           firm->Ran[2]);
+  Check(label, firm->Ran[0] == 1 && firm->Ran[2] == 1);
+  snprintf(label, sizeof label, "  optional instance 1, due with 105 in 100, never ran: %u",
+           firm->Ran[1]);
+  Check(label, firm->Ran[1] == 0);
+  #if BY_DEADLINE
+     snprintf(label, sizeof label, "  optional instance 3 passed at 300 and ran: %u",
+              firm->Ran[3]);
+     Check(label, firm->Ran[3] == 1);
+  #else
+     snprintf(label, sizeof label, "  optional instance 3, counted with the release at 330, "
+              "never ran: %u", firm->Ran[3]);
+     Check(label, firm->Ran[3] == 0);
+  #endif
+  snprintf(label, sizeof label, "  the event-driven task ran for each signal: %u",
+           events->Instance);
+  Check(label, events->Instance == 4);
+  snprintf(label, sizeof label, "  the task of WCET 0: %u of %d instances", none->Instance,
+           duration / none->Period);
+  Check(label, none->Instance == (unsigned)(duration / none->Period));
+  snprintf(label, sizeof label, "  no deadline missed: %u", firm->Misses + periodic->Misses);
+  Check(label, firm->Misses + periodic->Misses == 0);
+}
+
+/* TestFirmDemandLong: An (m,k)-firm task of period 2^30 + 100, (1,2), and a periodic task
+** of period 2^30 + 150, WCET 5, deadline 20. Past the wrap the optional instance 1 of the
+** first, released at 2^30 + 100, WCET 90 and deadline 100, has the second's release 50
+** ticks on in its busy stretch: counted once, its period past 2^30, and run. */
+static void TestFirmDemandLong(void)
+{
+  long long duration = 0x40000000LL + 1000;
+  char label[96];
+
+  Firm[0].Period = 0x40000000 + 100;
+  Firm[0].M = 1; Firm[0].K = 2;
+  OSCreateTask(FirmTaskCode, 90, 1, 100, 100, 1, 2, 0, &Firm[0]);
+  OSCreateTask(CountingTask, 5, 1, 150, 20, 1, 1, 0, (void *)0);
+  StartKernel(NULL, NULL);
+  RunAcross(duration);
+
+  printf("\n%lld ticks of simulated time, a period past 2^30 in a busy stretch\n\n",
+         duration);
+  snprintf(label, sizeof label, "  both instances of the (1,2) task ran: %u", Firm[0].Runs);
+  Check(label, Firm[0].Runs == 2);
+  snprintf(label, sizeof label, "  the periodic task ran twice: %u", Activations[0]);
+  Check(label, Activations[0] == 2);
+  Check("  no deadline missed", LateArrivals == 0);
+}
+
+/* TestFirmDemandLongDue: As TestFirmDemandLong, the second task of WCET 60 and deadline 60:
+** released 50 ticks into the busy stretch of the optional instance 1, it is due at 110,
+** past the instance's deadline but before the stretch ends, at 150, and 150 ticks are due
+** by then: the instance must be dropped. Tasks here take no time, so that instance 0 and
+** the second task's first one, declared 150 ticks due by 100, run all the same. */
+static void TestFirmDemandLongDue(void)
+{
+  long long duration = 0x40000000LL + 1000;
+  char label[96];
+
+  Firm[0].Period = 0x40000000 + 100;
+  Firm[0].M = 1; Firm[0].K = 2;
+  OSCreateTask(FirmTaskCode, 90, 1, 100, 100, 1, 2, 0, &Firm[0]);
+  OSCreateTask(CountingTask, 60, 1, 150, 60, 1, 1, 0, (void *)0);
+  StartKernel(NULL, NULL);
+  RunAcross(duration);
+
+  printf("\n%lld ticks of simulated time, a period past 2^30 due in a busy stretch\n\n",
+         duration);
+  snprintf(label, sizeof label, "  the optional instance 1 was dropped: %u runs of 2",
+           Firm[0].Runs);
+  Check(label, Firm[0].Runs == 1);
+  snprintf(label, sizeof label, "  the periodic task ran twice: %u", Activations[0]);
+  Check(label, Activations[0] == 2);
+}
+
+/* TestFirmDemandSet: (m,k)-firm task sets drawn by tools/differential.py where a fault of
+** DemandFits at an edge changes how many instances run, every instance taking its WCET,
+** found by simulating the schedule under each fault and confirmed with the kernel made so
+** (2026-10-07): a demand equal to the optional instance's deadline, or to a later one,
+** refused; an instance released at the very end of an interval, or a whole period
+** before it, counted. The number of instances that ran over 6,000 ticks is the kernel's
+** as it is. */
+static void TestFirmDemandSet(int which)
+{
+  static const struct { INT32 WCET, Period; UINT8 M, K; } sets[3][4] = {
+     {{13, 33, 1, 1}, {15, 48, 1, 1}, {21, 64, 1, 2}, {0, 0, 0, 0}},
+     {{33, 66, 1, 4}, {1, 45, 1, 1}, {123, 334, 3, 5}, {8, 31, 1, 1}},
+     {{233, 481, 3, 3}, {2, 428, 2, 4}, {3, 516, 1, 2}, {17, 34, 3, 3}}};
+  static const unsigned expected[3] = {381, 400, 213};
+  INT32 duration = 6000;
+  unsigned i, ran = 0, misses = 0;
+  char label[96];
+
+  for (i = 0; i < 4 && sets[which][i].Period != 0; i += 1) {
+     TimedTask *task = &Timed[NbTimed++];
+     task->WCET = task->Takes = sets[which][i].WCET;
+     task->Period = task->Deadline = sets[which][i].Period;
+     task->Only = -1;
+     task->Each = TRUE;
+     OSCreateTask(TimedTaskCode, task->WCET, 0, task->Period, task->Deadline,
+                  sets[which][i].M, sets[which][i].K, 0, task);
+  }
+  StartKernel(NULL, NULL);
+  RunTimed(duration);
+  for (i = 0; i < NbTimed; i += 1) {
+     ran += Timed[i].Runs;
+     misses += Timed[i].Misses;
+  }
+
+  printf("\n%d ticks of simulated time, task set %d of the demand test's edges\n\n",
+         duration, which);
+  snprintf(label, sizeof label, "  instances that ran: %u of %u", ran, expected[which]);
+  Check(label, ran == expected[which]);
+  snprintf(label, sizeof label, "  no deadline missed: %u", misses);
+  Check(label, misses == 0);
+}
+
 /* TestFirmEventWait: An optional instance started, then delayed by an event-driven task
 ** whose load the schedulability test must count. Under EDF it declares its WCET and
 ** workload but no bandwidth: 700 ticks due within 750 of its signal, 94 % of the
@@ -2919,6 +3092,17 @@ int main(int argc, char *argv[])
         TestFirmWait();
      else if (argc > 1 && strcmp(argv[1], "firmonce") == 0)
         TestFirmOnce();
+     else if (argc > 1 && strcmp(argv[1], "firmdemand") == 0)
+        TestFirmDemand();
+     else if (argc > 1 && strcmp(argv[1], "firmdemandlong") == 0)
+        TestFirmDemandLong();
+     else if (argc > 1 && strcmp(argv[1], "firmdemandlongdue") == 0)
+        TestFirmDemandLongDue();
+     #if BY_DEADLINE
+        else if (argc > 2 && strcmp(argv[1], "firmdemandset") == 0 && atoi(argv[2]) >= 0 &&
+                 atoi(argv[2]) < 3)
+           TestFirmDemandSet(atoi(argv[2]));
+     #endif
      else if (argc > 1 && strcmp(argv[1], "firmeventwait") == 0)
         TestFirmEventWait();
      else if (argc > 1 && strcmp(argv[1], "firmeventqueued") == 0)

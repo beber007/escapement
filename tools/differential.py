@@ -374,9 +374,27 @@ def worst_case_end(tasks, jobs, todo, i, target, t, dm):
                 missed = (run[4], run[0], now, run[5])
 
 
-def admission_test(tasks, i, target, t, rounded=True):
+FIRM_DEMAND_BOUND = 16       # the kernel's OS_FIRM_DEMAND_BOUND
+
+
+def admission_test(tasks, i, target, t, dm):
+    """The soft kernel's test of an optional instance of task i about to start at t, for
+    (m,k)-firm tasks alone: under DM counting_test(); under EDF demand_test(), refusing past
+    FIRM_DEMAND_BOUND mandatory instances in the busy stretch, as the kernel does since
+    2026-10-07 (DemandFits). Either first asks that its WCET still fit before its
+    deadline."""
+    if target[1] - tasks[i]["wcet"] <= t:
+        return False
+    if dm:
+        return counting_test(tasks, i, target, t)
+    admitted, walked = demand_test(tasks, i, target, t)
+    return admitted and walked <= FIRM_DEMAND_BOUND
+
+
+def counting_test(tasks, i, target, t, rounded=True):
     """The test the soft kernel makes of an optional instance of task i, about to start at
-    t, written from what IsTaskSchedulable's header promises, not from its code: the
+    t, under DM, and made under EDF until 2026-10-07, written from what IsTaskSchedulable's
+    header promises, not from its code: the
     instance starts only if its WCET still fits before its deadline D, and if t, its WCET
     and every mandatory instance released from t on and before D, each counted up to D,
     come before D. Nothing else is ready when an optional instance is considered, and an
@@ -526,7 +544,7 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
                     decisions["examined_sum"] += examined
         if admitted is not None:
             j = next(j for j, pending in jobs.items() if admitted in pending)
-            if not any(admission_test(tasks, j, admitted, at) for at in admitted[6] + [t]):
+            if not any(admission_test(tasks, j, admitted, at, dm) for at in admitted[6] + [t]):
                 raise Failure("t=%d: an optional instance of task %d starts that the "
                               "admission test refuses, at %s" % (t, j, admitted[6] + [t]))
             admitted.append("admitted")
@@ -563,7 +581,7 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
             return
         if any(other[5] and other[5] - 1 >= job[8][0] for other in job[8][2]):
             return
-        if admission_test(tasks, i, job, job[8][0]):
+        if admission_test(tasks, i, job, job[8][0], dm):
             raise Failure("t=%d: an optional instance of task %d released at %d is dropped "
                           "that the admission test admits" % (job[8][0], i, job[0]))
         if decisions is not None:
@@ -578,7 +596,7 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
             return
         for j, pending in jobs.items():
             for job in pending:
-                if len(job) > 9 and job[9] == "dropped" and admission_test(tasks, j, job, t):
+                if len(job) > 9 and job[9] == "dropped" and admission_test(tasks, j, job, t, dm):
                     job[9] = "later"
                     decisions["later"] += 1
 
@@ -806,8 +824,10 @@ def self_test():
         sys.exit("self-test: a trace with a preemption without its timer line passed")
     # The soft kernel's test of optional instances: an (m,k)-firm task's instance released
     # at 100, and a task of period 60 taking 1 tick of its WCET, 20 or 50. At 100 the
-    # instance passes the test with the first (35 + 20 + 20 before 200), and fails it with
-    # the second (35 + 50 + 20): each kernel's trace is the other's fault.
+    # instance passes the test with the first, 55 ticks due by 200 and the processor free
+    # at 155, and fails it with the second, whose mandatory instances with the first
+    # task's take more than the processor, the busy stretch never ending: each kernel's
+    # trace is the other's fault.
     each = {"each": [1, 35, 35, 35]}
     light = [dict(firm(35, 100, 35, 1, 2), **each), dict(firm(20, 60, 1, 1, 1), each=[1] * 6)]
     heavy = [light[0], dict(firm(50, 60, 1, 1, 1), each=[1] * 6)]

@@ -367,6 +367,44 @@ instances released in that busy stretch: one in the mean, 75 at most over 5,000 
 `tools/differential.py`, where the kernel's test walks the tasks once. Not in the kernel:
 a busy stretch has no bound but the load, and a kernel would have to stop the walk at a
 bound of its own, refusing past it, which stays safe.
+
+It went into the kernel the same evening, with the user's agreement, as `DemandFits`,
+under EDF when no event-driven task has bandwidth reserved, the old count staying for the
+rest and for DM: the busy stretch as the fixed point of the work released before it, then
+the demand at the optional instance's deadline and at each mandatory one's up to the end
+of the stretch, the mandatory instances of an interval counted as ceil(j m / k) over the
+pattern's numbers, a formula checked against the pattern for every m and k up to 40.
+`OS_FIRM_DEMAND_BOUND`, 16, was chosen on `tools/firm_admission.py`: on 1,000 sets, 8
+ran 81.4 % of the optional instances, 16 and more 81.8 %, as with no bound. The reference
+of `tools/differential.py` follows it, bound included; on 5,000 sets the kernel admitted
+none it refuses and dropped none it admits where the instant is sure, and kept every
+deadline; under EDF the drops fell from 2,794 to 856 on the first 1,000, and
+`tools/firm_admission.py` runs 81.1 % of the optional instances, from 75.4 %. The Pico's
+images under DM are the same byte for byte. Two host tests reach what the random sets do not: a
+refusal at the optional instance's own deadline, with an event-driven task of WCET 0,
+which alone reserves no bandwidth, waiting in the arrival queue (`firmdemand`), and a
+period past 2^30 in the busy stretch (`firmdemandlong`). What a decision costs on a board
+is not measured: the old count walked the tasks once, the new test up to 34 times.
+Of its 60 mutants that compiled, the random sets killed 40. Read, 7 of the 20 left were
+faults no set had met, killed by host tests. Four, at the edges, were found again by
+simulating the schedule under the fault (`tools/firm_admission.py`'s simulation, the
+kernel's test written in Python) and confirmed with the kernel so made: a demand equal to a
+deadline refused, at the optional instance's own or a later one, an instance released
+at the very end of an interval or a period before it counted (`firmdemandset`, three
+sets whose count of instances run over 6,000 ticks changes). Three were read: a period
+past 2^30 left out of the stretch, which admitted an instance that delayed another past
+its deadline (`firmdemandlongdue`), and, twice, a task of WCET 0 divided by, which on this
+Mac's arm64 reads 0 and refuses, and traps under UndefinedBehaviorSanitizer
+(`firmdemand`). An event-driven
+task read as a periodic one, and an instance released at the end of the stretch counted
+against the bound, died with them. 3 are declared equivalent (the demand at the end of the
+stretch, at most the stretch by its fixed point; the optional instance's deadline checked
+twice; a WCET of 1 divided by itself). 8 stay, counted: 5 change only how long the fixed
+point may take before the walk of the stretch refuses past the bound, which no test
+times; 2 are overflow guards at 2^30; and one checks the deadlines past the stretch,
+which hold only as long as the mandatory instances can be scheduled at all, what the
+kernel assumes and does not check. 49 of 60, 86 % of the 57 not declared; the two
+mutants of its call both die.
 Run again on the soft kernel's 152 survivors at 300 sets a build, the reference killed 4:
 a mandatory arrival one tick before the deadline left out (151), a test that admits at
 the deadline itself (213), an optional instance put at the head of their queue rather

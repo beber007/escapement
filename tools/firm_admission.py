@@ -12,12 +12,14 @@ else is due, in the order of its deadline, admitted or dropped there for good, a
 soft kernel does, then runs ahead of the mandatory instances due later, losing ties. It
 shares the task sets of tools/differential.py and its two tests:
 
-  kernel  admission_test(), the soft kernel's test as its header promises, counting
-          every mandatory instance released before the optional one's deadline
-  demand  demand_test(), the processor demand criterion from the instant of decision
-          until the processor would first be free (a prototype, 2026-10-07)
-  alone   admits whatever fits by itself: no test at all, which must miss deadlines,
-          the witness that the simulation sees them
+  counting  counting_test(), the soft kernel's test under EDF until 2026-10-07, counting
+            every mandatory instance released before the optional one's deadline
+  kernel    admission_test(), the kernel's since: the demand criterion, refusing past
+            OS_FIRM_DEMAND_BOUND mandatory instances in the busy stretch
+  demand    demand_test(), the processor demand criterion from the instant of decision
+            until the processor would first be free, with no bound
+  alone     admits whatever fits by itself: no test at all, which must miss deadlines,
+            the witness that the simulation sees them
 
 Each set runs twice, every instance taking its WCET, then a time of its own drawn from 1
 tick to its WCET. Printed: the share of the optional instances that ran, and the deadlines
@@ -40,7 +42,9 @@ _spec.loader.exec_module(differential)
 
 DURATION = differential.DURATION
 TESTS = {
-    "kernel": lambda tasks, i, target, t: differential.admission_test(tasks, i, target, t),
+    "counting": lambda tasks, i, target, t: differential.counting_test(tasks, i, target, t),
+    "kernel": lambda tasks, i, target, t: differential.admission_test(tasks, i, target, t,
+                                                                      False),
     "demand": lambda tasks, i, target, t: differential.demand_test(tasks, i, target, t)[0],
     "alone": lambda tasks, i, target, t: target[1] - tasks[i]["wcet"] >= t,
 }
@@ -96,11 +100,11 @@ def main():
                 result = simulate(tasks, test, lambda i, k: durations[(i, k)])
                 totals[name] = [a + b for a, b in zip(totals[name], result)]
     for name, (ran, released, missed) in totals.items():
-        print("%-6s %d of %d optional instances ran, %.1f %%; %d deadlines missed" %
+        print("%-8s %d of %d optional instances ran, %.1f %%; %d deadlines missed" %
               (name, ran, released, 100.0 * ran / released, missed))
     if totals["alone"][2] == 0:
         sys.exit("no test at all missed no deadline: the simulation does not see them")
-    sys.exit(1 if totals["kernel"][2] or totals["demand"][2] else 0)
+    sys.exit(1 if any(totals[name][2] for name in TESTS if name != "alone") else 0)
 
 
 if __name__ == "__main__":
