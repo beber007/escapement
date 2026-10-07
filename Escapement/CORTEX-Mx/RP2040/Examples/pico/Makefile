@@ -203,6 +203,29 @@ build/BenchDVFSPico.elf : $(COMMON) build/BenchDVFSPico.o
 build/BenchVregPico.elf : $(COMMON) build/BenchVregPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/BenchVregPico.o -T$(LINKERFILE) -lgcc
 
+# make KERNEL=SOFT bench-admission: times the soft kernel's test of each optional instance
+# under EDF (BenchAdmissionPico.c), by the test by processor demand and, the same tasks
+# with event-driven bandwidth reserved, by the count it replaced; and by the test by
+# demand with interrupts left unmasked while it runs. The kernel is built apart
+# with the hook that times it, which no other image has.
+ADMISSION = $(filter-out build/EscapementSoft.o,$(COMMON)) build/EscapementSoftAdmission.o
+bench-admission: build/BenchAdmissionPico.elf build/BenchAdmissionCountPico.elf \
+                 build/BenchAdmissionUnmaskedPico.elf
+build/EscapementSoftAdmission.o : ../../../../EscapementSoft.c
+	$(CC) $(CFLAGS) -DESCAPEMENT_MEASURE_ADMISSION_COST $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/BenchAdmissionPico.o : BenchAdmissionPico.c
+	$(CC) $(CFLAGS) -DESCAPEMENT_MEASURE_ADMISSION_COST $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/BenchAdmissionCountPico.o : BenchAdmissionPico.c
+	$(CC) $(CFLAGS) -DESCAPEMENT_MEASURE_ADMISSION_COST -DCOUNT $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/BenchAdmissionUnmaskedPico.o : BenchAdmissionPico.c
+	$(CC) $(CFLAGS) -DESCAPEMENT_MEASURE_ADMISSION_COST -DUNMASKED $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/BenchAdmissionUnmaskedPico.elf : $(ADMISSION) build/BenchAdmissionUnmaskedPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(ADMISSION) build/BenchAdmissionUnmaskedPico.o -T$(LINKERFILE) -lgcc
+build/BenchAdmissionPico.elf : $(ADMISSION) build/BenchAdmissionPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(ADMISSION) build/BenchAdmissionPico.o -T$(LINKERFILE) -lgcc
+build/BenchAdmissionCountPico.elf : $(ADMISSION) build/BenchAdmissionCountPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(ADMISSION) build/BenchAdmissionCountPico.o -T$(LINKERFILE) -lgcc
+
 # The .d files produced by -MMD list the headers of each object: without them, a change
 # to Escapement_Config.h triggers no rebuild at all and the next test runs against a
 # stale binary.

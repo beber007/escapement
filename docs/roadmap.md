@@ -46,16 +46,14 @@ comes. The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
 
 **Tasks, in order, each finished before the next begins:**
 
-1. **What the soft kernel's test of an optional instance costs on the Pico** (in progress
-   on 2026-10-07). `BenchAdmissionPico` (`make KERNEL=SOFT bench-admission`,
-   `tools/admission_cost.py`) timed it on the board: the count it replaced 16.6 µs in the
-   mean and 34 at most over 8,000 tests; `DemandFits` 78 µs in the mean and 419 at most
-   over its first 42, after which the kernel's overload guard stopped the board, an
-   instance still running at its next release. Left: the same run with interrupts not
-   masked around the test, to tell the bench's masking from the test's own cost; then
-   whether `DemandFits` stays on the RP2040 as it is, is made cheaper, or gives way to the
-   count there, which is the user's to decide. The hook, the bench and the tool are not
-   committed yet.
+1. **What the soft kernel's test of an optional instance costs on the Pico** (measured on
+   2026-10-07, `method.md`, after "It went into the kernel"): the count 16.6 µs in the
+   mean and 34 at most over 20,000 tests; `DemandFits` 68 to 78 µs in the mean and 420 at
+   most, and the kernel's overload guard stopped the board after 42 tests, interrupts
+   masked around each, and after 634 left unmasked. Left: whether `DemandFits` stays as
+   it is, takes its own cost into account, is made cheaper, or gives way to the count,
+   which is the user's to decide; then that decision carried out and measured again on
+   the same bench.
 2. **An endurance run that exercises the soft kernel's optional instances.** `SoakPico`
    and `SoakU5`, built with `KERNEL=SOFT`, give every task m = k = 1: no optional
    instance, no test of one, ever runs. A variant with (m,k)-firm tasks under a load that

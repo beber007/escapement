@@ -81,6 +81,7 @@ wrong with confidence, and the record has to show how each conclusion was reache
 | The RP2040's region of the MPU over the 1 KB below the stack would lock the core up on an overflow, the HardFault's own stacking faulting in the region — written by the assistant on 2026-10-04, and in the code's comment | `StackGuardPico` on the Pico (2026-10-05): DHCSR's S_LOCKUP at 0, the core in its HardFault handler | HFNMIENA at 0 turns the MPU off at the HardFault's priority: its stacking lands in the region, and the handler runs, the globals untouched |
 | `Sentinel` written over under Renode in the deadline-monotonic build came from Renode, whose stacking of the fault walked down past the region — stated by the assistant, since the EDF build kept it and Renode takes a MemManage that ARMv6-M does not have | The disassembly of `Recurse` | GCC had put two levels of it in one frame of 1,536 bytes, which stepped over the 1 KB region: the test now keeps it out of line, and a frame of 1 KB or more is a limit of the guard, written in its comment |
 | Under EDF the soft kernel's test of an optional instance need count only the mandatory instances due by its deadline, the others waiting for it; most of the instances it drops would then run — proposed by the assistant on 2026-10-07, and accepted | The kernel changed so, under `tools/differential.py`: a task set whose instances all take their WCET hung on the overload guard, a mandatory instance ending at 2,412, its deadline 2,384 | The instances that wait for it must still keep their own deadlines, which counting every one released before its deadline protected. `worst_case_end` simulated only to the optional instance's end, and counted as safe drops that made others miss; it now runs until the processor would first be free, and fails the kernel so changed at 1,703, before the hang. The change was not kept |
+| The test of an optional instance by processor demand is exact, and keeps every deadline every instance taking its WCET — stated by the assistant on 2026-10-07, and ported into the kernel with the user's agreement | `BenchAdmissionPico` on the Pico the same night: the kernel's overload guard stopped the board after 42 tests, then after 634 with interrupts unmasked, where the count it replaced ran 20,000 | Exact for a kernel that costs nothing: the test itself took up to 420 µs at 125 MHz, from the instant it assumed the instance would start, and nothing counted it. The host, the simulation and the reference all had the kernel's code take no time |
 
 One more mistake was of a different kind. An early rebranding pass deleted a comment
 terminator in 32 files, and the first attempt to repair them corrupted 57 healthy ones.
@@ -383,8 +384,21 @@ deadline; under EDF the drops fell from 2,794 to 856 on the first 1,000, and
 images under DM are the same byte for byte. Two host tests reach what the random sets do not: a
 refusal at the optional instance's own deadline, with an event-driven task of WCET 0,
 which alone reserves no bandwidth, waiting in the arrival queue (`firmdemand`), and a
-period past 2^30 in the busy stretch (`firmdemandlong`). What a decision costs on a board
-is not measured: the old count walked the tasks once, the new test up to 34 times.
+period past 2^30 in the busy stretch (`firmdemandlong`). What a decision costs was measured
+on the Pico the same night, at 125 MHz, by `BenchAdmissionPico` (`make KERNEL=SOFT
+bench-admission`, `tools/admission_cost.py`): the eight tasks of the costliest set
+`tools/firm_admission.py`'s simulation found among 1,500, each instance spinning a
+pseudo-random quarter of its WCET to all of it, each test timed in cycles by SysTick.
+The count it replaced, on the same tasks: 16.6 µs in the mean, 33.9 at most, over 20,000
+tests, and the board ran on. `DemandFits`: 78 µs in the mean and 419 at most over its
+first 42 tests, interrupts masked around each, after which the kernel's overload guard
+stopped the board, an instance still running at its next release; interrupts left as
+the kernel has them, 67.7 µs and 420 over 634 tests, then the guard again, a mandatory
+instance not started by its next release. The test takes the instant it is called for
+the instant the optional instance would start, and its own time, up to 420 µs where the
+shortest period is 283, is counted nowhere; the count's pessimism covered its 34 µs.
+The RP2040's core divides in software, and each count of an interval divides several
+times.
 Of its 60 mutants that compiled, the random sets killed 40. Read, 7 of the 20 left were
 faults no set had met, killed by host tests. Four, at the edges, were found again by
 simulating the schedule under the fault (`tools/firm_admission.py`'s simulation, the

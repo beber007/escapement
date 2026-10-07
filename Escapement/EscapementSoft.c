@@ -253,6 +253,15 @@ static void Multiply46_16(UINT16 a0, INT32 a1, UINT16 b, UINT32 *c0, INT32 *c1);
 #endif
 static void ScheduleNextTask(void);
 static BOOL IsTaskSchedulable(void);
+/* Built with ESCAPEMENT_MEASURE_ADMISSION_COST, the test of each optional instance runs
+** through the application's _OSMeasureAdmission, which times it: a bench, not a firmware
+** (Examples/pico/BenchAdmissionPico.c). */
+#ifdef ESCAPEMENT_MEASURE_ADMISSION_COST
+   BOOL _OSMeasureAdmission(BOOL test(void));
+   #define AdmissionTest() _OSMeasureAdmission(IsTaskSchedulable)
+#else
+   #define AdmissionTest() IsTaskSchedulable()
+#endif
 static INT32 GetTaskTime(void);
 typedef BOOL SEARCHFUNCTION(const TCB *, const TCB *);
 static void InsertQueue(SEARCHFUNCTION TestKey, UINT8 offsetNext, TCB *newNode);
@@ -488,7 +497,7 @@ void ScheduleNextTask(void)
         ** it begins its execution. And then if it can, promote the instance to its base
         ** priority so that higher priority optional instances cannot preempt it. */
         if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > GetTaskTime() &&
-            IsTaskSchedulable()) {
+            AdmissionTest()) {
            _OSActiveTask->Priority = _OSActiveTask->StaticPriority;
            break;
         }
@@ -508,7 +517,7 @@ void ScheduleNextTask(void)
         while ((_OSActiveTask = _OSQueueTail->Next[READYQ]) != NULL) {
            if ((_OSActiveTask->TaskState & STATE_DROP) == 0) {
               if (_OSActiveTask->NextDeadline - _OSActiveTask->WCET > GetTaskTime() &&
-                  IsTaskSchedulable()) {
+                  AdmissionTest()) {
                  /* Move the optional instance to the head of the ready queue. The timer
                  ** handler, interrupting in between, completes a promotion it finds
                  ** marked STATE_ACTIVATE at the head, from the step the links show
