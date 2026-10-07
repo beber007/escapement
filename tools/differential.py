@@ -408,6 +408,40 @@ def admission_test(tasks, i, target, t, rounded=True):
     return t + work < d
 
 
+def demand_test(tasks, i, target, t):
+    """A prototype under EDF, not the kernel's: whether the optional instance of task i,
+    started at t with nothing else pending, keeps every deadline, every instance taking
+    its WCET. The instances released from t on are feasible without it; with it, by the
+    processor demand criterion, every deadline d from its own D on must have t, its WCET
+    and the mandatory instances released from t and due by d before it, until the
+    processor would first be free. Returns (admitted, instances examined), the
+    instances released in that busy stretch, what a kernel would walk."""
+    d0, c0 = target[1], tasks[i]["wcet"]
+    def mandatory_from(until):
+        """The mandatory instances released from t and before until: (deadline, wcet)."""
+        out = []
+        for task in tasks:
+            p = task["period"]
+            for k in range(-(-t // p), -(-until // p)):
+                if mandatory(k, task["m"], task["k"]):
+                    out.append((k * p + task["deadline"], task["wcet"]))
+        return out
+    busy = t + c0                                 # the first instant the processor is free
+    while True:
+        later = t + c0 + sum(c for _, c in mandatory_from(busy))
+        if later == busy:
+            break
+        if later > t + 100 * DURATION:
+            return False, len(mandatory_from(busy))
+        busy = later
+    jobs = mandatory_from(busy)
+    points = sorted({d0} | {d for d, _ in jobs if d > d0})
+    for d in points:
+        if t + c0 + sum(c for dj, c in jobs if dj <= d) > d:
+            return False, len(jobs)
+    return True, len(jobs)
+
+
 def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
     """Raises Failure at the first point the trace breaks the algorithm, or, speeds
     True, a speed the power-aware policy of build would not pick. A run started at
@@ -478,9 +512,18 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
             job.append("dropped")
             if decisions is not None:
                 decisions["dropped"] += 1
-                end, missed = worst_case_end(tasks, jobs, todo, j, job, (job[6] + [t])[0], dm)
-                if end <= job[1] and missed is None:
+                at = (job[6] + [t])[0]
+                end, missed = worst_case_end(tasks, jobs, todo, j, job, at, dm)
+                fits = end <= job[1] and missed is None
+                if fits:
                     decisions["fits"] += 1
+                if not dm:
+                    admits, examined = demand_test(tasks, j, job, at)
+                    decisions["demand"] += admits
+                    decisions["demand_unsafe"] += admits and not fits
+                    decisions["demand_short"] += fits and not admits
+                    decisions["examined"] = max(decisions["examined"], examined)
+                    decisions["examined_sum"] += examined
         if admitted is not None:
             j = next(j for j, pending in jobs.items() if admitted in pending)
             if not any(admission_test(tasks, j, admitted, at) for at in admitted[6] + [t]):
@@ -489,6 +532,11 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
             admitted.append("admitted")
             if decisions is not None:
                 decisions["admitted"] += 1
+                if not dm:
+                    admits, examined = demand_test(tasks, j, admitted, t)
+                    decisions["demand_refuses"] += not admits
+                    decisions["examined"] = max(decisions["examined"], examined)
+                    decisions["examined_sum"] += examined
 
     def consider(t, at_end):
         """t is a point the kernel considers optional instances at, nothing being due: an
@@ -805,7 +853,9 @@ def main():
     failed = 0
     for build in builds:
         rng = random.Random("%s-%d" % (build, seed))
-        decisions = {"admitted": 0, "dropped": 0, "sure": 0, "fits": 0, "later": 0}
+        decisions = {"admitted": 0, "dropped": 0, "sure": 0, "fits": 0, "later": 0,
+                     "demand": 0, "demand_unsafe": 0, "demand_short": 0, "demand_refuses": 0,
+                     "examined": 0, "examined_sum": 0}
         for n in range(count):
             if build.startswith("soft") and rng.random() < 0.5:
                 tasks = draw_firm(rng, build in DEADLINE_MONOTONIC)
@@ -840,6 +890,10 @@ def main():
                       "checked), of which %(fits)d could have run, every instance taking its WCET "
                       "and keeping its deadline, "
                       "and %(later)d the admission test would admit later" % decisions)
+                if build not in DEADLINE_MONOTONIC:
+                    print("  demand test (prototype): admits %(demand)d of the drops, %(demand_unsafe)d "
+                          "of them unsafe, %(demand_short)d safe ones not; refuses %(demand_refuses)d "
+                          "admitted; at most %(examined)d instances walked, %(examined_sum)d in all" % decisions)
     sys.exit(1 if failed else 0)
 
 

@@ -349,6 +349,24 @@ and 331 would have passed the test at a later point the kernel scheduled from; u
 A tighter test could win most of the one before, but not by leaving out the instances due
 after the optional one's deadline, as tried the same day (see "Hypotheses that were
 wrong"): it has to hold the deadlines of the instances it delays.
+
+The test that does, under EDF, is the processor demand criterion from the instant of
+decision: the instances released from then on are feasible without the optional one, and
+with it every deadline from its own on must have the instant, its WCET and the mandatory
+instances due by that deadline before it, until the processor would first be free, from
+where the schedule is the one without it. A prototype in `tools/differential.py`
+(`demand_test`), judged against the schedule as it was, admitted 2,140 of the 2,141 drops
+that could have run, none that could not, and refused none of the 23,481 instances the
+kernel admitted; the one left was due past the end of the run, which the simulation does
+not see. As admitting an instance changes what follows, `tools/firm_admission.py` runs
+the whole schedule again under each test, on 2,000 sets, every instance taking its WCET,
+then a time of its own: with the kernel's test 75.4 % of the optional instances run, with
+the demand test 81.3 %, and with no test at all, admitting whatever fits by itself, 81.3 %
+as well, missing 279 deadlines; the other two miss none. Its cost is the walk of the
+instances released in that busy stretch: one in the mean, 75 at most over 5,000 sets of
+`tools/differential.py`, where the kernel's test walks the tasks once. Not in the kernel:
+a busy stretch has no bound but the load, and a kernel would have to stop the walk at a
+bound of its own, refusing past it, which stays safe.
 Run again on the soft kernel's 152 survivors at 300 sets a build, the reference killed 4:
 a mandatory arrival one tick before the deadline left out (151), a test that admits at
 the deadline itself (213), an optional instance put at the head of their queue rather
