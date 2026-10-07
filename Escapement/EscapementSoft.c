@@ -623,9 +623,12 @@ static INT32 WorkBefore(INT32 until, INT32 wcet, INT32 now, BOOL due)
 ** own deadline, as IsTaskSchedulable does, dropped about a quarter of the optional
 ** instances that could run (tools/firm_admission.py, 2026-10-07); leaving out those due
 ** after it, which it delays, missed their deadlines (docs/method.md). Refuses past
-** OS_FIRM_DEMAND_BOUND mandatory instances in that stretch.
+** OS_FIRM_DEMAND_BOUND mandatory instances in that stretch. Kept out of ScheduleNext-
+** Task: inlined there, its loops took the registers along the paths that drop an optional
+** instance, and tools/check_order.py, which checks the order of the stores on those
+** paths, could no longer tell which held _OSQueueTail (2026-10-07; the order was right).
 ** Returned value: (BOOL) TRUE if the instance can be scheduled. */
-static BOOL DemandFits(void)
+__attribute__((noinline)) static BOOL DemandFits(void)
 {
   TCB *tcb;
   INT32 now = GetTaskTime();
