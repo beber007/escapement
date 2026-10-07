@@ -4,6 +4,19 @@ Guidance for Claude Code (claude.ai/code) working in this repository. What the p
 is and how it is verified lives in `README.md` and `docs/`; this file only holds what a
 session needs to work here and would otherwise have to rediscover.
 
+## Rules that do not change
+
+Set by the user; no session reopens them.
+
+- **One task at a time, carried to its end.** A task is finished when it is done,
+  checked by its instrument, documented and committed; only then does the next one
+  begin. What turns up along the way, a defect, an idea, a measurement worth making, is
+  written in the open list of `docs/roadmap.md` and left there, not followed. Where a
+  finding blocks the task in hand, say so and ask, rather than start a second direction.
+- **A release ships when it is coherent, not on a date.** Every claim it makes is
+  checked on the code it ships, and every endurance run and measurement it cites was made
+  on that code. There is no deadline to trade that against.
+
 ## Commands
 
 ```sh
