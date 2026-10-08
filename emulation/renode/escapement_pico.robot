@@ -293,6 +293,47 @@ Every part of the endurance test runs without error
         Should Be Equal As Integers  ${errors}  0
     END
 
+The endurance test drops optional instances, never a mandatory one
+    [Documentation]           SoakFirmPico, SoakPico with a (2,5)-firm task (SoakPico.c), for
+    ...                       2.5 s: every part active and none in error, as SoakPico's; the
+    ...                       firm task's mandatory instances, two of each five, all run, some
+    ...                       optional ones run and others are dropped, and no instance ends
+    ...                       past its deadline nor bears a number other than the kernel's.
+    ...                       The soft kernel only builds it.
+    [Timeout]                 10 minutes
+    ${built}=                 Evaluate  os.path.exists(r"${EXAMPLE}/build/SoakFirmPico.elf")  modules=os
+    Skip If                   not ${built}  built for the soft kernel only
+    Load Escapement           SoakFirmPico
+    ${flag}=                  Execute Command  sysbus GetSymbolAddress "SoakLaunchCore1"
+    Execute Command           sysbus WriteDoubleWord ${flag.strip()} 0
+
+    Execute Command           emulation RunFor "2.5"
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${seconds}=               Read Counter  ${results + 4}
+    Should Be True            ${seconds} >= 2
+    FOR  ${part}  IN RANGE  8
+        ${activity}=          Read Counter  ${results + 12 + 4 * ${part}}
+        ${errors}=            Read Counter  ${results + 44 + 4 * ${part}}
+        Should Be True        ${activity} > 0
+        Should Be Equal As Integers  ${errors}  0
+    END
+    ${firm}=                  Execute Command  sysbus GetSymbolAddress "Firm"
+    ${firm}=                  Convert To Integer  ${firm.strip()}
+    ${mandatory}=             Read Counter  ${firm}
+    ${optional}=              Read Counter  ${firm + 4}
+    ${dropped}=               Read Counter  ${firm + 8}
+    ${errors}=                Read Counter  ${firm + 12}
+    ${late}=                  Read Counter  ${firm + 16}
+    Log To Console            firm: ${mandatory} mandatory, ${optional} optional run, ${dropped} dropped, ${errors} errors, late max ${late} us
+    # Two instances of each five mandatory, among all those seen, within the last few.
+    ${total}=                 Evaluate  ${mandatory} + ${optional} + ${dropped}
+    Should Be True            ${mandatory} > 0 and abs(5 * ${mandatory} - 2 * ${total}) <= 10
+    Should Be True            ${optional} > 0 and ${dropped} > 0
+    Should Be Equal As Integers  ${errors}  0
+    Should Be True            ${late} <= 5000
+
 The power-aware kernel scales the frequency and the voltage
     [Documentation]           Under the power-aware kernel the tasks of TaskLEDPico, which
     ...                       declare their execution times, leave the core idle most of the

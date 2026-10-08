@@ -41,6 +41,13 @@ CFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wall -c -g -fdata-sections \
 AFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wall -c -g -MMD -MP
 LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
 
+# make KERNEL=SOFT: the soft real-time kernel, and SoakFirmU5 beside the others, SoakU5
+# with an (m,k)-firm task (SoakU5.c), for the soft kernel's long run on this board.
+ifeq ($(KERNEL),SOFT)
+   CFLAGS += -DESCAPEMENT_VERSION_SOFT
+   AFLAGS += -DESCAPEMENT_VERSION_SOFT
+   FIRM = build/SoakFirmU5.elf
+endif
 # make PHASES=30: Stop 2 and Sleep in turn, D13 telling them apart (SleepU5.c).
 ifdef PHASES
    CFLAGS += -DSLEEP_PHASES=$(PHASES)
@@ -72,7 +79,7 @@ endif
 
 $(shell mkdir -p build)
 
-all: build/SleepU5.elf build/SoakU5.elf build/SleepU5Flash.elf
+all: build/SleepU5.elf build/SoakU5.elf build/SleepU5Flash.elf $(FIRM)
 
 clean:
 	rm -f build/*.o build/*.elf build/*.d
@@ -80,6 +87,7 @@ clean:
 OBJECTS = build/Escapement_CortexMx.o build/Escapement_CortexMx_a.o \
           build/Escapement_Atomic.o build/Escapement_Interrupts.o \
           build/Escapement_Timer.o build/Escapement_Processor.o build/EscapementHard.o \
+          build/EscapementSoft.o \
           build/Escapement_RamEntry.o build/Escapement_LPTimer.o build/Escapement_Stop2.o \
           build/Escapement_UART.o build/Escapement_TimerEvent.o build/SleepU5.o
 
@@ -94,6 +102,8 @@ build/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
 build/Escapement_%.o : ../../Escapement_%.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/EscapementHard.o : ../../../../EscapementHard.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/EscapementSoft.o : ../../../../EscapementSoft.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SleepU5.o : $(UNOQ)/SleepU5.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
@@ -112,6 +122,10 @@ build/SleepU5Flash.elf : $(filter-out build/Escapement_RamEntry.o,$(OBJECTS))
 build/SoakU5.o : $(UNOQ)/SoakU5.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SoakU5.elf : $(filter-out build/SleepU5.o,$(OBJECTS)) build/SoakU5.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+build/SoakFirmU5.o : $(UNOQ)/SoakU5.c
+	$(CC) $(CFLAGS) -DSOAK_FIRM $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SoakFirmU5.elf : $(filter-out build/SleepU5.o,$(OBJECTS)) build/SoakFirmU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 
 -include $(wildcard build/*.d)

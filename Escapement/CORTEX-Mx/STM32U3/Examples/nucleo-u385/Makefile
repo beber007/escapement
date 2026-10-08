@@ -77,6 +77,12 @@ $(shell mkdir -p build)
 EXAMPLES = TaskLEDU3 UARTEchoU3 TestTimerEventU3 TaskWrapU3 IPCU3 SoakU3 StackGuardU3 \
            TestLPTimerU3 SleepU3 SleepFastU3 SleepWrapU3 Stop2EventWrapU3 SoakStop2U3
 
+# The soft kernel adds SoakFirmU3, SoakU3 with an (m,k)-firm task whose optional instances
+# the kernel drops under load (SoakU3.c).
+ifeq ($(KERNEL),SOFT)
+   EXAMPLES += SoakFirmU3
+endif
+
 all: $(EXAMPLES:%=build/%.elf)
 
 clean:
@@ -138,6 +144,11 @@ build/SoakStop2U3.o : SoakU3.c
 	$(CC) $(CFLAGS) -DSOAK_STOP2 $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SoakStop2U3.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
                         build/Escapement_LPTimer.o build/Escapement_Stop2.o build/SoakStop2U3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+build/SoakFirmU3.o : SoakU3.c
+	$(CC) $(CFLAGS) -DSOAK_FIRM $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SoakFirmU3.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
+                       build/SoakFirmU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/TestLPTimerU3.elf : $(COMMON) build/Escapement_LPTimer.o build/TestLPTimerU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc

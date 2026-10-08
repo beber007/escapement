@@ -100,6 +100,11 @@ all: build/TaskLEDPico2.elf build/UARTEchoPico2.elf build/TestTimerEventPico2.el
      build/StackGuardPico2.elf build/LposcPico2.elf build/DormantPico2.elf \
      build/DormantCalAsleepPico2.elf build/AwakeCalAsleepPico2.elf \
      build/RoscCalAsleepPico2.elf
+# The soft kernel adds SoakFirmPico2, SoakPico2 with an (m,k)-firm task whose optional
+# instances the kernel drops under load (SoakPico2.c).
+ifeq ($(KERNEL),SOFT)
+all: build/SoakFirmPico2.elf
+endif
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d
@@ -183,6 +188,8 @@ build/IPCPico2.o : IPCPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SoakPico2.o : SoakPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SoakFirmPico2.o : SoakPico2.c
+	$(CC) $(CFLAGS) -DSOAK_FIRM $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/LitmusPico2.o : LitmusPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SleepPico2.o : SleepPico2.c
@@ -224,6 +231,8 @@ build/IPCPico2.elf : $(COMMON) build/IPCPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/IPCPico2.o -T$(LINKERFILE) -lgcc
 build/SoakPico2.elf : $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakPico2.o -T$(LINKERFILE) -lgcc
+build/SoakFirmPico2.elf : $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakFirmPico2.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/LitmusPico2.elf : $(COMMON) build/Escapement_Core1.o build/LitmusPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/LitmusPico2.o -T$(LINKERFILE) -lgcc
 # SleepPico2: no kernel, the three sleeps of the chip for the PPK2 (SleepPico2.c).

@@ -80,6 +80,9 @@ tools/unoq_check.sh SoakU5.elf SHA            # on the UNO Q: the board check of
 tools/soak.py nucleo 0 1m SoakU5.elf          # on the UNO Q: SoakU5 of Examples/nucleo-u575
                                               # on a NUCLEO-U575ZI-Q, over its ST-LINK
                                               # (service escapement-soak-nucleo)
+make -C .../nucleo-u575 KERNEL=SOFT           # SoakFirmU5 too: SoakU5 with an (m,k)-firm
+                                              # task whose optional instances get dropped;
+                                              # every port's soft build has its SoakFirm
 
 # STM32U3 (NUCLEO-U385RG-Q, Cortex-M33) — written before the board came, from RM0487;
 # hard and soft kernels, the idle task in Stop 2, no KERNEL=PA yet; Renode on a platform

@@ -334,6 +334,49 @@ Every part of the endurance test runs without error
         Should Be Equal As Integers  ${errors}  0
     END
 
+The endurance test drops optional instances, never a mandatory one
+    [Documentation]           SoakFirmPico2, SoakPico2 with a (2,5)-firm task (SoakPico2.c), until its heartbeat
+    ...                       is past two seconds:
+    ...                       every part active and none in error, as SoakPico2's; the firm
+    ...                       task's mandatory instances, two of each five, all run, some
+    ...                       optional ones run and others are dropped, and no instance ends
+    ...                       past its deadline nor bears a number other than the kernel's.
+    ...                       The soft kernel only builds it.
+    [Timeout]                 10 minutes
+    ${built}=                 Evaluate  os.path.exists(r"${EXAMPLE}/build/SoakFirmPico2.elf")  modules=os
+    Skip If                   not ${built}  built for the soft kernel only
+    Load Escapement           SoakFirmPico2
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    # The kernel starts once core 1 has answered its launch, as for SoakPico2 above.
+    FOR  ${step}  IN RANGE  12
+        Execute Command       emulation RunFor "0.5"
+        ${seconds}=           Read Word  ${results + 4}
+        IF  ${seconds} >= 2  BREAK
+    END
+    Should Be True            ${seconds} >= 2
+    FOR  ${part}  IN RANGE  8
+        ${activity}=          Read Word  ${results + 12 + 4 * ${part}}
+        ${errors}=            Read Word  ${results + 44 + 4 * ${part}}
+        Should Be True        ${activity} > 0
+        Should Be Equal As Integers  ${errors}  0
+    END
+    ${firm}=                  Execute Command  sysbus GetSymbolAddress "Firm"
+    ${firm}=                  Convert To Integer  ${firm.strip()}
+    ${mandatory}=             Read Word  ${firm}
+    ${optional}=              Read Word  ${firm + 4}
+    ${dropped}=               Read Word  ${firm + 8}
+    ${errors}=                Read Word  ${firm + 12}
+    ${late}=                  Read Word  ${firm + 16}
+    Log To Console            firm: ${mandatory} mandatory, ${optional} optional run, ${dropped} dropped, ${errors} errors, late max ${late} us
+    # Two instances of each five mandatory, among all those seen, within the last few.
+    ${total}=                 Evaluate  ${mandatory} + ${optional} + ${dropped}
+    Should Be True            ${mandatory} > 0 and abs(5 * ${mandatory} - 2 * ${total}) <= 10
+    Should Be True            ${optional} > 0 and ${dropped} > 0
+    Should Be Equal As Integers  ${errors}  0
+    Should Be True            ${late} <= 5000
+
 The queue of Evéquoz crosses between the two cores
     [Documentation]           FIFOCoresPico2 runs the queue between the cores
     ...                       (Escapement_CoreQueue.c) with each core a producer and a

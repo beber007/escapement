@@ -44,7 +44,8 @@ was read, not copied into the repository.
 The examples in `Examples/uno-q` are those of the Pico 2, transposed: `TaskLEDU5`,
 `UARTEchoU5`, `TestTimerEventU5`, `TaskWrapU5`, `IPCU5` and `SoakU5`, the endurance
 test; then `TestLPTimerU5`, `SleepU5` and `Stop2EventWrapU5` for Stop 2, and
-`StackGuardU5`, a stack that overflows on purpose (roadmap, "A stack that faults"). In
+`StackGuardU5`, a stack that overflows on purpose (roadmap, "A stack that faults");
+`SoakFirmU5`, built for the soft kernel only, is `SoakU5` with an (m,k)-firm task. In
 `SoakU5`, the part that the Pico 2 runs between its two cores becomes a 4-slot buffer
 written by the interrupt of TIM3 and read by a task that this interrupt preempts. The
 independent watchdog stands in for the RP2350's. The examples drive four outputs

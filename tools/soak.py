@@ -90,24 +90,27 @@ def elapsed(d):
     return f"{d // 86400}d{d % 86400 // 3600:02d}h{d % 3600 // 60:02d}m"
 
 
-def symbol(elf, name):
+def symbol(elf, name, needed=True):
     out = subprocess.run(["arm-none-eabi-nm", elf], capture_output=True, text=True,
                          check=True).stdout
     for line in out.splitlines():
         words = line.split()
         if len(words) == 3 and words[2] == name:
             return int(words[0], 16)
-    sys.exit(f"{elf} has no {name}: not the endurance test")
+    if needed:
+        sys.exit(f"{elf} has no {name}: not the endurance test")
+    return None
 
 
 class Pico:
     """SoakPico over SWD. Results, in words (SoakPico.c): 0 marker, 1 seconds, 2 wraps,
     3-10 activity, 11-18 errors, 19-20 lateness, 21-22 stack of each core, 23 the work of
     the long task in its phase,
-    24-55 and 56-87 the lateness by bins of 10 us."""
+    24-55 and 56-87 the lateness by bins of 10 us. SoakFirmPico has the structure Firm
+    besides, as the five numbers SoakFirmU5 adds to its reports (UnoQ)."""
     name, context = "SoakPico", "board/soak"
     parts = ["pulse", "queue", "buffer", "events", "cores", "heartbeat", "interrupt",
-             "memory"]
+             "memory", "firm"]
     elf = os.path.join(ROOT, "Escapement/CORTEX-Mx/RP2040/Examples/pico/build/SoakPico.elf")
     watchdog_reason = 0x40058008       # WATCHDOG_REASON, RP2040 datasheet
     words = 88
@@ -115,6 +118,7 @@ class Pico:
     def __init__(self, elf):
         self.elf = elf
         self.results = symbol(elf, "Results")
+        self.firm = symbol(elf, "Firm", needed=False)
         # The Debug Probe, $PROBE of the bench's table (tools/probe.sh).
         self.probe = subprocess.run(["sh", os.path.join(ROOT, "tools/probe.sh")],
                                     stdout=subprocess.PIPE, text=True,
@@ -197,12 +201,17 @@ class Pico:
     def read(self):
         w = self.words_at(self.results, self.words)
         reason = self.words_at(self.watchdog_reason, 1)
-        if w is None:
+        firm = self.words_at(self.firm, 5) if self.firm else None
+        if w is None or (self.firm and firm is None):
             return None
-        return {"marker": w[0], "seconds": w[1], "wraps": w[2], "activity": w[3:11],
-                "errors": w[11:19], "late": (w[19], w[20]), "stack": (w[21], w[22]),
-                "load": w[23], "bins": (w[24:56], w[56:88]),
-                "extra": f", reset {reason[0]:#010x}" if reason else "", "link": None}
+        activity, errors = w[3:11], w[11:19]
+        extra = f", reset {reason[0]:#010x}" if reason else ""
+        if firm:
+            activity, errors = activity + [firm[0]], errors + [firm[3]]
+            extra += f", firm {firm[1]} optional run, {firm[2]} dropped, late max {firm[4]} us"
+        return {"marker": w[0], "seconds": w[1], "wraps": w[2], "activity": activity,
+                "errors": errors, "late": (w[19], w[20]), "stack": (w[21], w[22]),
+                "load": w[23], "bins": (w[24:56], w[56:88]), "extra": extra, "link": None}
 
 
 class UnoQ:
@@ -214,10 +223,14 @@ class UnoQ:
     MSIS was locked again on the LSE (erratum 2.2.27 of the chip), and the longest burst
     of the link: the bytes the interrupt found waiting in the FIFO, which came over at
     least one byte time each but the first, and the time the kernel's clock counted since
-    the byte before them. Less than that, and the clock stopped while the UART received."""
+    the byte before them. Less than that, and the clock stopped while the UART received.
+    SoakFirmU5 adds five: the (m,k)-firm task's mandatory instances run, its optional ones
+    run and dropped, its errors and its worst time from an arrival to the end of its
+    instance; the mandatory instances count as the activity of a ninth part, the errors
+    as its errors."""
     name, context = "SoakU5", "board/soak-u5"
     parts = ["pulse", "queue", "buffer", "events", "buffer4", "heartbeat", "interrupt",
-             "memory"]
+             "memory", "firm"]
     elf = os.path.expanduser("~/soak/SoakU5.elf")
     tty = "/dev/ttyHS1"
     baud = termios.B115200   # SoakU5's LPUART1 (Examples/uno-q/Makefile)
@@ -329,9 +342,9 @@ class UnoQ:
             while b"\n" in self.pending:
                 line, self.pending = self.pending.split(b"\n", 1)
                 words = line.decode(errors="replace").split()
-                # SOAK and 28 numbers; 27 before the bursts of the link, 26 before the
-                # causes of reset (cf6d83e and older)
-                if len(words) in (27, 28, 29) and words[0] == "SOAK":
+                # SOAK and 28 numbers, 33 from SoakFirmU5; 27 before the bursts of the
+                # link, 26 before the causes of reset (cf6d83e and older)
+                if len(words) in (27, 28, 29, 34) and words[0] == "SOAK":
                     try:
                         newest = [int(w, 16) for w in words[1:]]
                     except ValueError:
@@ -362,8 +375,12 @@ class UnoQ:
             resets += f", longest burst {n} bytes after {gap} us"
             if gap < (n - 1) * self.byte_us:
                 resets += f" (the clock lost {(n - 1) * self.byte_us - gap:.0f} us at least)"
-        return {"marker": MARKER, "seconds": r[0], "wraps": r[1], "activity": r[2:10],
-                "errors": r[10:18], "late": (r[21], r[22]), "stack": (r[23],),
+        activity, errors = r[2:10], r[10:18]
+        if len(r) > 28:
+            activity, errors = activity + [r[28]], errors + [r[31]]
+            resets += f", firm {r[29]} optional run, {r[30]} dropped, late max {r[32]} us"
+        return {"marker": MARKER, "seconds": r[0], "wraps": r[1], "activity": activity,
+                "errors": errors, "late": (r[21], r[22]), "stack": (r[23],),
                 "load": r[24], "bins": None,
                 "extra": f", link {r[18]} bytes of {self.sent} sent, {r[19]} errors, "
                          f"{r[20]} overruns{resets}", "link": r[18:21]}
@@ -448,6 +465,13 @@ def self_test():
         os.write(master, ("SOAK " + " ".join(numbers) + "\n").encode())
         assert board.report(1) is not None
         assert (board.value, board.sent) == (5, 0x12), (board.value, board.sent)
+        # A report of SoakFirmU5: the firm task a ninth part, its errors counted.
+        numbers = ["1"] * 33
+        numbers[31] = "2"
+        os.write(master, ("SOAK " + " ".join(numbers) + "\n").encode())
+        r = board.read()
+        assert len(r["activity"]) == 9 and r["errors"][8] == 2, r
+        assert "firm 1 optional run, 1 dropped" in r["extra"], r["extra"]
     finally:
         os.unlink(loader.name)
         os.close(master)

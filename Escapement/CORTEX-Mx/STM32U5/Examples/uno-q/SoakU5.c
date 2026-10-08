@@ -56,6 +56,28 @@
 ** a line of the UART holding 255 bytes at most. The longest burst of the link ends the
 ** line, from a second buffer of the UART.
 **
+** SoakFirmU5, built from this file with SOAK_FIRM for the soft kernel (KERNEL=SOFT), adds
+** a ninth part:
+**
+**   -  Firm       a (2,5)-firm task of period and deadline 5 ms, which works 1.5 ms of
+**                 each and declares a WCET of 2 ms: its instances 0 and 2 of each five
+**                 are mandatory, the other three optional, which the kernel runs only
+**                 if its test finds that they end in time. Every other task above is
+**                 hard, m = k = 1, and declares the WCET the test counts, the long task
+**                 7 ms of its 10: the test refuses an optional instance whenever an
+**                 instance of the long task arrives before its deadline, and the
+**                 phases of load leave it more or less of the processor besides. Each
+**                 instance finds from the clock the period it arrived in, and the
+**                 instances between it and the one before it, which the kernel dropped:
+**                 a mandatory one among them, an instance whose number is not the one
+**                 the kernel gives (OSGetTaskInstance), or an instance ending past its
+**                 deadline, optional or not, is an error. The heartbeat counts it among
+**                 the parts that must move, by its mandatory instances.
+**
+** Its counts follow the burst of the link on the report's line, five more numbers: the
+** mandatory instances run, the optional ones run and dropped, the errors and the worst
+** time from an arrival to the end of its instance, in us; in memory, the structure Firm.
+**
 ** Built for a NUCLEO-U575ZI-Q (Examples/nucleo-u575, BOARD_NUCLEO_U575), the reports and
 ** the link go over USART1 instead, to the virtual COM port of the board's ST-LINK, at
 ** 115,200 baud (LINK_UART).
@@ -131,6 +153,20 @@ volatile struct {
   UINT32 LinkBurst;
 } Results;
 
+#ifdef SOAK_FIRM
+   #ifndef ESCAPEMENT_VERSION_SOFT
+      #error SOAK_FIRM needs the soft kernel
+   #endif
+   #define FIRM_PERIOD 5000
+   #define FIRM_WORK   1500
+   #define FIRM_WCET   2000
+   #define FIRM_M      2
+   #define FIRM_K      5
+   volatile struct {
+     UINT32 Mandatory, Optional, Dropped, Errors, LateMax;
+   } Firm;
+#endif
+
 typedef struct {
   UINT32 Producer, Sequence;
 } RECORD;
@@ -165,6 +201,9 @@ static void EventSourceTask(void *argument);
 static void EventTask(void *argument);
 static void ReaderTask(void *argument);
 static void HeartbeatTask(void *argument);
+#ifdef SOAK_FIRM
+   static void FirmTask(void *argument);
+#endif
 static void LinkReceive(UINT8 data);
 static void Report(void);
 static void AlarmHandler(void *descriptor);
@@ -248,6 +287,9 @@ int main(void)
   PERIODIC(HeartbeatTask,50,1000000);
   EVENT_DRIVEN(DrainerTask,100,1000,Drain);
   EVENT_DRIVEN(EventTask,20,2000,Tick);
+  #ifdef SOAK_FIRM
+     OSCreateTask(FirmTask,FIRM_WCET,0,FIRM_PERIOD,FIRM_PERIOD,FIRM_M,FIRM_K,0,NULL);
+  #endif
   /* TIM3 counts microseconds and interrupts at each update, 1 ms after the start and
   ** then at the interval its handler sets. */
   AlarmISR.Handler = AlarmHandler;
@@ -437,6 +479,63 @@ static void ReaderTask(void *argument)
 } /* end of ReaderTask */
 
 
+#ifdef SOAK_FIRM
+/* Mandatory: Whether instance j of each FIRM_K is mandatory, the pattern the kernel
+** follows (EscapementSoft.c, _OSTimerInterruptHandler). */
+static BOOL Mandatory(UINT32 j)
+{
+  return j == (j * FIRM_M + FIRM_K - 1) / FIRM_K * FIRM_K / FIRM_M;
+} /* end of Mandatory */
+
+
+/* FirmTask: Its arrival is the last multiple of its period at or before its start, counted
+** on from the arrival after the instance before, which the clock's wraps take back by
+** 2^30 as for the pulse; the periods in between are the instances the kernel dropped. A
+** start past the deadline would be taken for a later arrival, which the instance's number
+** then contradicts. */
+static void FirmTask(void *argument)
+{
+  static INT32 next = 0, lastTime = 0;
+  static UINT32 nextInstance = 0;
+  INT32 start = _OSGetActualTime(), end, arrival;
+  UINT32 skipped = 0, instance, i;
+  (void)argument;
+  if (start < lastTime)   // the kernel clock went round
+     next -= 0x40000000;
+  if (start < next)
+     Firm.Errors += 1;
+  else
+     skipped = (UINT32)(start - next) / FIRM_PERIOD;
+  /* Some instance of any FIRM_K is mandatory: past that, the count of drops stops. */
+  for (i = 0; i < skipped && i < FIRM_K; i += 1)
+     if (Mandatory((nextInstance + i) % FIRM_K))
+        Firm.Errors += 1;
+     else
+        Firm.Dropped += 1;
+  arrival = next + (INT32)(skipped * FIRM_PERIOD);
+  instance = (nextInstance + skipped) % FIRM_K;
+  if (instance != OSGetTaskInstance())
+     Firm.Errors += 1;
+  while ((UINT32)(_OSGetActualTime() - start) < FIRM_WORK);
+  end = _OSGetActualTime();
+  if (end < start)        // went round during the work
+     arrival -= 0x40000000;
+  if (end - arrival > FIRM_PERIOD)
+     Firm.Errors += 1;
+  if (end >= arrival && (UINT32)(end - arrival) > Firm.LateMax)
+     Firm.LateMax = end - arrival;
+  if (Mandatory(instance))
+     Firm.Mandatory += 1;
+  else
+     Firm.Optional += 1;
+  lastTime = end;
+  next = arrival + FIRM_PERIOD;
+  nextInstance = (instance + 1) % FIRM_K;
+  OSEndTask();
+} /* end of FirmTask */
+#endif
+
+
 /* HeartbeatTask: Once a second, feeds the watchdog, checks that every part moved and
 ** that memory holds, and switches the load between its phases. */
 static void HeartbeatTask(void *argument)
@@ -444,6 +543,9 @@ static void HeartbeatTask(void *argument)
   extern UINT32 _ebss;
   extern void *_OSStackBasePointer;
   static UINT32 seen[PARTS], phaseEnd = 0, draw;
+  #ifdef SOAK_FIRM
+     static UINT32 seenMandatory;
+  #endif
   UINT32 i;
   (void)argument;
   if (Results.Seconds == 0) {       // started, then set: its prescaler and reload
@@ -460,6 +562,11 @@ static void HeartbeatTask(void *argument)
            Results.Errors[HEARTBEAT] += 1;
   for (i = 0; i < PARTS; i += 1)
      seen[i] = Results.Activity[i];
+  #ifdef SOAK_FIRM
+     if (Results.Seconds > 0 && Firm.Mandatory == seenMandatory)
+        Results.Errors[HEARTBEAT] += 1;
+     seenMandatory = Firm.Mandatory;
+  #endif
   /* The stack runs down from the heap towards the end of .bss. */
   Results.Stack0Free = Unused(&_ebss,(UINT32 *)_OSStackBasePointer);
   if (Results.Stack0Free < 512)
@@ -559,6 +666,13 @@ static void Report(void)
   p = PutHex(p,Results.Resets | (Results.MSIRelocks & 0xFFFFFF));
   OSEnqueueUART(line,(UINT8)(p - line),LINK_UART);
   p = PutHex(end,Results.LinkBurst);
+  #ifdef SOAK_FIRM
+     p = PutHex(p,Firm.Mandatory);
+     p = PutHex(p,Firm.Optional);
+     p = PutHex(p,Firm.Dropped);
+     p = PutHex(p,Firm.Errors);
+     p = PutHex(p,Firm.LateMax);
+  #endif
   p[-1] = '\n';
   OSEnqueueUART(end,(UINT8)(p - end),LINK_UART);
 } /* end of Report */

@@ -765,6 +765,37 @@ Every part of the endurance test runs without error
     Every Part Of Soak Without Error
     No Rule Broken
 
+The endurance test drops optional instances, never a mandatory one
+    [Documentation]           SoakFirmU3, SoakU3 with a (2,5)-firm task (SoakU3.c), for 3.5 s:
+    ...                       every part active and none in error, as SoakU3's; the firm
+    ...                       task's mandatory instances, two of each five, all run, some
+    ...                       optional ones run and others are dropped, and no instance ends
+    ...                       past its deadline nor bears a number other than the kernel's.
+    ...                       The soft kernel only builds it.
+    [Timeout]                 10 minutes
+    ${built}=                 Evaluate  os.path.exists(r"${EXAMPLE}/build/SoakFirmU3.elf")  modules=os
+    Skip If                   not ${built}  built for the soft kernel only
+    Load Escapement           SoakFirmU3
+
+    Execute Command           emulation RunFor "3.5"
+
+    Every Part Of Soak Without Error
+    ${firm}=                  Execute Command  sysbus GetSymbolAddress "Firm"
+    ${firm}=                  Convert To Integer  ${firm.strip()}
+    ${mandatory}=             Read Word  ${firm}
+    ${optional}=              Read Word  ${firm + 4}
+    ${dropped}=               Read Word  ${firm + 8}
+    ${errors}=                Read Word  ${firm + 12}
+    ${late}=                  Read Word  ${firm + 16}
+    Log To Console            firm: ${mandatory} mandatory, ${optional} optional run, ${dropped} dropped, ${errors} errors, late max ${late} us
+    # Two instances of each five mandatory, among all those seen, within the last few.
+    ${total}=                 Evaluate  ${mandatory} + ${optional} + ${dropped}
+    Should Be True            ${mandatory} > 0 and abs(5 * ${mandatory} - 2 * ${total}) <= 10
+    Should Be True            ${optional} > 0 and ${dropped} > 0
+    Should Be Equal As Integers  ${errors}  0
+    Should Be True            ${late} <= 5000
+    No Rule Broken
+
 The endurance test reports on USART1 and counts the bursts of the link
     [Documentation]           SoakU3 reports each second on USART1, the ST-LINK's virtual COM
     ...                       port. Handed three bytes of the link at once, the emulation

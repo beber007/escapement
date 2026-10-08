@@ -95,6 +95,12 @@ $(shell mkdir -p build)
 EXAMPLES = TaskLEDU5 UARTEchoU5 TestTimerEventU5 TaskWrapU5 IPCU5 SoakU5 TestLPTimerU5 SleepU5 \
            SleepWrapU5 Stop2EventWrapU5 SleepNoHSEU5 StackGuardU5
 
+# The soft kernel adds SoakFirmU5, SoakU5 with an (m,k)-firm task whose optional instances
+# the kernel drops under load (SoakU5.c).
+ifeq ($(KERNEL),SOFT)
+   EXAMPLES += SoakFirmU5
+endif
+
 all: $(EXAMPLES:%=build/%.elf)
 
 clean:
@@ -189,6 +195,11 @@ build/Stop2EventWrapU5.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapeme
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 build/SoakU5.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UARTLink.o \
                    build/SoakU5.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+build/SoakFirmU5.o : SoakU5.c
+	$(CC) $(CFLAGS) -DSOAK_FIRM $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SoakFirmU5.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UARTLink.o \
+                       build/SoakFirmU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 
 # The .d files produced by -MMD list the headers of each object: without them, a change

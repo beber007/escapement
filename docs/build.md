@@ -74,7 +74,12 @@ commented in each Makefile.
 `STM32U5/Examples/nucleo-u575` builds `SleepU5` and `SoakU5`, from the sources of
 `uno-q`, for a NUCLEO-U575ZI-Q: the first for measuring the MCU's current
 (`stm32u5.md`), the second for a long endurance run, its reports on the ST-LINK's
-virtual COM port (`tools/board_ci.md`).
+virtual COM port (`tools/board_ci.md`); with `KERNEL=SOFT`, `SoakFirmU5` too.
+
+Built for the soft kernel, each port adds `SoakFirm` to its endurance test
+(`SoakFirmPico`, `SoakFirmPico2`, `SoakFirmU5`, `SoakFirmU3`): the same test with an
+(m,k)-firm task under a load that makes the kernel drop some of its optional instances;
+none of its mandatory instances may be missed, nor any instance end late (`SoakU5.c`).
 
 ## On hardware and under emulation
 

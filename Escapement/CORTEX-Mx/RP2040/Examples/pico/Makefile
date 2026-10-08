@@ -94,6 +94,11 @@ all: build/TaskLEDPico.elf build/UARTEchoPico.elf build/UARTSendersPico.elf buil
 ifeq ($(KERNEL),)
 all: build/ReadmeExample.elf
 endif
+# The soft kernel adds SoakFirmPico, SoakPico with an (m,k)-firm task whose optional
+# instances the kernel drops under load (SoakPico.c).
+ifeq ($(KERNEL),SOFT)
+all: build/SoakFirmPico.elf
+endif
 
 clean:
 	rm -f build/*.o build/*.elf build/*.bin build/*.d build/*.c
@@ -164,6 +169,8 @@ build/IPCPico.o : IPCPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SoakPico.o : SoakPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/SoakFirmPico.o : SoakPico.c
+	$(CC) $(CFLAGS) -DSOAK_FIRM $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/StackGuardPico.o : StackGuardPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/TestTimerEventPico.o : TestTimerEventPico.c
@@ -187,6 +194,8 @@ build/IPCPico.elf : $(COMMON) build/IPCPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/IPCPico.o -T$(LINKERFILE) -lgcc
 build/SoakPico.elf : $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakPico.o -T$(LINKERFILE) -lgcc
+build/SoakFirmPico.elf : $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakFirmPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $^ -T$(LINKERFILE) -lgcc
 build/StackGuardPico.elf : $(COMMON) build/StackGuardPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) build/StackGuardPico.o -T$(LINKERFILE) -lgcc
 build/TestTimerEventPico.elf : $(COMMON) $(SLEEPGATE) build/Escapement_TimerEvent.o build/TestTimerEventPico.o

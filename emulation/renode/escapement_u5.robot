@@ -602,6 +602,43 @@ The endurance test counts the bursts of the link
     Should Be Equal As Integers  ${{ ${burst} >> 24 }}  3
     Should Be Equal As Integers  ${{ len($line.Line.split()) }}  29
 
+The endurance test drops optional instances, never a mandatory one
+    [Documentation]           SoakFirmU5, SoakU5 with a (2,5)-firm task (SoakU5.c), for 3.5 s:
+    ...                       every part active and none in error, as SoakU5's; the firm
+    ...                       task's mandatory instances, two of each five, all run, some
+    ...                       optional ones run and others are dropped, and no instance ends
+    ...                       past its deadline nor bears a number other than the kernel's.
+    ...                       The soft kernel only builds it.
+    [Timeout]                 10 minutes
+    ${built}=                 Evaluate  os.path.exists(r"${EXAMPLE}/build/SoakFirmU5.elf")  modules=os
+    Skip If                   not ${built}  built for the soft kernel only
+    Load Escapement           SoakFirmU5
+
+    Execute Command           emulation RunFor "3.5"
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    FOR  ${part}  IN RANGE  8
+        ${activity}=          Read Word  ${results + 12 + 4 * ${part}}
+        ${errors}=            Read Word  ${results + 44 + 4 * ${part}}
+        Should Be True        ${activity} > 0
+        Should Be Equal As Integers  ${errors}  0
+    END
+    ${firm}=                  Execute Command  sysbus GetSymbolAddress "Firm"
+    ${firm}=                  Convert To Integer  ${firm.strip()}
+    ${mandatory}=             Read Word  ${firm}
+    ${optional}=              Read Word  ${firm + 4}
+    ${dropped}=               Read Word  ${firm + 8}
+    ${errors}=                Read Word  ${firm + 12}
+    ${late}=                  Read Word  ${firm + 16}
+    Log To Console            firm: ${mandatory} mandatory, ${optional} optional run, ${dropped} dropped, ${errors} errors, late max ${late} us
+    # Two instances of each five mandatory, among all those seen, within the last few.
+    ${total}=                 Evaluate  ${mandatory} + ${optional} + ${dropped}
+    Should Be True            ${mandatory} > 0 and abs(5 * ${mandatory} - 2 * ${total}) <= 10
+    Should Be True            ${optional} > 0 and ${dropped} > 0
+    Should Be Equal As Integers  ${errors}  0
+    Should Be True            ${late} <= 5000
+
 SleepU5 of the NUCLEO-U575ZI-Q reports on USART1 and still sleeps in Stop 2
     [Documentation]           SleepU5 of Examples/nucleo-u575 (escapement_u5_nucleo.repl): its
     ...                       reports go on USART1, the ST-LINK's virtual COM port, which

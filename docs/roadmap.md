@@ -55,6 +55,17 @@ comes. The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
    and `SoakU5`, built with `KERNEL=SOFT`, give every task m = k = 1: no optional
    instance, no test of one, ever runs. A variant with (m,k)-firm tasks under a load that
    forces drops, checking that no mandatory instance misses its deadline.
+   Written on 2026-10-08: each port's soft build adds `SoakFirm` to its endurance test
+   (`SoakFirmPico`, `SoakFirmPico2`, `SoakFirmU5`, `SoakFirmU3`, `SoakU5.c`), a
+   (2,5)-firm task of 5 ms working 1.5 ms of each, whose optional instances the kernel's
+   test refuses whenever the long task, which declares 7 ms of its 10, arrives before
+   their deadline. Each instance checks from the clock the instances dropped before it:
+   a mandatory one among them, a number other than `OSGetTaskInstance`'s, or an end past
+   the deadline is an error. Under Renode, EDF and DM, 3.5 s of `SoakFirmU5` ran 280
+   mandatory instances, some 200 optional and dropped some 215, without error; a kernel
+   given m = 3 where the task counts 2 made 4 errors. `make -C .../nucleo-u575
+   KERNEL=SOFT` builds it for the NUCLEO-U575ZI-Q, `tools/soak.py` reads its counts.
+   Left: the run on a board.
 3. **The examples from flash, on every board that allows it.** They run from SRAM today,
    loaded over SWD. From flash, on the Pico, the Pico 2 and the NUCLEO-U575ZI-Q
    (`SleepU5Flash` already does there), with what flash brings in: the RP2040's and
