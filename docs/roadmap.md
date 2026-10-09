@@ -72,13 +72,13 @@ since the user added it on 2026-10-09, the STM32U3 (hard and soft). The API (`ap
 3. **The STM32U3 on its board.** Added by the user on 2026-10-09, the day the
    NUCLEO-U385RG-Q came: `SoakU3` ran 329 s and `SoakFirmU3` 182 s without an error
    (`stm32u3.md`, "On the board"), `SleepU3` 60 s through Stop 2 within every bound of
-   `tools/unoq_sleep.py`. Left: a board check of each commit, `board/u3`, as `board/u5`
-   (Stop 2 for a minute, the endurance test for two, the clock against Linux's), with
-   its images built by the CI; a long run that nothing interrupts, the service
-   `escapement-soak-u3`, carried on by each check; 24 h of `SoakFirmU3` without an
-   error; each point of "What only the board can decide" answered by a measurement or
-   said open, the pins D0, D1, D7, D8, D12 and D13 and the current on JP4 needing the
-   user's hands.
+   `tools/unoq_sleep.py`. Written the same day (2e7f0b6): the board check of each
+   commit, `board/u3`, as `board/u5`, passed by hand, its images built by the CI, its
+   long run the service `escapement-soak-u3`; the points of "What only the board can
+   decide" that it answered (`stm32u3.md`, "On the board"). Left: 24 h of `SoakFirmU3`
+   without an error, from 2026-10-09 07:14 UTC, then `BOARD_CI_U3=1` on the bench; the
+   pins D0, D1, D7, D8, D12 and D13 and the current on JP4, which need the user's hands;
+   the LSE's start, R1RDY and BOOSTRDY timed, or said open.
 4. **The examples from flash, on every board that allows it.** They run from SRAM today,
    loaded over SWD. From flash, on the Pico, the Pico 2 and the NUCLEO-U575ZI-Q
    (`SleepU5Flash` already does there) and the NUCLEO-U385RG-Q, with what flash brings in: the RP2040's and

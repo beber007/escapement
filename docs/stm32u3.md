@@ -347,8 +347,32 @@ pulse at most 75 µs late, the timer events 82 µs, the link 189,569 bytes at 11
 with no overrun and no error; `SoakFirmU3` 182 s, 14,481 mandatory instances, 11,099
 optional ones run and 10,621 dropped, none in error, the latest end 3,474 µs into the
 5 ms, the link 114,197 bytes, no overrun. Neither relocked the MSI. That is the first
-run of the port; what follows is still for the board to decide, the revision and the
-option bytes aside.
+run of the port.
+
+The same day, at 2e7f0b6, the check of each commit was run by hand (`board_ci.md`,
+"The NUCLEO-U385RG-Q") and answered these points of the list below:
+
+- **The PLL mode.** Locked, the kernel's second lasts 121.0 ppm less than the one NTP
+  disciplines, over 300 reports (standard error 1.9 ppm): MSIRC0 runs 121 ppm fast,
+  where 2930 periods of the LSE give 107. The 14 ppm between are within what a crystal
+  of 32.768 kHz may be off. A 16 MHz crystal as X2 is not needed for the kernel's time.
+- **The relock, and the margin of the wake-up.** `SleepU3` ran 120 s, 1,200 instances
+  and 2,281 entries into Stop 2, its events at most 7 µs off, no relock missed: the
+  longest wake-up took 24 ticks of LPTIM1, 732 µs, of the 3 ms allowed. With `FAST=1`,
+  MSIPLL0FAST keeping the MSI's PLL mode running in Stop 2, it took 1 tick, 30 µs: the
+  relock is nearly the whole of the wake-up. What MSIPLL0FAST costs in Stop 2 is for
+  the current on JP4 to say.
+- **PWR_VOSR after Stop 2 entered in range 1.** The raise back to 96 MHz, range 1 and
+  the booster, ran after each of those 2,281 wake-ups; which way R1EN read was not
+  recorded.
+- **USART1 disabled across Stop 2.** Each of `SleepU3`'s reports came whole.
+- **The 30 cycles given back at each restart of TIM2.** TIM2 ran 8.1 ppm ahead of
+  LPTIM1 over 120 s of `SleepU3`, 8.6 over 60, as the U5's ran some 7.5 behind: the
+  correction is about right, its sign to be read over a longer run.
+
+Still open: the LSE's start, R1RDY and BOOSTRDY, timed by nothing yet; the pins of the
+connector and LPUART1 on D0 and D1, which need wires; erratum 2.2.1, which the relock
+count of a long run will tell; the current on JP4, which needs the PPK2.
 
 ## What only the board can decide
 
