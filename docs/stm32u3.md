@@ -76,11 +76,14 @@ The examples are those of the U5: `TaskLEDU3`, `UARTEchoU3`, `TestTimerEventU3`,
 `TaskWrapU3`, `IPCU3`, `StackGuardU3`, `SoakU3`, and with Stop 2 `TestLPTimerU3`,
 `SleepU3`, `SleepWrapU3` and `Stop2EventWrapU3`. Two more serve the Renode suite:
 `SleepFastU3` is `SleepU3` built with `FAST=1`, and `SoakStop2U3` is `SoakU3` with the
-idle task of Stop 2 installed. The outputs are D7 (PA8), D8 (PC7), D12 (PA6) and D13
-(PA5, also LD2). `SoakU3` reports on USART1. It adds to word 93 of its results whether
-the MSI ever locked (bit 24), beside the count of relocks. Every example builds with
-`-Wall` and no warning, with the hard and the soft kernel under both algorithms, at all
-four frequencies.
+idle task of Stop 2 installed. `ClockU3` times the clock set-up on the board, the backup
+domain reset first so that the LSE starts as after a power-on: the port reads the DWT's
+cycle counter at each step when built with `OS_CLOCK_TIMES`, which only its image is,
+every other left byte for byte as it was. The outputs are D7 (PA8), D8 (PC7), D12 (PA6)
+and D13 (PA5, also LD2). `SoakU3` reports on USART1. It adds to word 93 of its results
+whether the MSI ever locked (bit 24), beside the count of relocks. Every example builds
+with `-Wall` and no warning, with the hard and the soft kernel under both algorithms, at
+all four frequencies.
 
 Left out for now, and refused at build time where it applies:
 
@@ -370,7 +373,8 @@ The same day, at 2e7f0b6, the check of each commit was run by hand (`board_ci.md
   LPTIM1 over 120 s of `SleepU3`, 8.6 over 60, as the U5's ran some 7.5 behind: the
   correction is about right, its sign to be read over a longer run.
 
-Still open: the LSE's start, R1RDY and BOOSTRDY, timed by nothing yet; the pins of the
+Still open: the LSE's start, R1RDY and BOOSTRDY, which `ClockU3` times, to run once
+the day of `SoakFirmU3` leaves the board; the pins of the
 connector and LPUART1 on D0 and D1, which need wires; erratum 2.2.1, which the relock
 count of a long run will tell; the current on JP4, which needs the PPK2.
 

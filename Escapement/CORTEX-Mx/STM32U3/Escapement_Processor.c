@@ -164,6 +164,17 @@ static UNLOCK_ISR_DATA UnlockDescriptor;
 static volatile UINT32 MSIRelocks;
 static BOOL Locked;
 
+/* With OS_CLOCK_TIMES, the cycle counter of the DWT, which the image starts, read at each
+** step of the clock set-up, for ClockU3 to report how long each took on the board: the
+** LSE's start, LSESYSRDY, the lock, R1RDY, BOOSTRDY and the MSIS at its frequency
+** (docs/stm32u3.md). Without it, nothing. */
+#ifdef OS_CLOCK_TIMES
+   UINT32 _OSClockTimes[8];
+   #define CLOCK_MARK(step) (_OSClockTimes[step] = *((volatile UINT32 *)0xE0001004))
+#else
+   #define CLOCK_MARK(step) ((void)0)
+#endif
+
 
 /* UnlockHandler: The MSI left its PLL mode; cleared and set again, as RM0487 says to put it
 ** back (p. 402; RCC_CIFR, p. 432). The flag is cleared first, so that an unlock that comes
@@ -219,17 +230,21 @@ static void LockMSI(void)
      RCC_BDCR = (RCC_BDCR & ~RCC_BDCR_LSEDRV_MASK) | RCC_BDCR_LSEDRV_MEDHIGH;
      RCC_BDCR |= RCC_BDCR_LSEON;
   }
+  CLOCK_MARK(0);
   for (turns = 0; (RCC_BDCR & RCC_BDCR_LSERDY) == 0 && turns < LSE_START_TURNS; turns += 1);
+  CLOCK_MARK(1);
   if ((RCC_BDCR & RCC_BDCR_LSERDY) != 0) {
      /* The LSE to the RCC's functions, the MSI's PLL mode among them, ready after two of
      ** its cycles (p. 405, 473). */
      RCC_BDCR |= RCC_BDCR_LSESYSEN;
      while ((RCC_BDCR & RCC_BDCR_LSESYSRDY) == 0);
+     CLOCK_MARK(2);
      /* MSIPLL0SEL is 0, the LSE, as reset leaves it; written once the LSE is ready
      ** (p. 422). The hardware refuses MSIPLL0EN before LSERDY (p. 419). */
      RCC_ICSCR1 &= ~RCC_ICSCR1_MSIPLL0SEL;
      RCC_CR |= RCC_CR_MSIPLL0EN;
      for (turns = 0; (RCC_CR & RCC_CR_MSIPLL0RDY) == 0 && turns < LOCK_TURNS; turns += 1);
+     CLOCK_MARK(3);
      Locked = (RCC_CR & RCC_CR_MSIPLL0EN) != 0;
      #ifdef OS_MSIPLL_FAST
         /* The PLL mode kept through Stop 2, the MSI powered and gated there, so that it
@@ -280,6 +295,7 @@ void _OSRaiseSystemClock(void)
      if ((RCC_CFGR4 & RCC_CFGR4_BOOSTSEL_MASK) != RCC_CFGR4_BOOSTSEL_MSIS)
         RCC_CFGR4 = (RCC_CFGR4 & ~RCC_CFGR4_BOOSTSEL_MASK) | RCC_CFGR4_BOOSTSEL_MSIS;
   #endif
+  CLOCK_MARK(4);
   #if CLOCK_RANGE == 1
      /* Range 1, from range 2 once it is ready: R1EN and R2EN change only then, and
      ** together, a write of both to the same value being ignored (p. 369). An R1EN that
@@ -291,11 +307,13 @@ void _OSRaiseSystemClock(void)
      }
      while ((PWR_VOSR & PWR_VOSR_R1RDY) == 0);
   #endif
+  CLOCK_MARK(5);
   #if CLOCK_BOOST
      /* Set again, it changes nothing after Stop 2, which keeps it on. */
      PWR_VOSR |= PWR_VOSR_BOOSTEN;
      while ((PWR_VOSR & PWR_VOSR_BOOSTRDY) == 0);
   #endif
+  CLOCK_MARK(6);
   /* The wait states before the clock rises, read back until they hold (7.3.3, p. 228);
   ** at 12 MHz the one reset sets is taken off, the clock not changing. The prefetch stays
   ** off: the images run from SRAM, and it is only for 1 wait state or more (p. 228). The
@@ -306,6 +324,7 @@ void _OSRaiseSystemClock(void)
   if ((RCC_ICSCR1 & (RCC_ICSCR1_MSISSEL | RCC_ICSCR1_MSISDIV_MASK | RCC_ICSCR1_MSIRGSEL)) !=
       (RCC_ICSCR1_MSISDIV(MSIS_DIV) | RCC_ICSCR1_MSIRGSEL))
      SetMSIDividers(MSIS_DIV,MSIDIV_12MHZ);
+  CLOCK_MARK(7);
 } /* end of _OSRaiseSystemClock */
 
 

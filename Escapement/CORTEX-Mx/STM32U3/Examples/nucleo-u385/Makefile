@@ -6,8 +6,8 @@
 # ST-LINK, which leaves its flash as it was. Built for a Cortex-M33 without its
 # floating-point unit, so that the compiler can never use it: the generic layer saves the
 # context of a Cortex-M33 as that of a Cortex-M4 without one (Escapement_CortexMx_a.S).
-# Written before the board came: Renode runs them (emulation/renode/escapement_u3.robot),
-# the board has not yet (docs/stm32u3.md).
+# Written before the board came, and run under Renode (emulation/renode/escapement_u3.robot)
+# and, since 2026-10-09, on the board (docs/stm32u3.md).
 
 # Bare-metal ARM toolchain. Overridable:
 #   make CROSS_COMPILE=/path/to/arm-none-eabi-
@@ -75,7 +75,7 @@ endif
 $(shell mkdir -p build)
 
 EXAMPLES = TaskLEDU3 UARTEchoU3 TestTimerEventU3 TaskWrapU3 IPCU3 SoakU3 StackGuardU3 \
-           TestLPTimerU3 SleepU3 SleepFastU3 SleepWrapU3 Stop2EventWrapU3 SoakStop2U3
+           TestLPTimerU3 SleepU3 SleepFastU3 SleepWrapU3 Stop2EventWrapU3 SoakStop2U3 ClockU3
 
 # The soft kernel adds SoakFirmU3, SoakU3 with an (m,k)-firm task whose optional instances
 # the kernel drops under load (SoakU3.c).
@@ -158,6 +158,12 @@ build/Escapement_UARTLink.o : ../../Escapement_UART.c
 	$(CC) $(CFLAGS) -DOS_LPUART1_BAUD_RATE=115200u $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/SleepU3.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2.o \
                     build/Escapement_UARTLink.o build/Escapement_TimerEvent.o build/SleepU3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+# The steps of the clock set-up timed, OS_CLOCK_TIMES, for ClockU3 alone.
+build/Escapement_ProcessorTimed.o : ../../Escapement_Processor.c
+	$(CC) $(CFLAGS) -DOS_CLOCK_TIMES $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/ClockU3.elf : $(filter-out build/Escapement_Processor.o,$(COMMON)) \
+                    build/Escapement_ProcessorTimed.o build/Escapement_UART.o build/ClockU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 # SleepU3 with MSIPLL0FAST, as make FAST=1 builds it, for escapement_u3.robot.
 build/Escapement_ProcessorFast.o : ../../Escapement_Processor.c
