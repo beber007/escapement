@@ -89,7 +89,6 @@ Left out for now, and refused at build time where it applies:
 
 - The power-aware kernel. TIM2 counts HCLK on this chip, so a DVFS driver would have to
   rescale TIM2 and TIM4 at each change of speed (plan §5.3).
-- A flash linker script.
 - The HSE as the reference of the PLL mode. It would have to be 16 MHz (RCC_ICSCR1,
   p. 423), and the board comes without that crystal.
 - A name of its own in `tools/soak.py`, which reads it as `nucleo` (below).
@@ -419,7 +418,11 @@ count of a long run will tell; the current on JP4, which needs the PPK2.
   HSI16's start on this chip without a wake-up byte, the U385's datasheet not having been
   read for that time.
 - **The current on JP4.** `SleepU3` with `PHASES=30` gives Stop 2, Sleep and, with `RUN=`,
-  the core running, for a PPK2 in place of JP4 (UM3062 rev. 2, as the plan read it). As
+  the core running, for a PPK2 in place of JP4 (UM3062 rev. 2, as the plan read it).
+  `SleepU3Flash`, the same linked into the flash (`STM32U3_FLASH.ld`, Renode runs it),
+  survives the power cycle the measurement needs: programmed with JP4 fitted, CN1
+  unplugged, the PPK2 in place of JP4, D8 to its D0, `tools/ppk2_nucleo.py`, then CN1
+  plugged back, as on the U5's NUCLEO. As
   on the U5's NUCLEO, PA13 may leak once the ST-LINK is unplugged (ST's README sets it
   analog), VDDA must equal VDD (erratum 2.2.13 above), and B1 must not be pressed.
 - **The 30 cycles given back at each restart of TIM2** (RESTART_CYCLES) were measured on

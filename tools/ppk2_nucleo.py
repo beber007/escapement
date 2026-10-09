@@ -17,6 +17,13 @@ run this script, which closes the PPK2's switch, and plug CN1 back (docs/stm32u5
     tools/ppk2_nucleo.py phases SECONDS   # the mean of each phase, by D0
     tools/ppk2_nucleo.py trace [MS]       # means of 100 samples over MS ms of samples
 
+On the NUCLEO-U385RG-Q the PPK2 takes the place of JP4, its IDD jumper (UM3062), the same
+way round, and D0 goes to D8, PC7, which SleepU3 built with PHASES=30 drives high in its
+Stop 2 phase (D13 drives LD2 there); the image is SleepU3Flash.elf, programmed with JP4
+fitted through the OpenOCD that knows the STM32U3 (tools/board_ci.md):
+
+    tools/ppk2_nucleo.py phases 600       # SleepU3Flash, make PHASES=30 [FAST=1]
+
 For SleepPico2 on a Pico 2 (Examples/pico2), the PPK2 powers the board instead, a source
 of PPK2_SOURCE_MV millivolts on VSYS, its USB unplugged, and its phase is a number on D0
 and D1, PPK2_PHASES naming each:

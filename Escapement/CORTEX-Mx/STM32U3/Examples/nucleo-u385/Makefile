@@ -75,7 +75,8 @@ endif
 $(shell mkdir -p build)
 
 EXAMPLES = TaskLEDU3 UARTEchoU3 TestTimerEventU3 TaskWrapU3 IPCU3 SoakU3 StackGuardU3 \
-           TestLPTimerU3 SleepU3 SleepFastU3 SleepWrapU3 Stop2EventWrapU3 SoakStop2U3 ClockU3
+           TestLPTimerU3 SleepU3 SleepFastU3 SleepWrapU3 Stop2EventWrapU3 SoakStop2U3 ClockU3 \
+           SleepU3Flash
 
 # The soft kernel adds SoakFirmU3, SoakU3 with an (m,k)-firm task whose optional instances
 # the kernel drops under load (SoakU3.c).
@@ -159,6 +160,14 @@ build/Escapement_UARTLink.o : ../../Escapement_UART.c
 build/SleepU3.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2.o \
                     build/Escapement_UARTLink.o build/Escapement_TimerEvent.o build/SleepU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+# SleepU3 run from the flash (STM32U3_FLASH.ld), for the current measured after a power
+# cycle with no debugger since: the same objects, linked at 0x08000000 without the entry
+# code of an image in SRAM. Written with OpenOCD's "program ... verify reset".
+build/SleepU3Flash.elf : $(filter-out build/Escapement_RamEntry.o,$(COMMON)) \
+                         build/Escapement_LPTimer.o build/Escapement_Stop2.o \
+                         build/Escapement_UARTLink.o build/Escapement_TimerEvent.o \
+                         build/SleepU3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T../../STM32U3_FLASH.ld -lgcc
 # The steps of the clock set-up timed, OS_CLOCK_TIMES, for ClockU3 alone.
 build/Escapement_ProcessorTimed.o : ../../Escapement_Processor.c
 	$(CC) $(CFLAGS) -DOS_CLOCK_TIMES $(INCLUDE_ESCAPEMENT) -o $@ $<

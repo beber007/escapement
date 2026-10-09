@@ -94,6 +94,17 @@ cp "$NUCLEO/build/SleepU5.elf" "$OUT/ppk2_u5/SleepU5-nucleo-smps-phases30.elf"
 cp "$NUCLEO/build/SleepU5Flash.elf" "$OUT/ppk2_u5/SleepU5Flash-nucleo-smps-phases30.elf"
 make -s -C "$NUCLEO" clean >/dev/null
 echo "ppk2_u5: SleepU5 PHASES=30, NUCLEO-U575ZI-Q, LDO and SMPS, in SRAM and in the flash"
+# The same for the NUCLEO-U385RG-Q, whose JP4 gives the MCU's current alone, with
+# MSIPLL0FAST and without (docs/stm32u3.md).
+make -s -C "$U3" clean >/dev/null
+make -s -C "$U3" PHASES=30 build/SleepU3Flash.elf >/dev/null
+mkdir -p "$OUT/ppk2_u3"
+cp "$U3/build/SleepU3Flash.elf" "$OUT/ppk2_u3/SleepU3Flash-phases30.elf"
+make -s -C "$U3" clean >/dev/null
+make -s -C "$U3" PHASES=30 FAST=1 build/SleepU3Flash.elf >/dev/null
+cp "$U3/build/SleepU3Flash.elf" "$OUT/ppk2_u3/SleepU3Flash-fast-phases30.elf"
+make -s -C "$U3" clean >/dev/null
+echo "ppk2_u3: SleepU3Flash PHASES=30, with and without FAST=1"
 # Not a check either: the endurance test for a long run on that board (board_ci.md).
 make -s -C "$NUCLEO" build/SoakU5.elf >/dev/null
 mkdir -p "$OUT/soak_nucleo"

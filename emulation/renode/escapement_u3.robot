@@ -388,6 +388,24 @@ SleepU3 reports on USART1 across Stop 2
     Should Be Equal As Integers  ${{ int($second.Line.split()[1], 16) - int($first.Line.split()[1], 16) }}  10
     No Rule Broken
 
+SleepU3 runs from the flash
+    [Documentation]           SleepU3Flash, SleepU3 linked into the flash (STM32U3_FLASH.ld): it
+    ...                       starts from the vector table at 0x08000000, its .data copied into
+    ...                       SRAM by _OSResetHandler, runs from the flash, and reports on USART1
+    ...                       across Stop 2 as the image in SRAM does, no rule broken.
+    [Tags]                    stop2
+    Load Escapement           SleepU3Flash  ${PLATFORM}
+    ${usart1}=                Create Terminal Tester  sysbus.usart1  defaultPauseEmulation=true
+    ${first}=                 Wait For Line On Uart  SLEEP  timeout=2.5  testerId=${usart1}
+    ${second}=                Wait For Line On Uart  SLEEP  timeout=2.5  testerId=${usart1}
+    ${vtor}=                  Read Word  0xE000ED08
+    ${pc}=                    Execute Command  sysbus.cpu PC
+    Log To Console            ${second.Line}, VTOR ${vtor}, PC ${pc.strip()}
+    Should Be Equal As Integers  ${{ int($second.Line.split()[1], 16) - int($first.Line.split()[1], 16) }}  10
+    Should Be Equal As Integers  ${vtor}  0x08000000
+    Should Be True            0x08000000 <= ${pc.strip()} < 0x08100000
+    No Rule Broken
+
 A byte on LPUART1 keeps the idle task out of Stop 2 for the window
     [Documentation]           SleepU3: a wake-up byte sent 50 ms into a period, the chip in
     ...                       Stop 2 since the event at 40 ms, wakes it, and the idle task stays
