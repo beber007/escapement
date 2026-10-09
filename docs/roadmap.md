@@ -93,12 +93,13 @@ the same day.
    `make FLASH=1`, built by the CI, and `tools/pico2_flash.sh`; from its flash, the
    examples that count in memory and those of the UART pass, but for the overlapping
    outcome of LB, which `LitmusPico2` meets from SRAM only (`rp2040.md`, "From the
-   flash"): to be decided, the criterion kept from SRAM or `Wait` made to reach every
-   offset from the flash too. The Pico the same day (`rp2040.md`, "The Pico from its
+   flash"): that criterion kept from SRAM, as the user decided on 2026-10-09. The Pico the same day (`rp2040.md`, "The Pico from its
    flash"): a second stage of our own, `tools/pico_flash.sh`; the timer events and DVFS
-   on one core pass from the flash, but the plain array of `FourSlotCoresPico` never
-   tears there, and under the power-aware kernel a change of speed stops core 1 while it
-   reads the flash: to be fixed before the Pico W's week from the flash (task 8). The
+   on one core pass from the flash, the plain array of `FourSlotCoresPico` never tears
+   there (its criterion kept from SRAM, as the user decided), and under the power-aware
+   kernel the first rounds, the XIP cache cold, take hundreds of microseconds and the
+   reader overruns its first period: to be settled before the Pico W's week from the
+   flash (task 8). The
    two NUCLEO boards take `make FLASH=1` too, not yet run: their boards hold endurance
    runs.
 5. **Every mutant read.** Of each kernel's survivors at 300 task sets, each one killed

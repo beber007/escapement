@@ -170,17 +170,21 @@ def soak(r):
     return checks
 
 
-def litmus(r):
+def litmus(r, overlap_needed=True):
     """LitmusPico2: Marker, then for SB, SB+DMB, MP, MP+DMB, LB, LB+DMB the rounds and the
     four outcomes, indexed r0 * 2 + r1. None may end in its weak outcome, and each must
     have met the other core within a cycle or two: the outcome that needs both halves to
-    overlap (SB 11, MP 01, LB 00) must show, or the rounds proved nothing."""
+    overlap (SB 11, MP 01, LB 00) must show, or the rounds proved nothing. From the flash
+    that witness is not required, only printed: LB's never showed there, the two cores
+    fetching through the one XIP cache, and the user kept it to the images in SRAM
+    (docs/rp2040.md, "From the flash", 2026-10-09)."""
     checks = [(r[0] == 0x4C544D53, f"marker {r[0]:#x}")]
     for i, (name, weak, overlap) in enumerate([("SB", 0, 3), ("SB+DMB", 0, 3),
                                                ("MP", 2, 1), ("MP+DMB", 2, 1),
                                                ("LB", 3, 0), ("LB+DMB", 3, 0)]):
         rounds, outcome = r[1 + 5 * i], r[2 + 5 * i:6 + 5 * i]
-        checks.append((rounds > 100000 and outcome[weak] == 0 and outcome[overlap] > 0,
+        checks.append((rounds > 100000 and outcome[weak] == 0
+                       and (outcome[overlap] > 0 or not overlap_needed),
                        f"{name}: {rounds} rounds, weak {outcome[weak]}, "
                        f"overlapping {outcome[overlap]}"))
     return checks
@@ -210,7 +214,9 @@ def main():
             if args.only and name not in args.only:
                 continue
             elf = os.path.join(build, name + ".elf")
-            checks = judge(run(elf, seed, seconds, words))
+            values = run(elf, seed, seconds, words)
+            checks = litmus(values, False) if args.flash and judge is litmus \
+                else judge(values)
             ok = all(passed for passed, _ in checks)
             failed += not ok
             print(f"{'ok  ' if ok else 'FAIL'} {name}")
