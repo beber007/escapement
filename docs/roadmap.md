@@ -107,8 +107,9 @@ the same day.
    year. `tools/nucleo_flash.sh` reads the flash against the image first and writes only
    what differs, counts each writing on the bench, stops at 1,000 in all, a tenth of
    the endurance, and takes a cap a day, `NUCLEO_FLASH_PER_DAY`: the board CI is to set
-   it to 1, its other checks staying in SRAM, some 365 writings a year. Its paths checked
-   on 2026-10-09 against a stand-in for OpenOCD, its Tcl in OpenOCD; not yet on a board.
+   it to 1, as the user decided on 2026-10-09, its other checks staying in SRAM, some 365
+   writings a year. Its paths checked on 2026-10-09 against a stand-in for OpenOCD, its
+   Tcl in OpenOCD; not yet on a board.
 5. **Every mutant read.** Of each kernel's survivors at 300 task sets, each one killed
    by a test, declared equivalent with its reason (`test/host/equivalent-mutants.jsonl`),
    or written in `method.md` as a behaviour no test reads and why; the hard kernel's
