@@ -89,7 +89,7 @@ Left out for now, and refused at build time where it applies:
 - A flash linker script.
 - The HSE as the reference of the PLL mode. It would have to be 16 MHz (RCC_ICSCR1,
   p. 423), and the board comes without that crystal.
-- A loader script and support in `tools/soak.py`.
+- A name of its own in `tools/soak.py`, which reads it as `nucleo` (below).
 
 ## The idle task in Stop 2
 
@@ -326,6 +326,29 @@ PWR. The manual added five things the plan had left out:
   bits of LPTIM1 and LPUART1 all the same, in case a firmware before it cleared them.
 - **ARR, not CCR1, says the compare must stay below it** (LPTIM_ARR, p. 1940), as the
   U5's driver had it from RM0456; the code is unchanged.
+
+## On the board
+
+The NUCLEO-U385RG-Q came on 2026-10-09, plugged into the UNO Q beside the
+NUCLEO-U575ZI-Q, each ST-LINK then named by its serial (`NUCLEO_SERIAL`, `NUCLEO_TTY`).
+Read before anything was loaded: DBGMCU_IDCODE 0x10016454, revision Z (REV_ID 0x1001),
+DEV_ID 0x454, bits 15 to 12 at 6 where the plan expected 0; CPUID 0x410FD214, r0p4;
+FLASH_OPTR 0x1FEFF0AA, as ST ships it. An OpenOCD built from its sources on 2026-10-07
+(`~/opt/openocd-upstream`, 0.12.0+dev-02732) loads the SRAM with `stm32u3x.cfg`:
+
+```sh
+NUCLEO_MCU=u385 OPENOCD=~/opt/openocd-upstream/bin/openocd NUCLEO_SERIAL=... \
+    tools/nucleo_load.sh build/SoakU3.elf
+NUCLEO_MCU=u385 OPENOCD=... NUCLEO_SERIAL=... NUCLEO_TTY=... tools/soak.py nucleo 5m 1m SoakU3.elf
+```
+
+At 96 MHz, at d9bad06, `SoakU3` ran 329 s with every part active and none in error, the
+pulse at most 75 µs late, the timer events 82 µs, the link 189,569 bytes at 115,200 baud
+with no overrun and no error; `SoakFirmU3` 182 s, 14,481 mandatory instances, 11,099
+optional ones run and 10,621 dropped, none in error, the latest end 3,474 µs into the
+5 ms, the link 114,197 bytes, no overrun. Neither relocked the MSI. That is the first
+run of the port; what follows is still for the board to decide, the revision and the
+option bytes aside.
 
 ## What only the board can decide
 

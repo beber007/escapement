@@ -29,8 +29,8 @@ ran on its board with a check of each commit. The U5 sleeps too well for DVFS to
 (`power-aware.md`): measured on 2026-10-03, a cycle costs least at 160 MHz, and racing
 to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
 **STM32L4** is set aside. The **STM32U3** port, for a NUCLEO-U385RG-Q ordered on
-2026-10-06, is written from RM0487 and runs under Renode only, until the board comes
-(`stm32u3.md`).
+2026-10-06, is written from RM0487; the board came on 2026-10-09, and its endurance test
+ran some minutes on it without an error, hard and soft (`stm32u3.md`, "On the board").
 
 ## Release 0.1
 
@@ -41,8 +41,8 @@ ships, and that each endurance run and measurement it cites was made on that cod
 
 **Scope.** The hard, soft and power-aware kernels, each under EDF and DM, on the boards
 that check every commit: the RP2040 (all three kernels), the RP2350 and the STM32U5 (hard
-and soft). The STM32U3 ships as written, marked as run under Renode only until its board
-comes. The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
+and soft). The STM32U3 ships as written, marked as run under Renode and for some minutes
+on its board. The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
 
 **Tasks, in order, each finished before the next begins:**
 
