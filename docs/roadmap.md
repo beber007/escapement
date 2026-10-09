@@ -71,7 +71,15 @@ the same day.
    mandatory instances, 6.34 million optional ones run and 3.93 million dropped, every
    count of the kernel at 0, the latest end 4,016 µs into the 5 ms, the link lost a
    byte. The fault was the UART driver's, from the STM32U5 port on: `stm32u5.md`, "The
-   endurance test". Left: 24 h without an error on the fix.
+   endurance test". On the fix, d9bad06, from 2026-10-09 05:53 UTC: at 16:55 the
+   reader took one report with some 20 bytes missing from its middle for one of an
+   older image, its numbers shifted, 67,879,873 errors for one line; the board's counts,
+   kept from the start of the run, were at 0 the minute after. The bytes were lost by
+   `tools/soak.py`, which read the port once a minute, 18 kB of reports against Linux's
+   4 kB; it now drains the port as they come and takes only the image's own length
+   (9597205, d1a6c86), and the run went on under it from 19:51 UTC, taken over without a
+   load, the link's count at 0 errors. Left: 24 h on the board's counts, to 2026-10-10
+   05:53 UTC.
 3. **The STM32U3 on its board.** Added by the user on 2026-10-09, the day the
    NUCLEO-U385RG-Q came: `SoakU3` ran 329 s and `SoakFirmU3` 182 s without an error
    (`stm32u3.md`, "On the board"), `SleepU3` 60 s through Stop 2 within every bound of
@@ -79,9 +87,13 @@ the same day.
    commit, `board/u3`, as `board/u5`, passed by hand, its images built by the CI, its
    long run the service `escapement-soak-u3`; the points of "What only the board can
    decide" that it answered (`stm32u3.md`, "On the board"). Left: 24 h of `SoakFirmU3`
-   without an error, from 2026-10-09 07:14 UTC, then `BOARD_CI_U3=1` on the bench; the
+   without an error, then `BOARD_CI_U3=1` on the bench; the
    pins D0, D1, D7, D8, D12 and D13 and the current on JP4, which need the user's hands;
-   the LSE's start, R1RDY and BOOSTRDY timed, or said open.
+   the LSE's start, R1RDY and BOOSTRDY timed, or said open. The run from 07:14 UTC
+   was stopped at 12 h 32 min: taken over by the reader of 9597205, it took the link's
+   count from a report left a minute in the buffers, behind the board's, and the board
+   counted an error of the link (task 2 says why). Loaded again under d1a6c86 at 19:51
+   UTC; its 24 h end on 2026-10-10 at 19:51 UTC.
 4. **The examples from flash, on every board that allows it.** They run from SRAM today,
    loaded over SWD. From flash, on the Pico, the Pico 2 and the NUCLEO-U575ZI-Q
    (`SleepU5Flash` already does there) and the NUCLEO-U385RG-Q, with what flash brings in: the RP2040's and
