@@ -17,6 +17,13 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 
 CPU = cortex-m33+nofp
 LINKERFILE = ../../STM32U3_SRAM.ld
+B = build
+# make FLASH=1 links the same examples into the flash, in build-flash/ (STM32U3_FLASH.ld), as
+# Sleep*Flash.elf already is.
+ifdef FLASH
+   LINKERFILE = ../../STM32U3_FLASH.ld
+   B = build-flash
+endif
 
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
@@ -72,7 +79,7 @@ ifdef MHZ
 endif
 
 # Every rule writes into build/ without ever creating it.
-$(shell mkdir -p build)
+$(shell mkdir -p $(B))
 
 EXAMPLES = TaskLEDU3 UARTEchoU3 TestTimerEventU3 TaskWrapU3 IPCU3 SoakU3 StackGuardU3 \
            TestLPTimerU3 SleepU3 SleepFastU3 SleepWrapU3 Stop2EventWrapU3 SoakStop2U3 ClockU3 \
@@ -84,103 +91,107 @@ ifeq ($(KERNEL),SOFT)
    EXAMPLES += SoakFirmU3
 endif
 
-all: $(EXAMPLES:%=build/%.elf)
+all: $(EXAMPLES:%=$(B)/%.elf)
 
 clean:
-	rm -f build/*.o build/*.elf build/*.bin build/*.d
+	rm -f $(B)/*.o $(B)/*.elf $(B)/*.bin $(B)/*.d
 
-bin: all $(EXAMPLES:%=build/%.bin)
+bin: all $(EXAMPLES:%=$(B)/%.bin)
 
-build/%.bin : build/%.elf
+$(B)/%.bin : $(B)/%.elf
 	$(OBJCOPY) -O binary $< $@
 
-COMMON = build/Escapement_CortexMx.o \
-          build/Escapement_CortexMx_a.o \
-          build/Escapement_Atomic.o \
-          build/Escapement_Interrupts.o \
-          build/Escapement_Timer.o \
-          build/Escapement_Processor.o \
-          build/EscapementHard.o \
-          build/EscapementSoft.o \
-          build/EscapementHardPA.o \
-          build/Escapement_RamEntry.o
+COMMON = $(B)/Escapement_CortexMx.o \
+          $(B)/Escapement_CortexMx_a.o \
+          $(B)/Escapement_Atomic.o \
+          $(B)/Escapement_Interrupts.o \
+          $(B)/Escapement_Timer.o \
+          $(B)/Escapement_Processor.o \
+          $(B)/EscapementHard.o \
+          $(B)/EscapementSoft.o \
+          $(B)/EscapementHardPA.o \
+          $(B)/Escapement_RamEntry.o
+# Without the entry code of an image in SRAM, under make FLASH=1.
+ifdef FLASH
+   COMMON := $(filter-out $(B)/Escapement_RamEntry.o,$(COMMON))
+endif
 
-build/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
+$(B)/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
+$(B)/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_Atomic.o : ../../../Escapement_Atomic.c
+$(B)/Escapement_Atomic.o : ../../../Escapement_Atomic.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
+$(B)/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_%.o : ../../Escapement_%.c
+$(B)/Escapement_%.o : ../../Escapement_%.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/EscapementHard.o : ../../../../EscapementHard.c
+$(B)/EscapementHard.o : ../../../../EscapementHard.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/EscapementSoft.o : ../../../../EscapementSoft.c
+$(B)/EscapementSoft.o : ../../../../EscapementSoft.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/EscapementHardPA.o : ../../../../EscapementHardPA.c
+$(B)/EscapementHardPA.o : ../../../../EscapementHardPA.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/%U3.o : %U3.c
+$(B)/%U3.o : %U3.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
-build/TaskLEDU3.elf : $(COMMON) build/TaskLEDU3.o
+$(B)/TaskLEDU3.elf : $(COMMON) $(B)/TaskLEDU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-build/StackGuardU3.elf : $(COMMON) build/StackGuardU3.o
+$(B)/StackGuardU3.elf : $(COMMON) $(B)/StackGuardU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-build/UARTEchoU3.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoU3.o
+$(B)/UARTEchoU3.elf : $(COMMON) $(B)/Escapement_UART.o $(B)/UARTEchoU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-build/TestTimerEventU3.elf : $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventU3.o
+$(B)/TestTimerEventU3.elf : $(COMMON) $(B)/Escapement_TimerEvent.o $(B)/TestTimerEventU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-build/TaskWrapU3.elf : $(COMMON) build/TaskWrapU3.o
+$(B)/TaskWrapU3.elf : $(COMMON) $(B)/TaskWrapU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-build/IPCU3.elf : $(COMMON) build/IPCU3.o
+$(B)/IPCU3.elf : $(COMMON) $(B)/IPCU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-build/SoakU3.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
-                   build/SoakU3.o
+$(B)/SoakU3.elf : $(COMMON) $(B)/Escapement_TimerEvent.o $(B)/Escapement_UART.o \
+                   $(B)/SoakU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 # SoakU3 with the idle task of Stop 2 installed, which its load never lets enter Stop 2
 # (SoakU3.c).
-build/SoakStop2U3.o : SoakU3.c
+$(B)/SoakStop2U3.o : SoakU3.c
 	$(CC) $(CFLAGS) -DSOAK_STOP2 $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/SoakStop2U3.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
-                        build/Escapement_LPTimer.o build/Escapement_Stop2.o build/SoakStop2U3.o
+$(B)/SoakStop2U3.elf : $(COMMON) $(B)/Escapement_TimerEvent.o $(B)/Escapement_UART.o \
+                        $(B)/Escapement_LPTimer.o $(B)/Escapement_Stop2.o $(B)/SoakStop2U3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-build/SoakFirmU3.o : SoakU3.c
+$(B)/SoakFirmU3.o : SoakU3.c
 	$(CC) $(CFLAGS) -DSOAK_FIRM $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/SoakFirmU3.elf : $(COMMON) build/Escapement_TimerEvent.o build/Escapement_UART.o \
-                       build/SoakFirmU3.o
+$(B)/SoakFirmU3.elf : $(COMMON) $(B)/Escapement_TimerEvent.o $(B)/Escapement_UART.o \
+                       $(B)/SoakFirmU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-build/TestLPTimerU3.elf : $(COMMON) build/Escapement_LPTimer.o build/TestLPTimerU3.o
+$(B)/TestLPTimerU3.elf : $(COMMON) $(B)/Escapement_LPTimer.o $(B)/TestLPTimerU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 # LPUART1 at 115,200 baud: SleepU3's link wakes the chip with a byte before each frame
 # (SleepU3.c); an image that does without that byte keeps 57,600 (Escapement_UART.c).
-build/Escapement_UARTLink.o : ../../Escapement_UART.c
+$(B)/Escapement_UARTLink.o : ../../Escapement_UART.c
 	$(CC) $(CFLAGS) -DOS_LPUART1_BAUD_RATE=115200u $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/SleepU3.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2.o \
-                    build/Escapement_UARTLink.o build/Escapement_TimerEvent.o build/SleepU3.o
+$(B)/SleepU3.elf : $(COMMON) $(B)/Escapement_LPTimer.o $(B)/Escapement_Stop2.o \
+                    $(B)/Escapement_UARTLink.o $(B)/Escapement_TimerEvent.o $(B)/SleepU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 # SleepU3 run from the flash (STM32U3_FLASH.ld), for the current measured after a power
 # cycle with no debugger since: the same objects, linked at 0x08000000 without the entry
 # code of an image in SRAM. Written with OpenOCD's "program ... verify reset".
-build/SleepU3Flash.elf : $(filter-out build/Escapement_RamEntry.o,$(COMMON)) \
-                         build/Escapement_LPTimer.o build/Escapement_Stop2.o \
-                         build/Escapement_UARTLink.o build/Escapement_TimerEvent.o \
-                         build/SleepU3.o
+$(B)/SleepU3Flash.elf : $(filter-out $(B)/Escapement_RamEntry.o,$(COMMON)) \
+                         $(B)/Escapement_LPTimer.o $(B)/Escapement_Stop2.o \
+                         $(B)/Escapement_UARTLink.o $(B)/Escapement_TimerEvent.o \
+                         $(B)/SleepU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T../../STM32U3_FLASH.ld -lgcc
 # The steps of the clock set-up timed, OS_CLOCK_TIMES, for ClockU3 alone.
-build/Escapement_ProcessorTimed.o : ../../Escapement_Processor.c
+$(B)/Escapement_ProcessorTimed.o : ../../Escapement_Processor.c
 	$(CC) $(CFLAGS) -DOS_CLOCK_TIMES $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/ClockU3.elf : $(filter-out build/Escapement_Processor.o,$(COMMON)) \
-                    build/Escapement_ProcessorTimed.o build/Escapement_UART.o build/ClockU3.o
+$(B)/ClockU3.elf : $(filter-out $(B)/Escapement_Processor.o,$(COMMON)) \
+                    $(B)/Escapement_ProcessorTimed.o $(B)/Escapement_UART.o $(B)/ClockU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 # SleepU3 with MSIPLL0FAST, as make FAST=1 builds it, for escapement_u3.robot.
-build/Escapement_ProcessorFast.o : ../../Escapement_Processor.c
+$(B)/Escapement_ProcessorFast.o : ../../Escapement_Processor.c
 	$(CC) $(CFLAGS) -DOS_MSIPLL_FAST $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/SleepFastU3.elf : $(filter-out build/Escapement_Processor.o,$(COMMON)) \
-                        build/Escapement_ProcessorFast.o build/Escapement_LPTimer.o \
-                        build/Escapement_Stop2.o build/Escapement_UARTLink.o \
-                        build/Escapement_TimerEvent.o build/SleepU3.o
+$(B)/SleepFastU3.elf : $(filter-out $(B)/Escapement_Processor.o,$(COMMON)) \
+                        $(B)/Escapement_ProcessorFast.o $(B)/Escapement_LPTimer.o \
+                        $(B)/Escapement_Stop2.o $(B)/Escapement_UARTLink.o \
+                        $(B)/Escapement_TimerEvent.o $(B)/SleepU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 # SleepU3 with its times a thousand times longer, for the wrap under Renode (SleepU3.c),
 # the margins of the idle task in Stop 2 with them; the part kept for the raise is 1.2 ms
@@ -188,23 +199,23 @@ build/SleepFastU3.elf : $(filter-out build/Escapement_Processor.o,$(COMMON)) \
 # lock, in ticks of an LPTIM1 a thousand times faster, near its 16 bits.
 SCALED = -DTIME_SCALE=1000 -DOS_STOP2_WAKE_US=3000000u -DOS_STOP2_MIN_US=5000000u \
          -DOS_STOP2_RAISE_US=1200000u -DOS_STOP2_LOCK_TICKS=60000u
-build/SleepWrapU3.o : SleepU3.c
+$(B)/SleepWrapU3.o : SleepU3.c
 	$(CC) $(CFLAGS) $(SCALED) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_Stop2Wrap.o : ../../Escapement_Stop2.c
+$(B)/Escapement_Stop2Wrap.o : ../../Escapement_Stop2.c
 	$(CC) $(CFLAGS) $(SCALED) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/SleepWrapU3.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2Wrap.o \
-                        build/Escapement_UARTLink.o build/Escapement_TimerEvent.o \
-                        build/SleepWrapU3.o
+$(B)/SleepWrapU3.elf : $(COMMON) $(B)/Escapement_LPTimer.o $(B)/Escapement_Stop2Wrap.o \
+                        $(B)/Escapement_UARTLink.o $(B)/Escapement_TimerEvent.o \
+                        $(B)/SleepWrapU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 # The idle task in Stop 2 while an event-driven task's arrival lies beyond the wrap, scaled
 # as SleepWrapU3 for Renode (Stop2EventWrapU3.c).
-build/Stop2EventWrapU3.o : Stop2EventWrapU3.c
+$(B)/Stop2EventWrapU3.o : Stop2EventWrapU3.c
 	$(CC) $(CFLAGS) $(SCALED) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Stop2EventWrapU3.elf : $(COMMON) build/Escapement_LPTimer.o build/Escapement_Stop2Wrap.o \
-                             build/Escapement_TimerEvent.o build/Stop2EventWrapU3.o
+$(B)/Stop2EventWrapU3.elf : $(COMMON) $(B)/Escapement_LPTimer.o $(B)/Escapement_Stop2Wrap.o \
+                             $(B)/Escapement_TimerEvent.o $(B)/Stop2EventWrapU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 
 # The .d files produced by -MMD list the headers of each object: without them, a change
 # to Escapement_Config.h triggers no rebuild at all and the next test runs against a
 # stale binary.
--include $(wildcard build/*.d)
+-include $(wildcard $(B)/*.d)

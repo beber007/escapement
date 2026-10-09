@@ -42,10 +42,14 @@ addr() { arm-none-eabi-nm "$ELF" | awk -v s="$1" '$3 == s { print "0x"$1 }'; }
     exit 1
 }
 
-# 1. load, let the kernel initialise, free the timer from the debugger, let go
-openocd -f interface/cmsis-dap.cfg -c "$ADAPTER" -c 'adapter speed 5000' -f target/rp2040.cfg \
-    -c init -c 'reset halt' -c "load_image $ELF" -c 'resume 0x20000000' \
-    -c exit >/dev/null 2>&1
+# 1. load, let the kernel initialise, free the timer from the debugger, let go; an image
+# linked into the flash (make FLASH=1) is written there and booted, by tools/pico_flash.sh
+case $(addr _OSResetHandler) in
+    0x1*) sh "$ROOT/tools/pico_flash.sh" "$ELF" >/dev/null ;;
+    *) "${OPENOCD:-openocd}" -f interface/cmsis-dap.cfg -c "$ADAPTER" -c 'adapter speed 5000' \
+           -f target/rp2040.cfg -c init -c 'reset halt' -c "load_image $ELF" \
+           -c 'resume 0x20000000' -c exit >/dev/null 2>&1 ;;
+esac
 
 # 2. let it run on its own, with no debugger attached
 sleep "$RUN_SECONDS"
@@ -53,7 +57,7 @@ sleep "$RUN_SECONDS"
 # 3. come back and read the counters
 # One mdw per symbol: the linker is free to lay the counters out in any order,
 # and it does reorder them from one optimisation level to the next.
-raw=$(openocd -f interface/cmsis-dap.cfg -c "$ADAPTER" -c 'adapter speed 5000' -f target/rp2040.cfg \
+raw=$("${OPENOCD:-openocd}" -f interface/cmsis-dap.cfg -c "$ADAPTER" -c 'adapter speed 5000' -f target/rp2040.cfg \
     -c init -c halt \
     -c "mdw $(addr _OSCostMax)" -c "mdw $(addr _OSCostSum)" -c "mdw $(addr _OSCostCount)" \
     -c shutdown 2>&1 | sed -n 's/^0x[0-9a-f]*: //p')

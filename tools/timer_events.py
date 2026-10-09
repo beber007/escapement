@@ -42,7 +42,7 @@ def main():
     args = parser.parse_args()
 
     out = read_trace.load(args.elf)
-    if "downloaded" not in out and "bytes written" not in out:
+    if "downloaded" not in out and "bytes written" not in out and "Verified OK" not in out:
         sys.exit("could not load the image:\n" + out)
     periods, highs, late, events, last = {}, {}, [], 0, None
     for _ in range(args.reads):

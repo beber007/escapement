@@ -28,11 +28,16 @@ RESULTS=$(arm-none-eabi-nm "$ELF" | awk '$3 == "Results" { print "0x"$1 }')
 [ -n "$RESULTS" ] || { echo "$ELF is not FourSlotCoresPico" >&2; exit 1; }
 
 ocd() {
-    openocd -f interface/cmsis-dap.cfg -c "$ADAPTER" -c 'adapter speed 5000' -c 'set USE_CORE 0' \
-        -f target/rp2040.cfg -c init "$@" -c exit 2>&1
+    "${OPENOCD:-openocd}" -f interface/cmsis-dap.cfg -c "$ADAPTER" -c 'adapter speed 5000' \
+        -c 'set USE_CORE 0' -f target/rp2040.cfg -c init "$@" -c exit 2>&1
 }
 
-ocd -c 'reset halt' -c "load_image $ELF" -c 'resume 0x20000000' >/dev/null
+# An image linked into the flash (make FLASH=1) is written there and booted, by
+# tools/pico_flash.sh.
+case $(arm-none-eabi-nm "$ELF" | awk '$3 == "_OSResetHandler" { print $1 }') in
+    1*) sh "$(dirname "$0")/pico_flash.sh" "$ELF" >/dev/null ;;
+    *) ocd -c 'reset halt' -c "load_image $ELF" -c 'resume 0x20000000' >/dev/null ;;
+esac
 sleep "$RUN_SECONDS"
 # shellcheck disable=SC2046  # the words read are the fields wanted
 set -- $(ocd -c "mdw $RESULTS 10" | sed -n 's/^0x[0-9a-f]*: //p')

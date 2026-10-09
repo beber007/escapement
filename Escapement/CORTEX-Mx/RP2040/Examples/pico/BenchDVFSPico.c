@@ -26,6 +26,11 @@
 
 #define TIMER_TIMERAWL  *((volatile UINT32 *)(0x40054000 + 0x28))
 #define TIMER_DBGPAUSE  *((volatile UINT32 *)(0x40054000 + 0x2C))
+#define WATCHDOG_TICK   *((volatile UINT32 *)(0x40058000 + 0x2C))
+#define WATCHDOG_TICK_ENABLE (1u << 9)
+#define RESETS_CLR        *((volatile UINT32 *)(0x4000C000 + 0x3000))
+#define RESETS_RESET_DONE *((volatile UINT32 *)(0x4000C000 + 0x08))
+#define RESETS_TIMER_BIT  (1u << 21)
 
 /* The registers the driver writes, to time its steps one by one (Escapement_Processor.c). */
 #define VREG            *((volatile UINT32 *)(0x40064000 + 0x00))
@@ -68,6 +73,12 @@ int main(void)
   VTOR = (UINT32)CortexMxVectorTable;
   OSInitializeSystemClocks();
   OSInitProcessorSpeed();
+  /* The timer and its 1 us tick, as _OSInitializeTimer sets them (Escapement_Timer.c): without the
+  ** kernel, the bench found them as the image before had left them, which a reset of the
+  ** whole chip does not, and counted some 23,500 ticks a second (2026-10-09). */
+  RESETS_CLR = RESETS_TIMER_BIT;
+  while ((RESETS_RESET_DONE & RESETS_TIMER_BIT) == 0);
+  WATCHDOG_TICK = WATCHDOG_TICK_ENABLE | 12;
   TIMER_DBGPAUSE = 0;   /* the loader leaves core 1 halted: let the counter run anyway */
 
   for (k = 0; k < 6; k += 1) {

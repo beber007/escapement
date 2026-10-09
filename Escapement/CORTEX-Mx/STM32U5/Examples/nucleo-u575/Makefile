@@ -31,6 +31,13 @@ CC = $(CROSS_COMPILE)gcc
 
 CPU = cortex-m33+nofp
 LINKERFILE = ../../STM32U5_SRAM.ld
+B = build
+# make FLASH=1 links the same examples into the flash, in build-flash/ (STM32U5_FLASH.ld), as
+# Sleep*Flash.elf already is.
+ifdef FLASH
+   LINKERFILE = ../../STM32U5_FLASH.ld
+   B = build-flash
+endif
 UNOQ = ../uno-q
 
 INCLUDE_ESCAPEMENT = -I$(UNOQ) -I../../ -I../../../ -I../../../../
@@ -46,7 +53,7 @@ LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
 ifeq ($(KERNEL),SOFT)
    CFLAGS += -DESCAPEMENT_VERSION_SOFT
    AFLAGS += -DESCAPEMENT_VERSION_SOFT
-   FIRM = build/SoakFirmU5.elf
+   FIRM = $(B)/SoakFirmU5.elf
 endif
 # make PHASES=30: Stop 2 and Sleep in turn, D13 telling them apart (SleepU5.c).
 ifdef PHASES
@@ -77,55 +84,59 @@ ifdef SMPS
    CFLAGS += -DOS_SMPS
 endif
 
-$(shell mkdir -p build)
+$(shell mkdir -p $(B))
 
-all: build/SleepU5.elf build/SoakU5.elf build/SleepU5Flash.elf $(FIRM)
+all: $(B)/SleepU5.elf $(B)/SoakU5.elf $(B)/SleepU5Flash.elf $(FIRM)
 
 clean:
-	rm -f build/*.o build/*.elf build/*.d
+	rm -f $(B)/*.o $(B)/*.elf $(B)/*.d
 
-OBJECTS = build/Escapement_CortexMx.o build/Escapement_CortexMx_a.o \
-          build/Escapement_Atomic.o build/Escapement_Interrupts.o \
-          build/Escapement_Timer.o build/Escapement_Processor.o build/EscapementHard.o \
-          build/EscapementSoft.o \
-          build/Escapement_RamEntry.o build/Escapement_LPTimer.o build/Escapement_Stop2.o \
-          build/Escapement_UART.o build/Escapement_TimerEvent.o build/SleepU5.o
+OBJECTS = $(B)/Escapement_CortexMx.o $(B)/Escapement_CortexMx_a.o \
+          $(B)/Escapement_Atomic.o $(B)/Escapement_Interrupts.o \
+          $(B)/Escapement_Timer.o $(B)/Escapement_Processor.o $(B)/EscapementHard.o \
+          $(B)/EscapementSoft.o \
+          $(B)/Escapement_RamEntry.o $(B)/Escapement_LPTimer.o $(B)/Escapement_Stop2.o \
+          $(B)/Escapement_UART.o $(B)/Escapement_TimerEvent.o $(B)/SleepU5.o
+# Without the entry code of an image in SRAM, under make FLASH=1.
+ifdef FLASH
+   OBJECTS := $(filter-out $(B)/Escapement_RamEntry.o,$(OBJECTS))
+endif
 
-build/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
+$(B)/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
+$(B)/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_Atomic.o : ../../../Escapement_Atomic.c
+$(B)/Escapement_Atomic.o : ../../../Escapement_Atomic.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
+$(B)/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_%.o : ../../Escapement_%.c
+$(B)/Escapement_%.o : ../../Escapement_%.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/EscapementHard.o : ../../../../EscapementHard.c
+$(B)/EscapementHard.o : ../../../../EscapementHard.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/EscapementSoft.o : ../../../../EscapementSoft.c
+$(B)/EscapementSoft.o : ../../../../EscapementSoft.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/SleepU5.o : $(UNOQ)/SleepU5.c
+$(B)/SleepU5.o : $(UNOQ)/SleepU5.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
-build/SleepU5.elf : $(OBJECTS)
+$(B)/SleepU5.elf : $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 
 # SleepU5 run from the flash (STM32U5_FLASH.ld), for the current measured after a power
 # cycle with no debugger since: the same objects, linked at 0x08000000 without the entry
 # code of an image in SRAM. Written with OpenOCD's "program ... verify reset".
-build/SleepU5Flash.elf : $(filter-out build/Escapement_RamEntry.o,$(OBJECTS))
+$(B)/SleepU5Flash.elf : $(filter-out $(B)/Escapement_RamEntry.o,$(OBJECTS))
 	$(CC) $(LDFLAGS) -o $@ $^ -T../../STM32U5_FLASH.ld -lgcc
 
 # SoakU5, the endurance test, its reports and link on USART1 to the ST-LINK's virtual COM
 # port (SoakU5.c), for a long run beside the UNO Q's checks (tools/soak.py nucleo).
-build/SoakU5.o : $(UNOQ)/SoakU5.c
+$(B)/SoakU5.o : $(UNOQ)/SoakU5.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/SoakU5.elf : $(filter-out build/SleepU5.o,$(OBJECTS)) build/SoakU5.o
+$(B)/SoakU5.elf : $(filter-out $(B)/SleepU5.o,$(OBJECTS)) $(B)/SoakU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-build/SoakFirmU5.o : $(UNOQ)/SoakU5.c
+$(B)/SoakFirmU5.o : $(UNOQ)/SoakU5.c
 	$(CC) $(CFLAGS) -DSOAK_FIRM $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/SoakFirmU5.elf : $(filter-out build/SleepU5.o,$(OBJECTS)) build/SoakFirmU5.o
+$(B)/SoakFirmU5.elf : $(filter-out $(B)/SleepU5.o,$(OBJECTS)) $(B)/SoakFirmU5.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 
--include $(wildcard build/*.d)
+-include $(wildcard $(B)/*.d)

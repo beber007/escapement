@@ -34,6 +34,8 @@ make KERNEL=SOFT                              # (m,k)-firm kernel
 make KERNEL=PA                                # power-aware kernel, DVFS
 make KERNEL=PA UNDERVOLT=1                    # below the specified voltage, bench only
 make KERNEL=PA SLEEP_SPEED=0                  # idle task sleeps at 12 MHz (default 125)
+make FLASH=1                                  # the same, into the flash (build-flash/), which
+                                              # OPENOCD=<Raspberry Pi's> tools/pico_flash.sh ELF writes
 make SLEEP_GATE=1                             # idle task in SLEEP, clocks gated (bench only)
 make TRACE=1                                  # scheduling trace in RAM (tools/read_trace.py)
 make KERNEL=PA bench                          # BenchDVFSPico, BenchVregPico: board timings

@@ -49,8 +49,8 @@ def main():
     sym = read_trace.symbols(args.elf)
     if "BenchSum" not in sym:
         sys.exit(f"{args.elf} is not BenchDVFSPico")
-    out = read_trace.openocd(["reset halt", f"load_image {args.elf}", "resume 0x20000000"])
-    if "downloaded" not in out and "bytes written" not in out:
+    out = read_trace.load(args.elf)
+    if "downloaded" not in out and "bytes written" not in out and "Verified OK" not in out:
         sys.exit("could not load the image:\n" + out)
     for _ in range(30):
         time.sleep(2)

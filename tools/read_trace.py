@@ -58,9 +58,20 @@ def sleep_gated(elf):
     return "OSInitSleepGate" in symbols(elf)
 
 
+def in_flash(elf):
+    """Whether the image is linked into the flash (make FLASH=1, RP2040_FLASH.ld)."""
+    return symbols(elf)["_OSResetHandler"] < 0x20000000
+
+
 def load(elf):
     """Loads the image and starts it; core 1 is left held, but for an image that parks it
-    in SLEEP, whose OSLaunchCore1 waits for the bootrom of core 1 to answer."""
+    in SLEEP, whose OSLaunchCore1 waits for the bootrom of core 1 to answer. An image
+    linked into the flash is written there instead and booted, by tools/pico_flash.sh: both
+    cores then start in the bootrom."""
+    if in_flash(elf):
+        flash = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pico_flash.sh")
+        return subprocess.run(["sh", flash, elf], capture_output=True, text=True,
+                              timeout=120).stdout
     commands = ["reset halt", f"load_image {elf}", "resume 0x20000000"]
     if sleep_gated(elf):
         commands += ["targets rp2040.core1", "resume"]
@@ -75,7 +86,7 @@ def adapter():
 
 
 def openocd(commands):
-    args = ["openocd", "-f", "interface/cmsis-dap.cfg", "-c", adapter(),
+    args = [os.environ.get("OPENOCD", "openocd"), "-f", "interface/cmsis-dap.cfg", "-c", adapter(),
             "-c", "adapter speed 5000",
             "-f", "target/rp2040.cfg", "-c", "init"]
     for c in commands:
