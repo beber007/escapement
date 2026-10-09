@@ -40,9 +40,8 @@ no date. Coherent means that each claim the release makes is checked on the code
 ships, and that each endurance run and measurement it cites was made on that code.
 
 **Scope.** The hard, soft and power-aware kernels, each under EDF and DM, on the boards
-that check every commit: the RP2040 (all three kernels), the RP2350 and the STM32U5 (hard
-and soft). The STM32U3 ships as written, marked as run under Renode and for some minutes
-on its board. The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
+that check every commit: the RP2040 (all three kernels), the RP2350, the STM32U5 and,
+since the user added it on 2026-10-09, the STM32U3 (hard and soft). The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
 
 **Tasks, in order, each finished before the next begins:**
 
@@ -70,38 +69,49 @@ on its board. The API (`api.md`) is not yet stable: 0.x, as semantic versioning 
    count of the kernel at 0, the latest end 4,016 µs into the 5 ms, the link lost a
    byte. The fault was the UART driver's, from the STM32U5 port on: `stm32u5.md`, "The
    endurance test". Left: 24 h without an error on the fix.
-3. **The examples from flash, on every board that allows it.** They run from SRAM today,
+3. **The STM32U3 on its board.** Added by the user on 2026-10-09, the day the
+   NUCLEO-U385RG-Q came: `SoakU3` ran 329 s and `SoakFirmU3` 182 s without an error
+   (`stm32u3.md`, "On the board"), `SleepU3` 60 s through Stop 2 within every bound of
+   `tools/unoq_sleep.py`. Left: a board check of each commit, `board/u3`, as `board/u5`
+   (Stop 2 for a minute, the endurance test for two, the clock against Linux's), with
+   its images built by the CI; a long run that nothing interrupts, the service
+   `escapement-soak-u3`, carried on by each check; 24 h of `SoakFirmU3` without an
+   error; each point of "What only the board can decide" answered by a measurement or
+   said open, the pins D0, D1, D7, D8, D12 and D13 and the current on JP4 needing the
+   user's hands.
+4. **The examples from flash, on every board that allows it.** They run from SRAM today,
    loaded over SWD. From flash, on the Pico, the Pico 2 and the NUCLEO-U575ZI-Q
-   (`SleepU5Flash` already does there), with what flash brings in: the RP2040's and
+   (`SleepU5Flash` already does there) and the NUCLEO-U385RG-Q, with what flash brings in: the RP2040's and
    RP2350's execute-in-place cache, the STM32's wait states as the clock changes, DVFS
    with code read through XIP. Not on the UNO Q's STM32U585, whose flash holds Arduino's
    firmware, which stays. The STM32U5's flash takes some 10,000 erasures: a board check
    may not program it at each commit; how often it may is part of the task.
-4. **Every mutant read.** Of each kernel's survivors at 300 task sets, each one killed
+5. **Every mutant read.** Of each kernel's survivors at 300 task sets, each one killed
    by a test, declared equivalent with its reason (`test/host/equivalent-mutants.jsonl`),
    or written in `method.md` as a behaviour no test reads and why; the hard kernel's
    unread ones first (0, 127, 130, 206, 225, 226, 236, 459), then those of the soft and
    power-aware kernels never read. The scores measured again on the code as it then is.
-5. **The documentation against the code.** Each claim of `README.md` set again against
+6. **The documentation against the code.** Each claim of `README.md` set again against
    what checks it (`method.md`, "What the README claims"), on the code as it then is;
    `api.md` stating that the API is not yet stable; the known limits written where a
    reader meets them: an optional instance tested once, DM keeping the count, DVFS worth
    nothing on the STM32U5 and some 10 % on the RP2350, the energy verdict on the RP2040
    open (item 1 below; after this release, as the user decided on 2026-10-07).
-6. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
+7. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
    it on, fixes only. `EscapementHard.c` must not have changed since 041af76, the commit
    of its week of endurance.
-7. **Endurance on the candidate.** The power-aware kernel a week on the Pico W, its
+8. **Endurance on the candidate.** The power-aware kernel a week on the Pico W, its
    week of 80cc6dc having run on a kernel changed four times since: that run stops at the
    freeze, as the user decided on 2026-10-07; the soft kernel a week on the
-   NUCLEO-U575ZI-Q with the variant of task 2, in parallel, both from flash once task 3
-   is done. A fix to a kernel makes an
+   NUCLEO-U575ZI-Q with the variant of task 2, in parallel, both from flash once task 4
+   is done; the hard kernel a week on the NUCLEO-U385RG-Q, a port new to this release,
+   its soft kernel's day being that of task 3. A fix to a kernel makes an
    `rc2` and starts that kernel's week again.
-8. **The release.** Its notes, from `git log` since the fork and from this page; the tag
+9. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 
 **Not in 0.1**, open after it: the energy verdict on the RP2040 (item 1); DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
-the STM32U3 on its board; the PPK2 as a check of each commit on the STM32U5 (item 4); how
+the PPK2 as a check of each commit on the STM32U5 (item 4); how
 often a wake-up byte of LPUART1 comes out wrong (item 6); testing a dropped optional
 instance again; an exhaustive enumeration of small task sets and fuzzing; a test of
 optional instances by processor demand that counts its own cost, bounded and measured on
