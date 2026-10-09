@@ -375,8 +375,8 @@ The same day, at 2e7f0b6, the check of each commit was run by hand (`board_ci.md
 Still open: the LSE's start, R1RDY and BOOSTRDY, which `ClockU3` times, to run once
 the day of `SoakFirmU3` leaves the board; the pins of the connector, which the PPK2's
 logic inputs will read under `TaskLEDU3` (`tools/ppk2_nucleo.py pins`), and LPUART1 on
-D0 and D1, which the Bus Pirate's bridge will reach (`tools/buspirate_bridge.py`,
-`LINK_TTY` of `tools/unoq_sleep.py`), both once wired; erratum 2.2.1, which the relock
+D0 and D1, which an FTDI TTL-232R-3V3 cable on the UNO Q will reach (`LINK_TTY` of
+`tools/unoq_sleep.py`), both once wired; erratum 2.2.1, which the relock
 count of a long run will tell; the current on JP4, which needs the PPK2.
 
 ## What only the board can decide

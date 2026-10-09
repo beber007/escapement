@@ -42,8 +42,8 @@ receiving nothing there (SleepU5.c); the checks of the link then hold on no byte
 
 With nucleo and $LINK_TTY, the frames go to that port, the reports still coming on the
 ST-LINK's: SleepU3 on the NUCLEO-U385RG-Q receives its link on LPUART1, D0 and D1, which
-the Bus Pirate's bridge reaches (tools/buspirate_bridge.py), and every check of the link
-holds again.
+an FTDI TTL-232R-3V3 cable reaches, its orange TXD on D0, its yellow RXD on D1, its red
+5 V left free (tools/board_ci.md), and every check of the link holds again.
 
     [MHZ=16] [LINK_TTY=PORT] tools/unoq_sleep.py SECONDS [nucleo]
 """
