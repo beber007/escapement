@@ -65,7 +65,11 @@ comes. The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
    mandatory instances, some 200 optional and dropped some 215, without error; a kernel
    given m = 3 where the task counts 2 made 4 errors. `make -C .../nucleo-u575
    KERNEL=SOFT` builds it for the NUCLEO-U575ZI-Q, `tools/soak.py` reads its counts.
-   Left: the run on a board.
+   On the board from 2026-10-08 05:28 UTC, at 98d8051: after 23 h 46 min, 6.85 million
+   mandatory instances, 6.34 million optional ones run and 3.93 million dropped, every
+   count of the kernel at 0, the latest end 4,016 µs into the 5 ms, the link lost a
+   byte. The fault was the UART driver's, from the STM32U5 port on: `stm32u5.md`, "The
+   endurance test". Left: 24 h without an error on the fix.
 3. **The examples from flash, on every board that allows it.** They run from SRAM today,
    loaded over SWD. From flash, on the Pico, the Pico 2 and the NUCLEO-U575ZI-Q
    (`SleepU5Flash` already does there), with what flash brings in: the RP2040's and

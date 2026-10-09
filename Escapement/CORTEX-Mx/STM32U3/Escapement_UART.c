@@ -121,7 +121,7 @@
 
 /* One bit per interrupt, 32 to a word. */
 #define NVIC_ISER(irq)       ((volatile UINT32 *)0xE000E100)[(irq) >> 5]
-#define NVIC_ICER(irq)       ((volatile UINT32 *)0xE000E180)[(irq) >> 5]
+#define NVIC_ISPR(irq)       ((volatile UINT32 *)0xE000E200)[(irq) >> 5]
 #define NVIC_BIT(irq)        (1u << ((irq) & 0x1F))
 
 /* USART1 is clocked by PCLK2 (USART1SEL left at its reset value); LPUART1 by HSI16. */
@@ -142,6 +142,7 @@ typedef struct UART_INTERRUPT_DESCRIPTOR { // Interrupt handler opaque descripto
   UINT8 *CurrentBuffer;            // Buffer being emptied onto the port
   void (*UserReceiveInterruptHandler)(UINT8 data); // Application receive handler
   UINT32 Overruns;                 // Bytes lost, one not read before the next came
+  volatile BOOL Prime;             // A buffer queued, for the interrupt to send
 } UART_INTERRUPT_DESCRIPTOR;
 
 #define REG(des,off) *((volatile UINT32 *)((des)->Base + (off)))
@@ -176,6 +177,7 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
   descriptor->CurrentBuffer = NULL;
   descriptor->CurrentBufferIndex = 0;
   descriptor->Overruns = 0;
+  descriptor->Prime = FALSE;
   RCC_AHB2ENR1 |= RCC_AHB2ENR1_GPIOAEN;
   if (interruptIndex == OS_IO_LPUART1) {
      descriptor->Base = LPUART1_BASE;
@@ -247,7 +249,8 @@ BOOL _OSUARTIdle(void)
   for (i = 0; i < sizeof(index); i += 1)
      if ((des = (UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(index[i])) != NULL &&
          ((des->UserReceiveInterruptHandler != NULL && index[i] == OS_IO_USART1) ||
-          (REG(des,USART_CR1) & CR1_TXEIE) || (REG(des,USART_ISR) & ISR_TC) == 0))
+          des->Prime || (REG(des,USART_CR1) & CR1_TXEIE) ||
+          (REG(des,USART_ISR) & ISR_TC) == 0))
         return FALSE;
   return TRUE;
 } /* end of _OSUARTIdle */
@@ -300,21 +303,18 @@ void OSReleaseNodeUART(void *buffer, UINT8 interruptIndex)
 } /* end of OSReleaseNodeUART */
 
 
-/* OSEnqueueUART: Queues a buffer and enables the transmit interrupt, which will drain it.
-** CR1 is read, modified and written by the interrupt too: the interrupt of this USART
-** alone is masked around the write, rather than every interrupt, so that the timer of the
-** kernel keeps its latency. */
+/* OSEnqueueUART: Queues a buffer and sets the interrupt pending, which enables its
+** transmit part and drains the queue: CR1, which the interrupt reads, modifies and writes,
+** is only ever written by it. The interrupt of this USART was masked here around a write
+** of CR1 instead, and a task preempted inside it left the receiver unread for as long as
+** the tasks that preempted it ran, as on the STM32U5 (its Escapement_UART.c). */
 void OSEnqueueUART(void *buffer, UINT8 dataSize, UINT8 interruptIndex)
 {
   UART_INTERRUPT_DESCRIPTOR *descriptor =
                           (UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(interruptIndex);
   OSEnqueueFIFO(descriptor->FifoArray,buffer,dataSize);
-  NVIC_ICER(interruptIndex) = NVIC_BIT(interruptIndex);
-  asm volatile ("dsb" ::: "memory");   // the mask must hold before the next instruction
-  asm volatile ("isb" ::: "memory");
-  REG(descriptor,USART_CR1) |= CR1_TXEIE;
-  asm volatile ("" ::: "memory");
-  NVIC_ISER(interruptIndex) = NVIC_BIT(interruptIndex);
+  descriptor->Prime = TRUE;
+  NVIC_ISPR(interruptIndex) = NVIC_BIT(interruptIndex);
 } /* end of OSEnqueueUART */
 
 
@@ -370,6 +370,10 @@ static void InterruptHandler(UART_INTERRUPT_DESCRIPTOR *des)
   if (status & ISR_ORE) {
      REG(des,USART_ICR) = ICR_ORECF;
      des->Overruns += 1;
+  }
+  if (des->Prime) {
+     des->Prime = FALSE;
+     REG(des,USART_CR1) |= CR1_TXEIE;
   }
   if ((status & ISR_TXE) && (REG(des,USART_CR1) & CR1_TXEIE))
      Transmit(des);

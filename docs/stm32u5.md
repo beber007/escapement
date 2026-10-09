@@ -117,6 +117,20 @@ counted since the byte before them. n bytes waiting came over at least n − 1 b
 174 µs each at 57,600 baud; less on the clock, and `tools/soak.py` says how much the
 clock lost.
 
+The clock lost nothing: the losses came from the driver. `OSEnqueueUART`, called by a
+task, masked the interrupt of its USART in the NVIC around the write of `TXEIE` in CR1,
+which the interrupt writes too. A task preempted between the mask and the unmask left the
+receiver unread for as long as the tasks that preempted it ran, the timer's interrupt and
+the pulse on time. In the endurance test it is the heartbeat, of the furthest deadline,
+that sends the report twice a second, and the long task, up to 6 ms, may run in its
+place. On 2026-10-09 the soft kernel's run on the NUCLEO lost a byte after 23 h 46 min,
+a burst of 10 bytes read together, and the hard kernel's on the UNO Q one after 16 h 54
+min, a burst of 9, the pulse at most 56 and 48 µs late. A window widened to some 75 µs
+of work between the mask and the unmask lost 2 bytes in the first minute, the pulse at
+most 41 µs late. `OSEnqueueUART` now sets the interrupt pending, which alone writes CR1,
+as the RP2350 port does since 2026-09-29; the STM32U3 port, written from this one, had
+the same fault.
+
 ## What is verified
 
 ### On the board
