@@ -24,6 +24,14 @@ fitted through the OpenOCD that knows the STM32U3 (tools/board_ci.md):
 
     tools/ppk2_nucleo.py phases 600       # SleepU3Flash, make PHASES=30 [FAST=1]
 
+Its eight logic inputs read the pins of a board too, with no current to measure, VCC on
+the board's 3V3 and GND on its ground: pins gives, for each input given, the period and
+the time high from the median of its edges, which the chunks the UNO Q loses leave
+right, against the period expected. TaskLEDU3 (Examples/nucleo-u385) drives D7, D8, D13
+at 10, 20 and 60 ms and toggles D12 every millisecond:
+
+    PPK2_PINS=D7:10000,D8:20000,D12:2000,D13:60000 tools/ppk2_nucleo.py pins 10
+
 For SleepPico2 on a Pico 2 (Examples/pico2), the PPK2 powers the board instead, a source
 of PPK2_SOURCE_MV millivolts on VSYS, its USB unplugged, and its phase is a number on D0
 and D1, PPK2_PHASES naming each:
@@ -76,8 +84,8 @@ def open_ppk2():
     return ppk2
 
 
-def samples(ppk2, seconds):
-    """(current in uA, D0) pairs for seconds, after SETTLE_S."""
+def samples(ppk2, seconds, mask=(1 << BITS) - 1):
+    """(current in uA, the digital inputs of mask) pairs for seconds, after SETTLE_S."""
     ppk2.start_measuring()
     settled = time.monotonic() + SETTLE_S
     end = settled + seconds
@@ -88,7 +96,7 @@ def samples(ppk2, seconds):
                 values, raw = ppk2.get_samples(data)
                 if time.monotonic() >= settled:
                     # D0 in bit 0 of each raw sample, D1 in bit 1 (digital_channels)
-                    yield from zip(values, (r & ((1 << BITS) - 1) for r in raw))
+                    yield from zip(values, (r & mask for r in raw))
             time.sleep(0.001)
     finally:
         ppk2.stop_measuring()
@@ -160,9 +168,49 @@ def trace(ms):
         print(f"{i:5d} ms: " + " ".join(f"{m:8.1f}" for m in means[i:i + 10]))
 
 
+def pins(seconds):
+    """For each pin of PPK2_PINS, name:period in us, on D0, D1 and on in that order: the
+    median of the times between its rising edges and of the times high, in samples of
+    10 us, and whether the period is within 2 % of the one expected. The UNO Q loses
+    chunks of samples whole: a time that spans one is too long, which the median leaves
+    out. Fails if a pin does not keep its period."""
+    wanted = [(n, int(p)) for n, p in (w.split(":") for w in os.environ["PPK2_PINS"].split(","))]
+    mask = (1 << len(wanted)) - 1
+    rises = [[] for _ in wanted]
+    highs = [[] for _ in wanted]
+    last, rose = 0, [None] * len(wanted)
+    for i, (_, level) in enumerate(samples(open_ppk2(), seconds, mask)):
+        for k in range(len(wanted)):
+            bit, was = level >> k & 1, last >> k & 1
+            if bit and not was:
+                if rose[k] is not None:
+                    rises[k].append(i - rose[k])
+                rose[k] = i
+            elif was and not bit and rose[k] is not None:
+                highs[k].append(i - rose[k])
+        last = level
+    failed = []
+    for k, (name_, period) in enumerate(wanted):
+        if not rises[k]:
+            print(f"{name_} (D{k}): no edge")
+            failed.append(name_)
+            continue
+        got = sorted(rises[k])[len(rises[k]) // 2] * 1e6 / RATE
+        high = sorted(highs[k])[len(highs[k]) // 2] * 1e6 / RATE if highs[k] else 0
+        ok = abs(got - period) <= period * 0.02
+        print(f"{name_} (D{k}): {len(rises[k])} periods, {got:.0f} us, high {high:.0f} us, "
+              f"expected {period} us: {'ok' if ok else 'OFF'}")
+        if not ok:
+            failed.append(name_)
+    if failed:
+        sys.exit("pins off: " + ", ".join(failed))
+
+
 if __name__ == "__main__":
     if sys.argv[1:2] == ["phases"] and len(sys.argv) == 3:
         phases(float(sys.argv[2]))
+    elif sys.argv[1:2] == ["pins"] and len(sys.argv) == 3:
+        pins(float(sys.argv[2]))
     elif sys.argv[1:2] == ["trace"] and len(sys.argv) <= 3:
         trace(int(sys.argv[2]) if len(sys.argv) == 3 else 200)
     else:

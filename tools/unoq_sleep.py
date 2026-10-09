@@ -40,7 +40,12 @@ its endurance test's service stopped: the reports come over USART1 to the virtua
 port of its ST-LINK, found as tools/soak.py finds it, and nothing is sent, SleepU5
 receiving nothing there (SleepU5.c); the checks of the link then hold on no byte.
 
-    [MHZ=16] tools/unoq_sleep.py SECONDS [nucleo]
+With nucleo and $LINK_TTY, the frames go to that port, the reports still coming on the
+ST-LINK's: SleepU3 on the NUCLEO-U385RG-Q receives its link on LPUART1, D0 and D1, which
+the Bus Pirate's bridge reaches (tools/buspirate_bridge.py), and every check of the link
+holds again.
+
+    [MHZ=16] [LINK_TTY=PORT] tools/unoq_sleep.py SECONDS [nucleo]
 """
 import binascii
 import glob
@@ -77,6 +82,12 @@ attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL   # no flow control
 attrs[4] = attrs[5] = termios.B115200                     # LPUART1 (Makefile), USART1
 termios.tcsetattr(fd, termios.TCSANOW, attrs)
 termios.tcflush(fd, termios.TCIOFLUSH)
+LINKED = not NUCLEO or bool(os.environ.get("LINK_TTY"))
+link = fd
+if NUCLEO and LINKED:
+    link = os.open(os.environ["LINK_TTY"], os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+    termios.tcsetattr(link, termios.TCSANOW, attrs)
+    termios.tcflush(link, termios.TCIOFLUSH)
 
 
 def cobs(data):
@@ -100,9 +111,9 @@ def write_all(data):
     which would have read as bytes lost (a review, 2026-10-03)."""
     while data:
         try:
-            data = data[os.write(fd, data):]
+            data = data[os.write(link, data):]
         except BlockingIOError:
-            select.select([], [fd], [], 1.0)
+            select.select([], [link], [], 1.0)
 
 
 def frame(data):
@@ -117,7 +128,7 @@ quiet = end - 3                              # the last reports count every byte
 pending, last, points = b"", None, []        # points: (kernel's us, arrival)
 sent, burst = 0, time.monotonic() + 1
 while time.monotonic() < end:
-    if not NUCLEO and burst <= time.monotonic() < quiet:
+    if LINKED and burst <= time.monotonic() < quiet:
         data = bytes((sent + i) & 0xFF for i in range(random.randint(1, 32)))
         write_all(b"\x00")
         time.sleep(WAKE_WAIT_S)
