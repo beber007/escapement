@@ -240,6 +240,7 @@ class UnoQ:
     baud = termios.B115200   # SoakU5's LPUART1 (Examples/uno-q/Makefile)
     byte_us = 10e6 / 115200  # a start bit, 8 data bits, a stop bit
     silent = 10         # seconds without a report that say the board restarted
+    settle_s = 3        # seconds of reading before a report may set the link's count
     bridge = ["arduino-router-serial.path", "arduino-router-serial", "arduino-router"]
     loader = "unoq_load.sh"
     loader_env = {}
@@ -262,9 +263,28 @@ class UnoQ:
         attrs[4] = attrs[5] = self.baud
         termios.tcsetattr(self.fd, termios.TCSANOW, attrs)
         termios.tcflush(self.fd, termios.TCIOFLUSH)
-        self.pending, self.last, self.sent, self.value = b"", None, 0, None
-        self.rejected, self.synced = [], False
+        self.last, self.sent, self.value = None, 0, None
         self.lock = threading.Lock()   # self.value, between the link and a restart
+        self.begin()
+
+    def begin(self):
+        """The reader, a thread that drains the port as the reports come. Read only at
+        each interval, the port held a minute of reports, some 18 kB against the 4 kB of
+        Linux's buffer: the driver held the ST-LINK back, which dropped what it could not
+        keep, and the reports a NUCLEO-U385RG-Q sent were cut short once a minute
+        (2026-10-09); the link's count taken over from a report that old was behind the
+        board's, an error of the link at the first byte."""
+        self.arrived = threading.Condition()   # what follows, between the reader and all
+        self.pending, self.latest, self.rejected, self.more = b"", None, [], 0
+        self.synced, self.settle = False, time.monotonic() + self.settle_s
+        threading.Thread(target=self.receive, daemon=True).start()
+
+    def forget(self):
+        """What the reader holds, once the port was emptied: a report from then on, and
+        the link's count from one received once the old bytes had time to drain."""
+        with self.arrived:
+            self.pending, self.latest = b"", None
+            self.synced, self.settle = False, time.monotonic() + self.settle_s
 
     def load(self):
         """Through the loader beside this script, tools/unoq_load.sh run on the board, or
@@ -278,16 +298,18 @@ class UnoQ:
         # new image's first report, as after a restart, its reports and bytes still in
         # the driver dropped.
         with self.lock:
-            self.value, self.pending = None, b""
+            self.value = None
             termios.tcflush(self.fd, termios.TCIOFLUSH)
+        self.forget()
         done = subprocess.run(["sh", loader, self.elf], capture_output=True, text=True,
                               check=False, env=dict(os.environ, **self.loader_env))
         # The image before reported on until the loader stopped it: what came meanwhile
         # is dropped too, lest its count be taken for the new one's (a review, 2026-10-03).
         with self.lock:
-            self.value, self.pending = None, b""
+            self.value = None
             termios.tcflush(self.fd, termios.TCIFLUSH)
-        self.last, self.synced = None, False
+        self.forget()
+        self.last = None
         if done.returncode == 0:
             return None
         errors = [l for l in (done.stdout + done.stderr).splitlines()
@@ -334,47 +356,63 @@ class UnoQ:
                 self.sent += n
 
     def report(self, wait):
-        """The newest report within wait seconds, or None."""
-        deadline = time.monotonic() + wait
-        newest = None
+        """The newest report, if it came within the last second (they come once a second),
+        or the next within wait seconds; None if none."""
+        fresh = time.monotonic() - 1
+        with self.arrived:
+            self.arrived.wait_for(lambda: self.latest and self.latest[0] >= fresh, wait)
+            return self.latest[1] if self.latest and self.latest[0] >= fresh else None
+
+    def receive(self):
         while True:
-            left = deadline - time.monotonic()
-            if newest is not None and b"\n" not in self.pending and \
-                    not select.select([self.fd], [], [], 0)[0]:
-                return newest
-            if left <= 0:
-                return newest
-            if select.select([self.fd], [], [], left)[0]:
-                try:
-                    self.pending += os.read(self.fd, 4096)
-                except BlockingIOError:
-                    pass
-            while b"\n" in self.pending:
-                line, self.pending = self.pending.split(b"\n", 1)
-                # The first line after the port was opened or emptied may be the end of
-                # one: it is not taken, nor counted as rejected.
-                if not self.synced:
-                    self.synced = True
+            try:
+                if not select.select([self.fd], [], [], 1)[0]:
                     continue
-                words = line.decode(errors="replace").split()
-                # SOAK and 28 numbers, 33 from SoakFirmU5
-                if len(words) == self.words and words[0] == "SOAK":
-                    try:
-                        newest = [int(w, 16) for w in words[1:]]
+                data = os.read(self.fd, 4096)
+            except BlockingIOError:
+                continue
+            except (OSError, ValueError):
+                return             # the port closed, as at the end of the self-test
+            with self.arrived:
+                self.pending += data
+                while b"\n" in self.pending:
+                    line, self.pending = self.pending.split(b"\n", 1)
+                    # The first line after the port was opened or emptied may be the end
+                    # of one: it is not taken, nor counted as rejected.
+                    if not self.synced:
+                        self.synced = True
                         continue
-                    except ValueError:
-                        pass
-                # Any other line is kept, as received, for the log: a report that lost
-                # or changed bytes on the way, which the board does not count.
-                if line.strip() and len(self.rejected) < 20:
-                    self.rejected.append(line)
-            self.pending = self.pending[-4096:]   # what is no report never piles up
-            if newest is not None and self.value is None:
-                # An image taken over has counted what was sent to it before, by the
-                # board's check of 2 min among others: 78,000 bytes more received than
-                # sent on the U5 (2026-10-01).
-                with self.lock:
-                    self.value, self.sent = newest[25], newest[18]
+                    numbers = self.parse(line)
+                    if numbers is None:
+                        # Kept as received, for the log: a report that lost or changed
+                        # bytes on the way, which the board does not count.
+                        if not line.strip():
+                            pass
+                        elif len(self.rejected) < 20:
+                            self.rejected.append(line)
+                        else:
+                            self.more += 1
+                        continue
+                    self.latest = (time.monotonic(), numbers)
+                    self.arrived.notify_all()
+                    if self.latest[0] >= self.settle:
+                        with self.lock:
+                            # An image taken over has counted what was sent to it before,
+                            # by the board's check of 2 min among others: 78,000 bytes
+                            # more received than sent on the U5 (2026-10-01).
+                            if self.value is None:
+                                self.value, self.sent = numbers[25], numbers[18]
+                self.pending = self.pending[-4096:]   # what is no report never piles up
+
+    def parse(self, line):
+        """SOAK and 28 numbers, 33 from SoakFirmU5: this image's length and no other."""
+        words = line.decode(errors="replace").split()
+        if len(words) != self.words or words[0] != "SOAK":
+            return None
+        try:
+            return [int(w, 16) for w in words[1:]]
+        except ValueError:
+            return None
 
     def read(self):
         r = self.report(self.silent)
@@ -386,6 +424,8 @@ class UnoQ:
             with self.lock:
                 self.value = None
                 termios.tcflush(self.fd, termios.TCOFLUSH)
+            with self.arrived:
+                self.settle = time.monotonic() + self.settle_s
             return {"marker": 0, "seconds": 0, "rejected": self.take_rejected()}
         resets = (f", reset {self.resets(r[26])}, MSI locked again {r[26] & 0xFFFFFF}"
                   if len(r) > 26 else "")
@@ -406,7 +446,11 @@ class UnoQ:
                          f"{r[20]} overruns{resets}", "link": r[18:21]}
 
     def take_rejected(self):
-        rejected, self.rejected = self.rejected, []
+        with self.arrived:
+            rejected, self.rejected = self.rejected, []
+            if self.more:
+                rejected.append(f"and {self.more} more".encode())
+                self.more = 0
         return rejected
 
     @staticmethod
@@ -475,38 +519,54 @@ class Status:
 
 
 def self_test():
-    """Known cases of the link, with no board: a pseudo-terminal for the port and a loader
-    that does nothing."""
+    """Known cases of the link, with no board: a pseudo-terminal for the port, the reader
+    on it, and a loader that does nothing."""
     import tempfile
     master, slave = os.openpty()
     board = object.__new__(UnoQ)
     board.fd, board.lock, board.elf = slave, threading.Lock(), os.devnull
-    board.words, board.rejected = 29, []
+    board.words, board.settle_s = 29, 60
+    board.value, board.sent, board.last = 0x37, 123, 1
+    board.begin()
     with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as loader:
         loader.write("exit 0\n")
     board.loader = loader.name
+
+    def send(*lines):
+        """Lines as the board sends them, and the reader past the last."""
+        os.write(master, b"".join(line.encode() + b"\n" for line in lines))
+        last = board.parse(lines[-1].encode())
+        with board.arrived:
+            assert board.arrived.wait_for(
+                lambda: board.latest and board.latest[1] == last, 2), lines[-1]
+
+    def report(n, **values):
+        numbers = [f"{values.get(f'n{i}', 1):x}" for i in range(n)]
+        return "SOAK " + " ".join(numbers)
     try:
         # A load forgets the count read from the image before, and what the driver held:
         # the image loaded expects the link from 0 (the failed check of d9a32eb).
-        board.value, board.sent, board.pending, board.last = 0x37, 123, b"SOAK", 1
+        board.pending = b"SOAK"
         assert board.load() is None
         assert board.value is None and board.pending == b"" and board.last is None, \
             (board.value, board.pending)
         # The end of a line the board was sending when the port was emptied: dropped,
-        # not rejected.
+        # not rejected. A report before the old bytes had time to drain is read, but sets
+        # no count of the link: the take-over of the NUCLEO-U385RG-Q on 2026-10-09 took
+        # one a minute old, behind the board's.
         os.write(master, b" 0 0 5\n")
-        # The first report then sets it from that image: byte 25 expected, 18 received.
-        numbers = ["0"] * 28
-        numbers[18], numbers[25] = "12", "5"
-        os.write(master, ("SOAK " + " ".join(numbers) + "\n").encode())
-        assert board.report(1) is not None
+        send(report(28, n0=7, n18=0x30, n25=9))
+        assert board.report(1) is not None and board.value is None, board.value
+        # Past that, the first report sets it: byte 25 expected, 18 received.
+        board.settle_s = 0
+        assert board.load() is None
+        os.write(master, b" 0 0 5\n")
+        send(report(28, n0=8, n18=0x12, n25=5))
         assert (board.value, board.sent) == (5, 0x12), (board.value, board.sent)
-        assert board.rejected == [], board.rejected
+        assert board.take_rejected() == []
         # A report of SoakFirmU5: the firm task a ninth part, its errors counted.
         board.words = 34
-        numbers = ["1"] * 33
-        numbers[31] = "2"
-        os.write(master, ("SOAK " + " ".join(numbers) + "\n").encode())
+        send(report(33, n0=9, n31=2))
         r = board.read()
         assert len(r["activity"]) == 9 and r["errors"][8] == 2, r
         assert "firm 1 optional run, 1 dropped" in r["extra"], r["extra"]
@@ -516,10 +576,14 @@ def self_test():
         # good report after it read.
         lost = ("SOAK 9b1b 24 25dd6a0 8163a5c 9d5a0d 792c53 12eecd0 9b1b 5433012 9b1b 0 "
                 "8 0 0 38 2b bbc44 712 c8 4000000 0 307a52 2d4a6f 1b6d12 0 fb0")
-        os.write(master, (lost + "\n" + "SOAK " + " ".join(numbers) + "\n").encode())
+        send(lost, report(33, n0=10, n31=2))
         r = board.read()
         assert r["rejected"] == [lost.encode()], r["rejected"]
         assert r["errors"][8] == 2 and sum(r["errors"][:8]) == 8, r["errors"]
+        # Beyond 20 lines rejected between two readings, only their number.
+        send(*["garbled"] * 25, report(33, n0=11))
+        rejected = board.take_rejected()
+        assert len(rejected) == 21 and rejected[-1] == b"and 5 more", rejected[-3:]
     finally:
         os.unlink(loader.name)
         os.close(master)
