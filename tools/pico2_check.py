@@ -6,9 +6,12 @@
 criteria of emulation/renode/escapement_pico2.robot.
 
     tools/pico2_check.py [BUILD_DIR] [--only NAME ...]
+    tools/pico2_check.py --flash [BUILD_DIR] [--only NAME ...]
 
 BUILD_DIR holds the images of Examples/pico2 (its build/ by default). Each one is loaded
-into SRAM, left to run, and its Results read over SWD without stopping a core. Six of
+into SRAM, left to run, and its Results read over SWD without stopping a core. With
+--flash, BUILD_DIR holds those of make FLASH=1 (build-flash/): each is written into the
+flash and booted by the bootrom (tools/pico2_flash.sh), and held to the same criteria. Six of
 the suite's tests count in memory: the 4-slot and the 3-slot buffers, the queue of
 Evéquoz across the two cores, IPCPico2, SoakPico2 and the litmus tests of LitmusPico2,
 which the board holds to more than Renode can: the outcome that needs the two cores
@@ -87,13 +90,24 @@ def build_seed(directory):
     return binary
 
 
-def run(elf, seed, seconds, words):
-    """Load elf after the seed, let it run, and return words words of its Results."""
+def load(elf, seed):
+    """Load elf after the seed; with no seed, write it into the flash and boot it."""
+    if seed is None:
+        out = subprocess.run(["sh", os.path.join(TOOLS, "pico2_flash.sh"), elf],
+                             capture_output=True, text=True, timeout=120).stdout
+        if "Verified OK" not in out:
+            sys.exit(f"could not write {elf} into the flash:\n{out}")
+        return
     out = openocd(["reset halt", f"mww {PSM_FRCE_OFF_SET:#x} {PSM_PROC1:#x}",
                    f"load_image {seed} 0x20000000 bin", "resume 0x20000000",
                    "wait_halt 500", f"load_image {elf}", "resume 0x20000000"])
     if out.count("bytes written") < 2:
         sys.exit(f"could not load {elf}:\n{out}")
+
+
+def run(elf, seed, seconds, words):
+    """Load elf (load), let it run, and return words words of its Results."""
+    load(elf, seed)
     time.sleep(seconds)
     out = openocd([f"mdw {symbol(elf, 'Results'):#x} {words}"])
     values = []
@@ -182,18 +196,20 @@ TESTS = [("FourSlotCoresPico2", 10, 10, lambda r: slot_buffer(r, "4-slot")),
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("build", nargs="?", default=EXAMPLES)
+    parser.add_argument("build", nargs="?", default=None)
+    parser.add_argument("--flash", action="store_true")
     parser.add_argument("--only", nargs="*", default=None)
     args = parser.parse_args()
 
     failed = 0
     openocd(["rescue_reset"])
     with tempfile.TemporaryDirectory() as directory:
-        seed = build_seed(directory)
+        seed = None if args.flash else build_seed(directory)
+        build = args.build or (EXAMPLES + "-flash" if args.flash else EXAMPLES)
         for name, seconds, words, judge in TESTS:
             if args.only and name not in args.only:
                 continue
-            elf = os.path.join(args.build, name + ".elf")
+            elf = os.path.join(build, name + ".elf")
             checks = judge(run(elf, seed, seconds, words))
             ok = all(passed for passed, _ in checks)
             failed += not ok

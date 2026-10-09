@@ -324,6 +324,9 @@ jobs:
       - name: Build the examples
         run: make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2 ${{ matrix.make }}
 
+      - name: Build them into the flash too
+        run: make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2 ${{ matrix.make }} FLASH=1
+
       - name: Check the compiled order of the slot buffers, the queue between the cores and the task-level stores
         run: python3 tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement{Hard,Soft,HardPA,_CoreQueue}.o
 

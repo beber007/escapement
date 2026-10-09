@@ -57,6 +57,8 @@ renode-test emulation/renode/escapement_pico2.robot
 OPENOCD=~/opt/openocd-rpi/bin/openocd PROBE=probe3 tools/pico2_check.py DIR   # on the UNO Q:
                                               # the six examples that count in memory
 PROBE=probe3 tools/pico2_uart.py DIR          # the UART echo and senders, on the probe's UART
+make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2 FLASH=1   # the same, into the flash
+OPENOCD=... PROBE=probe3 tools/pico2_check.py --flash DIR   # written there and booted
 PROBE=probe3 tools/pico2_soak.py DIR          # SoakPico2 for 40 min: two 2^30 wraps
                                               # (both with OPENOCD as above, holding the lock)
 ADAPTER_KHZ=1000 OPENOCD=... PROBE=probe3 tools/pico2_sleep_load.sh build/SleepPico2.elf

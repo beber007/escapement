@@ -34,6 +34,7 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 
 CPU = cortex-m33+nofp
 LINKERFILE = ../../RP2350_SRAM.ld
+B = build
 
 INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../ -I../../../../
 
@@ -61,6 +62,12 @@ ifeq ($(KERNEL),SOFT)
    CFLAGS += -DESCAPEMENT_VERSION_SOFT
    AFLAGS += -DESCAPEMENT_VERSION_SOFT
 endif
+# make FLASH=1 links the same examples into the flash, in build-flash/, for the bootrom to
+# boot them (RP2350_FLASH.ld, Escapement_ImageDef.S; tools/pico2_flash.sh writes them).
+ifdef FLASH
+   LINKERFILE = ../../RP2350_FLASH.ld
+   B = build-flash
+endif
 # make TRACE=1 records a trace of the scheduling in RAM, read over SWD
 # (Escapement_Trace.h, tools/read_trace.py).
 ifdef TRACE
@@ -71,7 +78,7 @@ endif
 # (Escapement_SleepGate.c); without it, the same image's plain WFI.
 ifdef SLEEP_GATE
    CFLAGS += -DSLEEP_GATE
-   SLEEPGATE = build/Escapement_SleepGate.o build/Escapement_Core1.o
+   SLEEPGATE = $(B)/Escapement_SleepGate.o $(B)/Escapement_Core1.o
 endif
 # make DEEP=1: SleepPico2's cheaper sleeps, PLL_SYS stopped or the crystal's start shorter.
 ifdef DEEP
@@ -91,157 +98,162 @@ ifdef PHASE_PERIODS
 endif
 
 # Every rule writes into build/ without ever creating it.
-$(shell mkdir -p build)
+$(shell mkdir -p $(B))
 
-all: build/TaskLEDPico2.elf build/UARTEchoPico2.elf build/TestTimerEventPico2.elf \
-     build/FourSlotCoresPico2.elf build/ThreeSlotCoresPico2.elf build/TaskWrapPico2.elf \
-     build/FIFOCoresPico2.elf build/IPCPico2.elf build/SoakPico2.elf build/LitmusPico2.elf \
-     build/UARTSendersPico2.elf build/SleepPico2.elf build/IdlePico2.elf \
-     build/StackGuardPico2.elf build/LposcPico2.elf build/DormantPico2.elf \
-     build/DormantCalAsleepPico2.elf build/AwakeCalAsleepPico2.elf \
-     build/RoscCalAsleepPico2.elf
+all: $(B)/TaskLEDPico2.elf $(B)/UARTEchoPico2.elf $(B)/TestTimerEventPico2.elf \
+     $(B)/FourSlotCoresPico2.elf $(B)/ThreeSlotCoresPico2.elf $(B)/TaskWrapPico2.elf \
+     $(B)/FIFOCoresPico2.elf $(B)/IPCPico2.elf $(B)/SoakPico2.elf $(B)/LitmusPico2.elf \
+     $(B)/UARTSendersPico2.elf $(B)/SleepPico2.elf $(B)/IdlePico2.elf \
+     $(B)/StackGuardPico2.elf $(B)/LposcPico2.elf $(B)/DormantPico2.elf \
+     $(B)/DormantCalAsleepPico2.elf $(B)/AwakeCalAsleepPico2.elf \
+     $(B)/RoscCalAsleepPico2.elf
 # The soft kernel adds SoakFirmPico2, SoakPico2 with an (m,k)-firm task whose optional
 # instances the kernel drops under load (SoakPico2.c).
 ifeq ($(KERNEL),SOFT)
-all: build/SoakFirmPico2.elf
+all: $(B)/SoakFirmPico2.elf
 endif
 
 clean:
-	rm -f build/*.o build/*.elf build/*.bin build/*.d
+	rm -f $(B)/*.o $(B)/*.elf $(B)/*.bin $(B)/*.d
 
-bin: all build/TaskLEDPico2.bin build/UARTEchoPico2.bin build/TestTimerEventPico2.bin \
-     build/FourSlotCoresPico2.bin build/ThreeSlotCoresPico2.bin build/TaskWrapPico2.bin \
-     build/FIFOCoresPico2.bin build/IPCPico2.bin build/SoakPico2.bin build/LitmusPico2.bin \
-     build/UARTSendersPico2.bin
+bin: all $(B)/TaskLEDPico2.bin $(B)/UARTEchoPico2.bin $(B)/TestTimerEventPico2.bin \
+     $(B)/FourSlotCoresPico2.bin $(B)/ThreeSlotCoresPico2.bin $(B)/TaskWrapPico2.bin \
+     $(B)/FIFOCoresPico2.bin $(B)/IPCPico2.bin $(B)/SoakPico2.bin $(B)/LitmusPico2.bin \
+     $(B)/UARTSendersPico2.bin
 
-build/%.bin : build/%.elf
+$(B)/%.bin : $(B)/%.elf
 	$(OBJCOPY) -O binary $< $@
 
-COMMON = build/Escapement_RamEntry.o \
-          build/Escapement_CortexMx.o \
-          build/Escapement_CortexMx_a.o \
-          build/Escapement_Atomic.o \
-          build/Escapement_Interrupts.o \
-          build/Escapement_Timer.o \
-          build/Escapement_Processor.o \
-          build/EscapementHard.o \
-          build/EscapementSoft.o \
-          build/EscapementHardPA.o
+COMMON = $(B)/Escapement_RamEntry.o \
+          $(B)/Escapement_CortexMx.o \
+          $(B)/Escapement_CortexMx_a.o \
+          $(B)/Escapement_Atomic.o \
+          $(B)/Escapement_Interrupts.o \
+          $(B)/Escapement_Timer.o \
+          $(B)/Escapement_Processor.o \
+          $(B)/EscapementHard.o \
+          $(B)/EscapementSoft.o \
+          $(B)/EscapementHardPA.o
+ifdef FLASH
+   COMMON += $(B)/Escapement_ImageDef.o
+endif
 
-build/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
+$(B)/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
-	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
+$(B)/Escapement_ImageDef.o : ../../Escapement_ImageDef.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_Atomic.o : ../../../Escapement_Atomic.c
+$(B)/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_Interrupts.o : ../../Escapement_Interrupts.c
+$(B)/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
+	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/Escapement_Atomic.o : ../../../Escapement_Atomic.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_Timer.o : ../../Escapement_Timer.c
+$(B)/Escapement_Interrupts.o : ../../Escapement_Interrupts.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_Processor.o : ../../Escapement_Processor.c
+$(B)/Escapement_Timer.o : ../../Escapement_Timer.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_UART.o : ../../Escapement_UART.c
+$(B)/Escapement_Processor.o : ../../Escapement_Processor.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_TimerEvent.o : ../../Escapement_TimerEvent.c
+$(B)/Escapement_UART.o : ../../Escapement_UART.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_Core1.o : ../../Escapement_Core1.c
+$(B)/Escapement_TimerEvent.o : ../../Escapement_TimerEvent.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_CoreQueue.o : ../../Escapement_CoreQueue.c
+$(B)/Escapement_Core1.o : ../../Escapement_Core1.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/EscapementHard.o : ../../../../EscapementHard.c
+$(B)/Escapement_CoreQueue.o : ../../Escapement_CoreQueue.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/EscapementSoft.o : ../../../../EscapementSoft.c
+$(B)/EscapementHard.o : ../../../../EscapementHard.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/EscapementHardPA.o : ../../../../EscapementHardPA.c
+$(B)/EscapementSoft.o : ../../../../EscapementSoft.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/TaskLEDPico2.o : TaskLEDPico2.c
+$(B)/EscapementHardPA.o : ../../../../EscapementHardPA.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/StackGuardPico2.o : StackGuardPico2.c
+$(B)/TaskLEDPico2.o : TaskLEDPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/LposcPico2.o : LposcPico2.c
+$(B)/StackGuardPico2.o : StackGuardPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/DormantPico2.o : DormantPico2.c
+$(B)/LposcPico2.o : LposcPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/DormantCalAsleepPico2.o : DormantPico2.c
+$(B)/DormantPico2.o : DormantPico2.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/DormantCalAsleepPico2.o : DormantPico2.c
 	$(CC) $(CFLAGS) -DCAL_ASLEEP_CLOCKS $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/AwakeCalAsleepPico2.o : DormantPico2.c
+$(B)/AwakeCalAsleepPico2.o : DormantPico2.c
 	$(CC) $(CFLAGS) -DCAL_ASLEEP_CLOCKS -DSTAY_AWAKE $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/RoscCalAsleepPico2.o : DormantPico2.c
+$(B)/RoscCalAsleepPico2.o : DormantPico2.c
 	$(CC) $(CFLAGS) -DCAL_ASLEEP_CLOCKS -DSLEEP_ON_ROSC $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/UARTEchoPico2.o : UARTEchoPico2.c
+$(B)/UARTEchoPico2.o : UARTEchoPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/UARTSendersPico2.o : UARTSendersPico2.c
+$(B)/UARTSendersPico2.o : UARTSendersPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/TestTimerEventPico2.o : TestTimerEventPico2.c
+$(B)/TestTimerEventPico2.o : TestTimerEventPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/FourSlotCoresPico2.o : FourSlotCoresPico2.c
+$(B)/FourSlotCoresPico2.o : FourSlotCoresPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/ThreeSlotCoresPico2.o : ThreeSlotCoresPico2.c
+$(B)/ThreeSlotCoresPico2.o : ThreeSlotCoresPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/FIFOCoresPico2.o : FIFOCoresPico2.c
+$(B)/FIFOCoresPico2.o : FIFOCoresPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/TaskWrapPico2.o : TaskWrapPico2.c
+$(B)/TaskWrapPico2.o : TaskWrapPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/IPCPico2.o : IPCPico2.c
+$(B)/IPCPico2.o : IPCPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/SoakPico2.o : SoakPico2.c
+$(B)/SoakPico2.o : SoakPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/SoakFirmPico2.o : SoakPico2.c
+$(B)/SoakFirmPico2.o : SoakPico2.c
 	$(CC) $(CFLAGS) -DSOAK_FIRM $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/LitmusPico2.o : LitmusPico2.c
+$(B)/LitmusPico2.o : LitmusPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/SleepPico2.o : SleepPico2.c
+$(B)/SleepPico2.o : SleepPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/IdlePico2.o : IdlePico2.c
+$(B)/IdlePico2.o : IdlePico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
-build/Escapement_SleepGate.o : ../../Escapement_SleepGate.c
+$(B)/Escapement_SleepGate.o : ../../Escapement_SleepGate.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
-build/TaskLEDPico2.elf : $(COMMON) build/TaskLEDPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/TaskLEDPico2.o -T$(LINKERFILE) -lgcc
-build/StackGuardPico2.elf : $(COMMON) build/StackGuardPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/StackGuardPico2.o -T$(LINKERFILE) -lgcc
-build/LposcPico2.elf : $(COMMON) build/LposcPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/LposcPico2.o -T$(LINKERFILE) -lgcc
-build/DormantPico2.elf : $(COMMON) build/DormantPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/DormantPico2.o -T$(LINKERFILE) -lgcc
-build/DormantCalAsleepPico2.elf : $(COMMON) build/DormantCalAsleepPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/DormantCalAsleepPico2.o -T$(LINKERFILE) -lgcc
-build/AwakeCalAsleepPico2.elf : $(COMMON) build/AwakeCalAsleepPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/AwakeCalAsleepPico2.o -T$(LINKERFILE) -lgcc
-build/RoscCalAsleepPico2.elf : $(COMMON) build/RoscCalAsleepPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/RoscCalAsleepPico2.o -T$(LINKERFILE) -lgcc
-build/UARTEchoPico2.elf : $(COMMON) build/Escapement_UART.o build/UARTEchoPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_UART.o build/UARTEchoPico2.o -T$(LINKERFILE) -lgcc
-build/UARTSendersPico2.elf : $(COMMON) build/Escapement_UART.o build/UARTSendersPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_UART.o build/UARTSendersPico2.o -T$(LINKERFILE) -lgcc
-build/TestTimerEventPico2.elf : $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_TimerEvent.o build/TestTimerEventPico2.o -T$(LINKERFILE) -lgcc
-build/FourSlotCoresPico2.elf : $(COMMON) build/Escapement_Core1.o build/FourSlotCoresPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/FourSlotCoresPico2.o -T$(LINKERFILE) -lgcc
-build/ThreeSlotCoresPico2.elf : $(COMMON) build/Escapement_Core1.o build/ThreeSlotCoresPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/ThreeSlotCoresPico2.o -T$(LINKERFILE) -lgcc
-build/FIFOCoresPico2.elf : $(COMMON) build/Escapement_Core1.o build/Escapement_CoreQueue.o build/FIFOCoresPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/Escapement_CoreQueue.o build/FIFOCoresPico2.o -T$(LINKERFILE) -lgcc
-build/TaskWrapPico2.elf : $(COMMON) build/TaskWrapPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/TaskWrapPico2.o -T$(LINKERFILE) -lgcc
-build/IPCPico2.elf : $(COMMON) build/IPCPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/IPCPico2.o -T$(LINKERFILE) -lgcc
-build/SoakPico2.elf : $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakPico2.o -T$(LINKERFILE) -lgcc
-build/SoakFirmPico2.elf : $(COMMON) build/Escapement_Core1.o build/Escapement_TimerEvent.o build/SoakFirmPico2.o
+$(B)/TaskLEDPico2.elf : $(COMMON) $(B)/TaskLEDPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/TaskLEDPico2.o -T$(LINKERFILE) -lgcc
+$(B)/StackGuardPico2.elf : $(COMMON) $(B)/StackGuardPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/StackGuardPico2.o -T$(LINKERFILE) -lgcc
+$(B)/LposcPico2.elf : $(COMMON) $(B)/LposcPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/LposcPico2.o -T$(LINKERFILE) -lgcc
+$(B)/DormantPico2.elf : $(COMMON) $(B)/DormantPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/DormantPico2.o -T$(LINKERFILE) -lgcc
+$(B)/DormantCalAsleepPico2.elf : $(COMMON) $(B)/DormantCalAsleepPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/DormantCalAsleepPico2.o -T$(LINKERFILE) -lgcc
+$(B)/AwakeCalAsleepPico2.elf : $(COMMON) $(B)/AwakeCalAsleepPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/AwakeCalAsleepPico2.o -T$(LINKERFILE) -lgcc
+$(B)/RoscCalAsleepPico2.elf : $(COMMON) $(B)/RoscCalAsleepPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/RoscCalAsleepPico2.o -T$(LINKERFILE) -lgcc
+$(B)/UARTEchoPico2.elf : $(COMMON) $(B)/Escapement_UART.o $(B)/UARTEchoPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/Escapement_UART.o $(B)/UARTEchoPico2.o -T$(LINKERFILE) -lgcc
+$(B)/UARTSendersPico2.elf : $(COMMON) $(B)/Escapement_UART.o $(B)/UARTSendersPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/Escapement_UART.o $(B)/UARTSendersPico2.o -T$(LINKERFILE) -lgcc
+$(B)/TestTimerEventPico2.elf : $(COMMON) $(B)/Escapement_TimerEvent.o $(B)/TestTimerEventPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/Escapement_TimerEvent.o $(B)/TestTimerEventPico2.o -T$(LINKERFILE) -lgcc
+$(B)/FourSlotCoresPico2.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/FourSlotCoresPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/Escapement_Core1.o $(B)/FourSlotCoresPico2.o -T$(LINKERFILE) -lgcc
+$(B)/ThreeSlotCoresPico2.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/ThreeSlotCoresPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/Escapement_Core1.o $(B)/ThreeSlotCoresPico2.o -T$(LINKERFILE) -lgcc
+$(B)/FIFOCoresPico2.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/Escapement_CoreQueue.o $(B)/FIFOCoresPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/Escapement_Core1.o $(B)/Escapement_CoreQueue.o $(B)/FIFOCoresPico2.o -T$(LINKERFILE) -lgcc
+$(B)/TaskWrapPico2.elf : $(COMMON) $(B)/TaskWrapPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/TaskWrapPico2.o -T$(LINKERFILE) -lgcc
+$(B)/IPCPico2.elf : $(COMMON) $(B)/IPCPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/IPCPico2.o -T$(LINKERFILE) -lgcc
+$(B)/SoakPico2.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/Escapement_TimerEvent.o $(B)/SoakPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/Escapement_Core1.o $(B)/Escapement_TimerEvent.o $(B)/SoakPico2.o -T$(LINKERFILE) -lgcc
+$(B)/SoakFirmPico2.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/Escapement_TimerEvent.o $(B)/SoakFirmPico2.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
-build/LitmusPico2.elf : $(COMMON) build/Escapement_Core1.o build/LitmusPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/Escapement_Core1.o build/LitmusPico2.o -T$(LINKERFILE) -lgcc
+$(B)/LitmusPico2.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/LitmusPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/Escapement_Core1.o $(B)/LitmusPico2.o -T$(LINKERFILE) -lgcc
 # SleepPico2: no kernel, the three sleeps of the chip for the PPK2 (SleepPico2.c).
-build/SleepPico2.elf : $(COMMON) build/SleepPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) build/SleepPico2.o -T$(LINKERFILE) -lgcc
-build/IdlePico2.elf : $(COMMON) $(SLEEPGATE) build/Escapement_TimerEvent.o build/IdlePico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(SLEEPGATE) build/Escapement_TimerEvent.o build/IdlePico2.o -T$(LINKERFILE) -lgcc
+$(B)/SleepPico2.elf : $(COMMON) $(B)/SleepPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/SleepPico2.o -T$(LINKERFILE) -lgcc
+$(B)/IdlePico2.elf : $(COMMON) $(SLEEPGATE) $(B)/Escapement_TimerEvent.o $(B)/IdlePico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(SLEEPGATE) $(B)/Escapement_TimerEvent.o $(B)/IdlePico2.o -T$(LINKERFILE) -lgcc
 
 # The .d files produced by -MMD list the headers of each object: without them, a change
 # to Escapement_Config.h triggers no rebuild at all and the next test runs against a
 # stale binary.
--include $(wildcard build/*.d)
+-include $(wildcard $(B)/*.d)

@@ -5,12 +5,13 @@
 """Run the two UART examples of the Pico 2 on the board, through the UART of its Debug
 Probe, and hold them to the criteria of emulation/renode/escapement_pico2.robot.
 
-    tools/pico2_uart.py [BUILD_DIR] [--tty TTY] [--only echo|senders ...]
+    tools/pico2_uart.py [--flash] [BUILD_DIR] [--tty TTY] [--only echo|senders ...]
 
 BUILD_DIR holds the images of Examples/pico2 (its build/ by default). The probe's UART
 must be wired to GP0 and GP1 (115200 8N1); TTY is found from the probe's serial in the
 bench's table (tools/probe.sh) unless given. Each image is loaded as tools/pico2_check.py
-loads it, whose functions this uses:
+loads it, whose functions this uses, or with --flash written into the flash and booted
+from it (BUILD_DIR then build-flash/ by default):
 - UARTEchoPico2 must send back the suite's line, every byte value, and 64 lines sent one
   on the heels of the other, each byte once and in order;
 - UARTSendersPico2 runs 20 s, the port read throughout: every line on it must be whole,
@@ -87,14 +88,6 @@ def probe_tty():
     return ttys[0]
 
 
-def load(elf, seed):
-    out = p.openocd(["reset halt", f"mww {p.PSM_FRCE_OFF_SET:#x} {p.PSM_PROC1:#x}",
-                     f"load_image {seed} 0x20000000 bin", "resume 0x20000000",
-                     "wait_halt 500", f"load_image {elf}", "resume 0x20000000"])
-    if out.count("bytes written") < 2:
-        sys.exit(f"could not load {elf}:\n{out}")
-
-
 def results(elf, words):
     out = p.openocd([f"mdw {p.symbol(elf, 'Results'):#x} {words}"])
     values = []
@@ -105,7 +98,7 @@ def results(elf, words):
 
 
 def echo(build, port, seed):
-    load(os.path.join(build, "UARTEchoPico2.elf"), seed)
+    p.load(os.path.join(build, "UARTEchoPico2.elf"), seed)
     time.sleep(1)
     checks = []
     for message in [b"escapement\n", bytes(range(256)),
@@ -123,8 +116,14 @@ def echo(build, port, seed):
 
 def senders(build, port, seed, seconds=20):
     elf = os.path.join(build, "UARTSendersPico2.elf")
+    # The image before is stopped before the port is cleared: written into the flash, the
+    # new one is booted after a rescue, which cut the previous UARTSendersPico2 within a
+    # line, its TX dropping low, and the probe read a 0 that came before the new image's
+    # first line (2026-10-09).
+    p.openocd(["rescue_reset"])
+    time.sleep(0.2)
     port.clear()
-    load(elf, seed)
+    p.load(elf, seed)
     time.sleep(seconds)
     before = port.take().count(b"\n")
     r = results(elf, 4)
@@ -147,7 +146,8 @@ def senders(build, port, seed, seconds=20):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("build", nargs="?", default=p.EXAMPLES)
+    parser.add_argument("build", nargs="?", default=None)
+    parser.add_argument("--flash", action="store_true")
     parser.add_argument("--tty", default=None)
     parser.add_argument("--only", nargs="*", default=None)
     args = parser.parse_args()
@@ -156,11 +156,12 @@ def main():
     p.openocd(["rescue_reset"])
     port = Port(args.tty or probe_tty())
     with tempfile.TemporaryDirectory() as directory:
-        seed = p.build_seed(directory)
+        seed = None if args.flash else p.build_seed(directory)
+        build = args.build or (p.EXAMPLES + "-flash" if args.flash else p.EXAMPLES)
         for name, test in [("UARTEchoPico2", echo), ("UARTSendersPico2", senders)]:
             if args.only and test.__name__ not in args.only:
                 continue
-            checks = test(args.build, port, seed)
+            checks = test(build, port, seed)
             ok = all(passed for passed, _ in checks)
             failed += not ok
             print(f"{'ok  ' if ok else 'FAIL'} {name}")

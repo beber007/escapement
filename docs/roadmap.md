@@ -89,6 +89,12 @@ the same day.
    with code read through XIP. Not on the UNO Q's STM32U585, whose flash holds Arduino's
    firmware, which stays. The STM32U5's flash takes some 10,000 erasures: a board check
    may not program it at each commit; how often it may is part of the task.
+   Begun on 2026-10-09 with the Pico 2, the one board free of an endurance run:
+   `make FLASH=1`, built by the CI, and `tools/pico2_flash.sh`; from its flash, the
+   examples that count in memory and those of the UART pass, but for the overlapping
+   outcome of LB, which `LitmusPico2` meets from SRAM only (`rp2040.md`, "From the
+   flash"): to be decided, the criterion kept from SRAM or `Wait` made to reach every
+   offset from the flash too.
 5. **Every mutant read.** Of each kernel's survivors at 300 task sets, each one killed
    by a test, declared equivalent with its reason (`test/host/equivalent-mutants.jsonl`),
    or written in `method.md` as a behaviour no test reads and why; the hard kernel's
