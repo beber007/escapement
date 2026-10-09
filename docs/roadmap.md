@@ -43,7 +43,10 @@ ships, and that each endurance run and measurement it cites was made on that cod
 that check every commit: the RP2040 (all three kernels), the RP2350, the STM32U5 and,
 since the user added it on 2026-10-09, the STM32U3 (hard and soft). The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
 
-**Tasks, in order, each finished before the next begins:**
+**Tasks, in order, each finished before the next begins.** Since 2026-10-09, a task left
+with nothing but a wait (an endurance run, the CI, the user's hands) may be set aside for
+the next, two at most, as `CLAUDE.md` has it; tasks 2 and 3 wait so, and task 4 began
+the same day.
 
 1. **What the soft kernel's test of an optional instance costs on the Pico — done on
    2026-10-07** (`method.md`, after "It went into the kernel"). `DemandFits` took up to
