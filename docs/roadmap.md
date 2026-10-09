@@ -101,7 +101,14 @@ the same day.
    reader overran its first period: the kernel and the port now run from SRAM in a
    flash image of the RP2040 and the RP2350, as the user decided the same day. The
    two NUCLEO boards take `make FLASH=1` too, not yet run: their boards hold endurance
-   runs.
+   runs. How often their flash may be written, set on 2026-10-09: 10,000 erasures a page
+   on both (RM0456 rev. 7, 7.3.8; RM0487 rev. 3), and some 21 commits a day since
+   2026-09-19, 63 at most, would wear a flash written at each commit out in about a
+   year. `tools/nucleo_flash.sh` reads the flash against the image first and writes only
+   what differs, counts each writing on the bench, stops at 1,000 in all, a tenth of
+   the endurance, and takes a cap a day, `NUCLEO_FLASH_PER_DAY`: the board CI is to set
+   it to 1, its other checks staying in SRAM, some 365 writings a year. Its paths checked
+   on 2026-10-09 against a stand-in for OpenOCD, its Tcl in OpenOCD; not yet on a board.
 5. **Every mutant read.** Of each kernel's survivors at 300 task sets, each one killed
    by a test, declared equivalent with its reason (`test/host/equivalent-mutants.jsonl`),
    or written in `method.md` as a behaviour no test reads and why; the hard kernel's

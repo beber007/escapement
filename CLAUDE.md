@@ -83,6 +83,8 @@ tools/soak.py uno-q 0 1m SoakU5.elf           # on the UNO Q: SoakU5, read on LP
 make -C Escapement/CORTEX-Mx/STM32U5/Examples/nucleo-u575 [PHASES=30] [SMPS=1] [MHZ=16]   # SleepU5,
                                               # SoakU5 for a NUCLEO-U575ZI-Q; current: JP5;
                                               # SleepU5Flash.elf runs from its flash
+tools/nucleo_flash.sh build-flash/SoakU5.elf  # on the UNO Q: written only if it differs,
+                                              # each writing counted (10,000 erasures a page)
 tools/unoq_check.sh SoakU5.elf SHA            # on the UNO Q: the board check of a commit
                                               # (status board/u5), then the long run goes on;
                                               # SleepU5.elf, then SleepNoHSEU5.elf, beside
