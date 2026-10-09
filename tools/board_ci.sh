@@ -32,6 +32,12 @@
 #                    checked too (tools/unoq_check.sh), on the CI's image, and posted as
 #                    the status "board/u5"; the endurance run it holds goes on with the
 #                    commit if it passes.
+#   BOARD_CI_U3      1 when a NUCLEO-U385RG-Q is plugged into the UNO Q: the same checks
+#                    on its STM32U385 (BOARD=u3 tools/unoq_check.sh), posted as the
+#                    status "board/u3", through its ST-LINK, whose serial and port are
+#                    BOARD_CI_U3_SERIAL and BOARD_CI_U3_TTY, and the OpenOCD
+#                    BOARD_CI_OPENOCD_U3 (~/opt/openocd-upstream/bin/openocd), which
+#                    knows the STM32U3; its long run, escapement-soak-u3, goes on likewise.
 #   BOARD_CI_PICO2   1 when a Pico 2 is wired too: its six examples that count in memory
 #                    (tools/pico2_check.py) and its two of the UART, through the probe's
 #                    own (tools/pico2_uart.py), are run on the CI's images and posted as
@@ -321,6 +327,23 @@ if [ "${BOARD_CI_U5:-}" = 1 ] && [ -f "$DIR/fw/soak_u5/SoakU5.elf" ]; then
     fi
 fi
 
+# The STM32U385 of the NUCLEO-U385RG-Q, on the CI's images.
+u3=""
+if [ "${BOARD_CI_U3:-}" = 1 ] && [ -f "$DIR/fw/soak_u3/SoakU3.elf" ]; then
+    status pending "running on the NUCLEO-U385RG-Q" board/u3
+    if (cd "$SRC" && BOARD=u3 NUCLEO_SERIAL=${BOARD_CI_U3_SERIAL:-} \
+            NUCLEO_TTY=${BOARD_CI_U3_TTY:-} \
+            OPENOCD=${BOARD_CI_OPENOCD_U3:-$HOME/opt/openocd-upstream/bin/openocd} \
+            sh tools/unoq_check.sh "$DIR/fw/soak_u3/SoakU3.elf" "$SHA") >>"$LOG" 2>&1; then
+        u3=success
+        status success "Stop 2 for 1 min, endurance test for 2, clock within 300 ppm; the long run goes on" \
+            board/u3
+    else
+        u3=failure
+        status failure "Stop 2, the endurance test or the clock failed; see the bench's log" board/u3
+    fi
+fi
+
 # The Pico 2, on the CI's images.
 pico2=""
 PICO2_PROBE=${BOARD_CI_PICO2_PROBE:-probe3}
@@ -361,4 +384,4 @@ else
     status success "compiled order, 4-slot across cores, round cost, timer events, DVFS"
 fi
 cat "$LOG"
-[ -z "$failed" ] && [ "$u5" != failure ] && [ "$pico2" != failure ]
+[ -z "$failed" ] && [ "$u5" != failure ] && [ "$u3" != failure ] && [ "$pico2" != failure ]

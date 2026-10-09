@@ -19,19 +19,30 @@ reads the first, then, and its bound of 300 ppm dwarfs the raw clock's own error
 Run it on the board with the endurance test's service stopped, which holds the port
 (tools/soak.py stops Arduino's Bridge, which does too).
 
-    tools/unoq_drift.py SECONDS
+With nucleo, the endurance test of a NUCLEO plugged into the UNO Q, SoakU3 of the
+NUCLEO-U385RG-Q's check (tools/unoq_check.sh): its reports on USART1 to the virtual COM
+port of its ST-LINK, $NUCLEO_TTY or the first under /dev/serial/by-id, the same lines.
+
+    tools/unoq_drift.py SECONDS [nucleo]
 """
+import glob
 import os
 import select
 import sys
 import termios
 import time
 
-fd = os.open("/dev/ttyHS1", os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+if sys.argv[2:] == ["nucleo"]:
+    tty = os.environ.get("NUCLEO_TTY") or next(
+        iter(sorted(glob.glob("/dev/serial/by-id/usb-STMicroelectronics_STLINK*"))),
+        "/dev/ttyACM0")
+else:
+    tty = "/dev/ttyHS1"
+fd = os.open(tty, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
 attrs = termios.tcgetattr(fd)
 attrs[0] = attrs[1] = attrs[3] = 0                        # raw
 attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL   # no flow control
-attrs[4] = attrs[5] = termios.B115200                     # SoakU5's LPUART1 (Makefile)
+attrs[4] = attrs[5] = termios.B115200                     # LPUART1 (Makefile), USART1
 termios.tcsetattr(fd, termios.TCSANOW, attrs)
 termios.tcflush(fd, termios.TCIOFLUSH)
 

@@ -9,6 +9,14 @@
 #
 #   tools/unoq_check.sh ELF SHA        # ELF: SoakU5.elf of the commit SHA, SleepU5.elf
 #                                      # and SleepNoHSEU5.elf beside it
+#   BOARD=u3 tools/unoq_check.sh ELF SHA   # the NUCLEO-U385RG-Q plugged into the UNO Q:
+#                                      # SoakU3.elf, SleepU3.elf beside it
+#
+# With BOARD=u3 the same checks run on the NUCLEO-U385RG-Q, through its ST-LINK, whose
+# port and serial $NUCLEO_TTY and $NUCLEO_SERIAL name beside the NUCLEO-U575ZI-Q's, and
+# the OpenOCD $OPENOCD names (tools/nucleo_load.sh): SleepU3 a minute at 96 MHz, SoakU3
+# for two, its clock against Linux's; its long run is escapement-soak-u3 in ~/soak-u3, its
+# status "board/soak-u3".
 #
 # SleepU5 runs first, if its image is there: the restart of the clock on waking from
 # Stop 2 is the board's to check, Renode never entering it (tools/unoq_sleep.py). Then
@@ -36,8 +44,16 @@ set -u
 ELF=$1
 SHA=$2
 HERE=$(cd "$(dirname "$0")" && pwd)
-SOAK=${BOARD_SOAK_DIR:-$HOME/soak}
-SERVICE=${BOARD_SOAK_SERVICE:-escapement-soak-u5}
+case ${BOARD:-u5} in
+    u5) KIND=uno-q LOADER=unoq_load.sh IMAGE=SoakU5.elf SLEEPS="SleepU5.elf SleepNoHSEU5.elf"
+        PORT="" SOAK=${BOARD_SOAK_DIR:-$HOME/soak} ;;
+    u3) KIND=nucleo-u3 LOADER=nucleo_load.sh IMAGE=SoakU3.elf SLEEPS=SleepU3.elf
+        PORT=nucleo SOAK=${BOARD_SOAK_DIR:-$HOME/soak-u3}
+        export NUCLEO_MCU=u385 MHZ=96 ;;
+    *) echo "BOARD is u5 or u3" >&2; exit 1 ;;
+esac
+SERVICE=${BOARD_SOAK_SERVICE:-escapement-soak-${BOARD:-u5}}
+CONTEXT=board/soak-${BOARD:-u5}
 UNIT=$HOME/.config/systemd/user/$SERVICE.service
 LIMIT_PPM=300
 TOKEN=${BOARD_CI_TOKEN:-$HOME/.config/escapement-board-ci/token}
@@ -67,35 +83,33 @@ close() {
     # of every endurance run first.
     last=$(curl -fsS --retry 3 -H "$auth" \
         "https://api.github.com/repos/$REPO/commits/$sha/status" |
-        jq -c '[.statuses[] | select(.context == "board/soak-u5")][0] // empty') || return 0
+        jq -c --arg c "$CONTEXT" '[.statuses[] | select(.context == $c)][0] // empty') || return 0
     [ "$(echo "$last" | jq -r .state)" = pending ] || return 0
     [ -n "$summary" ] || summary=$(echo "$last" | jq -r .description)
     jq -n --arg s "$state" --arg d "ended, carried on to $(echo "$SHA" | cut -c1-7): $summary" \
-        '{state: $s, context: "board/soak-u5", description: $d[:140]}' |
+        --arg c "$CONTEXT" '{state: $s, context: $c, description: $d[:140]}' |
     curl -fsS --retry 3 -o /dev/null -X POST -H "$auth" -H "Accept: application/vnd.github+json" \
         --data @- "https://api.github.com/repos/$REPO/statuses/$sha" || true
 }
 
 systemctl --user stop "$SERVICE" 2>/dev/null
 ok=yes
-SLEEP=$(dirname "$ELF")/SleepU5.elf
-if [ -f "$SLEEP" ]; then
-    sh "$HERE/unoq_load.sh" "$SLEEP" && python3 "$HERE/unoq_sleep.py" 60 || ok=""
-fi
-NOHSE=$(dirname "$ELF")/SleepNoHSEU5.elf
-if [ -n "$ok" ] && [ -f "$NOHSE" ]; then
-    sh "$HERE/unoq_load.sh" "$NOHSE" && python3 "$HERE/unoq_sleep.py" 60 || ok=""
-fi
-[ -n "$ok" ] && { sh "$HERE/unoq_load.sh" "$ELF" || ok=""; }
+for sleep in $SLEEPS; do
+    sleep=$(dirname "$ELF")/$sleep
+    if [ -n "$ok" ] && [ -f "$sleep" ]; then
+        sh "$HERE/$LOADER" "$sleep" && python3 "$HERE/unoq_sleep.py" 60 $PORT || ok=""
+    fi
+done
+[ -n "$ok" ] && { sh "$HERE/$LOADER" "$ELF" || ok=""; }
 if [ -n "$ok" ]; then
     # A log and the state soak.py keeps beside it, both dropped after.
     run=$(mktemp -d)
     BOARD_CI_TOKEN=/nonexistent BOARD_SOAK_LOG=$run/soak.log \
-        python3 "$HERE/soak.py" uno-q 2m 30s "$ELF" || ok=""
+        python3 "$HERE/soak.py" $KIND 2m 30s "$ELF" || ok=""
     rm -rf "$run"
 fi
 if [ -n "$ok" ]; then
-    drift=$(python3 "$HERE/unoq_drift.py" 300) || ok=""
+    drift=$(python3 "$HERE/unoq_drift.py" 300 $PORT) || ok=""
     echo "$drift"
     ppm=$(echo "$drift" | sed -n 's/.*lasts \([-+0-9.]*\) ppm.*/\1/p')
     [ -n "$ppm" ] && awk -v p="$ppm" -v l="$LIMIT_PPM" 'BEGIN { exit !(p <= l && p >= -l) }' ||
@@ -104,19 +118,20 @@ fi
 
 if [ -n "$ok" ] && [ -f "$UNIT" ]; then
     # The long run goes on with this commit: its image, its tools, a log of its own.
-    cp "$ELF" "$SOAK/SoakU5.elf"
-    cp "$HERE/soak.py" "$HERE/unoq_load.sh" "$SOAK/"
-    old=$SOAK/soak-u5-$(date +%Y%m%d-%H%M%S).log
-    if [ -f "$SOAK/soak-u5.log" ]; then
-        mv "$SOAK/soak-u5.log" "$old"
-        [ -f "$SOAK/soak-u5.log.state" ] && mv "$SOAK/soak-u5.log.state" "$old.state"
+    cp "$ELF" "$SOAK/$IMAGE"
+    cp "$HERE/soak.py" "$HERE/$LOADER" "$SOAK/"
+    log=$SOAK/soak-${BOARD:-u5}.log
+    old=$SOAK/soak-${BOARD:-u5}-$(date +%Y%m%d-%H%M%S).log
+    if [ -f "$log" ]; then
+        mv "$log" "$old"
+        [ -f "$log.state" ] && mv "$log.state" "$old.state"
     fi
     close "$old.state" "$(sed -n 's/.*BOARD_SOAK_SHA=\([0-9a-f]*\).*/\1/p' "$UNIT")"
     sed "s/BOARD_SOAK_SHA=[0-9a-f]*/BOARD_SOAK_SHA=$SHA/" "$UNIT" >"$UNIT.new" &&
         mv "$UNIT.new" "$UNIT"
     systemctl --user daemon-reload
-elif [ -f "$SOAK/SoakU5.elf" ]; then
-    sh "$SOAK/unoq_load.sh" "$SOAK/SoakU5.elf"
+elif [ -f "$SOAK/$IMAGE" ]; then
+    sh "$SOAK/$LOADER" "$SOAK/$IMAGE"
 fi
 [ -f "$UNIT" ] && systemctl --user start "$SERVICE"
 [ -n "$ok" ]

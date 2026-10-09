@@ -8,6 +8,7 @@ interval without stopping it, for as long as asked.
     tools/soak.py uno-q DURATION INTERVAL [ELF]     SoakU5, on the board's own Linux
     tools/soak.py nucleo DURATION INTERVAL [ELF]    SoakU5 on a NUCLEO-U575ZI-Q, through
                                                     its ST-LINK, beside the UNO Q
+    tools/soak.py nucleo-u3 DURATION INTERVAL [ELF] SoakU3 on a NUCLEO-U385RG-Q, the same
 
 DURATION and INTERVAL take a suffix s, m, h or d; a DURATION of 0 runs until stopped.
 
@@ -20,7 +21,10 @@ link). Arduino's Bridge, which holds /dev/ttyHS1, is stopped meanwhile. A NUCLEO
 runs the same SoakU5, built in Examples/nucleo-u575, its reports and link on USART1 to the
 virtual COM port of its ST-LINK ($NUCLEO_TTY, the ST-LINK's first under /dev/serial/by-id
 by default), loaded by tools/nucleo_load.sh: a long run on a board of its own, which the
-checks of each commit on the UNO Q do not interrupt.
+checks of each commit on the UNO Q do not interrupt. A NUCLEO-U385RG-Q runs SoakU3 of
+Examples/nucleo-u385 the same way, with the same reports; plugged in beside the other, it
+is named by $NUCLEO_TTY and $NUCLEO_SERIAL, and loaded by the OpenOCD $OPENOCD names,
+newer than 0.12 (tools/board_ci.md).
 
 Each reading appends a line to the log (BOARD_SOAK_LOG, soak-<board>-<date>.log in the
 current directory by default): the seconds run by the firmware, the wraps of the kernel
@@ -238,6 +242,7 @@ class UnoQ:
     silent = 10         # seconds without a report that say the board restarted
     bridge = ["arduino-router-serial.path", "arduino-router-serial", "arduino-router"]
     loader = "unoq_load.sh"
+    loader_env = {}
 
     def __init__(self, elf):
         self.elf = elf
@@ -271,7 +276,7 @@ class UnoQ:
             self.value, self.pending = None, b""
             termios.tcflush(self.fd, termios.TCIOFLUSH)
         done = subprocess.run(["sh", loader, self.elf], capture_output=True, text=True,
-                              check=False)
+                              check=False, env=dict(os.environ, **self.loader_env))
         # The image before reported on until the loader stopped it: what came meanwhile
         # is dropped too, lest its count be taken for the new one's (a review, 2026-10-03).
         with self.lock:
@@ -408,6 +413,14 @@ class Nucleo(UnoQ):
     loader = "nucleo_load.sh"
 
 
+class NucleoU3(Nucleo):
+    """SoakU3 on a NUCLEO-U385RG-Q: the same reports and link on USART1, its ST-LINK named
+    by $NUCLEO_TTY and $NUCLEO_SERIAL beside the NUCLEO-U575ZI-Q's."""
+    name, context = "SoakU3 (NUCLEO-U385RG-Q)", "board/soak-u3"
+    elf = os.path.expanduser("~/soak-u3/SoakU3.elf")
+    loader_env = {"NUCLEO_MCU": "u385"}
+
+
 class Status:
     """The commit status on GitHub, if a token is there."""
 
@@ -483,7 +496,7 @@ def main():
     if sys.argv[1:] == ["--self-test"]:
         self_test()
         return
-    boards = {"pico": Pico, "uno-q": UnoQ, "nucleo": Nucleo}
+    boards = {"pico": Pico, "uno-q": UnoQ, "nucleo": Nucleo, "nucleo-u3": NucleoU3}
     if len(sys.argv) < 4 or sys.argv[1] not in boards:
         sys.exit(__doc__.split("\n\n")[1])
     kind = boards[sys.argv[1]]

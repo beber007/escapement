@@ -54,6 +54,15 @@ cp "$U5/build/SoakU5.elf" "$U5/build/SleepU5.elf" "$U5/build/SleepNoHSEU5.elf" \
    "$OUT/soak_u5/"
 make -s -C "$U5" clean >/dev/null
 echo "soak_u5: SoakU5 SleepU5 SleepNoHSEU5"
+# The NUCLEO-U385RG-Q plugged into the UNO Q: the same two, which BOARD=u3
+# tools/unoq_check.sh runs.
+U3=Escapement/CORTEX-Mx/STM32U3/Examples/nucleo-u385
+make -s -C "$U3" clean >/dev/null
+make -s -C "$U3" build/SoakU3.elf build/SleepU3.elf >/dev/null
+mkdir -p "$OUT/soak_u3"
+cp "$U3/build/SoakU3.elf" "$U3/build/SleepU3.elf" "$OUT/soak_u3/"
+make -s -C "$U3" clean >/dev/null
+echo "soak_u3: SoakU3 SleepU3"
 # The Pico 2: the six examples that count in memory, which tools/pico2_check.py runs, and
 # the two of the UART, which tools/pico2_uart.py runs.
 PICO2=Escapement/CORTEX-Mx/RP2350/Examples/pico2

@@ -256,6 +256,51 @@ EOF
 systemctl --user daemon-reload && systemctl --user enable --now escapement-soak-nucleo
 ```
 
+### The NUCLEO-U385RG-Q
+
+Plugged into the UNO Q on 2026-10-09, beside the NUCLEO-U575ZI-Q: two ST-LINKs, each
+named by its serial, and the port of each by it under `/dev/serial/by-id`. With
+`BOARD_CI_U3=1` in the line of the board CI's service, the script checks its STM32U385
+after the STM32U5 (`BOARD=u3 tools/unoq_check.sh`): `SleepU3` a minute through Stop 2,
+`SoakU3` two, its clock against Linux's within 300 ppm, posted as `board/u3`, and carries
+its long run on, the user service `escapement-soak-u3` in `~/soak-u3`, which posts
+`board/soak-u3`. The ST-LINK is given by `BOARD_CI_U3_SERIAL` and `BOARD_CI_U3_TTY`, the
+OpenOCD by `BOARD_CI_OPENOCD_U3` (below). On 2026-10-09 the check passed by hand, its
+clock 121 ppm fast against NTP's (`stm32u3.md`).
+
+```sh
+mkdir -p ~/soak-u3 && cp build/SoakU3.elf tools/soak.py tools/nucleo_load.sh ~/soak-u3/
+cat > ~/.config/systemd/user/escapement-soak-u3.service <<'EOF'
+[Unit]
+Description=Escapement: the endurance test of the STM32U385, read on USART1 every minute
+
+[Service]
+Environment=BOARD_SOAK_LOG=%h/soak-u3/soak-u3.log BOARD_SOAK_SHA=<commit> PYTHONUNBUFFERED=1
+Environment=NUCLEO_SERIAL=<serial> NUCLEO_TTY=/dev/serial/by-id/usb-STMicroelectronics_STLINK-V3_<serial>-if01
+Environment=OPENOCD=%h/opt/openocd-upstream/bin/openocd
+ExecStart=/usr/bin/python3 %h/soak-u3/soak.py nucleo-u3 0 60 %h/soak-u3/SoakU3.elf
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=default.target
+EOF
+```
+
+### OpenOCD for the STM32U3
+
+Debian's OpenOCD, 0.12, has no `stm32u3x.cfg`; OpenOCD's own sources do. They were built
+on the board on 2026-10-07 (8da0578d7) and installed apart, as Raspberry Pi's fork below.
+Their `stlink-dap.cfg` and `dapdirect_swd` are deprecated but still taken, which
+`tools/nucleo_load.sh` uses for both OpenOCDs:
+
+```sh
+git clone https://github.com/openocd-org/openocd.git ~/src/openocd-upstream
+cd ~/src/openocd-upstream && ./bootstrap && ./configure --prefix=$HOME/opt/openocd-upstream \
+    --enable-stlink --enable-cmsis-dap --enable-cmsis-dap-v2 --disable-werror &&
+    make -j2 && make install
+```
+
 ### Several probes
 
 The bench has three Debug Probes, all on the hub since 2026-09-28, wired as "The bench"
