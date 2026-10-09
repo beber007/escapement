@@ -84,6 +84,7 @@ endif
 ifdef FLASH
    LINKERFILE = ../../RP2040_FLASH.ld
    B = build-flash
+   CFLAGS += -DIMAGE_IN_FLASH
 endif
 # make TRACE=1 records a trace of the scheduling in RAM, read over SWD
 # (Escapement_Trace.h, tools/read_trace.py).

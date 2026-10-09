@@ -78,8 +78,14 @@ int main(void)
      /* 32 reads of each place took 314 us at most at 125 MHz, core 1 contending for the
      ** memory (Results.LongestRun, hard kernel, 2026-09-24). Every millisecond, those
      ** 400 us left no lower speed; every 2 ms, the kernel runs the reader at 50 MHz and
-     ** the idle task at 125, and core 1, on the same clock, writes through both. */
-     OSCreateTask(ReaderTask,400,0,2000,2000,NULL);
+     ** the idle task at 125, and core 1, on the same clock, writes through both.
+     ** From the flash, the kernel in SRAM but the reader read through the XIP, they took
+     ** 411 us at 125 MHz and 1,039 at 50 (2026-10-09): 520 us keeps the same margin. */
+     #ifdef IMAGE_IN_FLASH
+        OSCreateTask(ReaderTask,520,0,2000,2000,NULL);
+     #else
+        OSCreateTask(ReaderTask,400,0,2000,2000,NULL);
+     #endif
   #else
      OSCreateTask(ReaderTask,0,1000,1000,NULL);
   #endif

@@ -33,8 +33,10 @@ SECTIONS
         /* 256 byte aligned as VTOR requires, where the second stage looks for it. */
         KEEP(*(.isr_vector_general))  /* Cortex-Mx system exceptions */
         KEEP(*(.isr_vector_specific)) /* RP2040 peripheral interrupts */
-        *(.text*)
-        *(.rodata*)
+        /* The reset handler copies .data, the kernel with it: it stays here. */
+        *(.text._OSResetHandler)
+        *(EXCLUDE_FILE(*Escapement*.o) .text*)
+        *(EXCLUDE_FILE(*Escapement*.o) .rodata*)
         . = ALIGN(4);
         _etext = .;
     } > FLASH
@@ -43,6 +45,11 @@ SECTIONS
     {
         . = ALIGN(4);
         _data = .;
+        /* The kernel and the port, code and constants, run from SRAM: read through the
+        ** XIP, the first rounds of the kernel, its code not yet in the cache, took up to
+        ** 856 us on the Pico rather than a few, and a task overran its first period
+        ** (docs/rp2040.md, "The Pico from its flash"). The application stays in the flash. */
+        *Escapement*.o(.text* .rodata*)
         *(.data*)
         . = ALIGN(4);
         _edata = .;

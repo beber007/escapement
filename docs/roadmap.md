@@ -97,9 +97,9 @@ the same day.
    flash"): a second stage of our own, `tools/pico_flash.sh`; the timer events and DVFS
    on one core pass from the flash, the plain array of `FourSlotCoresPico` never tears
    there (its criterion kept from SRAM, as the user decided), and under the power-aware
-   kernel the first rounds, the XIP cache cold, take hundreds of microseconds and the
-   reader overruns its first period: to be settled before the Pico W's week from the
-   flash (task 8). The
+   kernel the first rounds, the XIP cache cold, took hundreds of microseconds and the
+   reader overran its first period: the kernel and the port now run from SRAM in a
+   flash image of the RP2040 and the RP2350, as the user decided the same day. The
    two NUCLEO boards take `make FLASH=1` too, not yet run: their boards hold endurance
    runs.
 5. **Every mutant read.** Of each kernel's survivors at 300 task sets, each one killed
