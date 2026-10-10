@@ -921,6 +921,13 @@ static void TestCreateBounds(void)
   Check("  a period and a deadline of one tick", TRY_TASK(0, 1, 1));
   Check("  a turn and 5 ticks, a deadline of 100", TRY_TASK(1, 5, 100));
   Check("  an event-driven task of workload 1", CREATE_SYNCHRONOUS_TASK(EventTask, 1, event, NULL));
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     /* An event-driven task that always works, its WCET its workload: the power-aware
+     ** kernel computes no share from them, and takes it (mutant 287 of
+     ** EscapementHardPA.c refused it). */
+     Check("  an event-driven task whose WCET is its workload",
+           OSCreateSynchronousTask(EventTask, 100, 100, 255, OSCreateEventDescriptor(), NULL));
+  #endif
 }
 
 #if defined(ESCAPEMENT_VERSION_SOFT)

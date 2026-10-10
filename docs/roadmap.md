@@ -142,7 +142,8 @@ task 4 began the same day.
    power-aware kernels never read. The scores measured again on the code as it then is.
    Begun on 2026-10-10, set before tasks 3 and 4 ended as the user allowed: the hard
    kernel's eight read, six killed, one declared, one written (`method.md`); 87.6 %, 97.0 %
-   of those not declared.
+   of those not declared. The soft kernel's 142 read the same day: 84.0 %, 95.4 % of those
+   not declared. The power-aware kernel's 119: see `method.md`.
 6. **The documentation against the code.** Each claim of `README.md` set again against
    what checks it (`method.md`, "What the README claims"), on the code as it then is;
    `api.md` stating that the API is not yet stable; the known limits written where a
@@ -167,7 +168,12 @@ the PPK2 as a check of each commit on the STM32U5 (item 4); how
 often a wake-up byte of LPUART1 comes out wrong (item 6); testing a dropped optional
 instance again; an exhaustive enumeration of small task sets and fuzzing; a test of
 optional instances by processor demand that counts its own cost, bounded and measured on
-each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`).
+each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`); why
+`tools/speed_reference.py` does not see the speed the power-aware kernel's timer handler
+saves left unsaved, the work of a task dispatched by another's end then scaled by the
+speed before (mutant 106 of `EscapementHardPA.c`, alive at 2,000 sets a build,
+2026-10-10); the event FIFO's posting and `ScheduleNextTask`'s loads in
+`tools/check_order.py`, which follows stores only.
 
 ## Open work, in order
 

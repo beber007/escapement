@@ -842,6 +842,33 @@ def self_test():
           (len(wrong) + len(wrong_events) + len(wrong_speeds) + len(wrong_firm) + 1))
 
 
+# Sets beyond the 300 a run draws that once caught a fault no run of 300 did, checked by
+# every run of their build: (build, seed, number). A mutant of the power-aware kernel
+# that left EDF*'s arrival times unshifted in the ready queue at the wraparound broke a
+# tie the wrong way in the first of them (tools/mutants.py at 2,000 sets, 2026-10-10).
+KEPT = [("pa_dra", 1, 1200)]
+
+
+def nth_set(build, seed, n, rng=None):
+    """Set n of build and seed, and the phase it starts at: rng, drawn n sets on already,
+    or drawn on here."""
+    if rng is None:
+        rng = random.Random("%s-%d" % (build, seed))
+        for _ in range(n):
+            nth_set(build, seed, _, rng)
+    if build.startswith("soft") and rng.random() < 0.5:
+        tasks = draw_firm(rng, build in DEADLINE_MONOTONIC)
+    else:
+        tasks = draw(rng, build in DEADLINE_MONOTONIC)
+    # Half the sets cross the 2^30 wraparound of the kernel clock, at a point drawn
+    # apart, so that the sets themselves stay those of the same seed.
+    wrap = random.Random("%s-%d-%d-wrap" % (build, seed, n))
+    phase = 0x40000000 - wrap.randint(1, DURATION) if wrap.random() < 0.5 else 0
+    if all(t["kind"] in "PE" for t in tasks) and wrap.random() < 0.5:
+        tasks = edge_signals(wrap, tasks, phase, build in DEADLINE_MONOTONIC)
+    return tasks, phase
+
+
 def main():
     args = sys.argv[1:]
     if args == ["--self-test"]:
@@ -856,24 +883,18 @@ def main():
         decisions = {"admitted": 0, "dropped": 0, "sure": 0, "fits": 0, "later": 0,
                      "demand": 0, "demand_unsafe": 0, "demand_short": 0, "demand_refuses": 0,
                      "examined": 0, "examined_sum": 0}
-        for n in range(count):
-            if build.startswith("soft") and rng.random() < 0.5:
-                tasks = draw_firm(rng, build in DEADLINE_MONOTONIC)
-            else:
-                tasks = draw(rng, build in DEADLINE_MONOTONIC)
-            # Half the sets cross the 2^30 wraparound of the kernel clock, at a point drawn
-            # apart, so that the sets themselves stay those of the same seed.
-            wrap = random.Random("%s-%d-%d-wrap" % (build, seed, n))
-            phase = 0x40000000 - wrap.randint(1, DURATION) if wrap.random() < 0.5 else 0
-            if all(t["kind"] in "PE" for t in tasks) and wrap.random() < 0.5:
-                tasks = edge_signals(wrap, tasks, phase, build in DEADLINE_MONOTONIC)
+        kept = [(k_seed, k_n) for k_build, k_seed, k_n in KEPT
+                if k_build == build and (k_seed != seed or k_n >= count)]
+        for n in range(count + len(kept)):
+            set_seed, set_n = (seed, n) if n < count else kept[n - count]
+            tasks, phase = nth_set(build, set_seed, set_n, rng if n < count else None)
             try:
                 check(build, tasks, run(build, tasks, phase), phase=phase, decisions=decisions)
                 if any(t["kind"] == "F" for t in tasks):
                     # Each instance takes from 1 tick to its WCET, drawn apart: an end
                     # earlier than the one before moves the instant optional ones are
                     # decided at, which a time per task kept the same.
-                    light = random.Random("%s-%d-%d" % (build, seed, n))
+                    light = random.Random("%s-%d-%d" % (build, set_seed, set_n))
                     tasks = [dict(t, each=[light.randint(1, t["wcet"])
                                            for _ in range(DURATION // t["period"] + 1)])
                              for t in tasks]
@@ -881,10 +902,11 @@ def main():
                           decisions=decisions)
             except (Failure, subprocess.TimeoutExpired) as e:
                 failed += 1
-                print("%s, set %d %s, phase %d: %s" % (build, n, tasks, phase, e))
+                print("%s, set %d %s, phase %d: %s" % (build, set_n, tasks, phase, e))
                 break
         else:
-            print("%s: %d task sets, every trace holds" % (build, count))
+            print("%s: %d task sets, every trace holds" % (build, count) +
+                  (", and %d kept" % len(kept) if kept else ""))
             if decisions["admitted"] + decisions["dropped"]:
                 print("  optional instances: %(admitted)d admitted, %(dropped)d dropped (%(sure)d "
                       "checked), of which %(fits)d could have run, every instance taking its WCET "

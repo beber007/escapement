@@ -401,6 +401,50 @@ follow, and are written below. Then:
   the share protects is the events' own deadlines, which no test sets dense enough to
   reach.
 
+Run again with those tests, the 142 gave the 26 kills and 87 survivors declared: the
+soft kernel's mutants score 84.0 % (608 of 724), 95.4 % of the 637 not declared.
+
+The power-aware kernel's 148 survivors of 9d9157c, run again the same day, gave 5 kills;
+the 143 left, 24 declared before, were read as the soft kernel's were, its only target,
+the RP2040, compiled under each of its five builds for the barriers. Those it could not
+settle by reading ran again at 2,000 task sets a build instead of 300 (`--sets`), which
+killed two: EDF*'s arrival times left unshifted in the ready queue at the wraparound,
+which broke a tie the wrong way in set 1200 of `pa_dra`. `tools/differential.py` checks
+that set at every run since, beside its 300 (`KEPT`). Then:
+
+- 2 more are killed by tests: a deadline of 0 with a WCET of 0 (39), and an event-driven
+  task whose WCET is its workload, which the power-aware kernel takes (287); 4 barriers
+  of the slot buffers are caught by `tools/check_order.py` (810 to 816);
+- 83 are declared: the twins of the hard kernel's declared ones whose code and frame are
+  the same; barriers that leave the memory accesses, the calls and the barriers in the
+  same order on the five builds, among them the one after a task's zombie state in
+  `OSEndTask`, which `check_order.py` needs on the Cortex-M33 for the hard kernel but the
+  RP2040 does not; statics read only after a creation or a dispatch sets them; the
+  arguments of a pair completed with `check`, which only completes the pair stored; the
+  simulation brought up to date twice at one instant; the halves of a pair swapped,
+  independent; an excess that is always 0 when an update begins; a slack of one tick,
+  which the fastest speed absorbs at the RP2040's operating points;
+- 28 are behaviours no test reads, alive at 2,000 sets where they were run so: the
+  speed the timer handler saves left unsaved, whose work scaled by the speed before the
+  speed reference does not see, which the open list keeps (106); the handler and the
+  idle task left at the speed before rather than the fastest, energy only (107); EDF*'s
+  ties in the simulation queue after the wraparound, its zombies and the event-driven
+  tasks waiting in the arrival queue left unshifted (129, 130, 140); a slack computed
+  and not yet installed at the wraparound, credited with 2^30 (143, 144), which the tests
+  that take the wrap at each point of an ending task reach without a task slow enough to
+  show it; the time a slack runs out from, taken earlier, and the work of an event-driven
+  task released at once kept from the instance before, both making the slack smaller
+  (229, 362); the time of the last update left behind by `UpdateRemainingWork`, which
+  every caller sets but on a second turn of the handler's loop (368); one tick of excess
+  more or less at the first update of DRA's simulation (3, 4); the simulation's clock
+  taken back when it ran ahead (409) and the path its own comment says only an
+  interrupting call reaches (412, 413); the time of an ending task's dispatch taken from
+  the slack just installed rather than read again, the same on the host (96, 331); the
+  wait-free queue's helpers, two entries of the 3-slot table and the 4 bytes of the
+  start, as in the hard kernel (619, 621, 657, 659, 746, 749, 558); the priorities all
+  shifted by one, as in the hard kernel (74); and the event FIFO's barriers the compiler
+  inlines differently without (631, 633, 635).
+
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
 window under-counts by one WCET at most, and random task sets seldom come that close. A
