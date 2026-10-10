@@ -248,7 +248,8 @@ this actually saves energy depends on the chip, and measuring decided it on two
 ([`docs/power-aware.md`](docs/power-aware.md), [`docs/roadmap.md`](docs/roadmap.md)). On
 the STM32U5 it does not: a cycle costs least at full speed, and racing to Stop 2 wins at
 every load. On the RP2350, within its specified voltage, some 10 % at best. On the
-RP2040 the verdict is open.
+RP2040, measured on 2026-10-10, up to some 5 % with the idle task in WFI and nothing
+once it sleeps in SLEEP, which takes some 73 % off by itself.
 
 </details>
 

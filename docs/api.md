@@ -119,7 +119,8 @@ figure. An understated `wcet` lets the kernel pick a speed too low for the task,
 then misses its deadline. `FourSlotCoresPico` declares 400 µs for a reader measured at
 314 µs at most (`rp2040.md`): measure first, then add a margin. Whether slowing down
 saves energy depends on the chip: on the STM32U5 it does not, racing to Stop 2 winning at
-every load, and on the RP2350 some 10 % at best (`power-aware.md`).
+every load, on the RP2350 some 10 % at best, and on the RP2040 up to some 5 % with the
+idle task in WFI and nothing once it sleeps in SLEEP (`power-aware.md`).
 
 `OSSetMinimalProcessorSpeed(speed)`, called before `OSStartMultitasking`, keeps the
 processor at or above an operating point (`OS_12MHZ_SPEED`, `OS_50MHZ_SPEED`,

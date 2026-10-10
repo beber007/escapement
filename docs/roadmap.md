@@ -176,7 +176,7 @@ task 4 began the same day.
    every claim of behaviour holds, the stale rows corrected (6a4f138); the boards checked
    at each commit become four when task 4 turns on the NUCLEO-U385RG-Q's check, and the
    RP2040's verdict is task 9's to write.
-9. **The energy verdict on the RP2040.** Added by the user on 2026-10-10, who had left it
+9. **The energy verdict on the RP2040 — done on 2026-10-10.** Added by the user on 2026-10-10, who had left it
    after this release on 2026-10-07: item 1 below, on its bench, a plain Pico powered and
    measured by the PPK2; whether DVFS beats racing to sleep, and what the same bench
    settles with it (the idle task at 12 or 125 MHz, DRA, DR_OTE and DM_SLACK against OTE,
@@ -185,7 +185,10 @@ task 4 began the same day.
    probe2's, whose endurance run the user stopped on 2026-10-10 for it, and the PPK2 wired
    to it. Prepared on 2026-10-10: `SleepPico` (`rp2040.md`, "For the PPK2:
    SleepPico") checked on probe1's Pico W without the PPK2, its phases, its operating
-   points and the lock of PLL_SYS, 55 µs.
+   points and the lock of PLL_SYS, 55 µs. Measured the same day on probe2's Pico
+   (`power-aware.md`, "Measuring the RP2040"): a cycle costs least at 125 MHz; DVFS saves
+   up to some 5 % with the idle task in WFI, nothing in SLEEP; the sleep is the lever,
+   73 %, and a SLEEP with PLL_SYS stopped would take more, open after this release.
 10. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
    it on, fixes only. `EscapementHard.c` must not have changed since 041af76, the commit
    of its week of endurance.
@@ -222,7 +225,10 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    `board/soak`, `board/soak-u5` and `board/soak-nucleo` of each commit give their state
    since (`tools/board_ci.md`).
 
-1. **The energy verdict on the RP2040** — in release 0.1 as its task 9 since 2026-10-10.
+1. **The energy verdict on the RP2040** — in release 0.1 as its task 9, done on
+   2026-10-10 (`power-aware.md`). What stays open of it: the idle task in SLEEP with
+   PLL_SYS stopped, 1.22 mA against 5.07, its clk_sys's auxiliary source moved off the
+   PLL first (`rp2040.md`, "For the PPK2: SleepPico").
    Build the bench of `power-aware.md`: a plain Pico
    rather than a Pico W, powered and measured by a Power Profiler Kit II, chosen on
    2026-09-24 over an INA226. Then answer whether DVFS beats race-to-sleep. The same bench
