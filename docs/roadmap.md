@@ -41,7 +41,8 @@ ships, and that each endurance run and measurement it cites was made on that cod
 
 **Scope.** The hard, soft and power-aware kernels, each under EDF and DM, on the boards
 that check every commit: the RP2040 (all three kernels), the RP2350, the STM32U5 and,
-since the user added it on 2026-10-09, the STM32U3 (hard and soft). The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
+since the user added it on 2026-10-09, the STM32U3 (hard and soft, and power-aware if
+task 11 finds DVFS worth it there). The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
 
 **Tasks, in order, each finished before the next begins.** Since 2026-10-09, a task left
 with nothing but a wait (an endurance run, the CI, the user's hands) may be set aside for
@@ -202,7 +203,19 @@ task 4 began the same day.
    late; `TaskLEDPico` 2.18 mA against 5.49 with PLL_SYS running (−60 %), 2.22 and 2.41
    under OTE and DR_OTE. Alarm 3 kept from the timer events once the sleep takes it, on
    the RP2350 too, whose port lacked the guard.
-11. **A review of the whole, code and documentation.** Added by the user on 2026-10-10,
+11. **DVFS on the STM32U3: measured, then the power-aware kernel if it pays.** Added by
+   the user on 2026-10-10. First the measure (`stm32u3.md`, "Measuring DVFS"):
+   `DVFSU3Flash` (0b17ba9) on the NUCLEO-U385RG-Q, the PPK2 in place of JP4, after the
+   pins of task 3. DVFS pays if a CRC at 48 MHz in range 2 costs less charge than at
+   96 MHz in range 1 by more than the Stop 2 that the time saved at 96 MHz would sleep;
+   the verdict written in `power-aware.md` either way. If it pays, the power-aware
+   kernel on the port: `OSSetProcessorSpeed` on the sequences `DVFSU3.c` checks, TIM2
+   and TIM4 rescaled at each change so that the kernel's time does not slip (plan §5.3),
+   USART1 on HSI16 so that its rate does not follow the clock, the wake-up from Stop 2
+   at the point in effect, the Renode platform and the board check with it, and the
+   kernel's run of task 14 on the board. If it does not, the port stays hard and soft.
+   Needs the user's hands for the PPK2.
+12. **A review of the whole, code and documentation.** Added by the user on 2026-10-10,
    before the freeze so that what it finds is fixed before the candidate and its runs.
    By agents on Claude Fable 5.1, each given one part and none the conclusions of
    another: the three kernels; the RP2040 and RP2350 ports; the STM32U5 and STM32U3
@@ -215,12 +228,12 @@ task 4 began the same day.
    finding checked against the code before it counts, then fixed, declared no fault
    with its reason, or left open in the notes; what the review found and how it was
    checked written in `method.md`.
-12. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
-   it on, fixes only. (Until the runs of task 13 took every kernel again, `EscapementHard.c`
+13. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
+   it on, fixes only. (Until the runs of task 14 took every kernel again, `EscapementHard.c`
    was to stay as it was at 041af76, the commit of its week.)
-13. **Endurance on the candidate**: 8 hours for each kernel on each platform, as the
+14. **Endurance on the candidate**: 8 hours for each kernel on each platform, as the
    user decided on 2026-10-10 (a week until then, cut to 24 hours, then to this; rule 3
-   of `CLAUDE.md`, "Before a release"). Nine runs, one board each platform, run in turn
+   of `CLAUDE.md`, "Before a release"). Nine runs, ten with the STM32U3's power-aware kernel, one board each platform, run in turn
    on it and in parallel across them, from flash once task 4 is done; the soft kernel
    with the (m,k)-firm variant of task 2 (`SoakFirm*`), the others with `Soak*`:
    - RP2040, probe2's Pico: hard, soft, power-aware, 24 hours in all; the PPK2 of task 9
@@ -228,13 +241,14 @@ task 4 began the same day.
    - RP2350, probe3's Pico 2: hard, soft, 16 hours; the board CI skips the Pico 2 while
      a run holds `lock-probe3`, as it skipped probe2's Pico (`board_ci.md`);
    - STM32U5, the NUCLEO-U575ZI-Q: hard, soft, 16 hours;
-   - STM32U3, the NUCLEO-U385RG-Q: hard, soft, 16 hours.
+   - STM32U3, the NUCLEO-U385RG-Q: hard, soft, 16 hours, and power-aware, 24 in all,
+     if task 11 ports it.
    The runs before the candidate are cited beside, not in their place: the hard kernel's
    week on the Pico at 041af76, the power-aware kernel's 4 d 18 h 47 min at 80cc6dc
    (stopped on 2026-10-10 for task 9's PPK2, no restart, no error, 384 wraps), the soft
    kernel's day on each NUCLEO board (tasks 2 and 3). A fix to a kernel makes an `rc2`
    and starts that kernel's runs again on every platform.
-14. **The release.** Its notes, from `git log` since the fork and from this page; the tag
+15. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 
 **Not in 0.1**, open after it: DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);

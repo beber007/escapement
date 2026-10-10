@@ -382,8 +382,8 @@ count of a long run will tell; the current on JP4, which needs the PPK2.
 
 ## Measuring DVFS
 
-Before a DVFS driver is written for this chip (plan §5), the PPK2 is to say whether it
-would gain anything, as it said on the STM32U5 that it would not (`power-aware.md`). The
+Before a DVFS driver is written for this chip (plan §5; release 0.1, task 11, as the
+user decided on 2026-10-10), the PPK2 is to say whether it would gain anything, as it said on the STM32U5 that it would not (`power-aware.md`). The
 datasheet (DS14830 rev. 2, CoreMark on the SMPS at 3.3 V, typical figures, as the plan
 read them) gives 16.1 µA/MHz at 96 MHz in range 1 and 12.9 at 48 MHz in range 2, 20 %
 less a cycle: range 2 is 0.75 V typical against range 1's 0.9 (RM0487, 9.3.3, p. 333).
