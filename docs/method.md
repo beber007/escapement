@@ -346,7 +346,11 @@ taken from the C library, does not count. The survivors run again at 300 task se
 six died, and the hard kernel's mutants score 87.6 % (424 of 484), 97.0 % of the 437 not
 declared. That run showed a fault of `tools/mutants.py`: scoring a part of the mutants,
 it ranked mutants alike among that part alone, and a declaration of the second of two
-alike, 98, matched no survivor; they are ranked among the whole source's since.
+alike, 98, matched no survivor; they are ranked among the whole source's since. The
+same fault chose the mutants to run: given a file of part of them, as its own
+`-again.jsonl` is, `--survivors` ranked them alike among that part, and ran the soft
+kernel's `totalWork += tmp` left out at line 619, killed long before, for the same left
+out at line 646. A record whose number still names the same mutant is now taken by it.
 
 The soft kernel's 152 survivors of 9d9157c were run again on the same day: the tests
 added for the hard kernel killed 10, its code being shared, and the 142 left were read,

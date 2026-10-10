@@ -308,9 +308,19 @@ def main():
         # apart by their rank among them.
         with open(args.survivors) as f:
             before = sorted((json.loads(l) for l in f if l.strip()), key=lambda r: r["id"])
+        # A record whose number still names the same mutant of this source is that mutant:
+        # a file of part of the mutants, as -again.jsonl is, ranks mutants alike among its
+        # part alone, and took the first of two alike for the second (2026-10-10).
+        current = {m[0]: m for m in todo}
+        same = {r["id"] for r in before if r["id"] in current and
+                (current[r["id"]][1], current[r["id"]][3].strip(),
+                 current[r["id"]][4].strip()) == (r["op"], r["original"].strip(),
+                                                  r["mutated"].strip())}
         again = {k for k, r in zip(keyed((r["op"], r["original"], r["mutated"]) for r in before),
-                                   before) if r["verdict"] == "survived"}
-        todo = [m for k, m in zip(keyed((m[1], m[3], m[4]) for m in todo), todo) if k in again]
+                                   before) if r["verdict"] == "survived" and r["id"] not in same}
+        survived = {r["id"] for r in before if r["verdict"] == "survived" and r["id"] in same}
+        todo = [m for k, m in zip(keyed((m[1], m[3], m[4]) for m in todo), todo)
+                if m[0] in survived or (m[0] not in same and k in again)]
         results = args.survivors.replace(".jsonl", "-again.jsonl")
     if args.score:
         results = args.score
