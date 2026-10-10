@@ -33,10 +33,10 @@ if [ "$1" = --lines ]; then
 fi
 if [ "$1" = --read ]; then
     addr=$(arm-none-eabi-nm "$2" | awk '$3 == "Results" { print $1 }')
-    run -c "halt" -c "mdw 0x$addr 9" -c "resume" -c "rp2040.dap dpreg 4 0" | grep -E "^0x"
+    run -c "halt" -c "mdw 0x$addr 9" -c "resume" -c "rp2040.dap0 dpreg 4 0" | grep -E "^0x"
     exit 0
 fi
-out=$(run -c "reset halt" -c "load_image $1" -c "resume 0x20000000" -c "rp2040.dap dpreg 4 0")
+out=$(run -c "reset halt" -c "load_image $1" -c "resume 0x20000000" -c "rp2040.dap0 dpreg 4 0")
 if ! echo "$out" | grep -q "bytes written\|downloaded"; then
     echo "$out" >&2
     exit 1
