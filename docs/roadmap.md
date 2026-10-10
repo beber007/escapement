@@ -202,10 +202,23 @@ task 4 began the same day.
    late; `TaskLEDPico` 2.18 mA against 5.49 with PLL_SYS running (−60 %), 2.22 and 2.41
    under OTE and DR_OTE. Alarm 3 kept from the timer events once the sleep takes it, on
    the RP2350 too, whose port lacked the guard.
-11. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
+11. **A review of the whole, code and documentation.** Added by the user on 2026-10-10,
+   before the freeze so that what it finds is fixed before the candidate and its runs.
+   By agents on Claude Fable 5.1, each given one part and none the conclusions of
+   another: the three kernels; the RP2040 and RP2350 ports; the STM32U5 and STM32U3
+   ports; the flash images and their tools (second stages, linker scripts,
+   `pico_flash.sh`, `nucleo_flash.sh`, `unoq_check.sh`); the documentation against the
+   code, each claim of `README.md` and of the pages it links to the code and the
+   measurement it rests on. First what no audit has read: the STM32U3 port, the flash
+   images, the RP2040's sleep with PLL_SYS stopped, the kernels' changes since the
+   review of 2026-09-30 (`method.md`, "Audits, and what they leave unproved"). Each
+   finding checked against the code before it counts, then fixed, declared no fault
+   with its reason, or left open in the notes; what the review found and how it was
+   checked written in `method.md`.
+12. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
    it on, fixes only. `EscapementHard.c` must not have changed since 041af76, the commit
    of its week of endurance.
-12. **Endurance on the candidate**, 24 hours a run since the user cut the week to that
+13. **Endurance on the candidate**, 24 hours a run since the user cut the week to that
    on 2026-10-10 (rule 3 of `CLAUDE.md`, "Before a release"). The power-aware kernel on
    probe2's Pico, its week of 80cc6dc having run on a kernel changed four times since:
    that run, meant to stop at the freeze as the user decided on 2026-10-07, was stopped
@@ -217,7 +230,7 @@ task 4 began the same day.
    port changed on 2026-10-10 (the guard of alarm 3, task 10): the user decided the same
    day, the rule still a week, to keep it in 0.1 without one, which the notes are to
    say, a departure from rule 3.
-13. **The release.** Its notes, from `git log` since the fork and from this page; the tag
+14. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 
 **Not in 0.1**, open after it: DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
