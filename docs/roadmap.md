@@ -212,7 +212,10 @@ task 4 began the same day.
    NUCLEO-U575ZI-Q with the variant of task 2, in parallel, both from flash once task 4
    is done; the hard kernel a week on the NUCLEO-U385RG-Q, a port new to this release,
    its soft kernel's day being that of task 3. A fix to a kernel makes an
-   `rc2` and starts that kernel's week again.
+   `rc2` and starts that kernel's week again. The RP2350 has never had a week, and its
+   port changed on 2026-10-10 (the guard of alarm 3, task 10): the user decided the same
+   day to keep it in 0.1 without one, which the notes are to say, a departure from rule 3
+   of `CLAUDE.md`, "Before a release".
 13. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 
