@@ -167,12 +167,15 @@ task 4 began the same day.
    The reference was wrong: it served a periodic release and a signal of one instant in
    one pass of the handler, where the host makes two, and lost the server's excess that
    the first counts; corrected, the set kept (`method.md`).
-8. **The documentation against the code.** Each claim of `README.md` set again against
+8. **The documentation against the code — done on 2026-10-10.** Each claim of `README.md` set again against
    what checks it (`method.md`, "What the README claims"), on the code as it then is;
    `api.md` stating that the API is not yet stable; the known limits written where a
    reader meets them: an optional instance tested once, DM keeping the count, DVFS worth
    nothing on the STM32U5 and some 10 % on the RP2350, the energy verdict on the RP2040
-   as task 9 finds it.
+   as task 9 finds it. Set again on 2026-10-10 (`method.md`, "What the README claims"):
+   every claim of behaviour holds, the stale rows corrected (6a4f138); the boards checked
+   at each commit become four when task 4 turns on the NUCLEO-U385RG-Q's check, and the
+   RP2040's verdict is task 9's to write.
 9. **The energy verdict on the RP2040.** Added by the user on 2026-10-10, who had left it
    after this release on 2026-10-07: item 1 below, on its bench, a plain Pico powered and
    measured by the PPK2; whether DVFS beats racing to sleep, and what the same bench

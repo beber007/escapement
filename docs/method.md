@@ -702,6 +702,17 @@ Six claims had gone stale as the work moved on, two were false, and two were rea
 nothing. The README was corrected the same day, and its program is built and run from
 the page since. The check of the tick was added on 2026-10-05.
 
+Set again on 2026-10-10, before the first release (roadmap, task 8). Every claim of
+behaviour holds on that code: the speeds against the policies at 20,000 task sets under
+DRA and DR_OTE once the reference served each signal in a pass of its own (task 7), the
+round of 3.5 µs and 12 µs at worst read by the bench on 2e30970. Stale: the STM32U3's
+row, "Renode only" while the board has been on the bench since 2026-10-09, and the
+NUCLEO-U575ZI-Q's, which runs the soft kernel's endurance test and from its flash; three
+ports where there are four; 91.15 % of the branches where there are 91.78 %; the
+STM32U3's page missing from the table. Corrected the same day (6a4f138), with the
+optional instance's single test and its count written where the README meets them, and
+`api.md` saying that the API is not yet stable.
+
 ## What this changes in the repository
 
 The CI runs the kernel, under Renode and on the host, besides building it. That is how

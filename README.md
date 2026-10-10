@@ -230,7 +230,10 @@ scheduling is also available, chosen in the application's configuration.
 A second kernel schedules (m,k)-firm tasks. Out of every k instances of a task, m are
 guaranteed. The others run only if a test on the declared execution times shows they
 will finish in time. Under overload the kernel drops instances it has chosen, rather
-than missing deadlines at random.
+than missing deadlines at random. The test is made once, when an optional instance
+first reaches the processor, and a drop is final; it counts every mandatory instance
+released before the deadline, which is safe and drops more than an exact test would
+([`docs/api.md`](docs/api.md#soft-kernel), [`docs/method.md`](docs/method.md)).
 
 </details>
 
