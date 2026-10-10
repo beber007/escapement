@@ -205,17 +205,18 @@ task 4 began the same day.
 11. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
    it on, fixes only. `EscapementHard.c` must not have changed since 041af76, the commit
    of its week of endurance.
-12. **Endurance on the candidate.** The power-aware kernel a week on probe2's Pico, its
-   week of 80cc6dc having run on a kernel changed four times since: that run, meant to
-   stop at the freeze as the user decided on 2026-10-07, was stopped on 2026-10-10 at
-   4 d 18 h 47 min, no restart, no error, 384 wraps, for task 9's PPK2; the soft kernel a week on the
-   NUCLEO-U575ZI-Q with the variant of task 2, in parallel, both from flash once task 4
-   is done; the hard kernel a week on the NUCLEO-U385RG-Q, a port new to this release,
-   its soft kernel's day being that of task 3. A fix to a kernel makes an
-   `rc2` and starts that kernel's week again. The RP2350 has never had a week, and its
+12. **Endurance on the candidate**, 24 hours a run since the user cut the week to that
+   on 2026-10-10 (rule 3 of `CLAUDE.md`, "Before a release"). The power-aware kernel on
+   probe2's Pico, its week of 80cc6dc having run on a kernel changed four times since:
+   that run, meant to stop at the freeze as the user decided on 2026-10-07, was stopped
+   on 2026-10-10 at 4 d 18 h 47 min, no restart, no error, 384 wraps, for task 9's PPK2;
+   the soft kernel on the NUCLEO-U575ZI-Q with the variant of task 2, in parallel, both
+   from flash once task 4 is done; the hard kernel on the NUCLEO-U385RG-Q, a port new to
+   this release, its soft kernel's day being that of task 3. A fix to a kernel makes an
+   `rc2` and starts that kernel's run again. The RP2350 has never had a week, and its
    port changed on 2026-10-10 (the guard of alarm 3, task 10): the user decided the same
-   day to keep it in 0.1 without one, which the notes are to say, a departure from rule 3
-   of `CLAUDE.md`, "Before a release".
+   day, the rule still a week, to keep it in 0.1 without one, which the notes are to
+   say, a departure from rule 3.
 13. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 

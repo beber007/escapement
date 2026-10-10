@@ -182,9 +182,10 @@ them as below. `docs/roadmap.md`, "Release 0.1", applies this list to the first 
 1. **A freeze**: a tag `vX.Y.Z-rcN`. From it on, fixes only, each a new candidate.
 2. **The CI and the board checks pass** on the candidate (`build`, `board/pico`,
    `board/pico2`, `board/u5`, `board/u3`).
-3. **A week of endurance on the candidate** for each kernel and each port changed since
-   its last week (`git log` of `Escapement/`), on a board that runs it; one unchanged
-   keeps its week, cited with its commit.
+3. **24 hours of endurance on the candidate** for each kernel and each port changed
+   since its last run (`git log` of `Escapement/`), on a board that runs it; one
+   unchanged keeps its run, cited with its commit. A week until the user cut it to 24 h
+   on 2026-10-10.
 4. **Each measurement the release cites was made on the code it ships**, or is taken
    out, or marked as made on an older version.
 5. **Each claim of `README.md` checked** on the candidate (`docs/method.md`, "What the
