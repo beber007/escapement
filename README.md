@@ -76,8 +76,8 @@ and slows down only as far as those times still meet every deadline.
 | Raspberry Pi Pico (RP2040) | Cortex-M0+, 125 MHz | hard, soft, power-aware with DVFS | the board, checked at each commit; Renode |
 | Arduino UNO Q (STM32U585) | Cortex-M33, 160 MHz | hard, soft; the idle task in Stop 2 | the board, checked at each commit; Renode |
 | Raspberry Pi Pico 2 (RP2350) | Cortex-M33, 150 MHz | hard, soft; two cores sharing lock-free buffers | the board, checked at each commit: the six examples that count in memory and the UART; Renode |
-| NUCLEO-U575ZI-Q (STM32U575) | Cortex-M33, 160 MHz | the hard kernel's example in Stop 2, for current measurement; the endurance test | the endurance test on the board since 2026-09-28; Renode |
-| NUCLEO-U385RG-Q (STM32U385) | Cortex-M33, 96 MHz | hard, soft; the idle task in Stop 2; written from the reference manual before the board came ([`docs/stm32u3.md`](docs/stm32u3.md)) | Renode only, its platform checking the clock set-up and the wake-up from Stop 2 against the manual |
+| NUCLEO-U575ZI-Q (STM32U575) | Cortex-M33, 160 MHz | the hard kernel's example in Stop 2, for current measurement; the endurance tests of the hard and soft kernels, from the flash too | the endurance tests on the board since 2026-09-28; Renode |
+| NUCLEO-U385RG-Q (STM32U385) | Cortex-M33, 96 MHz | hard, soft; the idle task in Stop 2; written from the reference manual before the board came ([`docs/stm32u3.md`](docs/stm32u3.md)) | the board since 2026-10-09, its check and endurance test; Renode, its platform checking the clock set-up and the wake-up from Stop 2 against the manual |
 
 ## An application
 
@@ -147,10 +147,10 @@ right. The host test says the scheduler made the decisions it should have.
 
 | Level | What it establishes |
 |---|---|
-| Compilation | every example of the three ports built by two versions of GCC at each push to `main`, the kernels and the ports compiled by clang too |
-| The scheduler alone | every kernel and algorithm run on the host under AddressSanitizer: every line run or excluded with its reason, 91.15 % of the branches, and random task sets checked against the algorithms |
+| Compilation | every example of the four ports built by two versions of GCC at each push to `main`, the kernels and the ports compiled by clang too |
+| The scheduler alone | every kernel and algorithm run on the host under AddressSanitizer: every line run or excluded with its reason, 91.78 % of the branches, and random task sets checked against the algorithms |
 | Every interleaving | the lock-free buffers and queues explored exhaustively, weak memory included |
-| Replayable execution | the three ports under Renode, as regression tests |
+| Replayable execution | the four ports under Renode, as regression tests |
 | Internal state on hardware | the scheduling traced on a running board, and three boards checked at each commit |
 | Independent instrument | the periods read by a frequency counter, outside all the project's software |
 
@@ -159,7 +159,7 @@ right. The host test says the scheduler made the decisions it should have.
 
 | Level | Means | What it establishes |
 |---|---|---|
-| Compilation | GitHub Actions, with the developer's GCC and a second one, 14.2, and clang | the examples of the Pico, the Pico 2 and the STM32U5, on each push to `main` and each pull request; the kernels and the ports also compiled by clang without a warning (`tools/clang_check.sh`) |
+| Compilation | GitHub Actions, with the developer's GCC and a second one, 14.2, and clang | the examples of the Pico, the Pico 2, the STM32U5 and the STM32U3, on each push to `main` and each pull request; the kernels and the ports also compiled by clang without a warning (`tools/clang_check.sh`) |
 | The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the three kernels, each under EDF and DM: activations on time, ties in priority order, three wraps of the kernel clock, event-driven tasks, the queue and the slot buffers, (m,k)-firm overload, the power-aware kernel's speeds;<br>every line run or excluded with its reason, branches above a floor (`tools/coverage.py`);<br>random task sets, half of them across the 2^30 wrap, every trace checked against EDF or DM and Spuri's bound, and the power-aware kernel's speeds against a reference of its policies (`tools/differential.py`) |
 | Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue preempted at every access, the slot buffers and Evéquoz's queue between two cores free to reorder;<br>no read mixes two records or goes backwards, every run of the queue is linearizable;<br>faulty variants each model must catch |
 | Replayable execution | Renode and `renode-test` | on the four chips: tasks at their periods, the UART, timer events, the 2^30 wrap;<br>the RP2040's DVFS driver raising the voltage before the frequency;<br>the RP2350's slot buffers and queue between its cores;<br>the STM32U5's idle task in Stop 2, across the wrap too;<br>the STM32U3's clock set-up against the rules of its reference manual |
@@ -399,6 +399,7 @@ account is in [`docs/method.md`](docs/method.md).
 | [`docs/power-aware.md`](docs/power-aware.md) | DVFS, energy analysis, choosing a target |
 | [`docs/rp2040.md`](docs/rp2040.md) | Raspberry Pi Pico port and hardware measurements |
 | [`docs/stm32u5.md`](docs/stm32u5.md) | STM32U5 port on the Arduino UNO Q: clock, errata, endurance test, idle task in Stop 2 |
+| [`docs/stm32u3.md`](docs/stm32u3.md) | STM32U3 port on the NUCLEO-U385RG-Q, written from its reference manual |
 | [`tools/board_ci.md`](tools/board_ci.md) | the bench: the checks run on the boards at each commit |
 | [`emulation/renode/RP2040.md`](emulation/renode/RP2040.md) | emulating the Pico under Renode |
 | [`test/host`](test/host) | the scheduler built for the machine it runs on |

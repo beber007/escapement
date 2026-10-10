@@ -6,6 +6,9 @@ interrupts. It covers what the three kernels share and where they differ. The he
 reference for every parameter, and the examples under `Escapement/CORTEX-Mx/*/Examples`
 show each call at work.
 
+The API is not yet stable: until 1.0 a release may change a call, as semantic
+versioning allows for 0.x.
+
 ## Choosing a kernel
 
 | Kernel | Header | Build on the Pico | For |
@@ -114,7 +117,9 @@ task where in its pattern it stands. `wcet` may be 0 when every task has `m = k`
 the processor so that the work left fits before the deadline, and it trusts that
 figure. An understated `wcet` lets the kernel pick a speed too low for the task, which
 then misses its deadline. `FourSlotCoresPico` declares 400 µs for a reader measured at
-314 µs at most (`rp2040.md`): measure first, then add a margin.
+314 µs at most (`rp2040.md`): measure first, then add a margin. Whether slowing down
+saves energy depends on the chip: on the STM32U5 it does not, racing to Stop 2 winning at
+every load, and on the RP2350 some 10 % at best (`power-aware.md`).
 
 `OSSetMinimalProcessorSpeed(speed)`, called before `OSStartMultitasking`, keeps the
 processor at or above an operating point (`OS_12MHZ_SPEED`, `OS_50MHZ_SPEED`,
