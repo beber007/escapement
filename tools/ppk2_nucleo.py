@@ -96,7 +96,10 @@ class Decoder:
     inputs in its top byte. ppk2-api replaces the samples that follow a change of range by
     rolling averages (its spike filter); that filter runs here as there, sample by sample,
     over each change and the WARM samples before it, from which its averages start: they
-    forget their start within some 150 samples at the slower of their two rates."""
+    forget their start within some 150 samples at the slower of their two rates. On
+    2026-10-10 the two decoded 3.4 s of the same bytes alike to the last bit, but in one
+    range, the PPK2 open on nothing: the filter is still to be compared on samples that
+    change range, which task 11's phases will give."""
     WARM = 300
 
     def __init__(self, ppk2):
