@@ -415,7 +415,7 @@ that set at every run since, beside its 300 (`KEPT`). Then:
 - 2 more are killed by tests: a deadline of 0 with a WCET of 0 (39), and an event-driven
   task whose WCET is its workload, which the power-aware kernel takes (287); 4 barriers
   of the slot buffers are caught by `tools/check_order.py` (810 to 816);
-- 83 are declared: the twins of the hard kernel's declared ones whose code and frame are
+- 84 are declared: the twins of the hard kernel's declared ones whose code and frame are
   the same; barriers that leave the memory accesses, the calls and the barriers in the
   same order on the five builds, among them the one after a task's zombie state in
   `OSEndTask`, which `check_order.py` needs on the Cortex-M33 for the hard kernel but the
@@ -423,11 +423,13 @@ that set at every run since, beside its 300 (`KEPT`). Then:
   arguments of a pair completed with `check`, which only completes the pair stored; the
   simulation brought up to date twice at one instant; the halves of a pair swapped,
   independent; an excess that is always 0 when an update begins; a slack of one tick,
-  which the fastest speed absorbs at the RP2040's operating points;
-- 28 are behaviours no test reads, alive at 2,000 sets where they were run so: the
-  speed the timer handler saves left unsaved, whose work scaled by the speed before the
-  speed reference does not see, which the open list keeps (106); the handler and the
-  idle task left at the speed before rather than the fastest, energy only (107); EDF*'s
+  which the fastest speed absorbs at the RP2040's operating points; the flag that keeps
+  the speed saved once per pass of the handler, set and cleared within it (107, first
+  written as a speed saved stale that the speed reference missed, which it was not: the
+  lines read were one off);
+- 27 are behaviours no test reads, alive at 2,000 sets where they were run so: the
+  handler and the idle task after it left at the speed before rather than the fastest,
+  energy only, every task's dispatch setting its own (106); EDF*'s
   ties in the simulation queue after the wraparound, its zombies and the event-driven
   tasks waiting in the arrival queue left unshifted (129, 130, 140); a slack computed
   and not yet installed at the wraparound, credited with 2^30 (143, 144), which the tests
@@ -446,9 +448,9 @@ that set at every run since, beside its 300 (`KEPT`). Then:
   inlines differently without (631, 633, 635).
 
 Run again with those tests and the set kept, the 143 gave the 4 kills and 107 survivors
-declared: the power-aware kernel's mutants score 82.6 % (660 of 799), 95.4 % of the 692
-not declared. The three kernels, on the code of 2026-10-10: hard 87.6 %, 97.0 % of those
-not declared; soft 84.0 %, 95.4 %; power-aware 82.6 %, 95.4 %. Every survivor is read:
+declared, 108 with 107 since: the power-aware kernel's mutants score 82.6 % (660 of 799),
+95.5 % of the 691 not declared. The three kernels, on the code of 2026-10-10: hard 87.6 %, 97.0 % of those
+not declared; soft 84.0 %, 95.4 %; power-aware 82.6 %, 95.5 %. Every survivor is read:
 killed, declared with its reason, caught on the ARM builds by `tools/check_order.py`, or
 written above.
 
