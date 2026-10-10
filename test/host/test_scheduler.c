@@ -811,6 +811,14 @@ static void TestCreate(void)
   Check("  a remainder of 2^30", !TRY_TASK(0, 0x40000000, 100));
   Check("  65535 turns of 2^30", !TRY_TASK(0xFFFF, 0, 100));
   Check("  a deadline of 0", !TRY_TASK(0, 100, 0));
+  /* With a WCET of 1 the soft and power-aware kernels refuse it as a WCET past the
+  ** deadline, which hid ValidTiming taking a deadline of 0 (mutant 30 of
+  ** EscapementSoft.c); a WCET of 0 is no reason to refuse. */
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     Check("  nor with a WCET of 0", !OSCreateTask(CountingTask, 0, 0, 100, 0, 1, 1, 0, NULL));
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     Check("  nor with a WCET of 0", !OSCreateTask(CountingTask, 0, 0, 100, 0, NULL));
+  #endif
   Check("  a deadline past the period", !TRY_TASK(0, 100, 101));
   Check("  a deadline of 2^30", !TRY_TASK(1, 0, 0x40000000));
   Check("  but a deadline equal to a period below 2^30", TRY_TASK(0, 100, 100));
@@ -914,6 +922,54 @@ static void TestCreateBounds(void)
   Check("  a turn and 5 ticks, a deadline of 100", TRY_TASK(1, 5, 100));
   Check("  an event-driven task of workload 1", CREATE_SYNCHRONOUS_TASK(EventTask, 1, event, NULL));
 }
+
+#if defined(ESCAPEMENT_VERSION_SOFT)
+/* TestCreateEventBounds: The soft kernel's tasks at the edges of what it accepts: under
+** EDF the share of the processor it reserves for event-driven tasks, computed from the
+** WCET, the workload and the utilization declared; a first arrival of 65,535 turns, as
+** a period of as many is refused; under DM the 127 tasks a byte of priorities holds,
+** an optional instance adding their number to its own (a reading of the surviving
+** mutants, 2026-10-10: 49, 52, 378 to 381, 391 and 401 of EscapementSoft.c). Each
+** event-driven task on an event of its own, a share accepted being kept for the rest of
+** the run. */
+static void TestCreateEventBounds(void)
+{
+  #if !BY_DEADLINE
+     unsigned created = 0;
+     char label[80];
+  #endif
+
+  printf("\nthe soft kernel's tasks at the edges of creation\n\n");
+  Check("  a first arrival 255 periods of 257 turns away: refused",
+        !OSCreateTask(CountingTask, 1, 257, 0, 100, 1, 1, 255, NULL));
+  #if BY_DEADLINE
+     /* No workload, so one computed from the utilization; none declared either: refused,
+     ** whatever the WCET, rather than divided by 0. */
+     Check("  no workload, no utilization, a WCET of 10: refused",
+           !OSCreateSynchronousTask(EventTask, 10, 0, 0, OSCreateEventDescriptor(), NULL));
+     /* A WCET whose workload, 256 times it at a utilization of 1/256, passes 2^30, and
+     ** would not fit an INT32 computed. */
+     Check("  a workload computed past 2^30: refused",
+           !OSCreateSynchronousTask(EventTask, 0x40000000, 0, 1, OSCreateEventDescriptor(), NULL));
+     /* The smallest share, 1/256, and the smallest WCET: a workload of 256. */
+     Check("  a WCET of 1 at a utilization of 1/256: a workload of 256",
+           OSCreateSynchronousTask(EventTask, 1, 0, 1, OSCreateEventDescriptor(), NULL));
+     /* The largest share a byte holds: 255 of 256 ticks. */
+     Check("  a share of 255/256: accepted",
+           OSCreateSynchronousTask(EventTask, 255, 256, 0, OSCreateEventDescriptor(), NULL));
+  #else
+     /* Under DM no share is computed: a WCET equal to its workload is a task that always
+     ** works, which the priorities allow. */
+     Check("  a WCET equal to its workload: accepted",
+           OSCreateSynchronousTask(EventTask, 100, 100, 0, OSCreateEventDescriptor(), NULL));
+     /* One task is there already: tasks are created until one is refused. */
+     while (created < 200 && OSCreateTask(CountingTask, 1, 0, 1000, 1000, 1, 1, 0, NULL))
+        created += 1;
+     snprintf(label, sizeof label, "  127 tasks at most: %u more accepted", created);
+     Check(label, created == 126);
+  #endif
+}
+#endif
 
 /* TestLongPeriod: A task of period one turn of 2^30 and 1000 ticks, which counts its turns
 ** apart (PeriodHigh, NextArrivalTimeHigh), run across three wraps of the clock: released
@@ -1411,11 +1467,18 @@ typedef struct TimedTask {
   unsigned Instance;          /* the one running or next to run, numbered from 0 */
   INT32 Work;                 /* left to do by that instance, in 256ths of a tick */
   unsigned Misses, EarlyStarts;
+  unsigned LateEnds;          /* ends past the deadline of the instance the kernel ran,
+                              ** told from the next arrival it had set when it first
+                              ** elected it: right whatever was dropped, and across the
+                              ** wrap of the counter */
+  INT32 DueAt;                /* that deadline, on the counter */
+  BOOL Started;               /* the instance has been elected */
   INT32 Slow;                 /* ticks run below the fastest speed */
   UINT8 Ran[32];              /* firmwait: the instances that ran, from the first */
   void *Event;                /* the event of an event-driven task, NULL if periodic */
   BOOL Each;                  /* trace: each instance takes what EachTakes says, its work
                               ** drawn when it is first elected (Work 0) */
+  BOOL PeriodLowOnly;         /* a period below 2^30, whose LateEnds are counted */
 } TimedTask;
 
 #define TIMED_TASKS 8
@@ -1509,6 +1572,15 @@ static void TimedTaskCode(void *argument)
   }
   if (NbEnds < MAX_ENDS)
      Ends[NbEnds++] = TimedNow();
+  if (task->PeriodLowOnly) {
+     /* The lateness modulo 2^30, from -2^29. */
+     INT32 late = (HostClockNow() - task->DueAt) & 0x3FFFFFFF;
+     if (late >= 0x20000000)
+        late -= 0x40000000;
+     if (late > 0)
+        task->LateEnds += 1;
+     task->Started = FALSE;
+  }
   if (TimedRun == TIMED_FIRMWAIT) {
      /* Instances of an (m,k)-firm task may not run: the one ending is known from its
      ** next arrival, which the kernel has already set. */
@@ -1669,6 +1741,12 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
      if (active != IdleTCB) {
         TimedTask *task = (TimedTask *)active->Argument;
         ElectedNoZombie(active, _OSNoSaveContext);
+        if (task->PeriodLowOnly && !task->Started) {
+           /* First elected: its arrival is a period before the next the kernel set, the
+           ** deadline after it. */
+           task->Started = TRUE;
+           task->DueAt = active->NextArrivalTimeLow - task->Period + task->Deadline;
+        }
         if (task->Each && task->Work == 0) {
            /* An (m,k)-firm task's instances may be dropped: the one elected is known
            ** from the time, every instance running within its period. */
@@ -2424,6 +2502,200 @@ static void TestFirm(void)
   Check("  no deadline missed", LateArrivals == 0);
 }
 
+/* TestFirmInstance: The first instance of an (m,k)-firm task is instance 0, as
+** OSGetTaskInstance tells it, whatever k: at 255 a start of k + 1 wrapped the byte to 0,
+** and the first arrival made it 1 (mutant 63 of EscapementSoft.c); left unset, the start
+** was what OSMalloc held, 0xA5 here, below a k of 200 (65). */
+static BOOL FirstSeen[2];
+static UINT8 FirstInstance[2];
+static void FirstInstanceTask(void *argument)
+{
+  int which = (int)(UINTPTR)argument;
+  if (!FirstSeen[which]) {
+     FirstSeen[which] = TRUE;
+     FirstInstance[which] = OSGetTaskInstance();
+  }
+  OSEndTask();
+}
+
+static void TestFirmInstance(void)
+{
+  char label[80];
+  OSCreateTask(FirstInstanceTask, 1, 0, 100, 100, 1, 255, 0, (void *)0);
+  // cppcheck-suppress intToPointerCast ; the argument is a number, the task casts it back
+  OSCreateTask(FirstInstanceTask, 1, 0, 100, 100, 1, 200, 0, (void *)1);
+  StartKernel(NULL, NULL);
+  RunFor(300);
+
+  printf("\n300 ticks of simulated time, the first instance of (1,255) and (1,200) tasks\n\n");
+  snprintf(label, sizeof label, "  k of 255: instance %u first", FirstInstance[0]);
+  Check(label, FirstSeen[0] && FirstInstance[0] == 0);
+  snprintf(label, sizeof label, "  k of 200: instance %u first", FirstInstance[1]);
+  Check(label, FirstSeen[1] && FirstInstance[1] == 0);
+}
+
+/* TestFirmStart: An (m,k)-firm task whose first instance is two periods of 0x30000000
+** away, 0x60000000 ticks, a turn of 2^30 and a remainder: the product carries a turn,
+** which a carry subtracted turned into 2^32 - 1 turns, and the creation refused (mutant
+** 87 of EscapementSoft.c); under DM the turns of that first arrival left out of the
+** start, the task arrived a turn early (468). */
+static long long FirstRunAt = -1;
+static void StartTask(void *argument)
+{
+  (void)argument;
+  if (FirstRunAt < 0)
+     FirstRunAt = (long long)HostClockWraps * 0x40000000 + HostClockNow();
+  OSEndTask();
+}
+
+static void TestFirmStart(void)
+{
+  char label[80];
+  BOOL created = OSCreateTask(StartTask, 1, 0, 0x30000000, 100, 1, 1, 2, NULL);
+  StartKernel(NULL, NULL);
+  RunAcross(0x60000000LL + 1000);
+
+  printf("\n0x60000000 ticks and 1000, a first instance two periods of 0x30000000 away\n\n");
+  Check("  created", created);
+  snprintf(label, sizeof label, "  first run at 0x%llx, due at 0x60000000", FirstRunAt);
+  Check(label, FirstRunAt == 0x60000000LL);
+}
+
+/* TestFirmMandatoryAtWrap: Under DM, the next mandatory instance of a (1,2)-firm task
+** computed to arrive at 0x3FFFFFFF, the last tick before the counter wraps: a bound of
+** >= rather than > took it for a turn later (mutant 294 of EscapementSoft.c), and the
+** test of another task's optional instance, due after it, left it out. Run from 1000
+** ticks before that tick: task 1's optional instance at 600, due at 1200, admitted at
+** 701, preempted at 1000 by task 0's mandatory instance, ends at 1202. It must be
+** dropped, as the kernel does, and no admitted instance end late. */
+static void TestFirmMandatoryAtWrap(void)
+{
+  static const INT32 wcet[2] = {200, 301}, period[2] = {500, 600};
+  unsigned i;
+  char label[80];
+
+  TimedRun = TIMED_BUSY;
+  for (i = 0; i < 2; i += 1) {
+     TimedTask *task = &Timed[NbTimed++];
+     task->WCET = task->Takes = wcet[i];
+     task->Period = task->Deadline = period[i];
+     task->Only = -1;
+     task->PeriodLowOnly = TRUE;
+     task->Work = NextWork(task);
+     OSCreateTask(TimedTaskCode, wcet[i], 0, period[i], period[i], 1, 2, 0, task);
+  }
+  StartKernel(NULL, NULL);
+  TimedPhase = 0x3FFFFFFF - 1000;
+  RunTimed(1600);
+
+  printf("\n1600 ticks of simulated time, a mandatory instance at the last tick of 2^30\n\n");
+  snprintf(label, sizeof label, "  no instance ended late: %u and %u", Timed[0].LateEnds,
+           Timed[1].LateEnds);
+  Check(label, Timed[0].LateEnds == 0 && Timed[1].LateEnds == 0);
+}
+
+/* TestFirmEventsDM: Under DM the test of an optional instance counts the event-driven
+** tasks of higher priority as released at the earliest and every workload after, the
+** last one in part. A (1,2)-firm task of period P, its optional instance tested at P and
+** due at 2P, and an event-driven task of 40 every 100 signalled from then on, as late as
+** that bound allows. In the first three the instance cannot end in time and must be
+** dropped: no instance of the firm task may end late; the events whole (0), their last
+** one in part, past its WCET (1) and below it (2). In the last it fits, and must run
+** (a reading of the surviving mutants, 2026-10-10: the events' instances left out,
+** subtracted or counted too much, 180 to 197 of EscapementSoft.c). */
+static const struct {
+  INT32 WCET, Period, Signal[4];
+  BOOL Fits;
+} FirmEvents[] = {
+  {200, 300, {300, 400, 500, 0}, FALSE},
+  {220, 370, {371, 471, 571, 671}, FALSE},
+  {200, 330, {331, 431, 531, 631}, FALSE},
+  {170, 330, {331, 431, 531, 631}, TRUE},
+};
+static void TestFirmEventsDM(unsigned which)
+{
+  #if BY_DEADLINE
+     (void)FirmEvents[which].Fits;
+     printf("\nthe events in the test of an optional instance: under DM only\n");
+  #else
+     TimedTask *firm = &Timed[0], *events = &Timed[1];
+     INT32 period = FirmEvents[which].Period;
+     unsigned i;
+     char label[96];
+
+     TimedRun = TIMED_BUSY;
+     firm->WCET = firm->Takes = FirmEvents[which].WCET;
+     firm->Period = firm->Deadline = period;
+     firm->Only = -1;
+     firm->PeriodLowOnly = TRUE;
+     firm->Work = NextWork(firm);
+     OSCreateTask(TimedTaskCode, firm->WCET, 0, period, period, 1, 2, 0, firm);
+     events->WCET = 40;
+     events->Only = -1;
+     events->Work = events->WCET * 256;
+     events->Event = SignalEvent = OSCreateEventDescriptor();
+     OSCreateSynchronousTask(TimedTaskCode, 40, 100, 0, SignalEvent, events);
+     NbTimed = 2;
+     for (i = 0; i < 4 && FirmEvents[which].Signal[i] != 0; i += 1)
+        SignalAt[NbSignals++] = FirmEvents[which].Signal[i];
+     StartKernel(NULL, NULL);
+     RunTimed(FirmEvents[which].Fits ? 2 * period : 3 * period);
+
+     printf("\nan optional instance of %d every %d among events under DM\n\n", firm->WCET,
+            period);
+     snprintf(label, sizeof label, "  no instance of the firm task ended late: %u", firm->LateEnds);
+     Check(label, firm->LateEnds == 0);
+     if (FirmEvents[which].Fits) {
+        snprintf(label, sizeof label, "  its optional instance fits, and ran: %u instances", NbEnds);
+        Check(label, NbEnds == 2);
+     }
+  #endif
+}
+
+/* TestFirmEventsEDF: Under EDF the test of an optional instance reserves the event-driven
+** tasks' share of the processor for the work that would end after the server's last
+** deadline. A (1,2)-firm task of period 300, its optional instance tested at 300, due at
+** 600, an event-driven task of 50 every 200 signalled at 290, its deadline at 490: of a
+** WCET of 200 only 10 ticks lie past it, and the instance fits and must run; of 280, it
+** would end at 620, and must be dropped (a reading of the surviving mutants, 2026-10-10:
+** 202 and 203 of EscapementSoft.c added the time to that deadline, or left it all out). */
+static void TestFirmEventsEDF(unsigned which)
+{
+  #if !BY_DEADLINE
+     (void)which;
+     printf("\nthe events' share in the test of an optional instance: under EDF only\n");
+  #else
+     static const INT32 wcet[2] = {200, 280};
+     TimedTask *firm = &Timed[0], *events = &Timed[1];
+     char label[96];
+
+     TimedRun = TIMED_BUSY;
+     firm->WCET = firm->Takes = wcet[which];
+     firm->Period = firm->Deadline = 300;
+     firm->Only = -1;
+     firm->PeriodLowOnly = TRUE;
+     firm->Work = NextWork(firm);
+     OSCreateTask(TimedTaskCode, firm->WCET, 0, 300, 300, 1, 2, 0, firm);
+     events->WCET = 50;
+     events->Only = -1;
+     events->Work = events->WCET * 256;
+     events->Event = SignalEvent = OSCreateEventDescriptor();
+     OSCreateSynchronousTask(TimedTaskCode, 50, 200, 0, SignalEvent, events);
+     NbTimed = 2;
+     SignalAt[NbSignals++] = 290;
+     StartKernel(NULL, NULL);
+     RunTimed(which == 0 ? 600 : 900);
+
+     printf("\nan optional instance of %d every 300 after an event under EDF\n\n", firm->WCET);
+     snprintf(label, sizeof label, "  no instance of the firm task ended late: %u", firm->LateEnds);
+     Check(label, firm->LateEnds == 0);
+     if (which == 0) {
+        snprintf(label, sizeof label, "  its optional instance fits, and ran: %u instances", NbEnds);
+        Check(label, NbEnds == 2);
+     }
+  #endif
+}
+
 /* TestFirmLong: The schedulability test of an optional instance counts work in ticks,
 ** and under EDF scales it by 256 for the bandwidth of the event-driven tasks: with a
 ** WCET of 2^23 ticks, eight seconds at 1 MHz, and events whose deadlines run 2^25 ticks
@@ -3023,6 +3295,10 @@ int main(int argc, char *argv[])
                argc > 3 ? (INT32)strtol(argv[3], NULL, 10) : 0);
   else if (argc > 1 && strcmp(argv[1], "createbounds") == 0)
      TestCreateBounds();
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     else if (argc > 1 && strcmp(argv[1], "createevents") == 0)
+        TestCreateEventBounds();
+  #endif
   else if (argc > 1 && strcmp(argv[1], "longperiod") == 0)
      TestLongPeriod();
   else if (argc > 1 && strcmp(argv[1], "twosignals") == 0)
@@ -3042,6 +3318,24 @@ int main(int argc, char *argv[])
   #if defined(ESCAPEMENT_VERSION_SOFT)
      else if (argc > 1 && strcmp(argv[1], "firm") == 0)
         TestFirm();
+     else if (argc > 2 && strcmp(argv[1], "firmeventsedf") == 0 && atoi(argv[2]) >= 0 &&
+              atoi(argv[2]) < 2)
+        TestFirmEventsEDF((unsigned)atoi(argv[2]));
+     else if (argc > 2 && strcmp(argv[1], "firmeventsdm") == 0 &&
+              (unsigned)atoi(argv[2]) < sizeof FirmEvents / sizeof FirmEvents[0])
+        TestFirmEventsDM((unsigned)atoi(argv[2]));
+     else if (argc > 1 && strcmp(argv[1], "firmatwrap") == 0)
+        TestFirmMandatoryAtWrap();
+     else if (argc > 1 && strcmp(argv[1], "firmstart") == 0)
+        TestFirmStart();
+     else if (argc > 1 && strcmp(argv[1], "firminstance") == 0)
+        TestFirmInstance();
+     else if (argc > 1 && strcmp(argv[1], "firmzero") == 0) {
+        /* Blocks of zeros, where a field left unset reads FALSE: the first instance is
+        ** mandatory all the same (mutant 66 of EscapementSoft.c). */
+        HostMallocFill = -1;
+        TestFirm();
+     }
      else if (argc > 1 && strcmp(argv[1], "firmwrap") == 0)
         TestFirmWrap();
      else if (argc > 1 && strcmp(argv[1], "firmoverload") == 0)

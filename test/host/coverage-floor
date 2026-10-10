@@ -1,4 +1,4 @@
-91.64
+91.78
 
 The share of branches of the kernels the host test takes, in percent, which
 tools/coverage.py does not let fall. Raise it when it rises.

@@ -348,6 +348,55 @@ declared. That run showed a fault of `tools/mutants.py`: scoring a part of the m
 it ranked mutants alike among that part alone, and a declaration of the second of two
 alike, 98, matched no survivor; they are ranked among the whole source's since.
 
+The soft kernel's 152 survivors of 9d9157c were run again on the same day: the tests
+added for the hard kernel killed 10, its code being shared, and the 142 left were read,
+9 of them declared before. Each was set against its twin in the hard kernel, found by
+the function it lies in and its rank there, and the reason of a twin declared taken
+over only where the code is the same and the reason holds in the soft kernel's frame:
+of 19 barriers, 9 are caught by `tools/check_order.py` on the ARM builds, among them
+the one after a task's zombie state in `OSEndTask`, whose twin in the hard kernel keeps
+its order without it; 5 leave the memory accesses, the calls and the barriers in the
+same order on the eight ARM builds, compared one by one, and are declared; the others
+move loads, register reuse or an inlining decision, which `check_order.py` does not
+follow, and are written below. Then:
+
+- 26 are killed by tests written for them: a deadline of 0 with a WCET of 0 (30); the
+  soft kernel's edges of creation (`createevents`): a first arrival of 65,535 turns, the
+  127 tasks a byte of DM priorities holds, an event-driven task with no utilization, a
+  workload computed past 2^30, the shares of 1/256 and 255/256, under DM a WCET equal to
+  its workload (49, 52, 378 to 381, 391, 401); the first instance numbered 0 for a k of
+  255 and of 200, and mandatory with blocks of zeros (63, 65, 66); a first instance a
+  turn and a remainder away (87, 468); a mandatory instance at the last tick before the
+  counter wraps, which a bound of `>=` read a turn later, the test of another task's
+  optional instance leaving it out (294, `firmatwrap`); and under DM the test's count of
+  the event-driven tasks of higher priority, the earliest release and every workload
+  after, the last in part above and below its WCET, an instance that would end late
+  dropped and one that fits run (180 to 197, `firmeventsdm`); under EDF the share
+  reserved for the events counted from their server's last deadline (202,
+  `firmeventsedf`). The host's timed tasks now count the ends past the deadline of the
+  instance the kernel elected, taken from the next arrival it had set then, which holds
+  whatever was dropped and across the wrap of the counter.
+- 78 are declared, the reason of each in `test/host/equivalent-mutants.jsonl`: ties and
+  bounds no value reaches, guards against an overflow that WCET <= deadline <= period
+  already rules out, a pre-test that `IsTaskSchedulable` makes again strictly, the idle
+  task's priority that nothing reads, the next mandatory arrival of a task found at a
+  shift with no turn left, which the same pass releases and recomputes before any test
+  reads it, and the twins.
+- 20 are behaviours no test reads. Barriers the compiler moves loads or registers
+  across, or inlines differently without, which `check_order.py` does not follow, read
+  by hand on the RP2040 build with no store crossing (111, 122, 124, 508, 540, 542,
+  544); the wait-free queue's helpers finding their work done, which `test/model/fifo.py`
+  explores (528, 530, 566, 568), and two entries of the 3-slot table the models and the
+  litmus tests catch (655, 658), as in the hard kernel; the 4 bytes of the start's
+  allocation (463); `STATE_DROP` left unset, an optimisation by its own comment, read
+  again only by a re-entry between the mark and the removal (130); a reserve of 1/256
+  for an event-driven task of WCET 0 (387); and under EDF the share reserved for events
+  computed short, a utilization of 1/256 left out or a part of a tick (199, 203, 204,
+  206): an optional instance is tested once the events due before it have run, and
+  those released after get a later deadline than its own, so that it ends in time; what
+  the share protects is the events' own deadlines, which no test sets dense enough to
+  reach.
+
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
 window under-counts by one WCET at most, and random task sets seldom come that close. A

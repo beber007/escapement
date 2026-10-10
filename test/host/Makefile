@@ -94,6 +94,17 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	   ./$(BUILD)/test_scheduler_$$b createbounds && ./$(BUILD)/test_scheduler_$$b longperiod && \
 	   ./$(BUILD)/test_scheduler_$$b twosignals && ./$(BUILD)/test_scheduler_$$b eventspacing || exit 1; \
 	   case $$b in soft_*) ./$(BUILD)/test_scheduler_$$b firm && \
+	                      ./$(BUILD)/test_scheduler_$$b createevents && \
+	                      ./$(BUILD)/test_scheduler_$$b firminstance && \
+	                      ./$(BUILD)/test_scheduler_$$b firmstart && \
+	                      ./$(BUILD)/test_scheduler_$$b firmatwrap && \
+	                      ./$(BUILD)/test_scheduler_$$b firmeventsdm 0 && \
+	                      ./$(BUILD)/test_scheduler_$$b firmeventsdm 1 && \
+	                      ./$(BUILD)/test_scheduler_$$b firmeventsdm 2 && \
+	                      ./$(BUILD)/test_scheduler_$$b firmeventsdm 3 && \
+	                      ./$(BUILD)/test_scheduler_$$b firmeventsedf 0 && \
+	                      ./$(BUILD)/test_scheduler_$$b firmeventsedf 1 && \
+	                      ./$(BUILD)/test_scheduler_$$b firmzero && \
 	                      ./$(BUILD)/test_scheduler_$$b firmwrap && \
 	                      ./$(BUILD)/test_scheduler_$$b firmlong && \
 	                      ./$(BUILD)/test_scheduler_$$b firmevents && \
