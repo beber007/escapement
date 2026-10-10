@@ -342,7 +342,11 @@ releases it at once with the same deadline; only the order of the releases of on
 may change, which the list they come from, last in first out, already leaves open. And
 one is a behaviour no test reads (225): the start allocating 4 bytes rather than 0, the
 heap 4 bytes smaller and the stacks starting 4 bytes lower, which the host's OSMalloc,
-taken from the C library, does not count.
+taken from the C library, does not count. The survivors run again at 300 task sets, the
+six died, and the hard kernel's mutants score 87.6 % (424 of 484), 97.0 % of the 437 not
+declared. That run showed a fault of `tools/mutants.py`: scoring a part of the mutants,
+it ranked mutants alike among that part alone, and a declaration of the second of two
+alike, 98, matched no survivor; they are ranked among the whole source's since.
 
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the

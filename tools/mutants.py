@@ -283,6 +283,10 @@ def main():
     args = parser.parse_args()
     source = os.path.join(ROOT, "Escapement", KERNELS[args.kernel][0])
     todo = mutants(source)
+    # Each mutant's key by its number, ranked among the whole source's: a part of them,
+    # ranked alone, gave a mutant alike to one left out the rank of the other (98, the
+    # second interrupts' mask left out, read as the first under --survivors, 2026-10-10).
+    rank_keys = dict(zip((m[0] for m in todo), keyed((m[1], m[3], m[4]) for m in todo)))
     compiled = compiled_lines(args.kernel)
     skipped = [m for m in todo if m[2] not in compiled]
     todo = [m for m in todo if m[2] in compiled]
@@ -337,8 +341,13 @@ def main():
           (len(records), len(killed), len(valid) - len(killed), len(records) - len(valid),
            100.0 * len(killed) / len(valid) if valid else 0))
     declared = equivalents(args.kernel)
-    found = {k: r for k, r in zip(keyed((r["op"], r["original"], r["mutated"])
-                                        for r in records), records)}
+    # A run scored after the source changed numbers its mutants as its own source did:
+    # ranked among its records, which were then the whole source's.
+    if args.score:
+        found = {k: r for k, r in zip(keyed((r["op"], r["original"], r["mutated"])
+                                            for r in records), records)}
+    else:
+        found = {rank_keys[r["id"]]: r for r in records}
     equivalent = 0
     for key, reason in declared.items():
         r = found.get(key)

@@ -140,6 +140,9 @@ task 4 began the same day.
    or written in `method.md` as a behaviour no test reads and why; the hard kernel's
    unread ones first (0, 127, 130, 206, 225, 226, 236, 459), then those of the soft and
    power-aware kernels never read. The scores measured again on the code as it then is.
+   Begun on 2026-10-10, set before tasks 3 and 4 ended as the user allowed: the hard
+   kernel's eight read, six killed, one declared, one written (`method.md`); 87.6 %, 97.0 %
+   of those not declared.
 6. **The documentation against the code.** Each claim of `README.md` set again against
    what checks it (`method.md`, "What the README claims"), on the code as it then is;
    `api.md` stating that the API is not yet stable; the known limits written where a
