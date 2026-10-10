@@ -391,9 +391,9 @@ LSESYSRDY 730, 61 µs, the two cycles of the LSE the manual gives; the MSI's loc
 **The pins**, the same evening: the PPK2's logic inputs on CN10, pins 23, 21, 13 and
 11 (UM3062 rev. 4, table 18), under `TaskLEDU3`, `tools/ppk2_nucleo.py pins` found D7
 (PA8), D8 (PC7), D12 (PA6) and D13 (PA5) each on its period. UM3062's tables 15 to 18
-give the same pins as `BoardU3.h`; JP4's pin 2 is the MCU's side (7.4.6 and "VDD power
-supply input"), which
-the PPK2's VOUT takes.
+give the same pins as `BoardU3.h`. UM3062 gives JP4's pin 2 as the MCU's side (7.4.6 and
+"VDD power supply input"); on the bench the PPK2 itself told the sides apart, below
+("Measuring DVFS").
 
 Still open: LPUART1 on D0 and D1, which an FTDI TTL-232R-3V3 cable on the UNO Q will
 reach (`LINK_TTY` of `tools/unoq_sleep.py`); the current on JP4, which needs the PPK2
@@ -445,6 +445,18 @@ The order, on the bench of "The current on JP4" below:
    build/DVFSU3Flash.elf`, one writing of the flash, counted).
 3. CN1 unplugged, the PPK2 in place of JP4, its VIN on the pin from the board's 3V3, D3
    off D13; CN1 plugged back, the image starting from the flash with no debugger since.
+
+   What the bench did on 2026-10-10 instead: the PPK2 in place of JP4 at once, the
+   image written through it, its switch closed (`tools/nucleo_flash.sh`), then the MCU
+   powered down by that switch for 6 s, which the debug domain does not outlive, before
+   the measure: CN1 stays in. Three things read nothing on the way, each taken for
+   another first. The PPK2's ground wire on a pin that was not sure to be a ground, moved
+   to a GND of the Arduino connector: until then the MCU never powered, in either mode. VIN and VOUT the wrong way round: in ampere-meter mode the
+   MCU ran through the PPK2's closed switch while it read some -0.7 µA, as on the U5's
+   NUCLEO, and stopped once the switch opened; in source mode the PPK2 fed the board's
+   3V3, which its regulator already held, and the MCU did not start. The pin of JP4 that
+   VIN takes is the one from which the MCU runs in ampere-meter mode and the PPK2 then
+   reads its current, whichever number UM3062 or the silkscreen gives it.
 4. Two rounds, the lines of USART1 kept beside:
    `PPK2_PHASES=96R1,48R1,48R2,24R1,24R2,24R2B,12R1,12R2 tools/ppk2_nucleo.py phases 700`
    and `cat` of the ST-LINK's virtual COM port meanwhile. The phases come in order, the
@@ -458,6 +470,29 @@ range 2 costs less a CRC than 96 MHz in range 1 by more than the Stop 2 it gives
 given work done at 96 MHz and followed by Stop 2 against the same work spread at 48.
 If word 9 reads 1, REGS never followed REGSEL: the package has no SMPS, and every phase
 ran on the LDO.
+
+**Measured on 2026-10-10**, two rounds, the PPK2 in ampere-meter mode in place of JP4
+(`docs/data/dvfs-u3-2026-10-10-*.txt`, `tools/dvfs_u3.py`), every CRC right:
+
+| Point | SMPS | a cycle | a CRC against 96 MHz | LDO | a cycle |
+|---|---:|---:|---:|---:|---:|
+| 96 MHz, range 1 | 2.02 mA | 21.1 pC | | 6.00 mA | 62.5 pC |
+| 48 MHz, range 1 | 1.19 mA | 24.8 pC | +17.7 % | 3.19 mA | 66.4 pC |
+| 48 MHz, range 2 | 0.87 mA | 18.1 pC | **−14.2 %** | 2.69 mA | 56.1 pC |
+| 24 MHz, range 1 | 0.78 mA | 32.3 pC | +53.3 % | 1.80 mA | 75.0 pC |
+| 24 MHz, range 2 | 0.48 mA | 19.8 pC | −6.2 % | 1.50 mA | 62.4 pC |
+| 24 MHz, range 2, booster on | 0.47 mA | 19.6 pC | −6.8 % | 1.51 mA | 62.9 pC |
+| 12 MHz, range 1 | 0.49 mA | 40.5 pC | +92.0 % | 1.14 mA | 95.3 pC |
+| 12 MHz, range 2 | 0.30 mA | 24.9 pC | +18.1 % | 0.92 mA | 76.9 pC |
+
+On the SMPS, 48 MHz in range 2 does the same work for 14.2 % less charge than 96 MHz in
+range 1 (the datasheet's CoreMark said 20 %); range 2 alone takes 27 % off at 48 MHz;
+the booster costs nothing the PPK2 sees. The Stop 2 that racing at 96 MHz would sleep
+in the time saved, 144 µs a CRC, at even 10 µA, is some 1.4 nC against the 41.6 nC a
+CRC saved: **DVFS pays on the STM32U3**, unlike the STM32U5. The changes, in cycles of
+the clock in effect: range 1 ready in 295 at 12 MHz (24.6 µs), range 2 in 86 at 48 MHz
+(1.8 µs), the booster in 35 at 12 MHz (2.9 µs), REGS following REGSEL in 178 to 206 at
+12 MHz (15 to 17 µs); the package has its SMPS.
 
 ## What only the board can decide
 
@@ -482,7 +517,7 @@ ran on the LDO.
   D12 and D13 on PA8, PC7, PA6 and PA5 (UM3062 rev. 2, not read again). Also whether
   JP4 and JP5 are where the plan says. Answered on 2026-10-10 ("On the board"): the
   reports came on the virtual COM port, D7 to D13 where UM3062 rev. 4 and the PPK2 put
-  them, JP4's pin 2 the MCU's.
+  them; JP4's sides as the PPK2 found them ("Measuring DVFS").
 - **Erratum 2.2.1.** PC13 toggling disturbs the LSE, and B1 is on PC13. The relock
   counter of `SoakU3` will tell whether it unlocks the PLL mode. In a day of
   `SoakFirmU3`, B1 never pressed, the MSI was locked again 3 times ("On the board").

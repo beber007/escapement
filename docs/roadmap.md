@@ -228,7 +228,10 @@ task 4 began the same day.
    USART1 on HSI16 so that its rate does not follow the clock, the wake-up from Stop 2
    at the point in effect, the Renode platform and the board check with it, and the
    kernel's run of task 14 on the board. If it does not, the port stays hard and soft.
-   Needs the user's hands for the PPK2.
+   Needs the user's hands for the PPK2. Measured on 2026-10-10 (`stm32u3.md`,
+   "Measuring DVFS"): on the SMPS a CRC costs 14.2 % less at 48 MHz in range 2 than at
+   96 MHz in range 1, far more than the Stop 2 given up: DVFS pays. Left: the
+   power-aware kernel on the port, and the verdict in `power-aware.md`.
 12. **A review of the whole, code and documentation.** Added by the user on 2026-10-10,
    before the freeze so that what it finds is fixed before the candidate and its runs.
    By agents on Claude Fable 5.1, each given one part and none the conclusions of

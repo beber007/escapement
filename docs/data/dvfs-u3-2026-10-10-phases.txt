@@ -1,0 +1,46 @@
+100 kS/s read of the PPK2's 100
+phase 0: 96R1     16.6 s, mean    2069.0 uA, median    2075.0, min   1526.8, max   2137.2 (cut by the window)
+phase 1: 48R1     20.0 s, mean    1192.7 uA, median    1205.0, min    897.6, max   1788.9
+phase 2: 48R2     20.0 s, mean     869.9 uA, median     875.0, min      5.8, max   3240.1
+phase 3: 24R1     20.0 s, mean     776.8 uA, median     775.0, min    566.5, max   2234.8
+phase 4: 96R1      0.0 s, mean     710.4 uA, median     715.0, min    710.4, max    710.4
+phase 5: 24R2     20.0 s, mean     475.2 uA, median     475.0, min      2.7, max   3148.7
+phase 6: 24R2B    20.0 s, mean     471.6 uA, median     475.0, min    399.4, max    503.9
+phase 7: 12R1     20.0 s, mean     485.8 uA, median     475.0, min      5.1, max   4639.1
+phase 8: 12R2     20.0 s, mean     299.0 uA, median     295.0, min    259.2, max    475.7
+phase 9: 96R1     20.0 s, mean    5996.0 uA, median    5975.0, min    267.1, max   9065.2
+phase 10: 48R1     20.0 s, mean    3187.9 uA, median    3185.0, min   2457.7, max   3904.4
+phase 11: 48R2     20.0 s, mean    2693.8 uA, median    2695.0, min    570.7, max   2790.3
+phase 12: 24R1     20.0 s, mean    1799.6 uA, median    1795.0, min    820.9, max  10494.3
+phase 13: 24R2     20.0 s, mean    1497.0 uA, median    1495.0, min      3.2, max   3741.8
+phase 14: 24R2B    20.0 s, mean    1508.7 uA, median    1505.0, min   1193.5, max   1596.5
+phase 15: 12R1     20.0 s, mean    1143.4 uA, median    1145.0, min    549.6, max   6868.5
+phase 16: 12R2     20.0 s, mean     922.8 uA, median     925.0, min      3.2, max   3455.6
+phase 17: 96R1     20.0 s, mean    2024.0 uA, median    2035.0, min    829.4, max   2146.1
+phase 18: 48R1     20.0 s, mean    1189.9 uA, median    1195.0, min    893.4, max   1837.2
+phase 19: 48R2     20.0 s, mean     867.4 uA, median     875.0, min      5.6, max   3144.2
+phase 20: 24R1     20.0 s, mean     775.4 uA, median     775.0, min    570.7, max   2186.0
+phase 21: 24R2     20.0 s, mean     474.8 uA, median     475.0, min      2.8, max   3244.6
+phase 22: 24R2B    20.0 s, mean     471.5 uA, median     475.0, min    397.6, max    503.0
+phase 23: 12R1     20.0 s, mean     485.9 uA, median     475.0, min      4.8, max   6511.6
+phase 24: 12R2     20.0 s, mean     298.7 uA, median     295.0, min    258.3, max    463.3
+phase 25: 96R1     20.0 s, mean    6008.3 uA, median    6015.0, min    275.1, max   8854.9
+phase 26: 48R1     20.0 s, mean    3188.1 uA, median    3185.0, min   1448.6, max   5249.3
+phase 27: 48R2     20.0 s, mean    2694.6 uA, median    2695.0, min    575.0, max   2794.8
+phase 28: 24R1     20.0 s, mean    1800.3 uA, median    1795.0, min    816.7, max  12438.3
+phase 29: 24R2     20.0 s, mean    1498.6 uA, median    1495.0, min      3.5, max   3778.9
+phase 30: 24R2B    20.0 s, mean    1508.8 uA, median    1505.0, min   1189.1, max   1605.2
+phase 31: 12R1     20.0 s, mean    1143.1 uA, median    1145.0, min    553.8, max   9575.7
+phase 32: 12R2     20.0 s, mean     923.2 uA, median     925.0, min      3.3, max   3414.2
+phase 33: 96R1     20.0 s, mean    2025.0 uA, median    2035.0, min    846.5, max   2163.8
+phase 34: 48R1     20.0 s, mean    1190.8 uA, median    1195.0, min    897.6, max   1802.1
+phase 35: 48R2     20.0 s, mean     866.9 uA, median     875.0, min      5.6, max   3423.4
+phase 36: 24R1      3.2 s, mean     774.8 uA, median     775.0, min    638.4, max   2101.8 (cut by the window)
+12R2: 4 whole phases, mean 610.9 uA
+12R1: 4 whole phases, mean 814.6 uA
+24R2B: 4 whole phases, mean 990.2 uA
+24R2: 4 whole phases, mean 986.4 uA
+24R1: 4 whole phases, mean 1288.0 uA
+48R2: 5 whole phases, mean 1598.5 uA
+48R1: 5 whole phases, mean 1989.9 uA
+96R1: 5 whole phases, mean 4013.3 uA
