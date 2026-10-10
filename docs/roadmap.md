@@ -135,7 +135,7 @@ task 4 began the same day.
    differs, once in 24 hours at most (`tools/unoq_check.sh`, `board_ci.md`); its three
    outcomes, written, held back and failed, checked with stand-ins for the boards.
    Left: the NUCLEO-U385RG-Q from its flash on the board, once its run of task 3 ends.
-5. **Every mutant read.** Of each kernel's survivors at 300 task sets, each one killed
+5. **Every mutant read — done on 2026-10-10.** Of each kernel's survivors at 300 task sets, each one killed
    by a test, declared equivalent with its reason (`test/host/equivalent-mutants.jsonl`),
    or written in `method.md` as a behaviour no test reads and why; the hard kernel's
    unread ones first (0, 127, 130, 206, 225, 226, 236, 459), then those of the soft and
@@ -143,7 +143,9 @@ task 4 began the same day.
    Begun on 2026-10-10, set before tasks 3 and 4 ended as the user allowed: the hard
    kernel's eight read, six killed, one declared, one written (`method.md`); 87.6 %, 97.0 %
    of those not declared. The soft kernel's 142 read the same day: 84.0 %, 95.4 % of those
-   not declared. The power-aware kernel's 119: see `method.md`.
+   not declared. The power-aware kernel's 119 too: 82.6 %, 95.4 % of those not declared.
+   Every survivor killed, declared, caught by `tools/check_order.py` on the ARM builds, or
+   written in `method.md`, "Mutants: how strong the tests are".
 6. **The documentation against the code.** Each claim of `README.md` set again against
    what checks it (`method.md`, "What the README claims"), on the code as it then is;
    `api.md` stating that the API is not yet stable; the known limits written where a

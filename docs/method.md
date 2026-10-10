@@ -445,6 +445,13 @@ that set at every run since, beside its 300 (`KEPT`). Then:
   shifted by one, as in the hard kernel (74); and the event FIFO's barriers the compiler
   inlines differently without (631, 633, 635).
 
+Run again with those tests and the set kept, the 143 gave the 4 kills and 107 survivors
+declared: the power-aware kernel's mutants score 82.6 % (660 of 799), 95.4 % of the 692
+not declared. The three kernels, on the code of 2026-10-10: hard 87.6 %, 97.0 % of those
+not declared; soft 84.0 %, 95.4 %; power-aware 82.6 %, 95.4 %. Every survivor is read:
+killed, declared with its reason, caught on the ARM builds by `tools/check_order.py`, or
+written above.
+
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
 window under-counts by one WCET at most, and random task sets seldom come that close. A
