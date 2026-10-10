@@ -216,23 +216,24 @@ task 4 began the same day.
    with its reason, or left open in the notes; what the review found and how it was
    checked written in `method.md`.
 12. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
-   it on, fixes only. `EscapementHard.c` must not have changed since 041af76, the commit
-   of its week of endurance.
-13. **Endurance on the candidate**, 24 hours a run since the user cut the week to that
-   on 2026-10-10 (rule 3 of `CLAUDE.md`, "Before a release"). The power-aware kernel on
-   probe2's Pico, its week of 80cc6dc having run on a kernel changed four times since:
-   that run, meant to stop at the freeze as the user decided on 2026-10-07, was stopped
-   on 2026-10-10 at 4 d 18 h 47 min, no restart, no error, 384 wraps, for task 9's PPK2;
-   the soft kernel on the NUCLEO-U575ZI-Q with the variant of task 2, in parallel, both
-   from flash once task 4 is done; the hard kernel on the NUCLEO-U385RG-Q, a port new to
-   this release, its soft kernel's day being that of task 3. A fix to a kernel makes an
-   `rc2` and starts that kernel's run again. The RP2350, which has never had a run of
-   its own and whose port changed on 2026-10-10 (the guard of alarm 3, task 10), too:
-   `SoakPico2` 24 hours on probe3's Pico 2, as the user decided the same day once the
-   run was cut to a day, in place of keeping it without one. Probe3 carries the board
-   check of each commit, `board/pico2`: the run holds `lock-probe3`, and the board CI
-   skips the Pico 2 meanwhile, as it skipped probe2's Pico during its runs
-   (`board_ci.md`).
+   it on, fixes only. (Until the runs of task 13 took every kernel again, `EscapementHard.c`
+   was to stay as it was at 041af76, the commit of its week.)
+13. **Endurance on the candidate**: 8 hours for each kernel on each platform, as the
+   user decided on 2026-10-10 (a week until then, cut to 24 hours, then to this; rule 3
+   of `CLAUDE.md`, "Before a release"). Nine runs, one board each platform, run in turn
+   on it and in parallel across them, from flash once task 4 is done; the soft kernel
+   with the (m,k)-firm variant of task 2 (`SoakFirm*`), the others with `Soak*`:
+   - RP2040, probe2's Pico: hard, soft, power-aware, 24 hours in all; the PPK2 of task 9
+     unwired first, the board powered by its USB again;
+   - RP2350, probe3's Pico 2: hard, soft, 16 hours; the board CI skips the Pico 2 while
+     a run holds `lock-probe3`, as it skipped probe2's Pico (`board_ci.md`);
+   - STM32U5, the NUCLEO-U575ZI-Q: hard, soft, 16 hours;
+   - STM32U3, the NUCLEO-U385RG-Q: hard, soft, 16 hours.
+   The runs before the candidate are cited beside, not in their place: the hard kernel's
+   week on the Pico at 041af76, the power-aware kernel's 4 d 18 h 47 min at 80cc6dc
+   (stopped on 2026-10-10 for task 9's PPK2, no restart, no error, 384 wraps), the soft
+   kernel's day on each NUCLEO board (tasks 2 and 3). A fix to a kernel makes an `rc2`
+   and starts that kernel's runs again on every platform.
 14. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 
