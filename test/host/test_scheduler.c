@@ -2025,6 +2025,131 @@ static void TestEndInside(TimedMode mode)
   Check(label, TimedTrace == baseline);
 }
 
+#if defined(ESCAPEMENT_VERSION_HARD_PA) && POWER_MANAGEMENT == DM_SLACK
+/* TestSlackAtWrap: Under DM_SLACK a task of 200 every 1000 that takes 50 ends one tick
+** before the counter wraps, the wrap taken at each time read or barrier of its end: a
+** slack computed and not yet installed when the timer's handler shifts the times keeps
+** its time in the new epoch (mutants 143 and 144 of EscapementHardPA.c left it
+** unshifted). The handler installs it, and an alarm at its clear turns its loop once
+** more, which counts the time since that one: unshifted, 2^30 more slack. A task of
+** 2000 every 4000, of lower priority, then runs alone: on the slack the first leaves,
+** 150 ticks, it keeps the fastest speed; on 2^30 of it, it would slow to the slowest and
+** miss its deadline. */
+static BOOL SlackAlarmed;
+static void SlackAlarm(void)
+{
+  extern volatile BOOL _OSComparatorInterruptFlag;
+  if (WrapsTaken == 1 && !SlackAlarmed) {
+     SlackAlarmed = TRUE;
+     _OSComparatorInterruptFlag = TRUE;   /* the handler turns its loop once more */
+  }
+}
+
+static void TestSlackAtWrapRun(unsigned point)
+{
+  TimedRun = TIMED_BUSY;
+  HostSoftTimerClearHook = SlackAlarm;
+  CreateTimedTask(200, 1000, 1000, 50, -1);
+  CreateTimedTask(2000, 4000, 4000, 0, -1);
+  StartKernel(NULL, NULL);
+  TimedPhase = 0x3FFFFFFF - 50;
+  WrapsTaken = 0;
+  AtWrap = TRUE;
+  WrapPoint = point;
+  RunTimed(8000);
+  if (WrapsTaken == 0)
+     ChildExit(2);                     /* past the last point of the end */
+  ChildExit(Timed[0].Misses == 0 && Timed[1].Misses == 0 && LateArrivals == 0 ? 0 : 1);
+}
+
+static void TestSlackAtWrap(void)
+{
+  unsigned p, failed = 0, points = 0;
+  char label[80];
+  printf("\na slack pending at the wrap of the counter, under DM_SLACK\n\n");
+  for (p = 0; p < 16; p += 1) {
+     int status = 0;
+     pid_t child = fork();
+     if (child < 0) {
+        Check("  fork", FALSE);
+        return;
+     }
+     if (child == 0) {
+        FILE *quiet = freopen("/dev/null", "w", stdout);
+        (void)quiet;
+        TestSlackAtWrapRun(p);
+     }
+     waitpid(child, &status, 0);
+     if (WIFEXITED(status) && WEXITSTATUS(status) == 2)
+        break;
+     points += 1;
+     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        failed += 1;
+        printf("  the wrap at point %u: FAILED\n", p);
+     }
+  }
+  snprintf(label, sizeof label, "  the wrap at %u points of the end, every deadline kept: %u failed",
+           points, failed);
+  Check(label, points >= 3 && failed == 0);
+}
+#endif
+
+/* TestSpuriousTurn: An alarm of the comparator with nothing due, at the handler's clear,
+** turns its loop once more: nothing may change. Two runs of four tasks, one with that
+** alarm in every pass of the handler and one without, must schedule alike, the same tasks at
+** the same instants and speeds (TimedTrace). Under the power-aware kernels the second
+** turn updates the work of the task it preempted again, which must count only the time
+** since the first (mutant 368 of EscapementHardPA.c left the time of the update behind,
+** and counted the time run twice). */
+static BOOL SpuriousDone, SpuriousWanted, SpuriousLast;
+static void SpuriousAlarm(void)
+{
+  extern volatile BOOL _OSComparatorInterruptFlag;
+  /* Every other clear: one more turn for each pass of the handler. */
+  if (SpuriousWanted && !SpuriousLast) {
+     SpuriousDone = TRUE;
+     _OSComparatorInterruptFlag = TRUE;
+  }
+  SpuriousLast = !SpuriousLast;
+}
+
+static UINT32 SpuriousRun(BOOL alarm)
+{
+  int fds[2];
+  UINT32 trace = 0;
+  pid_t child;
+  if (pipe(fds) != 0 || (child = fork()) < 0)
+     return 0;
+  if (child == 0) {
+     FILE *quiet = freopen("/dev/null", "w", stdout);
+     (void)quiet;
+     TimedRun = TIMED_EARLY;
+     CreateTimedTask(200, 1000, 1000, 0, -1);
+     CreateTimedTask(300, 1500, 1500, 0, -1);
+     CreateTimedTask(600, 4000, 4000, 0, -1);
+     CreateTimedTask(900, 6000, 6000, 0, -1);
+     StartKernel(NULL, NULL);
+     SpuriousWanted = alarm;
+     HostSoftTimerClearHook = SpuriousAlarm;
+     RunTimed(24000);
+     ChildExit(write(fds[1], &TimedTrace, sizeof TimedTrace) == sizeof TimedTrace &&
+               (!alarm || SpuriousDone) ? 0 : 1);
+  }
+  close(fds[1]);
+  if (read(fds[0], &trace, sizeof trace) != sizeof trace)
+     trace = 0;
+  close(fds[0]);
+  waitpid(child, NULL, 0);
+  return trace;
+}
+
+static void TestSpuriousTurn(void)
+{
+  UINT32 plain = SpuriousRun(FALSE), alarmed = SpuriousRun(TRUE);
+  printf("\n24000 ticks of simulated time, with and without an alarm with nothing due\n\n");
+  Check("  the same schedule, the same speeds", plain != 0 && plain == alarmed);
+}
+
 /* TestTimeWrap: A task ending one tick before the counter wraps, the interrupt of the
 ** wrap taken at each time read and barrier of its end in turn, where the kernel may hold
 ** a time read before the shift. A first run, away from the wrap, finds when the instances
@@ -2661,42 +2786,56 @@ static void TestFirmEventsDM(unsigned which)
 
 /* TestFirmEventsEDF: Under EDF the test of an optional instance reserves the event-driven
 ** tasks' share of the processor for the work that would end after the server's last
-** deadline. A (1,2)-firm task of period 300, its optional instance tested at 300, due at
-** 600, an event-driven task of 50 every 200 signalled at 290, its deadline at 490: of a
-** WCET of 200 only 10 ticks lie past it, and the instance fits and must run; of 280, it
-** would end at 620, and must be dropped (a reading of the surviving mutants, 2026-10-10:
-** 202 and 203 of EscapementSoft.c added the time to that deadline, or left it all out). */
+** deadline. A (1,2)-firm task, its optional instance tested at its first period, due at
+** the second, and an event-driven task of 50 every 200. Signalled at 290, the server's
+** deadline at 490: of a WCET of 200 every 300 only 10 ticks lie past it, and the instance
+** fits and must run (0); of 280 every 300 it would end at 620, and must be dropped (1).
+** Signalled at 300 and 500, the second instance due at 700, before the optional one's
+** 800: of 360 every 400, tested at 410, it would end at 820, and must be dropped (2) (a
+** reading of the surviving mutants, 2026-10-10: 202 and 203 of EscapementSoft.c added
+** the time to that deadline, or left the share out when it lay ahead). */
+static const struct {
+  INT32 WCET, Period, Signal[2];
+  BOOL Fits;
+} FirmEventsEDF[] = {
+  {200, 300, {290, 0}, TRUE},
+  {280, 300, {290, 0}, FALSE},
+  {360, 400, {300, 500}, FALSE},
+};
 static void TestFirmEventsEDF(unsigned which)
 {
   #if !BY_DEADLINE
-     (void)which;
+     (void)FirmEventsEDF[which].Fits;
      printf("\nthe events' share in the test of an optional instance: under EDF only\n");
   #else
-     static const INT32 wcet[2] = {200, 280};
      TimedTask *firm = &Timed[0], *events = &Timed[1];
+     INT32 period = FirmEventsEDF[which].Period;
+     unsigned i;
      char label[96];
 
      TimedRun = TIMED_BUSY;
-     firm->WCET = firm->Takes = wcet[which];
-     firm->Period = firm->Deadline = 300;
+     firm->WCET = firm->Takes = FirmEventsEDF[which].WCET;
+     firm->Period = firm->Deadline = period;
      firm->Only = -1;
      firm->PeriodLowOnly = TRUE;
      firm->Work = NextWork(firm);
-     OSCreateTask(TimedTaskCode, firm->WCET, 0, 300, 300, 1, 2, 0, firm);
+     OSCreateTask(TimedTaskCode, firm->WCET, 0, period, period, 1, 2, 0, firm);
      events->WCET = 50;
      events->Only = -1;
      events->Work = events->WCET * 256;
      events->Event = SignalEvent = OSCreateEventDescriptor();
      OSCreateSynchronousTask(TimedTaskCode, 50, 200, 0, SignalEvent, events);
      NbTimed = 2;
-     SignalAt[NbSignals++] = 290;
+     for (i = 0; i < 2 && FirmEventsEDF[which].Signal[i] != 0; i += 1)
+        SignalAt[NbSignals++] = FirmEventsEDF[which].Signal[i];
      StartKernel(NULL, NULL);
-     RunTimed(which == 0 ? 600 : 900);
+     RunTimed(FirmEventsEDF[which].Fits ? 2 * period : 3 * period);
 
-     printf("\nan optional instance of %d every 300 after an event under EDF\n\n", firm->WCET);
+     printf("\nan optional instance of %d every %d among events under EDF\n\n", firm->WCET,
+            period);
      snprintf(label, sizeof label, "  no instance of the firm task ended late: %u", firm->LateEnds);
      Check(label, firm->LateEnds == 0);
-     if (which == 0) {
+     if (FirmEventsEDF[which].Fits) {
         snprintf(label, sizeof label, "  its optional instance fits, and ran: %u instances", NbEnds);
         Check(label, NbEnds == 2);
      }
@@ -3320,13 +3459,19 @@ int main(int argc, char *argv[])
      TestSignalZero();
   else if (argc > 1 && strcmp(argv[1], "windowalarm") == 0)
      TestWindowAlarm();
+  #if defined(ESCAPEMENT_VERSION_HARD_PA) && POWER_MANAGEMENT == DM_SLACK
+     else if (argc > 1 && strcmp(argv[1], "slackatwrap") == 0)
+        TestSlackAtWrap();
+  #endif
+  else if (argc > 1 && strcmp(argv[1], "spuriousturn") == 0)
+     TestSpuriousTurn();
   else if (argc > 1 && strcmp(argv[1], "timewrapidle") == 0)
      TestTimeWrap(TIMED_IDLE);
   #if defined(ESCAPEMENT_VERSION_SOFT)
      else if (argc > 1 && strcmp(argv[1], "firm") == 0)
         TestFirm();
-     else if (argc > 2 && strcmp(argv[1], "firmeventsedf") == 0 && atoi(argv[2]) >= 0 &&
-              atoi(argv[2]) < 2)
+     else if (argc > 2 && strcmp(argv[1], "firmeventsedf") == 0 &&
+              (unsigned)atoi(argv[2]) < sizeof FirmEventsEDF / sizeof FirmEventsEDF[0])
         TestFirmEventsEDF((unsigned)atoi(argv[2]));
      else if (argc > 2 && strcmp(argv[1], "firmeventsdm") == 0 &&
               (unsigned)atoi(argv[2]) < sizeof FirmEvents / sizeof FirmEvents[0])

@@ -89,6 +89,7 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	   ./$(BUILD)/test_scheduler_$$b timewrapidle && \
 	   ./$(BUILD)/test_scheduler_$$b eventrelease && ./$(BUILD)/test_scheduler_$$b signalzero && \
 	   ./$(BUILD)/test_scheduler_$$b windowalarm && \
+	   ./$(BUILD)/test_scheduler_$$b spuriousturn && \
 	   ./$(BUILD)/test_scheduler_$$b simstale && \
 	   ./$(BUILD)/test_scheduler_$$b signals && ./$(BUILD)/test_scheduler_$$b notask && \
 	   ./$(BUILD)/test_scheduler_$$b createbounds && ./$(BUILD)/test_scheduler_$$b longperiod && \
@@ -104,6 +105,7 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	                      ./$(BUILD)/test_scheduler_$$b firmeventsdm 3 && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventsedf 0 && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventsedf 1 && \
+	                      ./$(BUILD)/test_scheduler_$$b firmeventsedf 2 && \
 	                      ./$(BUILD)/test_scheduler_$$b firmzero && \
 	                      ./$(BUILD)/test_scheduler_$$b firmwrap && \
 	                      ./$(BUILD)/test_scheduler_$$b firmlong && \
@@ -116,6 +118,7 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	                      ./$(BUILD)/test_scheduler_$$b firmoverload && \
 	                      ./$(BUILD)/test_scheduler_$$b firmoverloadinstances || exit 1;; esac; \
 	   case $$b in soft_dm) ./$(BUILD)/test_scheduler_$$b firmeventahead || exit 1;; esac; \
+	   case $$b in pa_dmslack) ./$(BUILD)/test_scheduler_$$b slackatwrap || exit 1;; esac; \
 	   case $$b in soft_edf) ./$(BUILD)/test_scheduler_$$b firmoverloadshare && \
 	                         ./$(BUILD)/test_scheduler_$$b firmwrapend && \
 	                         ./$(BUILD)/test_scheduler_$$b firmoverloadsum && \

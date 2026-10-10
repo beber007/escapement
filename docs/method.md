@@ -454,6 +454,38 @@ not declared; soft 84.0 %, 95.4 %; power-aware 82.6 %, 95.5 %. Every survivor is
 killed, declared with its reason, caught on the ARM builds by `tools/check_order.py`, or
 written above.
 
+Taken further the same day, at the user's request (roadmap, task 6). The barriers left
+written settle two ways. `ScheduleNextTask` runs in a context marked not to be saved,
+`OSEndTask` and `OSSuspendSynchronousTask` setting `_OSNoSaveContext` before they call
+it: any interrupt that touches the ready queue ends that context, so only the order of
+its stores reaches anyone, which `check_order.py` checks, and the loads its barriers
+order do not matter (soft 111, 122, 124, declared). The event FIFO's posting of an
+operation, the call of its helper, the clearing, and the descriptor written before the
+posting keep their order on every build without each of its barriers, compared from the
+disassembly with three faulty variants each caught on every build, a posting left out,
+moved after the call, and a field of the descriptor written after it (soft 508, 540,
+542, 544, power-aware 631, 633, 635, declared). And three tests:
+
+- `slackatwrap`: under DM_SLACK a task ends one tick before the wrap, the wrap taken at
+  each point of its end, a slack computed and not yet installed; an alarm at the
+  handler's clear turns its loop once more, which credited the slack with 2^30 when its
+  time was left unshifted, a task of lower priority then slowed to the slowest
+  (power-aware 143, 144);
+- `spuriousturn`, every build: an alarm with nothing due in every pass of the handler
+  must change neither the schedule nor the speeds; it caught the time of the last update
+  left behind by `UpdateRemainingWork`, the work run counted twice (power-aware 368);
+- `firmeventsedf 2`: an event-driven task due before the optional instance, its share
+  left out when the server's last deadline lay ahead (soft 203).
+
+EDF*'s ties in the simulation queue after the wraparound (power-aware 129, 130, 140) ran
+at 20,000 task sets a build: the first set that failed them, 19989 of `pa_dra`, fails the
+kernel as well, a speed below the reference's (roadmap, the open list), and kills
+nothing. They stay written, as soft 199, 204 and 206, a share computed short by less
+than a tick or at 1/256, which the reservation's own pessimism covers in the cases set
+up. The scores then: hard 87.6 %, 97.0 % of those not declared; soft 84.1 % (609 of
+724), 96.7 % of the 630 not declared; power-aware 83.0 % (663 of 799), 96.4 % of the 688
+not declared.
+
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
 window under-counts by one WCET at most, and random task sets seldom come that close. A

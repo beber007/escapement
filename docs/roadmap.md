@@ -146,14 +146,18 @@ task 4 began the same day.
    not declared. The power-aware kernel's 119 too: 82.6 %, 95.5 % of those not declared.
    Every survivor killed, declared, caught by `tools/check_order.py` on the ARM builds, or
    written in `method.md`, "Mutants: how strong the tests are".
-6. **The mutants further.** Added by the user on 2026-10-10, the day task 5 ended, from
+6. **The mutants further — done on 2026-10-10.** Added by the user on 2026-10-10, the day task 5 ended, from
    what its survivors left: `tools/check_order.py` taught the loads and the event FIFO's
    posting, which the soft and power-aware kernels' barriers order and it does not
    follow (soft 111, 122, 124, 508, 540, 542, 544; power-aware 631, 633, 635); then
    scenarios for the narrow ones: the share
    reserved for events under EDF (soft 199, 203, 204, 206), EDF*'s ties after the
    wraparound (power-aware 129, 130, 140), a slack pending at the wraparound (143, 144).
-   Task 7 set aside meanwhile, its first part done (6a4f138).
+   Task 7 set aside meanwhile, its first part done (6a4f138). Done on 2026-10-10: the
+   loads need no rule, `ScheduleNextTask` running in a context not to be saved, and the
+   FIFO's barriers keep its order on every build, checked from the disassembly; three
+   tests kill six (`method.md`); soft 84.1 %, 96.7 % of those not declared, power-aware
+   83.0 %, 96.4 %.
 7. **The documentation against the code.** Each claim of `README.md` set again against
    what checks it (`method.md`, "What the README claims"), on the code as it then is;
    `api.md` stating that the API is not yet stable; the known limits written where a
@@ -186,7 +190,11 @@ the PPK2 as a check of each commit on the STM32U5 (item 4); how
 often a wake-up byte of LPUART1 comes out wrong (item 6); testing a dropped optional
 instance again; an exhaustive enumeration of small task sets and fuzzing; a test of
 optional instances by processor demand that counts its own cost, bounded and measured on
-each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`).
+each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`); and,
+found on 2026-10-10 at 20,000 task sets, set 19989 of `pa_dra` (seed 1): a task with one
+tick of work left resumed at 4674 at speed 1 where `tools/speed_reference.py` gives the
+fastest, no deadline missed; the kernel or the reference to be read, the trace harness
+giving each event-driven task its own share where the API asks for the total.
 
 ## Open work, in order
 
