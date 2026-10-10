@@ -45,15 +45,16 @@ since the user added it on 2026-10-09, the STM32U3 (hard and soft). The API (`ap
 
 **Tasks, in order, each finished before the next begins.** Since 2026-10-09, a task left
 with nothing but a wait (an endurance run, the CI, the user's hands) may be set aside for
-the next, two at most, as `CLAUDE.md` has it; tasks 2 and 3 wait so, and task 4 began
-the same day.
+the next, two at most, as `CLAUDE.md` has it; task 2 waited so and task 3 does, and
+task 4 began the same day.
 
 1. **What the soft kernel's test of an optional instance costs on the Pico — done on
    2026-10-07** (`method.md`, after "It went into the kernel"). `DemandFits` took up to
    420 µs and the board missed deadlines; the kernel went back to the count, as the user
    decided, which took 13.8 µs in the mean and 31.0 at most over 20,000 tests and kept
    every deadline (`make KERNEL=SOFT bench-admission`, `tools/admission_cost.py`).
-2. **An endurance run that exercises the soft kernel's optional instances.** `SoakPico`
+2. **An endurance run that exercises the soft kernel's optional instances — done on
+   2026-10-10.** `SoakPico`
    and `SoakU5`, built with `KERNEL=SOFT`, give every task m = k = 1: no optional
    instance, no test of one, ever runs. A variant with (m,k)-firm tasks under a load that
    forces drops, checking that no mandatory instance misses its deadline.
@@ -78,8 +79,11 @@ the same day.
    `tools/soak.py`, which read the port once a minute, 18 kB of reports against Linux's
    4 kB; it now drains the port as they come and takes only the image's own length
    (9597205, d1a6c86), and the run went on under it from 19:51 UTC, taken over without a
-   load, the link's count at 0 errors. Left: 24 h on the board's counts, to 2026-10-10
-   05:53 UTC.
+   load, the link's count at 0 errors. At 24 h, 2026-10-10 05:53 UTC: 6.91 million
+   mandatory instances, 6.40 million optional ones run and 3.98 million dropped, every
+   count of the board at 0, the latest end 4,016 µs into the 5 ms, the link 0 errors and
+   0 overruns, no line rejected by the reader since 19:51. The `errors` total of
+   `tools/soak.py` for this run still holds the 67,879,873 of the line misread.
 3. **The STM32U3 on its board.** Added by the user on 2026-10-09, the day the
    NUCLEO-U385RG-Q came: `SoakU3` ran 329 s and `SoakFirmU3` 182 s without an error
    (`stm32u3.md`, "On the board"), `SleepU3` 60 s through Stop 2 within every bound of
