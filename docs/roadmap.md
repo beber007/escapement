@@ -183,7 +183,9 @@ task 4 began the same day.
    the regulator's settling, the core undervolted). The verdict written where `README.md`,
    `power-aware.md` and `rp2040.md` give it open. Needs the user's hands: a plain Pico,
    the bench's being that of the board checks and the Pico W's the endurance run, and the
-   PPK2 wired to it.
+   PPK2 wired to it. Prepared on 2026-10-10: `SleepPico` (`rp2040.md`, "For the PPK2:
+   SleepPico") checked on the bench's Pico without the PPK2, its phases, its operating
+   points and the lock of PLL_SYS, 55 µs.
 10. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
    it on, fixes only. `EscapementHard.c` must not have changed since 041af76, the commit
    of its week of endurance.

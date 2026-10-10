@@ -39,6 +39,9 @@ make FLASH=1                                  # the same, into the flash (build-
 make SLEEP_GATE=1                             # idle task in SLEEP, clocks gated (bench only)
 make TRACE=1                                  # scheduling trace in RAM (tools/read_trace.py)
 make KERNEL=PA bench                          # BenchDVFSPico, BenchVregPico: board timings
+make KERNEL=PA sleep [RUN=1] [UNDERVOLT=1]    # SleepPico: the sleeps or the operating points
+                                              # for the PPK2 (docs/rp2040.md); loaded with
+                                              # set USE_CORE 0, core 1 sleeping in it
 tools/fourslot_cores.sh                       # FourSlotCoresPico: 4-slot buffer across cores
 tools/board_ci.sh --force                     # board checks, run by a timer on the bench;
                                               # BOARD_CI_IMAGES=ci takes the CI's images

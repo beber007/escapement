@@ -91,6 +91,12 @@ endif
 ifdef TRACE
    CFLAGS += -DESCAPEMENT_TRACE
 endif
+ifdef RUN
+   CFLAGS += -DSLEEP_RUN
+endif
+ifdef PHASE_PERIODS
+   CFLAGS += -DPHASE_PERIODS=$(PHASE_PERIODS)u
+endif
 
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p $(B))
@@ -226,6 +232,14 @@ $(B)/FourSlotCoresPico.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/FourSlotCore
 # make KERNEL=PA bench: times the changes of operating point of the DVFS driver, which
 # only the power-aware kernel builds (BenchDVFSPico.c), and the settling of the core
 # regulator (BenchVregPico.c, which runs the chip below its specified voltage).
+# make KERNEL=PA sleep: SleepPico, the RP2040's sleeps for the PPK2 (SleepPico.c); with
+# RUN=1 its operating points instead, UNDERVOLT=1 below the specified voltage, and
+# PHASE_PERIODS=20 phases of 2 s to check them. Not built by the CI: the bench's.
+sleep: $(B)/SleepPico.elf
+$(B)/SleepPico.o : SleepPico.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/SleepPico.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/SleepPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(B)/Escapement_Core1.o $(B)/SleepPico.o -T$(LINKERFILE) -lgcc
 bench: $(B)/BenchDVFSPico.elf $(B)/BenchVregPico.elf
 $(B)/BenchDVFSPico.elf : $(COMMON) $(B)/BenchDVFSPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(B)/BenchDVFSPico.o -T$(LINKERFILE) -lgcc
