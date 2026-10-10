@@ -39,6 +39,14 @@
 # and the counts are those of the state soak.py kept until it was stopped, not of that
 # status: posted once an hour, it was up to an hour behind, and a failure whose post was
 # lost left it pending, which the end then turned into a success (a review, 2026-09-30).
+#
+# With an image of the long run linked into the flash beside the checked one,
+# flash/<image> (the NUCLEO-U385RG-Q's, tools/board_images.sh), the checks still run from
+# SRAM and the long run goes on from the flash: tools/nucleo_flash.sh writes it there only
+# if it differs, most commits leaving the firmware alone, and at most once in 24 hours
+# ($NUCLEO_FLASH_PER_DAY, 1 by default, as the user decided on 2026-10-09: some 365
+# writings a year of a flash that takes 10,000). A writing held back by that cap leaves the
+# long run on its image and commit, the flash still holding them.
 set -u
 
 ELF=$1
@@ -58,6 +66,16 @@ UNIT=$HOME/.config/systemd/user/$SERVICE.service
 LIMIT_PPM=300
 TOKEN=${BOARD_CI_TOKEN:-$HOME/.config/escapement-board-ci/token}
 REPO=${BOARD_CI_REPO:-beber007/escapement}
+
+# loader <elf>: tools/nucleo_flash.sh for an image whose entry point is in the flash,
+# $LOADER otherwise.
+loader() {
+    entry=$(od -An -tx4 -j24 -N4 "$1" | tr -d ' ')
+    case $entry in
+        08*|09*|0[abcdef]*) echo nucleo_flash.sh ;;
+        *) echo "$LOADER" ;;
+    esac
+}
 
 # close <state> <sha>: the run whose state soak.py kept in the file state, of the commit
 # sha if the state does not name it, carried on to $SHA, ended; otherwise its status
@@ -116,10 +134,23 @@ if [ -n "$ok" ]; then
         ok=""
 fi
 
-if [ -n "$ok" ] && [ -f "$UNIT" ]; then
+LONG=$ELF
+carry=$ok
+FLASH_ELF=$(dirname "$ELF")/flash/$IMAGE
+if [ -n "$ok" ] && [ -f "$UNIT" ] && [ -f "$FLASH_ELF" ]; then
+    NUCLEO_FLASH_PER_DAY=${NUCLEO_FLASH_PER_DAY:-1} sh "$HERE/nucleo_flash.sh" "$FLASH_ELF"
+    case $? in
+        0) LONG=$FLASH_ELF ;;
+        3) echo "the long run stays on its commit, its image held back from the flash"
+           carry="" ;;
+        *) ok="" carry="" ;;
+    esac
+fi
+
+if [ -n "$carry" ] && [ -f "$UNIT" ]; then
     # The long run goes on with this commit: its image, its tools, a log of its own.
-    cp "$ELF" "$SOAK/$IMAGE"
-    cp "$HERE/soak.py" "$HERE/$LOADER" "$SOAK/"
+    cp "$LONG" "$SOAK/$IMAGE"
+    cp "$HERE/soak.py" "$HERE/$LOADER" "$HERE/nucleo_flash.sh" "$SOAK/"
     log=$SOAK/soak-${BOARD:-u5}.log
     old=$SOAK/soak-${BOARD:-u5}-$(date +%Y%m%d-%H%M%S).log
     if [ -f "$log" ]; then
@@ -131,7 +162,7 @@ if [ -n "$ok" ] && [ -f "$UNIT" ]; then
         mv "$UNIT.new" "$UNIT"
     systemctl --user daemon-reload
 elif [ -f "$SOAK/$IMAGE" ]; then
-    sh "$SOAK/$LOADER" "$SOAK/$IMAGE"
+    sh "$SOAK/$(loader "$SOAK/$IMAGE")" "$SOAK/$IMAGE"
 fi
 [ -f "$UNIT" ] && systemctl --user start "$SERVICE"
 [ -n "$ok" ]

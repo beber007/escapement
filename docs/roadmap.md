@@ -128,8 +128,13 @@ task 4 began the same day.
    Tcl in OpenOCD. On the NUCLEO-U575ZI-Q on 2026-10-10, its run of task 2 ended: both
    paths on the board, a writing and an image found the same; `tools/soak.py` starts an
    image linked into the flash through it; `SoakFirmU5` and `SoakU5` 10 min each from
-   the flash, every count at 0 (`stm32u5.md`, "The endurance test from the flash"). Left:
-   the NUCLEO-U385RG-Q, once its run of task 3 ends; the board CI.
+   the flash, every count at 0 (`stm32u5.md`, "The endurance test from the flash"). The
+   board CI, as the user decided on 2026-10-10: no check of each commit on the
+   NUCLEO-U575ZI-Q, as before; on the NUCLEO-U385RG-Q the check stays in SRAM and the
+   long run it carries on goes from the flash, written only when the commit's image
+   differs, once in 24 hours at most (`tools/unoq_check.sh`, `board_ci.md`); its three
+   outcomes, written, held back and failed, checked with stand-ins for the boards.
+   Left: the NUCLEO-U385RG-Q from its flash on the board, once its run of task 3 ends.
 5. **Every mutant read.** Of each kernel's survivors at 300 task sets, each one killed
    by a test, declared equivalent with its reason (`test/host/equivalent-mutants.jsonl`),
    or written in `method.md` as a behaviour no test reads and why; the hard kernel's

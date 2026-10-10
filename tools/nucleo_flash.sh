@@ -8,9 +8,12 @@
 #
 #   tools/nucleo_flash.sh ELF
 #
-# The flash of both takes 10,000 erasures of a page (RM0456 rev. 7, 7.3.8, which lets 32
-# pages a bank go to 100,000, for data rather than code; RM0487 rev. 3, "10 kcycles
-# endurance on all flash memory"). The flash is first read against the image, which
+# Each page of the flash takes 10,000 erasures at least (DS13737, table 87, NEND; RM0487
+# rev. 3, "10 kcycles endurance on all flash memory"). The STM32U575's lets any 32 pages a
+# bank go to 100,000, which ST meant for data but does not keep from code (RM0456 rev. 7,
+# 7.3.8); the budget below is taken from the 10,000 all the same, and an image takes
+# only the pages it covers, two of 8 KB for SoakU5. The flash is first read against the
+# image, which
 # erases nothing: an image already there is only started. Each writing is counted, one line
 # in $NUCLEO_FLASH_LEDGER (by default ~/.local/state/escapement/flash-<serial>), and the
 # script refuses to write past $NUCLEO_FLASH_BUDGET writings in all (1,000 by default, a

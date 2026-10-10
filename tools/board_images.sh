@@ -61,8 +61,13 @@ make -s -C "$U3" clean >/dev/null
 make -s -C "$U3" build/SoakU3.elf build/SleepU3.elf >/dev/null
 mkdir -p "$OUT/soak_u3"
 cp "$U3/build/SoakU3.elf" "$U3/build/SleepU3.elf" "$OUT/soak_u3/"
+# The long run's image, from the flash (tools/unoq_check.sh).
+make -s -C "$U3" FLASH=1 build-flash/SoakU3.elf >/dev/null
+mkdir -p "$OUT/soak_u3/flash"
+cp "$U3/build-flash/SoakU3.elf" "$OUT/soak_u3/flash/"
 make -s -C "$U3" clean >/dev/null
-echo "soak_u3: SoakU3 SleepU3"
+make -s -C "$U3" FLASH=1 clean >/dev/null
+echo "soak_u3: SoakU3 SleepU3, SoakU3 in the flash"
 # The Pico 2: the six examples that count in memory, which tools/pico2_check.py runs, and
 # the two of the UART, which tools/pico2_uart.py runs.
 PICO2=Escapement/CORTEX-Mx/RP2350/Examples/pico2

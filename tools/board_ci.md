@@ -269,8 +269,19 @@ its long run on, the user service `escapement-soak-u3` in `~/soak-u3`, which pos
 OpenOCD by `BOARD_CI_OPENOCD_U3` (below). On 2026-10-09 the check passed by hand, its
 clock 121 ppm fast against NTP's (`stm32u3.md`).
 
+Its checks run from SRAM, its long run from the flash (decided by the user on
+2026-10-10): the CI's images hold `soak_u3/flash/SoakU3.elf` beside the others, which
+`tools/unoq_check.sh` writes through `tools/nucleo_flash.sh` once the check passed, only
+if it differs from what the flash holds, and at most once in 24 hours; a writing held
+back by that cap leaves the long run on its commit. The writings are counted in
+`~/.local/state/escapement/flash-<serial>`. The NUCLEO-U575ZI-Q has no check of each
+commit: its long runs are started by hand, from its flash too.
+
 ```sh
-mkdir -p ~/soak-u3 && cp build/SoakU3.elf tools/soak.py tools/nucleo_load.sh ~/soak-u3/
+mkdir -p ~/soak-u3 && cp build-flash/SoakU3.elf tools/soak.py tools/nucleo_load.sh \
+    tools/nucleo_flash.sh ~/soak-u3/
+NUCLEO_SERIAL=<serial> OPENOCD=~/opt/openocd-upstream/bin/openocd NUCLEO_MCU=u385 \
+    sh ~/soak-u3/nucleo_flash.sh ~/soak-u3/SoakU3.elf
 cat > ~/.config/systemd/user/escapement-soak-u3.service <<'EOF'
 [Unit]
 Description=Escapement: the endurance test of the STM32U385, read on USART1 every minute
