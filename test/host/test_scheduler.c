@@ -231,7 +231,9 @@ extern void HostSetClock(INT32 time);
 extern void HostLoseReservation(void);
 extern INT32 HostTicksToNextEvent(void);
 extern unsigned HostClockWraps;
-extern unsigned HostSoftTimerRequests;
+extern unsigned HostSoftTimerRequests, HostSoftTimerCleared;
+extern void *_OSStackBasePointer;
+extern void (*HostSoftTimerClearHook)(void);
 
 #define MAX_TASKS 40
 static unsigned Activations[MAX_TASKS];
@@ -291,8 +293,9 @@ static void StartKernel(void (*f)(void *), void *arg)
   /* On the target the start returns into the idle task through a context switch, with
   ** interrupts unmasked; the idle task then sleeps (a reading of the surviving mutants,
   ** 2026-10-06). */
-  if (HostContextSwitchesRequested == asked || HostMasked) {
-     printf("FAILED: the start asked no context switch, or left interrupts masked\n");
+  if (HostContextSwitchesRequested == asked || HostMasked || _OSStackBasePointer == NULL) {
+     printf("FAILED: the start asked no context switch, left interrupts masked, or left the"
+            " stack's base unset\n");
      exit(1);
   }
   IdleTCB = _OSActiveTask;
@@ -338,10 +341,15 @@ static BOOL IsOutOfReach(const HostTCB *task, INT32 now)
   #endif
 }
 
-/* ServeSoftTimer: Runs the timer handler once for every soft interrupt requested. */
+/* ServeSoftTimer: Runs the timer handler once for every soft interrupt requested, but
+** those its PENDSTCLR dropped. */
 static void ServeSoftTimer(void)
 {
   while (SoftTimerServed != HostSoftTimerRequests) {
+     if ((int)(HostSoftTimerCleared - SoftTimerServed) > 0) {
+        SoftTimerServed = HostSoftTimerCleared;
+        continue;
+     }
      SoftTimerServed += 1;
      TimerHandler();
   }
@@ -888,6 +896,9 @@ static void TestNoTask(void)
   OSStartMultitasking(NULL, NULL);
   Check("  it starts, the idle task elected",
         _OSActiveTask != NULL && (_OSActiveTask->TaskState & TASKTYPE_BLOCKING) != 0);
+  /* Nothing allocated before: the start must set the base the first context switch
+  ** starts the idle task's stack at (mutant 226 of EscapementHard.c). */
+  Check("  the stack's base set for the first context switch", _OSStackBasePointer != NULL);
 }
 
 /* TestCreateBounds: Tasks the kernel must accept, at the edges of what it refuses: a
@@ -1006,7 +1017,8 @@ typedef struct Signaler {
 #define SELF_SIGNALS 5
 #define SLOT_SIZE    4
 
-static Signaler ToSignaled, ToShared, ToLull;
+static Signaler ToSignaled, ToShared, ToLull, ToTurns;
+#define MAX_TURNS 100
 static void *BufferPort;
 static unsigned SignaledRuns, SelfRuns, SharedRuns[2], SharedOrderBreaks;
 static unsigned WriterRuns, ReaderRuns, ReaderMismatches;
@@ -1149,6 +1161,48 @@ static void TestEvents(void)
   CheckSpeeds(FALSE);
 }
 
+
+/* TestEventTurns: Three event-driven tasks wait for one event, which a periodic task
+** signals 60 times: they take turns, in the order they queued, each time. The indices of
+** the event's queue wrap at a multiple of its length (GetFIFOArrayMaxIndex), set when the
+** kernel starts (mutant 236 of EscapementHard.c left it to what OSMalloc held). OSMalloc
+** gives each word a small count here, and the event's descriptor is the first allocated:
+** that bound would be 8, which 3 does not divide, the queue taking the wrong slot after 8
+** operations. */
+static int TurnOrder[MAX_TURNS];
+static unsigned NbTurns;
+static void TurnTask(void *argument)
+{
+  if (NbTurns < MAX_TURNS)
+     TurnOrder[NbTurns] = (int)(UINTPTR)argument;
+  NbTurns += 1;
+  OSSuspendSynchronousTask();
+}
+
+static void TestEventTurns(void)
+{
+  void *event = OSCreateEventDescriptor();
+  unsigned i, breaks = 0;
+  char label[80];
+
+  ToTurns.Event = event;
+  CREATE_TASK(SignalerTask, 100, &ToTurns);
+  for (i = 0; i < 3; i += 1)
+     // cppcheck-suppress intToPointerCast ; the argument is a number, the task casts it back
+     CREATE_SYNCHRONOUS_TASK(TurnTask, 60, event, (void *)(UINTPTR)i);
+  StartKernel(NULL, NULL);
+  RunFor(6000);
+
+  printf("\n6000 ticks of simulated time, three event-driven tasks on one event\n\n");
+  snprintf(label, sizeof label, "  one wake-up per signal: %u for %u", NbTurns, ToTurns.Runs);
+  Check(label, NbTurns <= ToTurns.Runs && NbTurns + 1 >= ToTurns.Runs && NbTurns >= 50);
+  for (i = 3; i < NbTurns && i < MAX_TURNS; i += 1)
+     if (TurnOrder[i] != TurnOrder[i - 3])
+        breaks += 1;
+  snprintf(label, sizeof label, "  they take turns: %u out of order", breaks);
+  Check(label, breaks == 0 && TurnOrder[0] != TurnOrder[1] && TurnOrder[1] != TurnOrder[2] &&
+               TurnOrder[0] != TurnOrder[2]);
+}
 
 /* TestLull: A task of 400 s signals an event-driven task, and nothing else happens in
 ** between: the time jumps from one event to the next, and the power-aware kernel's
@@ -2182,6 +2236,93 @@ static void TestEventRelease(void)
   Check(label, Timed[0].Misses == 0);
 }
 
+/* TestSignalZero: Under EDF, an event-driven task of WCET 200 and workload 300 signalled
+** at time 0 gets the deadline 300, the server's first, which starts from 0 (mutant 0 of
+** EscapementHard.c started it from 1). A periodic task of 1 every 151, deadline 150, runs
+** first, then arrives again at 151 with the deadline 301: one tick behind the event-driven
+** task, it must wait for its end rather than preempt it. */
+static void TestSignalZero(void)
+{
+  TimedTask *events = &Timed[1];
+  char label[96];
+
+  #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+     printf("\nthe server's first deadline: under EDF only\n");
+     return;
+  #endif
+  TimedRun = TIMED_BUSY;
+  CreateTimedTask(1, 151, 150, 0, -1);
+  events->WCET = 200;
+  events->Work = events->WCET * 256;
+  events->Event = SignalEvent = OSCreateEventDescriptor();
+  NbTimed = 2;
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     OSCreateSynchronousTask(TimedTaskCode, events->WCET, 300, 0, SignalEvent, events);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateSynchronousTask(TimedTaskCode, events->WCET, 300, 171, SignalEvent, events);
+  #else
+     OSCreateSynchronousTask(TimedTaskCode, 300, SignalEvent, events);
+  #endif
+  SignalAt[0] = 0;
+  NbSignals = 1;
+  StartKernel(NULL, NULL);
+  RunTimed(300);
+
+  printf("\n300 ticks of simulated time, an event-driven task signalled at time 0\n\n");
+  snprintf(label, sizeof label, "  the event-driven task ran once: %u", NbEventEnds);
+  Check(label, NbEventEnds == 1);
+  snprintf(label, sizeof label, "  the periodic task ran twice: %u", NbEnds);
+  Check(label, NbEnds == 2);
+  if (NbEventEnds == 1 && NbEnds == 2) {
+     snprintf(label, sizeof label, "  its instance of deadline 301 ended at %d, after the"
+              " one of 300, at %d", Ends[1], EventEnds[0]);
+     Check(label, Ends[1] > EventEnds[0]);
+  }
+}
+
+/* TestWindowAlarm: The comparator's alarm in the few instructions between the timer
+** handler arming it and its PENDSTCLR, as when the next arrival is a tick away: the clear
+** drops the soft timer interrupt the alarm raised, and the handler must find the alarm in
+** its flag and run again (mutant 130 of EscapementHard.c looked at the flag only with an
+** event-driven task to reschedule). Missed, the arrival would wait for the next interrupt,
+** the wraparound. Nor may the request stay pending once served, which would run the
+** handler again for nothing (mutant 127 left the clear out). Two tasks of 5, every 100
+** and every 101: at 100 the handler arms 101, and the alarm comes in the window. */
+static BOOL WindowTaken;
+static unsigned WindowRequest;
+static void WindowAlarm(void)
+{
+  if (!WindowTaken && TimedNow() == 100 && HostTicksToNextEvent() == 1) {
+     WindowTaken = TRUE;
+     HostAdvanceBy(1);                 /* the comparator's flag rises */
+     HostSoftTimerRequests += 1;       /* and its handler asks for the soft interrupt */
+     WindowRequest = HostSoftTimerRequests;
+  }
+}
+
+static void TestWindowAlarm(void)
+{
+  char label[96];
+
+  TimedRun = TIMED_BUSY;
+  CreateTimedTask(5, 100, 100, 0, -1);
+  CreateTimedTask(5, 101, 101, 0, -1);
+  StartKernel(NULL, NULL);
+  HostSoftTimerClearHook = WindowAlarm;
+  RunTimed(300);
+  HostSoftTimerClearHook = NULL;
+
+  printf("\n300 ticks of simulated time, the comparator's alarm before the handler's clear\n\n");
+  Check("  the alarm came in the window", WindowTaken);
+  snprintf(label, sizeof label, "  every instance ran: %u + %u of 3 + 3", Timed[0].Instance,
+           Timed[1].Instance);
+  Check(label, Timed[0].Instance == 3 && Timed[1].Instance == 3);
+  snprintf(label, sizeof label, "  no deadline missed: %u + %u", Timed[0].Misses, Timed[1].Misses);
+  Check(label, Timed[0].Misses == 0 && Timed[1].Misses == 0);
+  Check("  the request the alarm raised cleared by the handler that served it",
+        WindowTaken && (int)(HostSoftTimerCleared - WindowRequest) >= 0);
+}
+
 #if defined(ESCAPEMENT_VERSION_SOFT)
 /* (m,k)-FIRM TASKS -------------------------------------------------------------------- */
 /* The soft kernel splits the instances of an (m,k)-firm task into mandatory ones, always
@@ -2843,6 +2984,10 @@ int main(int argc, char *argv[])
      TestWrapEvents();
   else if (argc > 1 && strcmp(argv[1], "events") == 0)
      TestEvents();
+  else if (argc > 1 && strcmp(argv[1], "eventturns") == 0) {
+     HostMallocFill = HOST_FILL_COUNT;
+     TestEventTurns();
+  }
   else if (argc > 1 && strcmp(argv[1], "lull") == 0)
      TestLull();
   else if (argc > 1 && strcmp(argv[1], "busy") == 0)
@@ -2888,6 +3033,10 @@ int main(int argc, char *argv[])
      TestSimStale();
   else if (argc > 1 && strcmp(argv[1], "eventrelease") == 0)
      TestEventRelease();
+  else if (argc > 1 && strcmp(argv[1], "signalzero") == 0)
+     TestSignalZero();
+  else if (argc > 1 && strcmp(argv[1], "windowalarm") == 0)
+     TestWindowAlarm();
   else if (argc > 1 && strcmp(argv[1], "timewrapidle") == 0)
      TestTimeWrap(TIMED_IDLE);
   #if defined(ESCAPEMENT_VERSION_SOFT)

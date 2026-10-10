@@ -311,6 +311,39 @@ killed, but only `make` was stopped, and three soft mutants (217, 218, 247) kept
 an hour and forty minutes after the campaign, their parent gone. Each step now runs in a
 process group of its own, killed whole on the limit.
 
+Eight of the hard kernel's survivors had never been read (0, 127, 130, 206, 225, 226, 236,
+459 of that run); they were on 2026-10-10, each against a build of the mutant, and six
+are killed since by a test that fails on it:
+
+- the server's deadlines starting from 1 rather than 0 (0): an event-driven task signalled
+  at time 0 got the deadline 301 for 300, and a periodic one arriving at 151 with the
+  deadline 301 preempted it, one tick behind (`signalzero`);
+- the comparator's alarm in the window between the timer handler arming it and its
+  PENDSTCLR, as when the next arrival is a tick away (130): the clear drops the soft
+  interrupt the alarm raised, and the handler, looking at the alarm's flag only with an
+  event-driven task to reschedule, left the arrival to the next interrupt, the
+  wraparound, 18 minutes on the RP2040. The host's clear did nothing; it now drops the
+  requests made so far, as the target's single pending bit is, and `windowalarm` raises
+  the alarm just before it. The same test finds the clear left out (127), which on the
+  target only runs the handler again for nothing;
+- the start no longer setting the stack's base (226), which an application that
+  allocated nothing before it would have started at 0: the host's OSMalloc keeps that
+  base as the port's does, and `notask` and every start check it;
+- the indices of an event's queue left to wrap at what OSMalloc held (236): under the
+  count fill, three tasks on one event lose their turns after 8 operations, 8 not being a
+  multiple of 3 (`eventturns`);
+- a slot of no byte, which `OSInitBuffer` takes, read by reference as data (459): the
+  reference must be NULL, as the function's comment says.
+
+One is equivalent and declared (206): an event-driven task signalled at the very instant
+of its previous deadline goes to the arrival queue for that instant rather than straight
+to the ready queue, and the same pass of the handler, finding the timer already past it,
+releases it at once with the same deadline; only the order of the releases of one pass
+may change, which the list they come from, last in first out, already leaves open. And
+one is a behaviour no test reads (225): the start allocating 4 bytes rather than 0, the
+heap 4 bytes smaller and the stacks starting 4 bytes lower, which the host's OSMalloc,
+taken from the C library, does not count.
+
 Most of the soft kernel's survivors are in the test of its optional instances,
 `IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
 window under-counts by one WCET at most, and random task sets seldom come that close. A

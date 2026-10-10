@@ -152,9 +152,15 @@ void _OSIOHandler(void) { }
 ** under both. A test may set a byte instead, or -1 for zeros. */
 int HostMallocFill = 0xA5;
 int HostMallocBudget = -1;       /* allocations left before OSMalloc fails, -1 for no limit */
+/* The target's first call sets the base the context switch starts each stack at, the end of
+** its RAM; never set, the first switch would start the stack at 0. */
+void *_OSStackBasePointer = NULL;
+static UINT32 HostEndRAM;
 void *OSMalloc(UINT16 size)
 {
   void *block;
+  if (_OSStackBasePointer == NULL)
+     _OSStackBasePointer = &HostEndRAM;
   if (HostMallocBudget == 0)
      return NULL;
   if (HostMallocBudget > 0)
@@ -174,6 +180,19 @@ void *OSMalloc(UINT16 size)
 
 void (*HostBarrierHook)(void) = NULL;
 void (*HostSoftTimerHook)(void) = NULL;
+
+/* HostClearSoftTimer: PENDSTCLR, which the timer handler sets before it checks the flags
+** it loops on: the soft timer interrupts requested so far, served or not, are dropped, as
+** the target's single pending bit is, and an alarm that came meanwhile is the handler's
+** to find in its flag. A test may raise one just before (HostSoftTimerClearHook). */
+unsigned HostSoftTimerCleared = 0;
+void (*HostSoftTimerClearHook)(void) = NULL;
+void HostClearSoftTimer(void)
+{
+  if (HostSoftTimerClearHook)
+     HostSoftTimerClearHook();
+  HostSoftTimerCleared = HostSoftTimerRequests;
+}
 
 /* The kernels' CompilerBarrier, the build turns into a call of this (Makefile): it marks
 ** where the kernel orders stores that the timer handler reads, which is where a test may

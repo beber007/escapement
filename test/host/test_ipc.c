@@ -535,6 +535,16 @@ static void TestBuffer(UINT8 type, const char *name)
            OSWriteBuffer(tiny, &one, 1) == 1 &&
            OSGetReferenceBuffer(tiny, OS_READ_ONLY_ONCE, &ref) == 1 && *(UINT8 *)ref == 0xC3);
   }
+  {
+     /* A slot of no byte, which OSInitBuffer takes: each write hands over an empty slot,
+     ** and a read finds nothing, its reference NULL as for no descriptor (mutant 459 of
+     ** EscapementHard.c gave the empty slot's data instead). */
+     void *empty = OSInitBuffer(0, type, NULL);
+     ref = bytes;
+     Check("  a slot of no byte: nothing read, the reference NULL",
+           empty != NULL && OSWriteBuffer(empty, bytes, 1) == 0 &&
+           OSGetReferenceBuffer(empty, OS_READ_MULTIPLE, &ref) == 0 && ref == NULL);
+  }
 
   /* A slot the reader holds by reference is never the writer's: written four times over
   ** while the reference is held, it still reads what it held. Tables of the 3-slot buffer

@@ -45,7 +45,12 @@ void HostUnmask(void);
                                              if (!HostSoftTimerHook) ; \
                                              else if (HostMasked) HostSoftTimerHeld = 1; \
                                              else HostSoftTimerHook(); } while (0)
-#define _OSClearSoftTimerInterrupt()    ((void)0)
+/* The handler's PENDSTCLR drops every request made so far (HostSoftTimerCleared, see
+** host_port.c). */
+extern unsigned HostSoftTimerCleared;
+extern void (*HostSoftTimerClearHook)(void);
+void HostClearSoftTimer(void);
+#define _OSClearSoftTimerInterrupt()    HostClearSoftTimer()
 #define _OSEnableInterrupts()           HostUnmask()
 #define _OSDisableInterrupts()          (HostMasked = 1)
 extern int HostMallocFill;           /* the byte OSMalloc fills with, or one of: */

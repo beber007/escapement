@@ -76,7 +76,8 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	   ./$(BUILD)/test_scheduler_$$b wrap && ./$(BUILD)/test_scheduler_$$b wrapsim && \
 	   ./$(BUILD)/test_scheduler_$$b wrapinside && \
 	   ./$(BUILD)/test_scheduler_$$b wrapevents && \
-	   ./$(BUILD)/test_scheduler_$$b events && ./$(BUILD)/test_scheduler_$$b lull && \
+	   ./$(BUILD)/test_scheduler_$$b events && ./$(BUILD)/test_scheduler_$$b eventturns && \
+	   ./$(BUILD)/test_scheduler_$$b lull && \
 	   ./$(BUILD)/test_scheduler_$$b suspend && ./$(BUILD)/test_scheduler_$$b signalinside && \
 	   ./$(BUILD)/test_scheduler_$$b busy && \
 	   ./$(BUILD)/test_scheduler_$$b early && ./$(BUILD)/test_scheduler_$$b slack && \
@@ -86,7 +87,9 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	   ./$(BUILD)/test_scheduler_$$b endinside && ./$(BUILD)/test_scheduler_$$b endinsidebusy && \
 	   ./$(BUILD)/test_scheduler_$$b timewrap && ./$(BUILD)/test_scheduler_$$b timewrapbusy && \
 	   ./$(BUILD)/test_scheduler_$$b timewrapidle && \
-	   ./$(BUILD)/test_scheduler_$$b eventrelease && ./$(BUILD)/test_scheduler_$$b simstale && \
+	   ./$(BUILD)/test_scheduler_$$b eventrelease && ./$(BUILD)/test_scheduler_$$b signalzero && \
+	   ./$(BUILD)/test_scheduler_$$b windowalarm && \
+	   ./$(BUILD)/test_scheduler_$$b simstale && \
 	   ./$(BUILD)/test_scheduler_$$b signals && ./$(BUILD)/test_scheduler_$$b notask && \
 	   ./$(BUILD)/test_scheduler_$$b createbounds && ./$(BUILD)/test_scheduler_$$b longperiod && \
 	   ./$(BUILD)/test_scheduler_$$b twosignals && ./$(BUILD)/test_scheduler_$$b eventspacing || exit 1; \
