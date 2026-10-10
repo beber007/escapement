@@ -214,7 +214,9 @@ them as below. `docs/roadmap.md`, "Release 0.1", applies this list to the first 
 
 The boards hang on the UNO Q, not on this Mac: `tools/board_ci.md`, "The bench", says
 which probe drives which board and holds the rules. Run `tools/bench_status.sh` before
-any work there. probe2 carries a week-long endurance run: never load anything on it.
+any work there. probe1 drives the Pico W, probe2 the plain Pico; while an endurance run
+holds a probe, never load anything on it. Work by hand on a probe takes its lock as
+`board_ci.sh` does, a directory with a pid in it (`mkdir lock-probe1`), not `flock`.
 Rebooting the UNO Q or unbinding its drivers interrupts every run: ask first.
 
 ## Pitfalls met here

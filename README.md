@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/RP2350-Cortex--M33-c51a4a?logo=raspberrypi&logoColor=white" alt="RP2350">
   <img src="https://img.shields.io/badge/STM32U5-Cortex--M33-03234b?logo=stmicroelectronics&logoColor=white" alt="STM32U5">
   <img src="https://img.shields.io/badge/emulated-Renode-2f6f9f" alt="Renode">
-  <a href="https://github.com/beber007/escapement/commit/soak-pico"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fbeber007%2Fescapement%2Fcommits%2Fsoak-pico%2Fstatuses%3Fper_page%3D1&query=%24%5B0%5D.description&label=Pico%20W%20endurance&color=2f6f9f&cacheSeconds=600" alt="Pico W endurance"></a>
+  <a href="https://github.com/beber007/escapement/commit/soak-pico"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fbeber007%2Fescapement%2Fcommits%2Fsoak-pico%2Fstatuses%3Fper_page%3D1&query=%24%5B0%5D.description&label=Pico%20endurance&color=2f6f9f&cacheSeconds=600" alt="Pico endurance"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-permissive-3fb950" alt="licence"></a>
 </p>
 

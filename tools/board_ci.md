@@ -50,14 +50,18 @@ must agree with it.
 
 | Probe or port | Board | Role | Held by |
 |---|---|---|---|
-| probe1 | Pico | the checks of each commit, `board/pico` | `board_ci.sh`, some 10 min of a check's 20 |
-| probe2 | Pico W | the endurance test, a week per kernel, `board/soak` | `escapement-soak-pico` |
+| probe1 | Pico W | the checks of each commit, `board/pico` | `board_ci.sh`, some 10 min of a check's 20 |
+| probe2 | Pico | the endurance test, a week per kernel, `board/soak`; the PPK2 since 2026-10-10 (roadmap, task 9) | `escapement-soak-pico`, stopped on 2026-10-10 |
 | probe3 | Pico 2, the probe's UART on GP0 and GP1 | the checks of each commit, `board/pico2` | `board_ci.sh` |
 | STLINK-V3 | NUCLEO-U575ZI-Q | a run until stopped, `board/soak-nucleo` | `escapement-soak-nucleo` |
 | the UNO Q's own SWD | STM32U585 | the checks of each commit, `board/u5`, then a run until the next | `board_ci.sh`, then `escapement-soak-u5` |
 | Bus Pirate v4 | — | the frequency counter, read by hand | — |
 | FTDI TTL-232R-3V3 | NUCLEO-U385RG-Q, LPUART1 on D0 and D1 | `SleepU3`'s link (`LINK_TTY` of `tools/unoq_sleep.py`) | by hand |
 | PPK2 | NUCLEO-U575ZI-Q, or a Pico 2 it powers | current, measured by hand (`tools/ppk2_nucleo.py`) | — |
+
+Which board is a Pico W was written the wrong way round until 2026-10-10, when the user
+read the boards: probe1's is the Pico W, probe2's the plain Pico. Every check and run
+since 2026-09-28 was on the board its probe names; only the word was swapped.
 
 `tools/bench_status.sh` shows on one screen who holds each probe, the board CI, the last
 reading of each endurance run and the statuses of the commits concerned, from the Mac

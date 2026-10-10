@@ -182,16 +182,17 @@ task 4 began the same day.
    settles with it (the idle task at 12 or 125 MHz, DRA, DR_OTE and DM_SLACK against OTE,
    the regulator's settling, the core undervolted). The verdict written where `README.md`,
    `power-aware.md` and `rp2040.md` give it open. Needs the user's hands: a plain Pico,
-   the bench's being that of the board checks and the Pico W's the endurance run, and the
-   PPK2 wired to it. Prepared on 2026-10-10: `SleepPico` (`rp2040.md`, "For the PPK2:
-   SleepPico") checked on the bench's Pico without the PPK2, its phases, its operating
+   probe2's, whose endurance run the user stopped on 2026-10-10 for it, and the PPK2 wired
+   to it. Prepared on 2026-10-10: `SleepPico` (`rp2040.md`, "For the PPK2:
+   SleepPico") checked on probe1's Pico W without the PPK2, its phases, its operating
    points and the lock of PLL_SYS, 55 µs.
 10. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
    it on, fixes only. `EscapementHard.c` must not have changed since 041af76, the commit
    of its week of endurance.
-11. **Endurance on the candidate.** The power-aware kernel a week on the Pico W, its
-   week of 80cc6dc having run on a kernel changed four times since: that run stops at the
-   freeze, as the user decided on 2026-10-07; the soft kernel a week on the
+11. **Endurance on the candidate.** The power-aware kernel a week on probe2's Pico, its
+   week of 80cc6dc having run on a kernel changed four times since: that run, meant to
+   stop at the freeze as the user decided on 2026-10-07, was stopped on 2026-10-10 at
+   4 d 18 h 47 min, no restart, no error, 384 wraps, for task 9's PPK2; the soft kernel a week on the
    NUCLEO-U575ZI-Q with the variant of task 2, in parallel, both from flash once task 4
    is done; the hard kernel a week on the NUCLEO-U385RG-Q, a port new to this release,
    its soft kernel's day being that of task 3. A fix to a kernel makes an
@@ -209,7 +210,7 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
 ## Open work, in order
 
 0. **Two weeks of endurance on a board** (`rp2040.md`, "The endurance test"). `SoakPico`
-   runs on the Pico W, on a probe of its own, since 2026-09-28 at 20:03 UTC: a week
+   runs on probe2's Pico (written Pico W until 2026-10-10, `board_ci.md`), since 2026-09-28 at 20:03 UTC: a week
    under the hard kernel, EDF, at 69825e4, then a week under the power-aware one. The
    first week ended on 2026-10-05 at 20:03 UTC: 7 days across 563 wraps of the kernel
    clock, no error, no restart, no interruption, the pulse at most 129 µs late and the
