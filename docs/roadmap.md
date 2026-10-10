@@ -151,21 +151,29 @@ task 4 began the same day.
    `api.md` stating that the API is not yet stable; the known limits written where a
    reader meets them: an optional instance tested once, DM keeping the count, DVFS worth
    nothing on the STM32U5 and some 10 % on the RP2350, the energy verdict on the RP2040
-   open (item 1 below; after this release, as the user decided on 2026-10-07).
-7. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
+   as task 7 finds it.
+7. **The energy verdict on the RP2040.** Added by the user on 2026-10-10, who had left it
+   after this release on 2026-10-07: item 1 below, on its bench, a plain Pico powered and
+   measured by the PPK2; whether DVFS beats racing to sleep, and what the same bench
+   settles with it (the idle task at 12 or 125 MHz, DRA, DR_OTE and DM_SLACK against OTE,
+   the regulator's settling, the core undervolted). The verdict written where `README.md`,
+   `power-aware.md` and `rp2040.md` give it open. Needs the user's hands: a plain Pico,
+   the bench's being that of the board checks and the Pico W's the endurance run, and the
+   PPK2 wired to it.
+8. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
    it on, fixes only. `EscapementHard.c` must not have changed since 041af76, the commit
    of its week of endurance.
-8. **Endurance on the candidate.** The power-aware kernel a week on the Pico W, its
+9. **Endurance on the candidate.** The power-aware kernel a week on the Pico W, its
    week of 80cc6dc having run on a kernel changed four times since: that run stops at the
    freeze, as the user decided on 2026-10-07; the soft kernel a week on the
    NUCLEO-U575ZI-Q with the variant of task 2, in parallel, both from flash once task 4
    is done; the hard kernel a week on the NUCLEO-U385RG-Q, a port new to this release,
    its soft kernel's day being that of task 3. A fix to a kernel makes an
    `rc2` and starts that kernel's week again.
-9. **The release.** Its notes, from `git log` since the fork and from this page; the tag
+10. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 
-**Not in 0.1**, open after it: the energy verdict on the RP2040 (item 1); DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
+**Not in 0.1**, open after it: DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
 the PPK2 as a check of each commit on the STM32U5 (item 4); how
 often a wake-up byte of LPUART1 comes out wrong (item 6); testing a dropped optional
 instance again; an exhaustive enumeration of small task sets and fuzzing; a test of
@@ -192,7 +200,8 @@ speed before (mutant 106 of `EscapementHardPA.c`, alive at 2,000 sets a build,
    `board/soak`, `board/soak-u5` and `board/soak-nucleo` of each commit give their state
    since (`tools/board_ci.md`).
 
-1. **The energy verdict on the RP2040.** Build the bench of `power-aware.md`: a plain Pico
+1. **The energy verdict on the RP2040** — in release 0.1 as its task 7 since 2026-10-10.
+   Build the bench of `power-aware.md`: a plain Pico
    rather than a Pico W, powered and measured by a Power Profiler Kit II, chosen on
    2026-09-24 over an INA226. Then answer whether DVFS beats race-to-sleep. The same bench
    settles what the documentation leaves open:
