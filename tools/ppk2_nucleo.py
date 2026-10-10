@@ -25,9 +25,9 @@ fitted through the OpenOCD that knows the STM32U3 (tools/board_ci.md):
     tools/ppk2_nucleo.py phases 600       # SleepU3Flash, make PHASES=30 [FAST=1]
 
 Its eight logic inputs read the pins of a board too, with no current to measure, VCC on
-the board's 3V3 and GND on its ground: pins gives, for each input given, the period and
-the time high from the median of its edges, which the chunks the UNO Q loses leave
-right, against the period expected. TaskLEDU3 (Examples/nucleo-u385) drives D7, D8, D13
+the board's 3V3 and GND on its ground: pins gives, for each input given, the period
+from the count of its edges and the time high, against the period expected within
+10 %, which tells which wire is on which pin (pins below). TaskLEDU3 (Examples/nucleo-u385) drives D7, D8, D13
 at 10, 20 and 60 ms and toggles D12 every millisecond:
 
     PPK2_PINS=D7:10000,D8:20000,D12:2000,D13:60000 tools/ppk2_nucleo.py pins 10
@@ -169,17 +169,23 @@ def trace(ms):
 
 
 def pins(seconds):
-    """For each pin of PPK2_PINS, name:period in us, on D0, D1 and on in that order: the
-    median of the times between its rising edges and of the times high, in samples of
-    10 us, and whether the period is within 2 % of the one expected. The UNO Q loses
-    chunks of samples whole: a time that spans one is too long, which the median leaves
-    out. Fails if a pin does not keep its period."""
+    """For each pin of PPK2_PINS, name:period in us, on D0, D1 and on in that order: its
+    period from the count of its rising edges over the samples read, the median of its
+    times high, and whether the period is within 10 % of the one expected: which wire is
+    on which pin, not how exact the period is. The UNO Q loses chunks of samples whole,
+    some 40 % of them on 2026-10-10: a time between two edges that spans a lost chunk
+    comes out short, and the median of those times was off by up to 30 % on the
+    NUCLEO-U385RG-Q; the count over the samples read, which the losses thin alike for
+    every pin, gave each period within 8 % over 10 s, two runs. The periods themselves
+    are for the trace and the frequency counter (docs/method.md). A time high, some 50 us
+    to 1 ms, rarely spans a lost chunk. Fails if a pin is not on the period expected."""
     wanted = [(n, int(p)) for n, p in (w.split(":") for w in os.environ["PPK2_PINS"].split(","))]
     mask = (1 << len(wanted)) - 1
     rises = [[] for _ in wanted]
     highs = [[] for _ in wanted]
-    last, rose = 0, [None] * len(wanted)
+    last, rose, read = 0, [None] * len(wanted), 0
     for i, (_, level) in enumerate(samples(open_ppk2(), seconds, mask)):
+        read += 1
         for k in range(len(wanted)):
             bit, was = level >> k & 1, last >> k & 1
             if bit and not was:
@@ -195,9 +201,9 @@ def pins(seconds):
             print(f"{name_} (D{k}): no edge")
             failed.append(name_)
             continue
-        got = sorted(rises[k])[len(rises[k]) // 2] * 1e6 / RATE
+        got = read * 1e6 / RATE / (len(rises[k]) + 1)
         high = sorted(highs[k])[len(highs[k]) // 2] * 1e6 / RATE if highs[k] else 0
-        ok = abs(got - period) <= period * 0.02
+        ok = abs(got - period) <= period * 0.10
         print(f"{name_} (D{k}): {len(rises[k])} periods, {got:.0f} us, high {high:.0f} us, "
               f"expected {period} us: {'ok' if ok else 'OFF'}")
         if not ok:

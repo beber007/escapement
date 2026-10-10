@@ -373,12 +373,31 @@ The same day, at 2e7f0b6, the check of each commit was run by hand (`board_ci.md
   LPTIM1 over 120 s of `SleepU3`, 8.6 over 60, as the U5's ran some 7.5 behind: the
   correction is about right, its sign to be read over a longer run.
 
-Still open: the LSE's start, R1RDY and BOOSTRDY, which `ClockU3` times, to run once
-the day of `SoakFirmU3` leaves the board; the pins of the connector, which the PPK2's
-logic inputs will read under `TaskLEDU3` (`tools/ppk2_nucleo.py pins`), and LPUART1 on
-D0 and D1, which an FTDI TTL-232R-3V3 cable on the UNO Q will reach (`LINK_TTY` of
-`tools/unoq_sleep.py`), both once wired; erratum 2.2.1, which the relock
-count of a long run will tell; the current on JP4, which needs the PPK2.
+**A day of the soft kernel**, `SoakFirmU3` of 2e7f0b6 loaded on 2026-10-09 at 19:51
+UTC (roadmap, task 3), stopped on 2026-10-10 at 19:53: 86,505 s, 80 wraps of the
+kernel's clock, every count of the board at 0; 6,920,321 mandatory instances, 6,525,547
+optional ones run and 3,854,934 dropped, none in error, the latest end 4,029 µs into
+the 5 ms; the pulse at most 92 µs late; the link 55,322,791 bytes, no error, no overrun;
+no line rejected by `tools/soak.py`. The MSI left its PLL mode and was locked again 3
+times in the day, B1 never pressed: whether erratum 2.2.1, or the LSE disturbed by
+something else, a day does not say; the kernel's time came through each.
+
+**The clock set-up**, `ClockU3` the same evening, the backup domain reset so that the
+LSE starts cold, in cycles of the 12 MHz of reset: the LSE's start 1,512,515, 126.0 ms;
+LSESYSRDY 730, 61 µs, the two cycles of the LSE the manual gives; the MSI's lock 7,528,
+627 µs, against tSTAB's 0.8 ms; R1RDY 233, 19.4 µs; BOOSTRDY 38, 3.2 µs; the MSIS at
+96 MHz 50 cycles. Locked, no relock.
+
+**The pins**, the same evening: the PPK2's logic inputs on CN10, pins 23, 21, 13 and
+11 (UM3062 rev. 4, table 18), under `TaskLEDU3`, `tools/ppk2_nucleo.py pins` found D7
+(PA8), D8 (PC7), D12 (PA6) and D13 (PA5) each on its period. UM3062's tables 15 to 18
+give the same pins as `BoardU3.h`; JP4's pin 2 is the MCU's side (7.4.6 and "VDD power
+supply input"), which
+the PPK2's VOUT takes.
+
+Still open: LPUART1 on D0 and D1, which an FTDI TTL-232R-3V3 cable on the UNO Q will
+reach (`LINK_TTY` of `tools/unoq_sleep.py`); the current on JP4, which needs the PPK2
+there (roadmap, task 11).
 
 ## Measuring DVFS
 
@@ -442,12 +461,16 @@ ran on the LDO.
   bounded in the code. The microsecond should be 107 ppm fast, to be measured against a
   reference. Whether to fit a 16 MHz crystal as X2 for an exact 96 MHz follows from that.
 - **Range 1 and the booster.** The times R1RDY and BOOSTRDY take, and whether the
-  sequence runs at all; only its order has been checked.
+  sequence runs at all; only its order has been checked. Answered on 2026-10-10: 19.4
+  and 3.2 µs (`ClockU3`, "On the board").
 - **The pins.** PA9 and PA10 on alternate function 7 to the virtual COM port, D7, D8,
   D12 and D13 on PA8, PC7, PA6 and PA5 (UM3062 rev. 2, not read again). Also whether
-  JP4 and JP5 are where the plan says.
+  JP4 and JP5 are where the plan says. Answered on 2026-10-10 ("On the board"): the
+  reports came on the virtual COM port, D7 to D13 where UM3062 rev. 4 and the PPK2 put
+  them, JP4's pin 2 the MCU's.
 - **Erratum 2.2.1.** PC13 toggling disturbs the LSE, and B1 is on PC13. The relock
-  counter of `SoakU3` will tell whether it unlocks the PLL mode.
+  counter of `SoakU3` will tell whether it unlocks the PLL mode. In a day of
+  `SoakFirmU3`, B1 never pressed, the MSI was locked again 3 times ("On the board").
 - **Erratum 2.2.13** (revision Z only). VDDA must equal VDD for any current measurement.
 - **PWR_VOSR after Stop 2 entered in range 1.** RM0487 does not say whether R1EN reads 1
   or 0. The port takes either, and Renode runs both (above). If the chip did something
