@@ -104,22 +104,25 @@ void _OSIOHandler(void);
    ** the idle task then slept at full speed until the next one. Masked, WFI still wakes
    ** on the interrupt that becomes pending, which is taken once they are unmasked, the
    ** speed raised as it enters. */
-   #define _OSSleep() while (TRUE) { \
-                         if (OS_SLEEP_SPEED != OS_MAX_SPEED) { \
-                            _OSDisableInterrupts(); \
-                            OSSetProcessorSpeed(OS_SLEEP_SPEED); \
-                            _OSIdleAsleep = TRUE; \
-                            __asm volatile ("WFI" ::: "memory"); \
-                            _OSEnableInterrupts(); \
-                         } \
-                         else { \
-                            OSSetProcessorSpeed(OS_SLEEP_SPEED); \
-                            __asm volatile ("WFI" ::: "memory"); \
-                         } \
-                      };
+   #define _OSSleepOnce() do { \
+                             if (OS_SLEEP_SPEED != OS_MAX_SPEED) { \
+                                _OSDisableInterrupts(); \
+                                OSSetProcessorSpeed(OS_SLEEP_SPEED); \
+                                _OSIdleAsleep = TRUE; \
+                                __asm volatile ("WFI" ::: "memory"); \
+                                _OSEnableInterrupts(); \
+                             } \
+                             else { \
+                                OSSetProcessorSpeed(OS_SLEEP_SPEED); \
+                                __asm volatile ("WFI" ::: "memory"); \
+                             } \
+                          } while (0)
 #else
-   #define _OSSleep() while (TRUE) { __asm volatile ("WFI" ::: "memory"); };
+   #define _OSSleepOnce() __asm volatile ("WFI" ::: "memory")
 #endif
+/* One sleep, and the idle task's loop of them; a port may define _OSSleep again, as the
+** ports with an idle hook of their own do. */
+#define _OSSleep() while (TRUE) { _OSSleepOnce(); };
 
 /* _OSScheduleTask: Generates a PendSV exception, which will interrupt and proceed at the
 ** lowest interrupt priority to handler _OSContextSwapHandler (defined in assembler in

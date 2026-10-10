@@ -105,7 +105,8 @@ BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex)
   UINT32 word;
   /* No node, the loop below wrote the first beyond an empty block, over the descriptor
   ** just allocated (an audit of the ports, 2026-09-29). */
-  if (nbNode == 0 ||
+  /* Alarm 3 ends the sleeps of OSInitSleepGate, which set the hook. */
+  if (nbNode == 0 || (interruptIndex == OS_IO_TIMER_3 && _OSIdleHook != NULL) ||
       (device = (TIMER_ISR_DATA *)OSMalloc(sizeof(TIMER_ISR_DATA))) == NULL)
      return FALSE;
   device->TimerIntHandler = TimerIntHandler;

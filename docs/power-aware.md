@@ -118,20 +118,22 @@ Racing at 125 MHz beats running at 50 MHz when the sleep draws under 2.4 mA, at 
 under 3.2 mA; undervolted, under 1.05 and 2.6 mA. The kernel itself, `TaskLEDPico`'s task
 set built under each kernel and policy, its LED moved off the board, 60 s each:
 
-| Kernel and policy | Idle in WFI | Idle in SLEEP (`SLEEP_GATE=1`) |
-|---|---|---|
-| hard, racing | 20.41 mA | 5.49 mA |
-| power-aware, OTE | 19.75 mA (−3.2 %) | 5.53 mA (+0.7 %) |
-| power-aware, DRA | 20.38 mA (−0.2 %) | |
-| power-aware, DR_OTE | 19.42 mA (−4.9 %) | 5.61 mA (+2.1 %) |
-| power-aware, DM_SLACK | 19.55 mA (−4.2 %) | |
-| power-aware, OTE, idle at 12 MHz | 6.60 mA (−68 %) | |
+| Kernel and policy | Idle in WFI | Idle in SLEEP (`SLEEP_GATE=1`) | The same, PLL_SYS stopped |
+|---|---|---|---|
+| hard, racing | 20.41 mA | 5.49 mA | 2.18 mA |
+| power-aware, OTE | 19.75 mA (−3.2 %) | 5.53 mA (+0.7 %) | 2.22 mA (+1.8 %) |
+| power-aware, DRA | 20.38 mA (−0.2 %) | | |
+| power-aware, DR_OTE | 19.42 mA (−4.9 %) | 5.61 mA (+2.1 %) | 2.41 mA (+10.6 %) |
+| power-aware, DM_SLACK | 19.55 mA (−4.2 %) | | |
+| power-aware, OTE, idle at 12 MHz | 6.60 mA (−68 %) | | |
 
 **The verdict on the RP2040**, within its specification: DVFS saves up to some 5 % while
 the idle task waits in WFI at full speed, and nothing once it sleeps in SLEEP, where
 racing wins; DR_OTE saves most of the four policies, DRA least. The sleep is the lever,
 some 73 % of the task set's energy, and a SLEEP with PLL_SYS stopped, 1.22 mA against
-5.07, would take more, which the kernel does not do yet (after this release). Below the
+5.07, takes more: the idle task does it since the same day (roadmap, task 10; the last
+column, measured afterwards, `rp2040.md`, "SLEEP with PLL_SYS stopped"), 60 % off the
+task set's current in SLEEP, and DVFS there costs more still. Below the
 specified voltage 50 MHz edges racing to that sleep by a hair.
 
 ## The DVFS driver of the RP2040
@@ -150,7 +152,8 @@ divider if need be, and takes the PLL back, glitchlessly both ways. None of this
 for a lock. The whole change runs with interrupts masked, 3.9 to 8.7 µs by the bench of
 2026-09-24 (`rp2040.md`). The price is a VCO that keeps running at 12 MHz. Stopping it
 there would save its current and cost a relock on the way back up, 53 µs, which in SLEEP
-takes the idle task from 5.07 to 1.22 mA (measured on 2026-10-10, above). The 50 MHz point replaces the 48 MHz one first declared, which the same VCO
+takes the idle task from 5.07 to 1.22 mA (measured on 2026-10-10, above); the idle task
+built with `SLEEP_GATE=1` does so, the operating points themselves unchanged. The 50 MHz point replaces the 48 MHz one first declared, which the same VCO
 cannot produce. The timer's 1 µs tick comes from the crystal and does not move.
 
 The idle task sleeps at 125 MHz by default. `make KERNEL=PA SLEEP_SPEED=0` lets it sleep

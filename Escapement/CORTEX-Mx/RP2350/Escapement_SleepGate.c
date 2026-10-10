@@ -22,7 +22,8 @@
 ** first alarm of TIMER0 armed (_OSAlarmTime), on alarm 3, raises PLL_SYS, and waits for
 ** that alarm in SLEEP still, PLL_SYS running. A sleep shorter than STOP_MIN_US keeps
 ** PLL_SYS running throughout; an interrupt of another source is taken late by the lock.
-** Alarm 3 is this file's: the timer events must use another.
+** Alarm 3 is this file's: the timer events given it first, PLL_SYS keeps running, and
+** given it after, they refuse it.
 ** Platform version: RP2350 (Raspberry Pi Pico 2).
 */
 
@@ -79,6 +80,9 @@ void OSInitSleepGate(UINT32 keep0, UINT32 keep1)
   CLOCKS_SLEEP_EN0 = keep0;
   CLOCKS_SLEEP_EN1 = keep1 | CLK_REF_TICKS | CLK_SYS_TIMER0;
   SCB_SCR |= SCB_SCR_SLEEPDEEP;
+  /* Alarm 3 taken by the timer events already, PLL_SYS keeps running. */
+  if (OSGetISRDescriptor(OS_IO_TIMER_3) != NULL)
+     return;
   TIMER_ARMED = ALARM3_BIT;
   TIMER_INTR = ALARM3_BIT;
   TIMER_INTE_SET = ALARM3_BIT;

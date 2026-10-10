@@ -54,6 +54,7 @@
 #define CLK_SYS_SRC_REF      0
 #define CLK_SYS_SRC_AUX      1
 #define CLK_SYS_AUXSRC_PLL   (0u << 5)
+#define CLK_SYS_AUXSRC_XOSC  (3u << 5)
 #define CLK_PERI_AUXSRC_XOSC (4u << 5)
 
 #define RESETS_CLR           *((volatile UINT32 *)(0x4000C000 + 0x3000))
@@ -290,3 +291,41 @@ static void SetSystemClock(UINT8 speed)
 } /* end of SetSystemClock */
 
 #endif /* ESCAPEMENT_VERSION_HARD_PA */
+
+
+void (*_OSIdleHook)(void) = NULL;
+
+
+/* _OSLowerSystemClock: clk_sys onto clk_ref, the crystal, through the glitchless mux, its
+** auxiliary source then moved off PLL_SYS to the crystal, and PLL_SYS powered down, its
+** dividers kept. With the auxiliary source still PLL_SYS, the chip took a HardFault on
+** waking from SLEEP, though clk_sys ran from clk_ref (SleepPico, 2026-10-10): the
+** auxiliary mux may only change while the glitchless one selects the reference, as it
+** does here. SLEEP drew 5.07 mA on the Pico's 3V3 rail with PLL_SYS running, 1.22 with
+** it stopped (docs/power-aware.md). */
+void _OSLowerSystemClock(void)
+{
+  CLK_SYS_CTRL = CLK_SYS_AUXSRC_PLL | CLK_SYS_SRC_REF;
+  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_REF)) == 0);
+  CLK_SYS_CTRL = CLK_SYS_AUXSRC_XOSC | CLK_SYS_SRC_REF;
+  PLL_PWR = 0xFFFFFFFFu;
+} /* end of _OSLowerSystemClock */
+
+
+/* _OSRaiseSystemClock: PLL_SYS powered up on the dividers it had, its lock awaited before
+** its post divider, some 55 us (SleepPico, 2026-10-10), its auxiliary source taken back,
+** and clk_sys onto it but at the power-aware kernel's 12 MHz point, which runs from the
+** reference. */
+void _OSRaiseSystemClock(void)
+{
+  PLL_PWR &= ~(PLL_PWR_PD | PLL_PWR_VCOPD);
+  while ((PLL_CS & PLL_CS_LOCK) == 0);
+  PLL_PWR &= ~PLL_PWR_POSTDIVPD;
+  CLK_SYS_CTRL = CLK_SYS_AUXSRC_PLL | CLK_SYS_SRC_REF;
+  #ifdef ESCAPEMENT_VERSION_HARD_PA
+     if (CurrentSpeed == OS_12MHZ_SPEED)
+        return;
+  #endif
+  CLK_SYS_CTRL = CLK_SYS_AUXSRC_PLL | CLK_SYS_SRC_AUX;
+  while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_AUX)) == 0);
+} /* end of _OSRaiseSystemClock */

@@ -80,6 +80,8 @@
 ** deadline already missed. All kernel times are therefore counted from this origin. */
 static UINT32 TimeOrigin = 0;
 
+volatile UINT32 _OSAlarmTime[4];
+
 /* Interrupt cause marked by the ISR and processed by the lower priority handler
 ** _OSTimerInterruptHandler. */
 volatile BOOL _OSOverflowInterruptFlag = FALSE;
@@ -143,7 +145,8 @@ static void Alarm1Handler(struct TIMER_ISR_DATA *descriptor);
 static void ArmOverflowAlarm(void)
 {
   UINT32 raw = TIMER_TIMERAWL;
-  TIMER_ALARM1 = raw + ((TIME_MASK + 1) - ((raw - TimeOrigin) & TIME_MASK));
+  _OSAlarmTime[1] = raw + ((TIME_MASK + 1) - ((raw - TimeOrigin) & TIME_MASK));
+  TIMER_ALARM1 = _OSAlarmTime[1];
 } /* end of ArmOverflowAlarm */
 
 
@@ -264,6 +267,7 @@ BOOL _OSSetTimer(INT32 nextArrivalTime)
      /* Keep the armed value: reading ALARM0 back does not return it, the register is
      ** cleared as soon as the alarm fires. */
      UINT32 deadline = raw + (target - (now & TIME_MASK));
+     _OSAlarmTime[0] = deadline;
      TIMER_ALARM0 = deadline;
      /* The counter may have moved past the deadline while it was being armed. */
      if ((INT32)(deadline - TIMER_TIMERAWL) > 0) {

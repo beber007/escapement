@@ -188,11 +188,24 @@ task 4 began the same day.
    points and the lock of PLL_SYS, 55 µs. Measured the same day on probe2's Pico
    (`power-aware.md`, "Measuring the RP2040"): a cycle costs least at 125 MHz; DVFS saves
    up to some 5 % with the idle task in WFI, nothing in SLEEP; the sleep is the lever,
-   73 %, and a SLEEP with PLL_SYS stopped would take more, open after this release.
-10. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
+   73 %, and a SLEEP with PLL_SYS stopped would take more, task 10.
+10. **The RP2040's idle task in SLEEP with PLL_SYS stopped — done on 2026-10-10.** Added by the user on
+   2026-10-10, from task 9's verdict: 1.22 mA against 5.07 in SLEEP with PLL_SYS running.
+   As the RP2350's idle task does (`Escapement_SleepGate.c` there): PLL_SYS stopped for
+   each sleep long enough, the sleep ended early by an alarm of its own so that the lock,
+   some 55 µs, is over by the kernel's next alarm, and clk_sys's auxiliary source moved
+   off PLL_SYS first, without which the chip faulted waking from SLEEP (`rp2040.md`, "For
+   the PPK2: SleepPico"); under the power-aware kernel too, at whichever operating point.
+   Checked on the board: the timer events and the deadlines on time, and the current with
+   the PPK2. Done on probe2's Pico (`rp2040.md`, "SLEEP with PLL_SYS stopped"): the timer
+   events' figures unchanged under the hard and power-aware kernels, every event 0 µs
+   late; `TaskLEDPico` 2.18 mA against 5.49 with PLL_SYS running (−60 %), 2.22 and 2.41
+   under OTE and DR_OTE. Alarm 3 kept from the timer events once the sleep takes it, on
+   the RP2350 too, whose port lacked the guard.
+11. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
    it on, fixes only. `EscapementHard.c` must not have changed since 041af76, the commit
    of its week of endurance.
-11. **Endurance on the candidate.** The power-aware kernel a week on probe2's Pico, its
+12. **Endurance on the candidate.** The power-aware kernel a week on probe2's Pico, its
    week of 80cc6dc having run on a kernel changed four times since: that run, meant to
    stop at the freeze as the user decided on 2026-10-07, was stopped on 2026-10-10 at
    4 d 18 h 47 min, no restart, no error, 384 wraps, for task 9's PPK2; the soft kernel a week on the
@@ -200,7 +213,7 @@ task 4 began the same day.
    is done; the hard kernel a week on the NUCLEO-U385RG-Q, a port new to this release,
    its soft kernel's day being that of task 3. A fix to a kernel makes an
    `rc2` and starts that kernel's week again.
-12. **The release.** Its notes, from `git log` since the fork and from this page; the tag
+13. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 
 **Not in 0.1**, open after it: DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
@@ -226,9 +239,8 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    since (`tools/board_ci.md`).
 
 1. **The energy verdict on the RP2040** — in release 0.1 as its task 9, done on
-   2026-10-10 (`power-aware.md`). What stays open of it: the idle task in SLEEP with
-   PLL_SYS stopped, 1.22 mA against 5.07, its clk_sys's auxiliary source moved off the
-   PLL first (`rp2040.md`, "For the PPK2: SleepPico").
+   2026-10-10 (`power-aware.md`), and the idle task in SLEEP with PLL_SYS stopped, its
+   task 10, the same day (`rp2040.md`, "SLEEP with PLL_SYS stopped").
    Build the bench of `power-aware.md`: a plain Pico
    rather than a Pico W, powered and measured by a Power Profiler Kit II, chosen on
    2026-09-24 over an INA226. Then answer whether DVFS beats race-to-sleep. The same bench

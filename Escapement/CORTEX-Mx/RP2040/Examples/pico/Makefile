@@ -73,7 +73,8 @@ ifdef SLEEP_SPEED
    CFLAGS += -DOS_SLEEP_SPEED=$(SLEEP_SPEED)
 endif
 # make SLEEP_GATE=1 has TaskLEDPico and TestTimerEventPico sleep in SLEEP, every clock
-# but the timer's gated (Escapement_SleepGate.c), for the bench: not built by the CI.
+# but the timer's gated and PLL_SYS stopped (Escapement_SleepGate.c), for the bench: not
+# built by the CI.
 ifdef SLEEP_GATE
    CFLAGS += -DSLEEP_GATE
    SLEEPGATE = $(B)/Escapement_SleepGate.o $(B)/Escapement_Core1.o
