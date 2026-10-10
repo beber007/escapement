@@ -399,6 +399,21 @@ Still open: LPUART1 on D0 and D1, which an FTDI TTL-232R-3V3 cable on the UNO Q 
 reach (`LINK_TTY` of `tools/unoq_sleep.py`); the current on JP4, which needs the PPK2
 there (roadmap, task 11).
 
+## The endurance test from the flash
+
+`make FLASH=1` links the examples into the flash (`STM32U3_FLASH.ld`), as on the U5;
+`tools/soak.py` writes such an image through `tools/nucleo_flash.sh`, which reads the
+flash first and writes only what differs. On 2026-10-10, after the day of task 3, from
+the flash: `SoakFirmU3` 10 min, 4,800 mandatory instances a minute, none in error, the
+latest end 4,018 µs into the 5 ms, the link without an error; then `SoakU3` 10 min, 601 s,
+every count at 0, the pulse at most 69 µs late, the link 383,062 bytes without an error.
+Each start found the image before still running from the flash and its reports in the
+port: `tools/soak.py` rejected them, 20 lines and 3 more, their length not the new
+image's, then wrote and started its own. The long run, the service `escapement-soak-u3`,
+has run `SoakU3` from the flash since 20:44 UTC that day, the image of the CI's build
+of c7c8afa, which the flash already held (`ESCAPEMENT-SAME`); `BOARD_CI_U3=1` on the
+bench since then (`board_ci.md`, "The NUCLEO-U385RG-Q").
+
 ## Measuring DVFS
 
 Before a DVFS driver is written for this chip (plan §5; release 0.1, task 11, as the

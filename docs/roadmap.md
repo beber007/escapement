@@ -106,7 +106,7 @@ task 4 began the same day.
    evening `ClockU3` timed the set-up and the PPK2's logic inputs found D7, D8, D12 and
    D13 on their pins. Left to the user's hands: D0 and D1, LPUART1, which need the FTDI
    cable, and the current on JP4, with task 11's measure. `BOARD_CI_U3=1` with task 4.
-4. **The examples from flash, on every board that allows it.** They run from SRAM today,
+4. **The examples from flash, on every board that allows it — done on 2026-10-10.** They run from SRAM today,
    loaded over SWD. From flash, on the Pico, the Pico 2 and the NUCLEO-U575ZI-Q
    (`SleepU5Flash` already does there) and the NUCLEO-U385RG-Q, with what flash brings in: the RP2040's and
    RP2350's execute-in-place cache, the STM32's wait states as the clock changes, DVFS
@@ -144,7 +144,12 @@ task 4 began the same day.
    outcomes, written, held back and failed, checked with stand-ins for the boards. The
    user lifted both caps the same day, the day's and the 1,000 in all, on every board:
    each commit that changes the long run's image writes it, each writing still counted.
-   Left: the NUCLEO-U385RG-Q from its flash on the board, once its run of task 3 ends.
+   Done on 2026-10-10 once task 3's run ended: `SoakFirmU3` and `SoakU3` 10 min each
+   from the NUCLEO-U385RG-Q's flash, written by `tools/soak.py` through
+   `tools/nucleo_flash.sh`, every count at 0, the link without an error
+   (`stm32u3.md`, "The endurance test from the flash"); its long run since, the service
+   `escapement-soak-u3`, `SoakU3` of c7c8afa from the flash, and `BOARD_CI_U3=1` on the
+   bench, which checks it at each commit.
 5. **Every mutant read — done on 2026-10-10.** Of each kernel's survivors at 300 task sets, each one killed
    by a test, declared equivalent with its reason (`test/host/equivalent-mutants.jsonl`),
    or written in `method.md` as a behaviour no test reads and why; the hard kernel's

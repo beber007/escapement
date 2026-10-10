@@ -271,7 +271,8 @@ after the STM32U5 (`BOARD=u3 tools/unoq_check.sh`): `SleepU3` a minute through S
 its long run on, the user service `escapement-soak-u3` in `~/soak-u3`, which posts
 `board/soak-u3`. The ST-LINK is given by `BOARD_CI_U3_SERIAL` and `BOARD_CI_U3_TTY`, the
 OpenOCD by `BOARD_CI_OPENOCD_U3` (below). On 2026-10-09 the check passed by hand, its
-clock 121 ppm fast against NTP's (`stm32u3.md`).
+clock 121 ppm fast against NTP's (`stm32u3.md`). `BOARD_CI_U3=1` has been in the line of
+the service since 2026-10-10, 20:46 UTC, with the board's serial and port.
 
 Its checks run from SRAM, its long run from the flash (decided by the user on
 2026-10-10): the CI's images hold `soak_u3/flash/SoakU3.elf` beside the others, which
