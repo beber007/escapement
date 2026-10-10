@@ -146,13 +146,22 @@ task 4 began the same day.
    not declared. The power-aware kernel's 119 too: 82.6 %, 95.4 % of those not declared.
    Every survivor killed, declared, caught by `tools/check_order.py` on the ARM builds, or
    written in `method.md`, "Mutants: how strong the tests are".
-6. **The documentation against the code.** Each claim of `README.md` set again against
+6. **The mutants further.** Added by the user on 2026-10-10, the day task 5 ended, from
+   what its survivors left: `tools/check_order.py` taught the loads and the event FIFO's
+   posting, which the soft and power-aware kernels' barriers order and it does not
+   follow (soft 111, 122, 124, 508, 540, 542, 544; power-aware 631, 633, 635); why
+   `tools/speed_reference.py` does not see the power-aware kernel's speed saved at the
+   handler's entry left unsaved (106); then scenarios for the narrow ones: the share
+   reserved for events under EDF (soft 199, 203, 204, 206), EDF*'s ties after the
+   wraparound (power-aware 129, 130, 140), a slack pending at the wraparound (143, 144).
+   Task 7 set aside meanwhile, its first part done (6a4f138).
+7. **The documentation against the code.** Each claim of `README.md` set again against
    what checks it (`method.md`, "What the README claims"), on the code as it then is;
    `api.md` stating that the API is not yet stable; the known limits written where a
    reader meets them: an optional instance tested once, DM keeping the count, DVFS worth
    nothing on the STM32U5 and some 10 % on the RP2350, the energy verdict on the RP2040
-   as task 7 finds it.
-7. **The energy verdict on the RP2040.** Added by the user on 2026-10-10, who had left it
+   as task 8 finds it.
+8. **The energy verdict on the RP2040.** Added by the user on 2026-10-10, who had left it
    after this release on 2026-10-07: item 1 below, on its bench, a plain Pico powered and
    measured by the PPK2; whether DVFS beats racing to sleep, and what the same bench
    settles with it (the idle task at 12 or 125 MHz, DRA, DR_OTE and DM_SLACK against OTE,
@@ -160,17 +169,17 @@ task 4 began the same day.
    `power-aware.md` and `rp2040.md` give it open. Needs the user's hands: a plain Pico,
    the bench's being that of the board checks and the Pico W's the endurance run, and the
    PPK2 wired to it.
-8. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
+9. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
    it on, fixes only. `EscapementHard.c` must not have changed since 041af76, the commit
    of its week of endurance.
-9. **Endurance on the candidate.** The power-aware kernel a week on the Pico W, its
+10. **Endurance on the candidate.** The power-aware kernel a week on the Pico W, its
    week of 80cc6dc having run on a kernel changed four times since: that run stops at the
    freeze, as the user decided on 2026-10-07; the soft kernel a week on the
    NUCLEO-U575ZI-Q with the variant of task 2, in parallel, both from flash once task 4
    is done; the hard kernel a week on the NUCLEO-U385RG-Q, a port new to this release,
    its soft kernel's day being that of task 3. A fix to a kernel makes an
    `rc2` and starts that kernel's week again.
-10. **The release.** Its notes, from `git log` since the fork and from this page; the tag
+11. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 
 **Not in 0.1**, open after it: DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
@@ -178,12 +187,7 @@ the PPK2 as a check of each commit on the STM32U5 (item 4); how
 often a wake-up byte of LPUART1 comes out wrong (item 6); testing a dropped optional
 instance again; an exhaustive enumeration of small task sets and fuzzing; a test of
 optional instances by processor demand that counts its own cost, bounded and measured on
-each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`); why
-`tools/speed_reference.py` does not see the speed the power-aware kernel's timer handler
-saves left unsaved, the work of a task dispatched by another's end then scaled by the
-speed before (mutant 106 of `EscapementHardPA.c`, alive at 2,000 sets a build,
-2026-10-10); the event FIFO's posting and `ScheduleNextTask`'s loads in
-`tools/check_order.py`, which follows stores only.
+each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`).
 
 ## Open work, in order
 
@@ -200,7 +204,7 @@ speed before (mutant 106 of `EscapementHardPA.c`, alive at 2,000 sets a build,
    `board/soak`, `board/soak-u5` and `board/soak-nucleo` of each commit give their state
    since (`tools/board_ci.md`).
 
-1. **The energy verdict on the RP2040** — in release 0.1 as its task 7 since 2026-10-10.
+1. **The energy verdict on the RP2040** — in release 0.1 as its task 8 since 2026-10-10.
    Build the bench of `power-aware.md`: a plain Pico
    rather than a Pico W, powered and measured by a Power Profiler Kit II, chosen on
    2026-09-24 over an INA226. Then answer whether DVFS beats race-to-sleep. The same bench
