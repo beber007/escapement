@@ -153,18 +153,24 @@ task 4 began the same day.
    scenarios for the narrow ones: the share
    reserved for events under EDF (soft 199, 203, 204, 206), EDF*'s ties after the
    wraparound (power-aware 129, 130, 140), a slack pending at the wraparound (143, 144).
-   Task 7 set aside meanwhile, its first part done (6a4f138). Done on 2026-10-10: the
+   Task 8 set aside meanwhile, its first part done (6a4f138). Done on 2026-10-10: the
    loads need no rule, `ScheduleNextTask` running in a context not to be saved, and the
    FIFO's barriers keep its order on every build, checked from the disassembly; three
    tests kill six (`method.md`); soft 84.1 %, 96.7 % of those not declared, power-aware
    83.0 %, 96.4 %.
-7. **The documentation against the code.** Each claim of `README.md` set again against
+7. **The power-aware kernel against its reference under DRA.** Added by the user on
+   2026-10-10: set 19989 of `pa_dra` (seed 1), found by task 6's search at 20,000 task
+   sets, has a task with one tick of work left resume at 4674 at speed 1 where
+   `tools/speed_reference.py` gives the fastest, no deadline missed. Which of the two is
+   wrong, read in the code and in the ZottaOS manual; corrected with the user's agreement
+   if it is the kernel, and the set kept by `tools/differential.py` once both agree.
+8. **The documentation against the code.** Each claim of `README.md` set again against
    what checks it (`method.md`, "What the README claims"), on the code as it then is;
    `api.md` stating that the API is not yet stable; the known limits written where a
    reader meets them: an optional instance tested once, DM keeping the count, DVFS worth
    nothing on the STM32U5 and some 10 % on the RP2350, the energy verdict on the RP2040
-   as task 8 finds it.
-8. **The energy verdict on the RP2040.** Added by the user on 2026-10-10, who had left it
+   as task 9 finds it.
+9. **The energy verdict on the RP2040.** Added by the user on 2026-10-10, who had left it
    after this release on 2026-10-07: item 1 below, on its bench, a plain Pico powered and
    measured by the PPK2; whether DVFS beats racing to sleep, and what the same bench
    settles with it (the idle task at 12 or 125 MHz, DRA, DR_OTE and DM_SLACK against OTE,
@@ -172,17 +178,17 @@ task 4 began the same day.
    `power-aware.md` and `rp2040.md` give it open. Needs the user's hands: a plain Pico,
    the bench's being that of the board checks and the Pico W's the endurance run, and the
    PPK2 wired to it.
-9. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
+10. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
    it on, fixes only. `EscapementHard.c` must not have changed since 041af76, the commit
    of its week of endurance.
-10. **Endurance on the candidate.** The power-aware kernel a week on the Pico W, its
+11. **Endurance on the candidate.** The power-aware kernel a week on the Pico W, its
    week of 80cc6dc having run on a kernel changed four times since: that run stops at the
    freeze, as the user decided on 2026-10-07; the soft kernel a week on the
    NUCLEO-U575ZI-Q with the variant of task 2, in parallel, both from flash once task 4
    is done; the hard kernel a week on the NUCLEO-U385RG-Q, a port new to this release,
    its soft kernel's day being that of task 3. A fix to a kernel makes an
    `rc2` and starts that kernel's week again.
-11. **The release.** Its notes, from `git log` since the fork and from this page; the tag
+12. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 
 **Not in 0.1**, open after it: DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
@@ -190,11 +196,7 @@ the PPK2 as a check of each commit on the STM32U5 (item 4); how
 often a wake-up byte of LPUART1 comes out wrong (item 6); testing a dropped optional
 instance again; an exhaustive enumeration of small task sets and fuzzing; a test of
 optional instances by processor demand that counts its own cost, bounded and measured on
-each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`); and,
-found on 2026-10-10 at 20,000 task sets, set 19989 of `pa_dra` (seed 1): a task with one
-tick of work left resumed at 4674 at speed 1 where `tools/speed_reference.py` gives the
-fastest, no deadline missed; the kernel or the reference to be read, the trace harness
-giving each event-driven task its own share where the API asks for the total.
+each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`).
 
 ## Open work, in order
 
@@ -211,7 +213,7 @@ giving each event-driven task its own share where the API asks for the total.
    `board/soak`, `board/soak-u5` and `board/soak-nucleo` of each commit give their state
    since (`tools/board_ci.md`).
 
-1. **The energy verdict on the RP2040** — in release 0.1 as its task 8 since 2026-10-10.
+1. **The energy verdict on the RP2040** — in release 0.1 as its task 9 since 2026-10-10.
    Build the bench of `power-aware.md`: a plain Pico
    rather than a Pico W, powered and measured by a Power Profiler Kit II, chosen on
    2026-09-24 over an INA226. Then answer whether DVFS beats race-to-sleep. The same bench
