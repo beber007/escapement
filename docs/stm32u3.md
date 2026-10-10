@@ -79,7 +79,8 @@ The examples are those of the U5: `TaskLEDU3`, `UARTEchoU3`, `TestTimerEventU3`,
 idle task of Stop 2 installed. `ClockU3` times the clock set-up on the board, the backup
 domain reset first so that the LSE starts as after a power-on: the port reads the DWT's
 cycle counter at each step when built with `OS_CLOCK_TIMES`, which only its image is,
-every other left byte for byte as it was. The outputs are D7 (PA8), D8 (PC7), D12 (PA6)
+every other left byte for byte as it was. `DVFSU3Flash`, with no kernel, steps through
+the operating points for the PPK2 ("Measuring DVFS"). The outputs are D7 (PA8), D8 (PC7), D12 (PA6)
 and D13 (PA5, also LD2). `SoakU3` reports on USART1. It adds to word 93 of its results
 whether the MSI ever locked (bit 24), beside the count of relocks. Every example builds
 with `-Wall` and no warning, with the hard and the soft kernel under both algorithms, at
@@ -378,6 +379,51 @@ logic inputs will read under `TaskLEDU3` (`tools/ppk2_nucleo.py pins`), and LPUA
 D0 and D1, which an FTDI TTL-232R-3V3 cable on the UNO Q will reach (`LINK_TTY` of
 `tools/unoq_sleep.py`), both once wired; erratum 2.2.1, which the relock
 count of a long run will tell; the current on JP4, which needs the PPK2.
+
+## Measuring DVFS
+
+Before a DVFS driver is written for this chip (plan §5), the PPK2 is to say whether it
+would gain anything, as it said on the STM32U5 that it would not (`power-aware.md`). The
+datasheet (DS14830 rev. 2, CoreMark on the SMPS at 3.3 V, typical figures, as the plan
+read them) gives 16.1 µA/MHz at 96 MHz in range 1 and 12.9 at 48 MHz in range 2, 20 %
+less a cycle: range 2 is 0.75 V typical against range 1's 0.9 (RM0487, 9.3.3, p. 333).
+On the U5 the datasheet's figures favoured the slower clock too, and the board did not.
+
+`DVFSU3.c` (`DVFSU3Flash.elf`, written on 2026-10-10, not yet run on the board) computes
+without a pause, a CRC-32 checked against the first, 20 s of LPTIM1 at each of eight
+points: 96 MHz in range 1; 48 MHz in range 1 and in range 2, the voltage alone between
+them; 24 MHz in range 1, in range 2, and in range 2 with the booster on, what the booster
+draws by itself; 12 MHz in range 1 and in range 2. The eight on the SMPS, then on the
+LDO, and round again, 320 s a round. No kernel: the port's clock set-up at 12 MHz, then
+each point by the sequences of 9.3.3, each change of range, booster, divider and
+regulator timed in cycles of the DWT. D7, D8 and D12 give the point to the PPK2's D0 to
+D2; a line on USART1 at the end of each phase gives the regulator, the point, the CRCs
+computed and those wrong, and the times. `escapement_u3.robot` runs it at 1 ms a point
+(`DVFSU3Short`): 16 points, every CRC right, no rule of the platform broken; 96 MHz
+without the booster, tried on purpose, broke one.
+
+The order, on the bench of "The current on JP4" below:
+
+1. The pins first, untested on this board: the PPK2's D0 to D3 on D7, D8, D12 and D13,
+   its VCC on the board's 3V3, GND on its ground, JP4 fitted, `TaskLEDU3` loaded, then
+   `PPK2_PINS=D7:10000,D8:20000,D12:2000,D13:60000 tools/ppk2_nucleo.py pins 10`.
+2. `DVFSU3Flash.elf` written with JP4 fitted (`NUCLEO_MCU=u385 tools/nucleo_flash.sh
+   build/DVFSU3Flash.elf`, one writing of the budget).
+3. CN1 unplugged, the PPK2 in place of JP4, its VIN on the pin from the board's 3V3, D3
+   off D13; CN1 plugged back, the image starting from the flash with no debugger since.
+4. Two rounds, the lines of USART1 kept beside:
+   `PPK2_PHASES=96R1,48R1,48R2,24R1,24R2,24R2B,12R1,12R2 tools/ppk2_nucleo.py phases 700`
+   and `cat` of the ST-LINK's virtual COM port meanwhile. The phases come in order, the
+   first eight of each round on the SMPS, the next eight on the LDO; the means by level
+   at the end mix both, the rows of each phase do not.
+
+From each phase: its median current, the charge a cycle (the current over the
+frequency), and the charge a CRC (the current times 20 s over the CRCs counted), which
+counts the wait states and anything else the clock does not. DVFS gains if 48 MHz in
+range 2 costs less a CRC than 96 MHz in range 1 by more than the Stop 2 it gives up: a
+given work done at 96 MHz and followed by Stop 2 against the same work spread at 48.
+If word 9 reads 1, REGS never followed REGSEL: the package has no SMPS, and every phase
+ran on the LDO.
 
 ## What only the board can decide
 

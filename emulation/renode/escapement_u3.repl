@@ -40,6 +40,7 @@
 //                     (caution, p. 351; table 416, p. 1685)
 //              bit 8  Stop 2 entered with USART1 enabled, which does not run there (table
 //                     563, note 1, p. 2406)
+//              bit 9  BOOSTEN cleared with the MSIS above 24 MHz (p. 333-334)
 //   FLASH 0x3FC bit 0 LATENCY set below what the MSIS needs in its range (table 43)
 // The ready flags come some reads after their enable: R1RDY and R2RDY 4 reads of
 // PWR_VOSR, BOOSTRDY 2, so that a booster ready says nothing of the range; LSERDY 3
@@ -55,7 +56,8 @@
 // if it was at 96, the MSIS and the MSIK ready 2 reads of RCC_CR later, MSIPLL0RDY
 // cleared and set again after the reads of RCC_CR written at RCC 0x3EC, 8 by default, at
 // once with MSIPLL0FAST once the mode has locked, HSION cleared, SW set from STOPWUCK.
-// PWR 0x3F0 reads the Stop 2 entered. RCC_CFGR1 reads SWS as SW.
+// PWR 0x3F0 reads the Stop 2 entered. RCC_CFGR1 reads SWS as SW. PWR_SVMSR reads REGS
+// as PWR_CR3's REGSEL, as on a package with the SMPS (p. 367, 376).
 //
 // So the platform checks the order the port writes in and that it waits, not the times
 // or the frequencies: a booster that takes too long, a crystal that needs another drive,
@@ -324,6 +326,8 @@ elif request.IsRead:
         request.Value = wakemode
     elif r == 0x3F0:
         request.Value = stops
+    elif r == 0x3C:
+        request.Value = regs.get(0x08, 0) & 2
     elif r == 0x3F8 or r == 0x0C:
         v = regs[0x0C] & 0x103
         if r == 0x0C and rangecount > 0:
@@ -366,6 +370,10 @@ else:
                 if not bus.ReadDoubleWord(0x40030C00 + 0x028) & 3:
                     viol |= 1 << 2
                 boostcount = 2
+            if (old & (1 << 8)) and not (v & (1 << 8)):
+                i = bus.ReadDoubleWord(0x40030C00 + 0x008)
+                if (i >> 23) & 1 and not (i >> 31) & 1 and ((i >> 29) & 3) <= 1:
+                    viol |= 1 << 9
             regs[0x0C] = en | (v & (1 << 8))
         elif r == 0x38:
             if v & 1:

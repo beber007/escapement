@@ -62,6 +62,10 @@ endif
 ifdef WAKE
    CFLAGS += -DSLEEP_WAKE_B=$(WAKE)u
 endif
+# make DVFS_PHASE_S=n: DVFSU3Flash n seconds at each point rather than 20 (DVFSU3.c).
+ifdef DVFS_PHASE_S
+   CFLAGS += -DDVFS_PHASE_S=$(DVFS_PHASE_S)u
+endif
 # make PHASES=30 RUN=80000: the second phase computes for 80,000 us of each instance, the
 # current of the core running (SleepU3.c).
 ifdef RUN
@@ -83,7 +87,7 @@ $(shell mkdir -p $(B))
 
 EXAMPLES = TaskLEDU3 UARTEchoU3 TestTimerEventU3 TaskWrapU3 IPCU3 SoakU3 StackGuardU3 \
            TestLPTimerU3 SleepU3 SleepFastU3 SleepWrapU3 Stop2EventWrapU3 SoakStop2U3 ClockU3 \
-           SleepU3Flash
+           SleepU3Flash DVFSU3Flash DVFSU3Short
 
 # The soft kernel adds SoakFirmU3, SoakU3 with an (m,k)-firm task whose optional instances
 # the kernel drops under load (SoakU3.c).
@@ -178,6 +182,21 @@ $(B)/SleepU3Flash.elf : $(filter-out $(B)/Escapement_RamEntry.o,$(COMMON)) \
                          $(B)/Escapement_LPTimer.o $(B)/Escapement_Stop2.o \
                          $(B)/Escapement_UARTLink.o $(B)/Escapement_TimerEvent.o \
                          $(B)/SleepU3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T../../STM32U3_FLASH.ld -lgcc
+# The operating points for the PPK2, before a DVFS driver (DVFSU3.c): no kernel, the
+# port's clock set-up at 12 MHz in range 2 whatever MHZ says, linked into the flash for
+# the power cycle the measurement needs, as SleepU3Flash.
+$(B)/Escapement_Processor12.o : ../../Escapement_Processor.c
+	$(CC) $(filter-out -DOS_SYSTEM_CLOCK_HZ=%,$(CFLAGS)) -DOS_SYSTEM_CLOCK_HZ=12000000u \
+	      $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/DVFSU3Flash.elf : $(filter-out $(B)/Escapement_RamEntry.o $(B)/Escapement_Processor.o,$(COMMON)) \
+                        $(B)/Escapement_Processor12.o $(B)/Escapement_LPTimer.o $(B)/DVFSU3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T../../STM32U3_FLASH.ld -lgcc
+# The same, 1 ms a point, for escapement_u3.robot.
+$(B)/DVFSU3Short.o : DVFSU3.c
+	$(CC) $(CFLAGS) -DDVFS_PHASE_TICKS=33u $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/DVFSU3Short.elf : $(filter-out $(B)/Escapement_RamEntry.o $(B)/Escapement_Processor.o,$(COMMON)) \
+                        $(B)/Escapement_Processor12.o $(B)/Escapement_LPTimer.o $(B)/DVFSU3Short.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T../../STM32U3_FLASH.ld -lgcc
 # The steps of the clock set-up timed, OS_CLOCK_TIMES, for ClockU3 alone.
 $(B)/Escapement_ProcessorTimed.o : ../../Escapement_Processor.c

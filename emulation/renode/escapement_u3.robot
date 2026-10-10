@@ -619,8 +619,8 @@ The platform catches a wake-up from Stop 2 that breaks the manual's rules
     # (5), while the MSIS is not ready (8), before the lock (9).
     Should Be Equal As Integers  ${in_rcc}  0x338
     # Stop 2 from 96 MHz without the booster (5), another Stop mode (6), TIM2 counting (7),
-    # USART1 enabled (8).
-    Should Be Equal As Integers  ${in_pwr}  0x1E0
+    # USART1 enabled (8), the booster cleared at 96 MHz (9).
+    Should Be Equal As Integers  ${in_pwr}  0x3E0
 
 The probe task runs every millisecond
     [Documentation]           TaskLEDU3 toggles D12, PA6, from a task of period 1000 ticks of the
@@ -839,3 +839,24 @@ The endurance test reports on USART1 and counts the bursts of the link
     Should Be Equal As Integers  ${errors}  0
     Should Be Equal As Integers  ${{ ${burst} >> 24 }}  3
     Should Be Equal As Integers  ${{ len($line.Line.split()) }}  29
+
+The operating points of DVFSU3 keep to the manual's sequences
+    [Documentation]           DVFSU3Short, the bench of the operating points (DVFSU3.c) at 1 ms of
+    ...                       LPTIM1 a point: the eight points on the SMPS, then on the LDO, each
+    ...                       reached from the one before by the sequences of RM0487 (9.3.3), no
+    ...                       rule of the platform broken, the regulator followed by REGS, and
+    ...                       every CRC right. One line on USART1 a point, its words the
+    ...                       regulator, the point, the CRCs and those wrong.
+    Load Escapement           DVFSU3Short
+    ${usart1}=                Create Terminal Tester  sysbus.usart1  defaultPauseEmulation=true
+    FOR  ${i}  IN RANGE  16
+        ${line}=              Wait For Line On Uart  DVFS3  timeout=1  testerId=${usart1}
+        ${words}=             Evaluate  $line.Line.split()
+        Should Be Equal As Integers  ${{ int($words[1], 16) }}  ${{ 1 - ${i} // 8 }}
+        Should Be Equal As Integers  ${{ int($words[2], 16) }}  ${{ ${i} % 8 }}
+        Should Be True        ${{ int($words[3], 16) }} > 0
+        Should Be Equal As Integers  ${{ int($words[4], 16) }}  0
+        Should Be Equal As Integers  ${{ int($words[9], 16) }}  0
+    END
+    Log To Console            ${line.Line}
+    No Rule Broken
