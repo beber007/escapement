@@ -226,10 +226,13 @@ task 4 began the same day.
    the soft kernel on the NUCLEO-U575ZI-Q with the variant of task 2, in parallel, both
    from flash once task 4 is done; the hard kernel on the NUCLEO-U385RG-Q, a port new to
    this release, its soft kernel's day being that of task 3. A fix to a kernel makes an
-   `rc2` and starts that kernel's run again. The RP2350 has never had a week, and its
-   port changed on 2026-10-10 (the guard of alarm 3, task 10): the user decided the same
-   day, the rule still a week, to keep it in 0.1 without one, which the notes are to
-   say, a departure from rule 3.
+   `rc2` and starts that kernel's run again. The RP2350, which has never had a run of
+   its own and whose port changed on 2026-10-10 (the guard of alarm 3, task 10), too:
+   `SoakPico2` 24 hours on probe3's Pico 2, as the user decided the same day once the
+   run was cut to a day, in place of keeping it without one. Probe3 carries the board
+   check of each commit, `board/pico2`: the run holds `lock-probe3`, and the board CI
+   skips the Pico 2 meanwhile, as it skipped probe2's Pico during its runs
+   (`board_ci.md`).
 14. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 
