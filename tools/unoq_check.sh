@@ -43,10 +43,8 @@
 # With an image of the long run linked into the flash beside the checked one,
 # flash/<image> (the NUCLEO-U385RG-Q's, tools/board_images.sh), the checks still run from
 # SRAM and the long run goes on from the flash: tools/nucleo_flash.sh writes it there only
-# if it differs, most commits leaving the firmware alone, and at most once in 24 hours
-# ($NUCLEO_FLASH_PER_DAY, 1 by default, as the user decided on 2026-10-09: some 365
-# writings a year of a flash that takes 10,000). A writing held back by that cap leaves the
-# long run on its image and commit, the flash still holding them.
+# if it differs, most commits leaving the firmware alone. Once in 24 hours at most until
+# the user lifted that cap on 2026-10-10: each commit that changes the image writes it.
 set -u
 
 ELF=$1
@@ -138,13 +136,11 @@ LONG=$ELF
 carry=$ok
 FLASH_ELF=$(dirname "$ELF")/flash/$IMAGE
 if [ -n "$ok" ] && [ -f "$UNIT" ] && [ -f "$FLASH_ELF" ]; then
-    NUCLEO_FLASH_PER_DAY=${NUCLEO_FLASH_PER_DAY:-1} sh "$HERE/nucleo_flash.sh" "$FLASH_ELF"
-    case $? in
-        0) LONG=$FLASH_ELF ;;
-        3) echo "the long run stays on its commit, its image held back from the flash"
-           carry="" ;;
-        *) ok="" carry="" ;;
-    esac
+    if sh "$HERE/nucleo_flash.sh" "$FLASH_ELF"; then
+        LONG=$FLASH_ELF
+    else
+        ok="" carry=""
+    fi
 fi
 
 if [ -n "$carry" ] && [ -f "$UNIT" ]; then

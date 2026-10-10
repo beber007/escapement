@@ -141,7 +141,9 @@ task 4 began the same day.
    NUCLEO-U575ZI-Q, as before; on the NUCLEO-U385RG-Q the check stays in SRAM and the
    long run it carries on goes from the flash, written only when the commit's image
    differs, once in 24 hours at most (`tools/unoq_check.sh`, `board_ci.md`); its three
-   outcomes, written, held back and failed, checked with stand-ins for the boards.
+   outcomes, written, held back and failed, checked with stand-ins for the boards. The
+   user lifted both caps the same day, the day's and the 1,000 in all, on every board:
+   each commit that changes the long run's image writes it, each writing still counted.
    Left: the NUCLEO-U385RG-Q from its flash on the board, once its run of task 3 ends.
 5. **Every mutant read — done on 2026-10-10.** Of each kernel's survivors at 300 task sets, each one killed
    by a test, declared equivalent with its reason (`test/host/equivalent-mutants.jsonl`),

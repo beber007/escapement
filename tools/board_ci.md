@@ -276,9 +276,9 @@ clock 121 ppm fast against NTP's (`stm32u3.md`).
 Its checks run from SRAM, its long run from the flash (decided by the user on
 2026-10-10): the CI's images hold `soak_u3/flash/SoakU3.elf` beside the others, which
 `tools/unoq_check.sh` writes through `tools/nucleo_flash.sh` once the check passed, only
-if it differs from what the flash holds, and at most once in 24 hours; a writing held
-back by that cap leaves the long run on its commit. The writings are counted in
-`~/.local/state/escapement/flash-<serial>`. The NUCLEO-U575ZI-Q has no check of each
+if it differs from what the flash holds. The writings are counted in
+`~/.local/state/escapement/flash-<serial>`, for the wear to be read; the cap of one in
+24 hours, and of 1,000 in all, the user lifted on 2026-10-10. The NUCLEO-U575ZI-Q has no check of each
 commit: its long runs are started by hand, from its flash too.
 
 ```sh

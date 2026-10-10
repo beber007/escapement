@@ -427,7 +427,7 @@ The order, on the bench of "The current on JP4" below:
    its VCC on the board's 3V3, GND on its ground, JP4 fitted, `TaskLEDU3` loaded, then
    `PPK2_PINS=D7:10000,D8:20000,D12:2000,D13:60000 tools/ppk2_nucleo.py pins 10`.
 2. `DVFSU3Flash.elf` written with JP4 fitted (`NUCLEO_MCU=u385 tools/nucleo_flash.sh
-   build/DVFSU3Flash.elf`, one writing of the budget).
+   build/DVFSU3Flash.elf`, one writing of the flash, counted).
 3. CN1 unplugged, the PPK2 in place of JP4, its VIN on the pin from the board's 3V3, D3
    off D13; CN1 plugged back, the image starting from the flash with no debugger since.
 4. Two rounds, the lines of USART1 kept beside:
