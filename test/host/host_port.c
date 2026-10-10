@@ -153,8 +153,8 @@ void _OSIOHandler(void) { }
 int HostMallocFill = 0xA5;
 int HostMallocBudget = -1;       /* allocations left before OSMalloc fails, -1 for no limit */
 /* The target's first call sets the base the context switch starts each stack at, the end of
-** its RAM; never set, the first switch would start the stack at 0. */
-void *_OSStackBasePointer = NULL;
+** its RAM; never set, the first switch would start the stack at 0. The kernels define it. */
+extern void *_OSStackBasePointer;
 static UINT32 HostEndRAM;
 void *OSMalloc(UINT16 size)
 {
