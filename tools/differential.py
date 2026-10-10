@@ -845,8 +845,10 @@ def self_test():
 # Sets beyond the 300 a run draws that once caught a fault no run of 300 did, checked by
 # every run of their build: (build, seed, number). A mutant of the power-aware kernel
 # that left EDF*'s arrival times unshifted in the ready queue at the wraparound broke a
-# tie the wrong way in the first of them (tools/mutants.py at 2,000 sets, 2026-10-10).
-KEPT = [("pa_dra", 1, 1200)]
+# tie the wrong way in the first of them (tools/mutants.py at 2,000 sets); the second
+# failed the kernel, and the fault was the reference's, which served a periodic release
+# and a signal of the same instant in one pass of the handler (at 20,000), 2026-10-10.
+KEPT = [("pa_dra", 1, 1200), ("pa_dra", 1, 19989)]
 
 
 def nth_set(build, seed, n, rng=None):

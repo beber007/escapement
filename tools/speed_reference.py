@@ -181,7 +181,20 @@ def check_speeds(build, tasks, trace, releases, wrap=None):
             while todo and todo[0][1] == r:
                 batch.append(todo.pop(0))
             if policy in ("DRA", "DR_OTE"):
-                handler(r, batch)
+                # The timer's handler serves the releases of its interrupt in one pass,
+                # then each signal of the same instant raises an interrupt of its own and
+                # a pass of its own, as on the host (test/host, RunTimedUntil): the first
+                # pass brings the simulation up to date, and counts the excess since the
+                # last update, before a signal sets the server's deadline. Served in one
+                # pass, that excess was lost, and the reference ran a task faster than
+                # the kernel (set 19989 of pa_dra, 2026-10-10).
+                signalled = sorted((x for x in batch if tasks[x[0]]["kind"] == "E" and
+                                    signal_of[(x[0], x[1])] == r), key=lambda x: x[0])
+                timer = [x for x in batch if x not in signalled]
+                if timer:
+                    handler(r, timer)
+                for x in signalled:
+                    handler(r, [x])
                 continue
             for i, r, d, _, _ in batch:
                 ready[i] = [r, d, Fraction(tasks[i]["takes" if tasks[i]["kind"] == "E"

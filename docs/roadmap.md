@@ -158,12 +158,15 @@ task 4 began the same day.
    FIFO's barriers keep its order on every build, checked from the disassembly; three
    tests kill six (`method.md`); soft 84.1 %, 96.7 % of those not declared, power-aware
    83.0 %, 96.4 %.
-7. **The power-aware kernel against its reference under DRA.** Added by the user on
+7. **The power-aware kernel against its reference under DRA — done on 2026-10-10.** Added by the user on
    2026-10-10: set 19989 of `pa_dra` (seed 1), found by task 6's search at 20,000 task
    sets, has a task with one tick of work left resume at 4674 at speed 1 where
    `tools/speed_reference.py` gives the fastest, no deadline missed. Which of the two is
    wrong, read in the code and in the ZottaOS manual; corrected with the user's agreement
    if it is the kernel, and the set kept by `tools/differential.py` once both agree.
+   The reference was wrong: it served a periodic release and a signal of one instant in
+   one pass of the handler, where the host makes two, and lost the server's excess that
+   the first counts; corrected, the set kept (`method.md`).
 8. **The documentation against the code.** Each claim of `README.md` set again against
    what checks it (`method.md`, "What the README claims"), on the code as it then is;
    `api.md` stating that the API is not yet stable; the known limits written where a

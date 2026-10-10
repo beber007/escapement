@@ -478,9 +478,16 @@ moved after the call, and a field of the descriptor written after it (soft 508, 
   left out when the server's last deadline lay ahead (soft 203).
 
 EDF*'s ties in the simulation queue after the wraparound (power-aware 129, 130, 140) ran
-at 20,000 task sets a build: the first set that failed them, 19989 of `pa_dra`, fails the
-kernel as well, a speed below the reference's (roadmap, the open list), and kills
-nothing. They stay written, as soft 199, 204 and 206, a share computed short by less
+at 20,000 task sets a build: the first set that failed them, 19989 of `pa_dra`, failed
+the kernel as well, a speed below the reference's, and killed nothing. Read as task 7,
+the fault was the reference's: a periodic release and a signal at one instant, the
+kernel's handler serves them in two passes on the host, an interrupt each, the first
+bringing DRA's simulation up to date and counting the server's excess since the last
+update, 2 ticks there, before the signal sets the server's deadline; the reference
+served both in one pass, the signal first setting that deadline, and lost the excess,
+a task with one tick of work left then due at the fastest speed where the kernel, rightly,
+took the slack. The reference serves each signal in a pass of its own since, and
+`tools/differential.py` keeps the set. They stay written, as soft 199, 204 and 206, a share computed short by less
 than a tick or at 1/256, which the reservation's own pessimism covers in the cases set
 up. The scores then: hard 87.6 %, 97.0 % of those not declared; soft 84.1 % (609 of
 724), 96.7 % of the 630 not declared; power-aware 83.0 % (663 of 799), 96.4 % of the 688
