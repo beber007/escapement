@@ -24,7 +24,8 @@ by default), loaded by tools/nucleo_load.sh: a long run on a board of its own, w
 checks of each commit on the UNO Q do not interrupt. A NUCLEO-U385RG-Q runs SoakU3 of
 Examples/nucleo-u385 the same way, with the same reports; plugged in beside the other, it
 is named by $NUCLEO_TTY and $NUCLEO_SERIAL, and loaded by the OpenOCD $OPENOCD names,
-newer than 0.12 (tools/board_ci.md).
+newer than 0.12 (tools/board_ci.md). An image of a NUCLEO linked into its flash (make
+FLASH=1) is written and started by tools/nucleo_flash.sh instead, beside this script.
 
 Each reading appends a line to the log (BOARD_SOAK_LOG, soak-<board>-<date>.log in the
 current directory by default): the seconds run by the firmware, the wraps of the kernel
@@ -36,8 +37,9 @@ its errors and overruns, the causes of reset and the times the MSIS was locked a
 
 The test runs to its end whatever it finds. A reading whose marker is gone, whose
 seconds went back, or, on the UNO Q, no report for 10 s, has seen the board restart,
-into its firmware in flash since the image runs from SRAM: it is logged, the image is
-loaded again, and the counts start over. Errors counted are added up across restarts, as
+into its firmware in flash since the image runs from SRAM, or into the image itself
+when it runs from a NUCLEO's flash: it is logged, the image is loaded again, and the
+counts start over. Errors counted are added up across restarts, as
 is a part that did not move between two readings, or seconds that fell behind the time
 that passed. The test passes if none of these happened.
 
@@ -474,6 +476,16 @@ class Nucleo(UnoQ):
     byte_us = 10e6 / 115200
     bridge = []
     loader = "nucleo_load.sh"
+
+    def __init__(self, elf):
+        # An image linked into the flash (make FLASH=1) is started by tools/nucleo_flash.sh,
+        # which writes it only if the flash holds another: a restart of the board runs it
+        # again by itself, and loading it again only resets the board.
+        with open(elf, "rb") as f:
+            entry = int.from_bytes(f.read(0x1C)[0x18:0x1C], "little")
+        if 0x08000000 <= entry < 0x10000000:
+            self.loader = "nucleo_flash.sh"
+        super().__init__(elf)
 
 
 class NucleoU3(Nucleo):

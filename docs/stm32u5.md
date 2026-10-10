@@ -596,6 +596,23 @@ segment of the ELF, the data in SRAM included, so the copy from the flash is the
 to check: on the NUCLEO on 2026-10-03, programmed with OpenOCD's `program`, it ran from a
 reset with no debugger, 280 instances, 533 entries into Stop 2, none late.
 
+### The endurance test from the flash (2026-10-10)
+
+`make FLASH=1` links every example of `Examples/nucleo-u575` into the flash, in
+`build-flash/`; `tools/nucleo_flash.sh` writes one only if the flash holds another, and
+counts each writing on the bench (roadmap, task 4). `tools/soak.py nucleo` takes such an
+image by its entry point, in the flash: it starts it, and starts it again after a
+restart, through `tools/nucleo_flash.sh`, which then writes nothing and resets the board.
+On the NUCLEO on 2026-10-10, the run of task 2 ended: `SoakFirmU5` (`KERNEL=SOFT`)
+written, then found the same at a second call, nothing written; 10 min from 06:47 UTC,
+every count at 0, the latest pulse 48 µs late, the (m,k)-firm task's latest end 3,863 µs
+into its 5 ms, the link 384,379 bytes and no error. `SoakU5` of the hard kernel written,
+started again by `soak.py`'s loader without a writing, then 10 min from 06:58 UTC: every
+count at 0, the latest pulse 42 µs late, 387,198 bytes of the link and no error. From
+SRAM over 24 h the pulse was up to 56 µs late, the firm task's end up to 4,016 µs: ten
+minutes from the flash decide no difference, and the week of the release is to run from
+there. Two writings counted on the bench.
+
 ### The NUCLEO's MCU measured with a PPK2 (2026-10-03)
 
 A Nordic PPK2, firmware 1.2.4, is on the UNO Q's hub, read by `tools/ppk2_nucleo.py`

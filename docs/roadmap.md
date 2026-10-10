@@ -125,7 +125,11 @@ task 4 began the same day.
    the endurance, and takes a cap a day, `NUCLEO_FLASH_PER_DAY`: the board CI is to set
    it to 1, as the user decided on 2026-10-09, its other checks staying in SRAM, some 365
    writings a year. Its paths checked on 2026-10-09 against a stand-in for OpenOCD, its
-   Tcl in OpenOCD; not yet on a board.
+   Tcl in OpenOCD. On the NUCLEO-U575ZI-Q on 2026-10-10, its run of task 2 ended: both
+   paths on the board, a writing and an image found the same; `tools/soak.py` starts an
+   image linked into the flash through it; `SoakFirmU5` and `SoakU5` 10 min each from
+   the flash, every count at 0 (`stm32u5.md`, "The endurance test from the flash"). Left:
+   the NUCLEO-U385RG-Q, once its run of task 3 ends; the board CI.
 5. **Every mutant read.** Of each kernel's survivors at 300 task sets, each one killed
    by a test, declared equivalent with its reason (`test/host/equivalent-mutants.jsonl`),
    or written in `method.md` as a behaviour no test reads and why; the hard kernel's
