@@ -717,7 +717,10 @@ def main():
             board.start(reload=True)
             previous = None
     else:
-        board.start()
+        # A new run takes the board as it finds it, the image just loaded by the board
+        # CI's check; BOARD_SOAK_RELOAD loads its own first, for runs one after the other
+        # on one board (tools/endurance.sh), where the image found is the one before.
+        board.start(reload=bool(os.environ.get("BOARD_SOAK_RELOAD")))
         start = time.time()
         write(f"{board.name} {status.sha or '(no commit)'}, {time.ctime()}, {span}, "
               f"read every {interval} s, {elf}", True)

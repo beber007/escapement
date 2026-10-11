@@ -28,7 +28,7 @@ for kernel in hard soft pa; do
     elf=$DIR/$PLATFORM-$kernel.elf
     [ -f "$elf" ] || continue
     echo "$(date -u '+%Y-%m-%d %H:%M:%S') $PLATFORM $kernel: $elf"
-    BOARD_SOAK_SHA=$SHA BOARD_SOAK_CONTEXT=endurance/$PLATFORM-$kernel \
+    BOARD_SOAK_SHA=$SHA BOARD_SOAK_CONTEXT=endurance/$PLATFORM-$kernel BOARD_SOAK_RELOAD=1 \
     BOARD_SOAK_LOG=$DIR/$PLATFORM-$kernel.log \
         python3 "$HERE/soak.py" "$KIND" "$DURATION" 1m "$elf" || failed="$failed $kernel"
 done

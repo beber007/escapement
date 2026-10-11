@@ -275,7 +275,8 @@ task 4 began the same day.
    tools task 14 needs went in first, as the user agreed on 2026-10-11, so that the
    candidate carries what tests it: `tools/soak.py` runs a Pico from its flash and drives
    a Pico 2 (`pico2`), each checked on its board for 3 minutes, and `tools/endurance.sh`
-   runs one platform's kernels in turn, each under a status of its own. From
+   runs one platform's kernels in turn, each under a status of its own. **Done on
+   2026-10-11**: `v0.1.0-rc1` on c0ff963, its CI and its four board checks passed. From
    it on, fixes only. (Until the runs of task 14 took every kernel again, `EscapementHard.c`
    was to stay as it was at 041af76, the commit of its week.)
 14. **Endurance on the candidate**: 8 hours for each kernel on each platform, as the
@@ -293,7 +294,12 @@ task 4 began the same day.
    week on the Pico at 041af76, the power-aware kernel's 4 d 18 h 47 min at 80cc6dc
    (stopped on 2026-10-10 for task 9's PPK2, no restart, no error, 384 wraps), the soft
    kernel's day on each NUCLEO board (tasks 2 and 3). A fix to a kernel makes an `rc2`
-   and starts that kernel's runs again on every platform.
+   and starts that kernel's runs again on every platform. Begun on 2026-10-11 at 14:27
+   UTC, the ten images built from the tag, `tools/endurance.sh` on each platform. The two
+   NUCLEO boards took over the image they were running instead of the tag's, `soak.py`
+   loading a NUCLEO only if it is silent; stopped two minutes in, both started again at
+   14:29 with `BOARD_SOAK_RELOAD`, which `endurance.sh` sets since (a fix to the tools
+   alone, its commit held back so as not to start the board CI meanwhile).
 15. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 
