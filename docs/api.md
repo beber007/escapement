@@ -130,14 +130,19 @@ processor at or above an operating point (`OS_12MHZ_SPEED`, `OS_50MHZ_SPEED`,
 
 ### When an instance overruns
 
-Every kernel assumes that each mandatory instance ends before its task's next release: a
-load of 100 % at most, each task within its declared `wcet` (the soft and power-aware
-kernels) or its period (the hard kernel). If an instance is still unfinished when its
-task is released again, the kernel takes it for an overload, disables interrupts and
-loops for ever in its timer interrupt (`while (TRUE)`, built with `DEBUG_MODE`, which
-`Escapement.h` defines). The whole system stops, including the tasks that kept to their
-figures; a debugger shows where. ZottaOS did the same, as a help for development
-(`Escapement.h`, its comment of 2012).
+Every kernel assumes that each mandatory instance ends before its task's next release:
+a task set its algorithm schedules (under EDF, deadlines equal to periods, a load of
+100 % at most; under DM, in general less), each task within its declared `wcet` (the
+soft and power-aware kernels) or within the time the designer's analysis gave it (the
+hard kernel). If an instance is still unfinished when its task is released again, the
+hard and power-aware kernels, and the soft kernel under EDF, take it for an overload,
+disable interrupts and loop for ever in their timer interrupt (`while (TRUE)`, built with
+`DEBUG_MODE`, which `Escapement.h` defines). The whole system stops, including the tasks
+that kept to their figures; a debugger shows where. ZottaOS did the same, as a help for
+development (`Escapement.h`, its comment of 2012). The soft kernel under DM stops so only
+for an instance that had started: one that never had is taken out of the ready queue as
+an optional one is, and the next released, with nothing to report it (run on the host on
+2026-10-11).
 
 The check comes only at that next release. With a deadline shorter than the period, an
 instance that misses its deadline but ends before its next release is late, and nothing

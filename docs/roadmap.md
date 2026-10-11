@@ -523,7 +523,8 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    application know, in all three kernels. On the host on 2026-10-11, every task slowed
    past its `wcet` by time stolen from it, as an interrupt load would, froze the soft
    kernel within seconds once the margin was gone: its test of optional instances reads
-   the declared figures and does not see that time.
+   the declared figures and does not see that time. The soft kernel under DM does not
+   stop for a mandatory instance that never started: it drops it in silence (`api.md`).
 10. **A tool to measure each task's WCET.** Added by the user on 2026-10-11: the
    guarantees hold only if each declared `wcet` is right, and nothing here measures one.
    The trace's marks (`read_trace.py --pins`) give a task's response time, preemptions and
@@ -550,8 +551,8 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
       processor (FIU, COP 5614, lecture 22, 2023), under EDF, where every deadline is
       kept, and under DM, where the second task is unfinished at 80 and the kernel stops
       there (`api.md`, "When an instance overruns"), as run on the host on 2026-10-11;
-      and an (m,k)-firm set past 100 %, the kernel dropping the optional instances it
-      chooses. Every task within its `wcet`: what fails is an algorithm, never a
+      and an (m,k)-firm set whose instances, all of them run, would take more than the
+      processor, the kernel dropping the optional ones it chooses. Every task within its `wcet`: what fails is an algorithm, never a
       contract.
    2. *The bench, seen.* A badge for each board's endurance on the candidate, read from
       the statuses `endurance/<platform>-<kernel>` as the Pico's is from `board/soak`
