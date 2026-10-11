@@ -524,6 +524,21 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    past its `wcet` by time stolen from it, as an interrupt load would, froze the soft
    kernel within seconds once the margin was gone: its test of optional instances reads
    the declared figures and does not see that time.
+10. **A tool to measure each task's WCET.** Added by the user on 2026-10-11: the
+   guarantees hold only if each declared `wcet` is right, and nothing here measures one.
+   The trace's marks (`read_trace.py --pins`) give a task's response time, preemptions and
+   interrupts included, in a ring of 256 events; the cost build measures the kernel, not
+   the tasks. The plan: a build option in which the kernel adds up the time each instance
+   holds the processor, read at each switch, and keeps each task's largest; a
+   `tools/wcet.py` that reads them back without stopping the board, as `read_trace.py`
+   does, and proposes a figure to declare, the largest seen plus a margin, as 400 µs over
+   314 for `FourSlotCoresPico`. What it gives is the worst case seen, valid only for a
+   load that takes the code's worst paths: each example to have a mode that does. A bound
+   instead of a measure needs static analysis. As read on 2026-10-11: aiT (AbsInt,
+   commercial) lists Cortex-M0, M1, M3 and M4, neither the M0+ nor the M33; OTAWA (IRIT,
+   LGPL) runs on 32-bit ARM, used on a Cortex-M4 by a project of the Technikum Wien;
+   Bound-T's port to the Cortex-M was left unfinished. The RP2040 running from SRAM, with
+   no cache and the flash idle, is the case where a bound looks within reach.
 
 ## Done
 
