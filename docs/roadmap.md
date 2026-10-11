@@ -516,6 +516,11 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    the USB in the journal), and the user did not. The board still had the PPK2's logic
    inputs and ground on its pins, and the FTDI cable on CN10. Not seen again yet; one
    more during task 14's runs would have to be found before the release.
+9. **An overrun stops the kernel.** Found on 2026-10-11, while drawing on the host the
+   curve of a demonstration: a mandatory instance unfinished at its next release freezes
+   the system, interrupts disabled, as in ZottaOS (`api.md`, "When an instance overruns").
+   To decide: keep that stop, or drop the late instance, count it and let the
+   application know, in all three kernels.
 
 ## Done
 

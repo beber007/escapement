@@ -128,6 +128,24 @@ less at 48 MHz than at 96 (`power-aware.md`).
 processor at or above an operating point (`OS_12MHZ_SPEED`, `OS_50MHZ_SPEED`,
 `OS_125MHZ_SPEED` on the Pico; `OS_48MHZ_SPEED`, `OS_96MHZ_SPEED` on the NUCLEO-U385RG-Q).
 
+### When an instance overruns
+
+Every kernel assumes that each mandatory instance ends before its task's next release: a
+load of 100 % at most, each task within its declared `wcet` (the soft and power-aware
+kernels) or its period (the hard kernel). If an instance is still unfinished when its
+task is released again, the kernel takes it for an overload, disables interrupts and
+loops for ever in its timer interrupt (`while (TRUE)`, built with `DEBUG_MODE`, which
+`Escapement.h` defines). The whole system stops, including the tasks that kept to their
+figures; a debugger shows where. ZottaOS did the same, as a help for development
+(`Escapement.h`, its comment of 2012).
+
+The check comes only at that next release. With a deadline shorter than the period, an
+instance that misses its deadline but ends before its next release is late, and nothing
+reports it. Under the soft kernel, an optional instance still waiting at that point is
+dropped instead, which is what it is for. Removing `DEBUG_MODE` is no way out: by a
+reading of the soft kernel's code under EDF, not tried, it would then insert the
+instance again into the ready queue it is still in.
+
 ## Event-driven tasks
 
 A task that runs when something happens, rather than at fixed times, waits on an event
