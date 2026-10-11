@@ -106,8 +106,12 @@ $(shell mkdir -p $(B))
 # linked as they were, which the dependencies of -MMD do not see; removed, not dated, since
 # make 3.81, macOS's, dates to the second (a review, 2026-10-11).
 FLAGS := $(CFLAGS) $(AFLAGS)
+# Not under make -n, which only prints: tools/check_order_mutants.sh asks it for the
+# commands of other kernels, and the images of this one went with them (2026-10-11).
+ifeq (,$(findstring n,$(firstword -$(MAKEFLAGS))))
 ifneq ($(FLAGS),$(shell cat $(B)/flags 2>/dev/null))
    $(shell rm -f $(B)/*.o $(B)/*.d $(B)/*.elf; echo '$(FLAGS)' > $(B)/flags)
+endif
 endif
 
 EXAMPLES = TaskLEDU3 UARTEchoU3 TestTimerEventU3 TaskWrapU3 IPCU3 SoakU3 StackGuardU3 \

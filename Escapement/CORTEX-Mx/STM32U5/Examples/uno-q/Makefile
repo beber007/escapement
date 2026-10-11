@@ -97,8 +97,12 @@ $(shell mkdir -p build)
 # linked as they were, which the dependencies of -MMD do not see; removed, not dated, since
 # make 3.81, macOS's, dates to the second (a review, 2026-10-11).
 FLAGS := $(CFLAGS) $(AFLAGS)
+# Not under make -n, which only prints: tools/check_order_mutants.sh asks it for the
+# commands of other kernels, and the images of this one went with them (2026-10-11).
+ifeq (,$(findstring n,$(firstword -$(MAKEFLAGS))))
 ifneq ($(FLAGS),$(shell cat build/flags 2>/dev/null))
    $(shell rm -f build/*.o build/*.d build/*.elf; echo '$(FLAGS)' > build/flags)
+endif
 endif
 
 EXAMPLES = TaskLEDU5 UARTEchoU5 TestTimerEventU5 TaskWrapU5 IPCU5 SoakU5 TestLPTimerU5 SleepU5 \
