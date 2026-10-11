@@ -310,7 +310,15 @@ task 4 began the same day.
    `power-aware.md` and `stm32u3.md`, and in the release's notes. A fault it finds in
    the code makes an `rc2`, and the U3's runs start again.
 15. **The release.** Its notes, from `git log` since the fork and from this page; the tag
-   `v0.1.0`; a GitHub release.
+   `v0.1.0`; a GitHub release. Then, as the user decided on 2026-10-11, `main` takes
+   changes through pull requests only: a rule of GitHub on it, a pull request required
+   with the CI's `build` passed, a linear history, neither a force push nor a deletion,
+   and no push straight to it, the user's included, unless the rule is turned off on
+   purpose; the rule written in `CLAUDE.md`, "Rules that do not change". The board
+   checks still run once a change is merged: `tools/board_ci.sh` builds `main` alone, and
+   a pull request runs nothing on the bench (its header). Pull requests let work go on
+   while an endurance run holds `main` still, as the eight commits waiting through task
+   14's runs did not.
 
 **Not in 0.1**, open after it: DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
 the PPK2 as a check of each commit on the STM32U5 (item 4); how
