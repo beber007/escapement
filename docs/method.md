@@ -906,6 +906,23 @@ had passed by the luck of where the wake-ups fell. The platforms of both STM32 p
 a fixed copy of the model now (`emulation/renode/Escapement_STM32L0_LpTimer.cs`), as they
 took one of the timer's, and the driver stays as the boards ran it.
 
+**The mutants on the candidate.** Run whole on c0ff963 at 300 task sets a build: hard
+87.6 % (424 of 484), 97.0 % of the 437 not declared, as before the review; soft 84.0 %
+(609 of 725), 96.7 % of the 630 not declared, its one new survivor the bound the review
+put after the share for events (`totalWork >= 0x3FFFFFFF`), declared as its two twins
+are; power-aware 83.0 % (664 of 800), 96.2 % of the 690 not declared. One declaration was
+wrong, and `tools/mutants.py` said so: DM_SLACK's slack left negative once run out, read
+on 2026-10-10 as harmless, overflows its 32 bits after two wraps idle, and
+`TestLongIdle` kills it; the declaration is gone. Two survivors are new, both killed
+before the review and both hidden since by the update it added to the handler when idle,
+which brings DRA's simulation to the present at each pass: the pair of the simulation
+left pending by an interrupt and not completed on entry (117), which `endinside` caught,
+the handler's first update then completing that pair in place of its own; and the time
+of the last excess left unshifted at the wraparound (151), which set 116 of `pa_drote`
+caught. Each now costs one update of the simulation computed from a time behind, until
+the next: less excess and less slack, a faster speed, never a later end. They stay
+written as behaviours no test reads.
+
 ### Two fixes that were wrong
 
 The endurance test (`SoakPico`, `tools/soak.py`) showed two of those fixes wrong the
