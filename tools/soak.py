@@ -5,6 +5,8 @@
 interval without stopping it, for as long as asked.
 
     tools/soak.py pico DURATION INTERVAL [ELF]      SoakPico, through the Debug Probe $PROBE
+    tools/soak.py pico2 DURATION INTERVAL [ELF]     SoakPico2, the same on a Pico 2, with
+                                                    $OPENOCD, Raspberry Pi's
     tools/soak.py uno-q DURATION INTERVAL [ELF]     SoakU5, on the board's own Linux
     tools/soak.py nucleo DURATION INTERVAL [ELF]    SoakU5 on a NUCLEO-U575ZI-Q, through
                                                     its ST-LINK, beside the UNO Q
@@ -13,7 +15,9 @@ interval without stopping it, for as long as asked.
 DURATION and INTERVAL take a suffix s, m, h or d; a DURATION of 0 runs until stopped.
 
 A Pico is read over SWD, through OpenOCD and the Debug Probe, which reads the RP2040's
-memory as it runs. The STM32U585 of an Arduino UNO Q sends its counts once a second on
+memory as it runs; a Pico 2 likewise, loaded as tools/pico2_check.py loads it. An image
+linked into the flash (make FLASH=1) is written there and booted, by tools/pico_flash.sh
+or tools/pico2_flash.sh, rather than loaded into SRAM. The STM32U585 of an Arduino UNO Q sends its counts once a second on
 LPUART1, which the board's Linux sees as /dev/ttyHS1: the script runs there and reads
 them, and sends the MCU bytes that count up by one, in bursts of random length at random
 times, interrupts at moments of Linux's choosing that the firmware checks (SoakU5.c, the
@@ -55,7 +59,8 @@ time starting the Nucleo's run over.
 
 With a token (BOARD_CI_TOKEN, as tools/board_ci.sh), the state is posted to GitHub as the
 commit status "board/soak" of BOARD_SOAK_SHA (HEAD of this checkout by default) on a Pico,
-"board/soak-u5" on the UNO Q, "board/soak-nucleo" on the Nucleo: pending with the time
+"board/soak-u5" on the UNO Q, "board/soak-nucleo" on the Nucleo, "board/soak-pico2" on a
+Pico 2 and "board/soak-u3" on the NUCLEO-U385RG-Q, or BOARD_SOAK_CONTEXT: pending with the time
 run, the restarts and the errors, failure as soon as either is not 0, success at the end
 if both are. GitHub keeps at most 1,000 statuses for a commit and a context and refuses
 the next: posted at each reading, a run's reached it in 16 hours and could post neither
@@ -157,11 +162,20 @@ class Pico:
         # systemd stops a service with SIGTERM, which would skip the line above.
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))
 
+    target, openocd, flasher = "target/rp2040.cfg", "openocd", "pico_flash.sh"
+
+    def in_flash(self):
+        """Whether the image's entry point lies in the flash (make FLASH=1), as
+        tools/unoq_check.sh tells them apart."""
+        with open(self.elf, "rb") as f:
+            f.seek(24)
+            return int.from_bytes(f.read(4), "little") < 0x20000000
+
     def ocd(self, *commands):
-        """OpenOCD with the Debug Probe and the RP2040, core 0 only; its output."""
-        args = ["openocd", "-f", "interface/cmsis-dap.cfg", "-c", self.probe,
+        """OpenOCD with the Debug Probe and the chip, core 0 only; its output."""
+        args = [self.openocd, "-f", "interface/cmsis-dap.cfg", "-c", self.probe,
                 "-c", "adapter speed 5000", "-c", "set USE_CORE 0",
-                "-f", "target/rp2040.cfg", "-c", "init"]
+                "-f", self.target, "-c", "init"]
         for command in commands:
             args += ["-c", command]
         # Bounded: an OpenOCD stuck on the USB held the probe's lock and left the status
@@ -181,7 +195,14 @@ class Pico:
         return values if len(values) == n else None
 
     def load(self):
+        """None, or what failed. An image in the flash is written there and booted, the
+        flasher ending with its verification's outcome (a review, 2026-10-11)."""
+        if self.in_flash():
+            out = subprocess.run(["sh", os.path.join(ROOT, "tools", self.flasher), self.elf],
+                                 capture_output=True, text=True, timeout=180)
+            return None if out.returncode == 0 else (out.stdout + out.stderr)[-400:]
         self.ocd("reset halt", f"load_image {self.elf}", "resume 0x20000000")
+        return None
 
     def start(self, reload=False):
         self.load()
@@ -202,7 +223,7 @@ class Pico:
                            check=True)
             image = binary.read()
         words = [int.from_bytes(image[i:i + 4], "little") for i in range(0, 256, 4)]
-        return self.words_at(0x20000000, 64) == words
+        return self.words_at(0x10000000 if self.in_flash() else 0x20000000, 64) == words
 
     def read(self):
         w = self.words_at(self.results, self.words)
@@ -218,6 +239,31 @@ class Pico:
         return {"marker": w[0], "seconds": w[1], "wraps": w[2], "activity": activity,
                 "errors": errors, "late": (w[19], w[20]), "stack": (w[21], w[22]),
                 "load": w[23], "bins": (w[24:56], w[56:88]), "extra": extra, "link": None}
+
+
+class Pico2(Pico):
+    """SoakPico2 on a Pico 2 over SWD: the Results of SoakPico, and SoakFirmPico2's Firm,
+    through Raspberry Pi's OpenOCD ($OPENOCD), the probe $PROBE (probe3 on the bench).
+    Loaded into SRAM as tools/pico2_check.py loads it, the RCP seeded first and core 1
+    held off, which a debugger's reset would leave running the image before."""
+    name, context = "SoakPico2", "board/soak-pico2"
+    elf = os.path.join(ROOT, "Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/SoakPico2.elf")
+    watchdog_reason = 0x400D8008       # WATCHDOG_REASON, RP2350 datasheet
+    target, flasher = "target/rp2350.cfg", "pico2_flash.sh"
+    openocd = os.environ.get("OPENOCD", "openocd")
+
+    def load(self):
+        if self.in_flash():
+            return super().load()
+        sys.path.insert(0, os.path.join(ROOT, "tools"))
+        import pico2_check
+        with tempfile.TemporaryDirectory() as directory:
+            seed = pico2_check.build_seed(directory)
+            out = self.ocd("reset halt",
+                           f"mww {pico2_check.PSM_FRCE_OFF_SET:#x} {pico2_check.PSM_PROC1:#x}",
+                           f"load_image {seed} 0x20000000 bin", "resume 0x20000000",
+                           "wait_halt 500", f"load_image {self.elf}", "resume 0x20000000")
+        return None if out.count("bytes written") >= 2 else out[-400:]
 
 
 class UnoQ:
@@ -500,7 +546,9 @@ class Status:
     """The commit status on GitHub, if a token is there."""
 
     def __init__(self, context):
-        self.context = context
+        # BOARD_SOAK_CONTEXT names it otherwise, for runs of several kernels on one board
+        # (tools/endurance.sh).
+        self.context = os.environ.get("BOARD_SOAK_CONTEXT", context)
         self.posted = (None, None, 0.0)   # state, counts, when
         self.repo = os.environ.get("BOARD_CI_REPO", "beber007/escapement")
         token = os.environ.get("BOARD_CI_TOKEN",
@@ -607,7 +655,8 @@ def main():
     if sys.argv[1:] == ["--self-test"]:
         self_test()
         return
-    boards = {"pico": Pico, "uno-q": UnoQ, "nucleo": Nucleo, "nucleo-u3": NucleoU3}
+    boards = {"pico": Pico, "pico2": Pico2, "uno-q": UnoQ, "nucleo": Nucleo,
+              "nucleo-u3": NucleoU3}
     if len(sys.argv) < 4 or sys.argv[1] not in boards:
         sys.exit(__doc__.split("\n\n")[1])
     kind = boards[sys.argv[1]]

@@ -48,10 +48,13 @@ tools/board_ci.sh --force                     # board checks, run by a timer on 
 tools/board_images.sh OUT                     # the images those checks run (the CI builds them)
 tools/timer_events.py <elf>                   # TestTimerEventPico (TRACE=1 + cost build) summed up
 tools/dvfs_bench.py <elf>                     # BenchDVFSPico: means of each change of speed
-tools/soak.py pico 14d 1m                     # endurance test: SoakPico, read without stopping
+tools/soak.py pico 14d 1m [ELF]               # endurance test: SoakPico, read without stopping
                                               # it, status board/soak (holds its probe's lock);
                                               # started again, it takes its run over
 tools/bench_status.sh                         # the bench on one screen, over SSH (board_ci.md)
+tools/endurance.sh pico SHA DIR [8h]          # a candidate's runs on one platform (pico, pico2,
+                                              # u5, u3), DIR/<platform>-<kernel>.elf in turn,
+                                              # statuses endurance/<platform>-<kernel>
 tools/soak_emulated.sh OUT 60 1440 hard::1 soft:KERNEL=SOFT:2   # instances under Renode
 tools/soak_emulated_status.sh OUT [SHA]       # their sum, status emulation/soak
 
@@ -65,6 +68,8 @@ PROBE=probe3 tools/pico2_uart.py DIR          # the UART echo and senders, on th
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2 FLASH=1   # the same, into the flash
 OPENOCD=... PROBE=probe3 tools/pico2_check.py --flash DIR   # written there and booted
 PROBE=probe3 tools/pico2_soak.py DIR          # SoakPico2 for 40 min: two 2^30 wraps
+OPENOCD=... PROBE=probe3 tools/soak.py pico2 8h 1m [ELF]   # a long run, as for the Pico;
+                                              # an ELF in the flash (FLASH=1) is written there
                                               # (both with OPENOCD as above, holding the lock)
 ADAPTER_KHZ=1000 OPENOCD=... PROBE=probe3 tools/pico2_sleep_load.sh build/SleepPico2.elf
 PROBE=probe3 tools/pico2_sleep_load.sh --wake 285     # SleepPico2: WFI, SLEEP, DORMANT for

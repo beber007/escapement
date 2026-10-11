@@ -271,7 +271,11 @@ task 4 began the same day.
    README opens on three points and the Pico's DVFS figure, a diagram shows what each push
    goes through, the energy measured on each chip is a table; `architecture.md` opens its
    targets with one; the numbers of the README the same before and after.
-13. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
+13. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. The
+   tools task 14 needs went in first, as the user agreed on 2026-10-11, so that the
+   candidate carries what tests it: `tools/soak.py` runs a Pico from its flash and drives
+   a Pico 2 (`pico2`), each checked on its board for 3 minutes, and `tools/endurance.sh`
+   runs one platform's kernels in turn, each under a status of its own. From
    it on, fixes only. (Until the runs of task 14 took every kernel again, `EscapementHard.c`
    was to stay as it was at 041af76, the commit of its week.)
 14. **Endurance on the candidate**: 8 hours for each kernel on each platform, as the
@@ -491,6 +495,13 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    hard kernel racing to Stop 2 against the power-aware kernel under each policy, as on
    the RP2040 (`power-aware.md`, "Measuring the RP2040"). Needs the user's hands for the
    PPK2 in place of JP4.
+8. **A reset of the NUCLEO-U385RG-Q that nothing asked for.** Its long run at cc1a4ac
+   restarted on 2026-10-11 at 08:44:48 UTC, 49 min in, the flags of RCC_CSR reading the
+   pin alone: neither the watchdog, nor a brown-out, nor software. No tool of the bench
+   touched the board then (the board CI's run of 08:44:13 ended in a second, nothing on
+   the USB in the journal), and the user did not. The board still had the PPK2's logic
+   inputs and ground on its pins, and the FTDI cable on CN10. Not seen again yet; one
+   more during task 14's runs would have to be found before the release.
 
 ## Done
 
