@@ -15,7 +15,7 @@ versioning allows for 0.x.
 |---|---|---|---|
 | Hard | `EscapementHard.h` | `make` | every deadline met |
 | Soft | `EscapementSoft.h` | `make KERNEL=SOFT` | (m,k)-firm tasks: m deadlines met in any k instances |
-| Power-aware | `EscapementHardPA.h` | `make KERNEL=PA` | hard deadlines, the speed lowered whenever they allow |
+| Power-aware | `EscapementHardPA.h` | `make KERNEL=PA` (also on the NUCLEO-U385RG-Q) | hard deadlines, the speed lowered whenever they allow |
 
 Each kernel schedules by earliest deadline first (EDF) or by deadline-monotonic
 priorities (DM). The choice is made by `SCHEDULER_REAL_TIME_MODE` in the example's
@@ -24,7 +24,7 @@ priorities (DM). The choice is made by `SCHEDULER_REAL_TIME_MODE` in the example
 The power-aware kernel adds a policy, `POWER_MANAGEMENT`. OTE is the default and works
 under either algorithm. DRA and DR_OTE impose EDF*, and DM_SLACK imposes DM; they are
 selected with `make KERNEL=PA POWER=DRA` and so on. `power-aware.md` explains the
-policies and `rp2040.md` measures them.
+policies, and `rp2040.md` measures them on the Pico.
 
 An application includes `Escapement.h` alone, which picks the kernel's header from the
 configuration.

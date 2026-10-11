@@ -267,7 +267,10 @@ task 4 began the same day.
    `build.md`, `api.md`) in short sentences, one idea each and the conclusion first, the
    detail left to the technical pages; the README's opening and its figures laid out to
    catch the eye, with simple diagrams where they help. No fact added, removed or changed:
-   each figure and date checked unchanged against the diff.
+   each figure and date checked unchanged against the diff. **Done on 2026-10-11**: the
+   README opens on three points and the Pico's DVFS figure, a diagram shows what each push
+   goes through, the energy measured on each chip is a table; `architecture.md` opens its
+   targets with one; the numbers of the README the same before and after.
 13. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
    it on, fixes only. (Until the runs of task 14 took every kernel again, `EscapementHard.c`
    was to stay as it was at 041af76, the commit of its week.)

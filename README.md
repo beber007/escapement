@@ -11,6 +11,7 @@
   <img src="https://img.shields.io/badge/RP2040-Cortex--M0%2B-c51a4a?logo=raspberrypi&logoColor=white" alt="RP2040">
   <img src="https://img.shields.io/badge/RP2350-Cortex--M33-c51a4a?logo=raspberrypi&logoColor=white" alt="RP2350">
   <img src="https://img.shields.io/badge/STM32U5-Cortex--M33-03234b?logo=stmicroelectronics&logoColor=white" alt="STM32U5">
+  <img src="https://img.shields.io/badge/STM32U3-Cortex--M33-03234b?logo=stmicroelectronics&logoColor=white" alt="STM32U3">
   <img src="https://img.shields.io/badge/emulated-Renode-2f6f9f" alt="Renode">
   <a href="https://github.com/beber007/escapement/commit/soak-pico"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fbeber007%2Fescapement%2Fcommits%2Fsoak-pico%2Fstatuses%3Fper_page%3D1&query=%24%5B0%5D.description&label=Pico%20endurance&color=2f6f9f&cacheSeconds=600" alt="Pico endurance"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-permissive-3fb950" alt="licence"></a>
@@ -22,6 +23,8 @@
   <a href="docs/api.md">API</a> ·
   <a href="docs/rp2040.md">Pico</a> ·
   <a href="docs/stm32u5.md">STM32U5</a> ·
+  <a href="docs/stm32u3.md">STM32U3</a> ·
+  <a href="docs/power-aware.md">Energy</a> ·
   <a href="tools/board_ci.md">Board checks</a> ·
   <a href="docs/roadmap.md">Roadmap</a>
 </p>
@@ -29,11 +32,17 @@
 **A preemptive deadline-driven real-time kernel for microcontrollers with a few
 kilobytes of RAM.**
 
-Escapement schedules tasks by earliest deadline first (EDF) or by deadline-monotonic
-priorities (DM). It has no periodic tick. The timer is set for the next release of a
-task, and the processor sleeps until then. The power-aware variant also lowers the
-core voltage and frequency. It uses the worst-case execution times the tasks declare,
-and slows down only as far as those times still meet every deadline.
+- **Deadlines first.** Tasks are scheduled by earliest deadline first (EDF) or by
+  deadline-monotonic priorities (DM).
+- **No tick.** The timer is set for the next task release, and the processor sleeps
+  until then.
+- **Power-aware.** A variant lowers the core voltage and frequency, as far as the
+  worst-case execution times the tasks declare still meet every deadline.
+
+![The power-aware kernel moving the clock of a Raspberry Pi Pico between 125, 50 and 12 MHz around its tasks](docs/images/pico-dvfs.svg)
+
+<sub>A Raspberry Pi Pico under the power-aware kernel, traced on the board
+([details below](#on-the-silicon)).</sub>
 
 > The name comes from the watchmaking escapement: the part that releases the
 > energy of the mainspring in regular increments, as the scheduler releases the
@@ -46,16 +55,16 @@ and slows down only as far as those times still meet every deadline.
 - A kernel that updates its queues without masking interrupts, one short section aside,
   even on the Cortex-M0+, which has no load-linked/store-conditional instructions
   ([Design](#concurrency-without-locks)).
-- Lock-free buffers and queues checked over every interleaving by small exhaustive
-  models, weak memory ordering included. Each model must also catch deliberately broken
-  variants. One of them cut the memory barriers of a queue between two cores from
-  fifteen to seven, each needed ([`docs/method.md`](docs/method.md)).
+- Lock-free buffers and queues checked over every interleaving, weak memory ordering
+  included, by small exhaustive models that must also catch deliberately broken
+  variants. One model cut the memory barriers of a queue between two cores from fifteen
+  to seven, each one needed ([`docs/method.md`](docs/method.md)).
 - Voltage and frequency chosen from the declared execution times, traced on real
   silicon ([below](#on-the-silicon), [`docs/power-aware.md`](docs/power-aware.md)).
 - An idle task that puts an STM32U5 into Stop 2 and still keeps the kernel's time to
   the microsecond ([`docs/stm32u5.md`](docs/stm32u5.md)).
-- Four boards tested on every commit, a Pico, a Pico 2, an STM32U5 and an STM32U3, by a bench that
-  pulls `main` by itself ([`tools/board_ci.md`](tools/board_ci.md)).
+- Four boards tested on every commit, a Pico, a Pico 2, an STM32U5 and an STM32U3, by a
+  bench that pulls `main` by itself ([`tools/board_ci.md`](tools/board_ci.md)).
 - Every line of the kernels run by the host test or excluded with its reason, and the
   traces of random task sets checked against EDF, DM and the bound of EDF's response
   time analysis, at each commit ([`docs/method.md`](docs/method.md)).
@@ -64,10 +73,10 @@ and slows down only as far as those times still meet every deadline.
 
 | | |
 |---|---|
-| **4,716 bytes** | of code for the whole kernel plus four periodic tasks, on a Cortex-M0+, with GCC 16.2 on 2026-09-27 (5,164 on 2026-09-25) ([`docs/build.md`](docs/build.md)) |
-| **3.5 µs** | one scheduling round of the hard kernel on the Pico, read by the bench at each commit, 12 µs at worst: at 1,000 activations per second, 0.35 % of the processor. It was 3.2 µs under EDF and DM alike on 2026-09-23, before every firmware was built with `-fno-strict-aliasing` ([`docs/rp2040.md`](docs/rp2040.md), [`docs/method.md`](docs/method.md)) |
-| **+28 ppm** | how far the periods are off when read by an external frequency counter. A Pico 2 reads the same on it: the offset is the counter's reference, not the boards ([`docs/rp2040.md`](docs/rp2040.md)) |
-| **108,000** | task activations in three hours on an STM32U5. Between them the idle task slept in Stop 2 454,487 times, with the kernel's clock stopped. None started a microsecond off its period ([`docs/stm32u5.md`](docs/stm32u5.md)) |
+| **4,716 bytes** | of code for the whole kernel plus four periodic tasks, on a Cortex-M0+. GCC 16.2, 2026-09-27; 5,164 on 2026-09-25 ([`docs/build.md`](docs/build.md)) |
+| **3.5 µs** | for one scheduling round of the hard kernel on the Pico, 12 µs at worst, read by the bench at each commit. At 1,000 activations per second, that is 0.35 % of the processor. It was 3.2 µs under EDF and DM alike on 2026-09-23, before every firmware was built with `-fno-strict-aliasing` ([`docs/rp2040.md`](docs/rp2040.md), [`docs/method.md`](docs/method.md)) |
+| **+28 ppm** | is how far the periods are off, read by an external frequency counter. A Pico 2 reads the same, so the offset is the counter's reference, not the boards ([`docs/rp2040.md`](docs/rp2040.md)) |
+| **108,000** | task activations in three hours on an STM32U5, none a microsecond off its period. Between them the idle task slept in Stop 2 454,487 times, the kernel's clock stopped ([`docs/stm32u5.md`](docs/stm32u5.md)) |
 
 ## Where it runs
 
@@ -77,7 +86,7 @@ and slows down only as far as those times still meet every deadline.
 | Arduino UNO Q (STM32U585) | Cortex-M33, 160 MHz | hard, soft; the idle task in Stop 2 | the board, checked at each commit; Renode |
 | Raspberry Pi Pico 2 (RP2350) | Cortex-M33, 150 MHz | hard, soft; two cores sharing lock-free buffers | the board, checked at each commit: the six examples that count in memory and the UART; Renode |
 | NUCLEO-U575ZI-Q (STM32U575) | Cortex-M33, 160 MHz | the hard kernel's example in Stop 2, for current measurement; the endurance tests of the hard and soft kernels, from the flash too | the endurance tests on the board since 2026-09-28; Renode |
-| NUCLEO-U385RG-Q (STM32U385) | Cortex-M33, 96 MHz | hard, soft, power-aware with DVFS between 48 and 96 MHz; the idle task in Stop 2; written from the reference manual before the board came ([`docs/stm32u3.md`](docs/stm32u3.md)) | the board since 2026-10-09, its check and endurance test; Renode, its platform checking the clock set-up and the wake-up from Stop 2 against the manual |
+| NUCLEO-U385RG-Q (STM32U385) | Cortex-M33, 96 MHz | hard, soft, power-aware with DVFS between 48 and 96 MHz; the idle task in Stop 2 ([`docs/stm32u3.md`](docs/stm32u3.md)) | the board since 2026-10-09, checked at each commit, with its endurance test; Renode, which also checks the clock set-up and the wake-up from Stop 2 against the reference manual |
 
 ## An application
 
@@ -122,15 +131,14 @@ The addresses are the RP2040's registers (datasheet, sections 2.14, 2.19 and 2.3
 
 ## On the silicon
 
-![The power-aware kernel moving the clock of a Raspberry Pi Pico between 125, 50 and 12 MHz around its tasks](docs/images/pico-dvfs.svg)
-
-A Raspberry Pi Pico running the power-aware kernel. The 20 ms task meets its deadline
-at 50 MHz and the 1 ms probe at 12 MHz, so that is how fast they run. Everything else
-runs at 125 MHz. The firmware writes the trace into RAM, and the debugger reads it
-without stopping a core. `tools/dvfs_figure.py` draws the figure from
-[the data](docs/data/pico-pa-trace.csv). One question is left open: the idle task
-sleeps at 125 MHz, and only a current measurement can say what that costs
-([`docs/rp2040.md`](docs/rp2040.md)).
+The figure at the top of this page is a Raspberry Pi Pico running the power-aware
+kernel. The 20 ms task meets its deadline at 50 MHz and the 1 ms probe at 12 MHz, so
+that is how fast they run. Everything else runs at 125 MHz. The firmware writes the
+trace into RAM, and the debugger reads it without stopping a core.
+`tools/dvfs_figure.py` draws the figure from [the data](docs/data/pico-pa-trace.csv).
+What it saves was measured on 2026-10-10: up to some 5 % with the idle task in WFI,
+nothing once it sleeps in SLEEP, which alone takes some 73 % off
+([`docs/power-aware.md`](docs/power-aware.md)).
 
 ![TaskLEDPico's schedule, computed from the task set above, traced on a Raspberry Pi Pico below, at a release of all four tasks](docs/images/pico-schedule.svg)
 
@@ -143,12 +151,28 @@ under the bound of the analysis in ZottaOS's manual, 526 µs at most against 620
 ## Verified at six levels
 
 The levels answer different questions. The frequency counter says the periods are
-right. The host test says the scheduler made the decisions it should have.
+right. The host test says the scheduler made the decisions it should have. Every push
+to `main` goes through the first five by itself:
+
+```mermaid
+flowchart LR
+  push["push to main"] --> ci["GitHub Actions"]
+  ci --> build["4 ports built<br>2 GCCs + clang"]
+  ci --> host["host test<br>coverage, differential"]
+  ci --> models["exhaustive models"]
+  ci --> renode["Renode suites"]
+  ci --> images["board images"]
+  images --> bench["bench<br>Arduino UNO Q"]
+  bench --> pico["Pico"]
+  bench --> pico2["Pico 2"]
+  bench --> u5["STM32U5"]
+  bench --> u3["STM32U3"]
+```
 
 | Level | What it establishes |
 |---|---|
 | Compilation | every example of the four ports built by two versions of GCC at each push to `main`, the kernels and the ports compiled by clang too |
-| The scheduler alone | every kernel and algorithm run on the host under AddressSanitizer: every line run or excluded with its reason, 91.78 % of the branches, and random task sets checked against the algorithms |
+| The scheduler alone | every kernel and algorithm run on the host under AddressSanitizer: every line run or excluded with its reason, 91.79 % of the branches, and random task sets checked against the algorithms |
 | Every interleaving | the lock-free buffers and queues explored exhaustively, weak memory included |
 | Replayable execution | the four ports under Renode, as regression tests |
 | Internal state on hardware | the scheduling traced on a running board, and four boards checked at each commit |
@@ -240,20 +264,20 @@ released before the deadline, which is safe and drops more than an exact test wo
 <details>
 <summary>Energy management driven by the scheduler</summary>
 
-Tasks declare their worst-case execution time. The kernel uses it to work out how much
-it can slow the core down without putting a deadline at risk, which is what the DRA,
-OTE and DM_SLACK algorithms compute. The power-aware kernel schedules by EDF\*, an EDF
-that breaks ties in a fixed way, so it can predict when each task will finish. Whether
-this actually saves energy depends on the chip, and measuring decided it on each
-([`docs/power-aware.md`](docs/power-aware.md), [`docs/roadmap.md`](docs/roadmap.md)). On
-the STM32U5 it does not: a cycle costs least at full speed, and racing to Stop 2 wins at
-every load. On the RP2350, within its specified voltage, some 10 % at best. On the
-RP2040, measured on 2026-10-10, up to some 5 % with the idle task in WFI and nothing
-once it sleeps in SLEEP, which takes some 73 % off by itself, and 60 % of what is left
-with PLL_SYS stopped (`make SLEEP_GATE=1`). On the STM32U3, measured on 2026-10-10, a
-cycle costs 14 % less at 48 MHz in its lower voltage range than at 96, more than racing
-to Stop 2 gives back: the kernel runs there with DVFS since 2026-10-11, what it saves a
-task set not measured yet ([`docs/stm32u3.md`](docs/stm32u3.md)).
+Tasks declare their worst-case execution time. From it the kernel works out how much it
+can slow the core down without putting a deadline at risk: that is what the DRA, OTE and
+DM_SLACK algorithms compute. The power-aware kernel schedules by EDF\*, an EDF that
+breaks ties in a fixed way, so that it can predict when each task will finish.
+
+Whether this saves energy depends on the chip, and each was measured
+([`docs/power-aware.md`](docs/power-aware.md), [`docs/roadmap.md`](docs/roadmap.md)):
+
+| Chip | Measured | DVFS |
+|---|---|---|
+| STM32U5 | 2026-10-03 | saves nothing: a cycle costs least at full speed, and racing to Stop 2 wins at every load |
+| RP2350 | 2026-10-03 | some 10 % at best, within the specified voltage |
+| RP2040 | 2026-10-10 | up to some 5 % with the idle task in WFI, nothing once it sleeps in SLEEP, which takes some 73 % off by itself, and 60 % of what is left with PLL_SYS stopped (`make SLEEP_GATE=1`) |
+| STM32U3 | 2026-10-10 | pays: a cycle costs 14 % less at 48 MHz in the lower voltage range than at 96, more than racing to Stop 2 gives back. The kernel runs there with DVFS since 2026-10-11; what it saves a task set is not measured yet ([`docs/stm32u3.md`](docs/stm32u3.md)) |
 
 </details>
 
@@ -262,9 +286,9 @@ task set not measured yet ([`docs/stm32u3.md`](docs/stm32u3.md)).
 
 The kernel's counter runs on a one-microsecond tick taken from the reference clock.
 Changing the processor frequency does not move it, which the power-aware kernel
-depends on. On the STM32U3, whose timers otherwise follow the core's clock, the
-power-aware kernel has them count the MSIK, which stays at 12 MHz: 5.8 million changes
-of speed in a minute lost the kernel's clock not a microsecond on the board
+depends on. The STM32U3's timers otherwise follow the core's clock, so there the
+power-aware kernel has them count the MSIK, which stays at 12 MHz. On the board, a
+minute of 5.8 million speed changes cost the kernel's clock not a single microsecond
 ([`docs/stm32u3.md`](docs/stm32u3.md)).
 
 </details>
@@ -290,19 +314,20 @@ Profiler Kit II, at 3.3 V on its SMPS: some 7 µA in Stop 2, against 6.2 mA in S
 <summary>A kernel that takes no lock</summary>
 
 The three kernels update their queues with load-linked/store-conditional pairs rather
-than by masking interrupts, `LDREX`/`STREX` on the Cortex-M33. One place masks them: a
-task suspending itself on an event, from its enqueue until it has left the ready queue,
-where the endurance test found a race on 2026-09-25
-([`docs/architecture.md`](docs/architecture.md#synchronisation)). The
-Cortex-M0+ has no such instructions. There the reservation is a flag that every
-context switch and every interrupt clears on the way out, and only the
-store-conditional itself runs with interrupts masked, for a few instructions. No task
-ever waits for another, so priority inversion cannot happen inside the kernel. The
-emulated reservation only works on one core, so on the RP2040 the kernel runs on core 0
-alone. The RP2040 port does mask interrupts in a few short places: a change of speed,
-the list of pending timer events, the trace, and the idle task's sleep, around its WFI at
-a slower speed or in SLEEP with PLL_SYS stopped, whose relock it waits for (`make
-SLEEP_GATE=1`).
+than by masking interrupts: `LDREX`/`STREX` on the Cortex-M33. No task ever waits for
+another, so priority inversion cannot happen inside the kernel.
+
+One place masks interrupts: a task suspending itself on an event, from its enqueue until
+it has left the ready queue. The endurance test found a race there on 2026-09-25
+([`docs/architecture.md`](docs/architecture.md#synchronisation)).
+
+The Cortex-M0+ has no such instructions. There the reservation is a flag that every
+context switch and every interrupt clears on the way out, and only the store-conditional
+itself runs with interrupts masked, for a few instructions. That emulated reservation
+works on one core only, so on the RP2040 the kernel runs on core 0 alone. The RP2040 port
+also masks interrupts in a few short places: a change of speed, the list of pending
+timer events, the trace, and the idle task's sleep, around its WFI at a slower speed or
+in SLEEP with PLL_SYS stopped, whose relock it waits for (`make SLEEP_GATE=1`).
 
 </details>
 

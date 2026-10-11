@@ -139,6 +139,15 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
 
 ## Supported targets
 
+| Chip, board | Core, clock | Kernels | Checked on its board at each commit |
+|---|---|---|---|
+| RP2040, Raspberry Pi Pico | Cortex-M0+, 125 MHz | hard, soft, power-aware | yes |
+| RP2350, Raspberry Pi Pico 2 | Cortex-M33, 150 MHz | hard, soft | since 2026-09-28 |
+| STM32U585, Arduino UNO Q | Cortex-M33, 160 MHz | hard, soft | since 2026-09-26 |
+| STM32U385, NUCLEO-U385RG-Q | Cortex-M33, 96 MHz | hard, soft, power-aware | since 2026-10-10 |
+
+All four also run under Renode in the CI. Each is described below.
+
 - **Raspberry Pi RP2040** (Pico): Cortex-M0+, port under `Escapement/CORTEX-Mx/RP2040/`.
   Its 64-bit timer has four alarms and is clocked **independently of the core clock**.
   The kernel takes two of the alarms, the timer events one of the other two. This is the
