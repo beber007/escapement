@@ -43,9 +43,10 @@ make KERNEL=SOFT                               # soft kernel, earliest deadline 
 make KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
 ```
 
-On the Pico, `make KERNEL=PA` also builds the power-aware kernel. `make KERNEL=PA
-UNDERVOLT=1` builds it to run below the specified core voltage, for the measurement bench
-only (`power-aware.md`). No other port has the power-aware kernel.
+On the Pico and the NUCLEO-U385RG-Q, `make KERNEL=PA` also builds the power-aware
+kernel. On the Pico, `make KERNEL=PA UNDERVOLT=1` builds it to run below the specified
+core voltage, for the measurement bench only (`power-aware.md`). No other port has the
+power-aware kernel.
 
 ## Synchronisation
 

@@ -37,12 +37,10 @@ LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
 # Build variants, which the CI also runs:
 #   make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING    the other scheduling algorithm
 #   make KERNEL=SOFT                                the soft real-time kernel
+#   make KERNEL=PA                                  the power-aware kernel, DVFS between
+#                                                   48 and 96 MHz (Escapement_Processor.h)
 # Also: make TRACE=1, a trace of the scheduling in RAM (not built by the CI), and
 # make PHASES=30, SleepU3 alternating 30 s in Stop 2 and 30 s in Sleep (SleepU3.c).
-# The power-aware kernel is not ported yet.
-ifeq ($(KERNEL),PA)
-   $(error the power-aware kernel is not ported to the STM32U3 yet)
-endif
 ifdef SCHEDULER
    CFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
    AFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
@@ -50,6 +48,23 @@ endif
 ifeq ($(KERNEL),SOFT)
    CFLAGS += -DESCAPEMENT_VERSION_SOFT
    AFLAGS += -DESCAPEMENT_VERSION_SOFT
+endif
+ifeq ($(KERNEL),PA)
+   CFLAGS += -DESCAPEMENT_VERSION_HARD_PA
+   AFLAGS += -DESCAPEMENT_VERSION_HARD_PA
+   ifdef MHZ
+      $(error the power-aware kernel starts at 96 MHz and chooses its own speeds: no MHZ=)
+   endif
+endif
+# make KERNEL=PA POWER=DRA picks another power-management policy than OTE: DRA or DR_OTE,
+# which impose EDF*, or DM_SLACK, which imposes deadline-monotonic scheduling.
+ifdef POWER
+   CFLAGS += -DPOWER_MANAGEMENT=$(POWER)
+endif
+# make KERNEL=PA SLEEP_SPEED=0 lets the idle task's WFI run at 48 MHz rather than 96;
+# Stop 2, where the idle task enters it, wakes at the point in effect (Escapement_Stop2.c).
+ifdef SLEEP_SPEED
+   CFLAGS += -DOS_SLEEP_SPEED=$(SLEEP_SPEED)
 endif
 ifdef TRACE
    CFLAGS += -DESCAPEMENT_TRACE
@@ -93,6 +108,14 @@ EXAMPLES = TaskLEDU3 UARTEchoU3 TestTimerEventU3 TaskWrapU3 IPCU3 SoakU3 StackGu
 # the kernel drops under load (SoakU3.c).
 ifeq ($(KERNEL),SOFT)
    EXAMPLES += SoakFirmU3
+endif
+# The power-aware kernel: the examples with tasks, and BenchDVFSU3, which times its changes
+# of speed and checks the kernel's clock across them (BenchDVFSU3.c); without the images
+# that set a clock of their own (ClockU3, DVFSU3*) or another build of the MSI (SleepFastU3).
+ifeq ($(KERNEL),PA)
+   EXAMPLES = TaskLEDU3 UARTEchoU3 TestTimerEventU3 TaskWrapU3 IPCU3 SoakU3 StackGuardU3 \
+              TestLPTimerU3 SleepU3 SleepWrapU3 Stop2EventWrapU3 SoakStop2U3 BenchDVFSU3 \
+              BenchDVFSU3Short
 endif
 
 all: $(EXAMPLES:%=$(B)/%.elf)
@@ -167,6 +190,15 @@ $(B)/SoakFirmU3.elf : $(COMMON) $(B)/Escapement_TimerEvent.o $(B)/Escapement_UAR
                        $(B)/SoakFirmU3.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 $(B)/TestLPTimerU3.elf : $(COMMON) $(B)/Escapement_LPTimer.o $(B)/TestLPTimerU3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+$(B)/BenchDVFSU3.elf : $(COMMON) $(B)/Escapement_LPTimer.o $(B)/Escapement_UART.o \
+                        $(B)/BenchDVFSU3.o
+	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
+# The same, windows of 2 ms of LPTIM1 and 100 changes timed, for escapement_u3.robot.
+$(B)/BenchDVFSU3Short.o : BenchDVFSU3.c
+	$(CC) $(CFLAGS) -DBENCH_WINDOW_TICKS=66u -DBENCH_REPS=100u $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/BenchDVFSU3Short.elf : $(COMMON) $(B)/Escapement_LPTimer.o $(B)/Escapement_UART.o \
+                             $(B)/BenchDVFSU3Short.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 # LPUART1 at 115,200 baud: SleepU3's link wakes the chip with a byte before each frame
 # (SleepU3.c); an image that does without that byte keeps 57,600 (Escapement_UART.c).

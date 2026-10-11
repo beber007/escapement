@@ -49,6 +49,9 @@ int main(void)
   /* 96 MHz: the microsecond tick of the timer, and therefore the task periods, depend on
   ** the clock this sets. */
   OSInitializeSystemClocks();
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSInitProcessorSpeed();
+  #endif
   InitializeFlag(FLAG1_PIN);
   InitializeFlag(FLAG2_PIN);
   InitializeFlag(FLAG3_PIN);
@@ -66,6 +69,11 @@ int main(void)
      ** instance in three is mandatory, the others run if the declared execution times,
      ** generous here, leave room for them. The probe stays (1,1), i.e. hard. */
      OSCreateTask(FixedDelayTask,100,0,10000,10000,1,3,0,TaskParameters);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     /* Under the power-aware kernel every task declares its worst case execution time
+     ** at 96 MHz, the same generous figures as the soft branch, which the kernel uses to
+     ** lower the frequency and the voltage as far as the deadlines allow. */
+     OSCreateTask(FixedDelayTask,100,0,10000,10000,TaskParameters);
   #else
      OSCreateTask(FixedDelayTask,0,10000,10000,TaskParameters);
   #endif
@@ -74,6 +82,8 @@ int main(void)
   TaskParameters->Delay = 1000;
   #if defined(ESCAPEMENT_VERSION_SOFT)
      OSCreateTask(FixedDelayTask,200,0,20000,20000,1,3,0,TaskParameters);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateTask(FixedDelayTask,200,0,20000,20000,TaskParameters);
   #else
      OSCreateTask(FixedDelayTask,0,20000,20000,TaskParameters);
   #endif
@@ -82,12 +92,16 @@ int main(void)
   TaskParameters->Delay = 4000;
   #if defined(ESCAPEMENT_VERSION_SOFT)
      OSCreateTask(VariableDelayTask,1000,0,60000,60000,1,1,0,TaskParameters);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateTask(VariableDelayTask,1000,0,60000,60000,TaskParameters);
   #else
      OSCreateTask(VariableDelayTask,0,60000,60000,TaskParameters);
   #endif
   /* Measurement probe, 1 ms period, no payload. */
   #if defined(ESCAPEMENT_VERSION_SOFT)
      OSCreateTask(ProbeTask,20,0,1000,1000,1,1,0,NULL);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateTask(ProbeTask,20,0,1000,1000,NULL);
   #else
      OSCreateTask(ProbeTask,0,1000,1000,NULL);
   #endif

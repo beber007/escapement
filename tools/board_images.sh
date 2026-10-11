@@ -68,6 +68,12 @@ cp "$U3/build-flash/SoakU3.elf" "$OUT/soak_u3/flash/"
 make -s -C "$U3" clean >/dev/null
 make -s -C "$U3" FLASH=1 clean >/dev/null
 echo "soak_u3: SoakU3 SleepU3, SoakU3 in the flash"
+# The same two under the power-aware kernel, checked before them, without a long run.
+make -s -C "$U3" KERNEL=PA build/SoakU3.elf build/SleepU3.elf >/dev/null
+mkdir -p "$OUT/soak_u3_pa"
+cp "$U3/build/SoakU3.elf" "$U3/build/SleepU3.elf" "$OUT/soak_u3_pa/"
+make -s -C "$U3" clean >/dev/null
+echo "soak_u3_pa: SoakU3 SleepU3 (KERNEL=PA)"
 # The Pico 2: the six examples that count in memory, which tools/pico2_check.py runs, and
 # the two of the UART, which tools/pico2_uart.py runs.
 PICO2=Escapement/CORTEX-Mx/RP2350/Examples/pico2

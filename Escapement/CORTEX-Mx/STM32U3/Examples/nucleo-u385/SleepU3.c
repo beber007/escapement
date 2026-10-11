@@ -107,6 +107,9 @@ int main(void)
 {
   void *event;
   OSInitializeSystemClocks();
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSInitProcessorSpeed();
+  #endif
   Results.Marker = MARKER;
   InitializeFlag(FLAG1_PIN);
   #ifdef SLEEP_PHASES
@@ -121,6 +124,11 @@ int main(void)
   #if defined(ESCAPEMENT_VERSION_SOFT)
      OSCreateSynchronousTask(EventTask,0,1000 * TIME_SCALE,0,event,NULL);
      OSCreateTask(SleepTask,50 * TIME_SCALE,0,PERIOD,PERIOD,1,1,0,event);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     /* Some 100 us of work at 96 MHz, declared 200: the kernel runs both tasks at 48 MHz,
+     ** and the idle task enters Stop 2 at that point and wakes at it. */
+     OSCreateSynchronousTask(EventTask,20 * TIME_SCALE,1000 * TIME_SCALE,5,event,NULL);
+     OSCreateTask(SleepTask,200 * TIME_SCALE,0,PERIOD,PERIOD,event);
   #else
      OSCreateSynchronousTask(EventTask,1000 * TIME_SCALE,event,NULL);
      OSCreateTask(SleepTask,0,PERIOD,PERIOD,event);

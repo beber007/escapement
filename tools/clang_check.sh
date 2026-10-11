@@ -38,7 +38,7 @@ check() {   # check TARGET CPU PORT_DIR EXAMPLE_DIR [KERNELS]
 check thumbv6m-none-eabi cortex-m0plus "$M/RP2040" "$M/RP2040/Examples/pico"
 check thumbv8m.main-none-eabi cortex-m33 "$M/RP2350" "$M/RP2350/Examples/pico2" "HARD SOFT"
 check thumbv8m.main-none-eabi cortex-m33 "$M/STM32U5" "$M/STM32U5/Examples/uno-q" "HARD SOFT"
-check thumbv8m.main-none-eabi cortex-m33 "$M/STM32U3" "$M/STM32U3/Examples/nucleo-u385" "HARD SOFT"
+check thumbv8m.main-none-eabi cortex-m33 "$M/STM32U3" "$M/STM32U3/Examples/nucleo-u385"
 if grep -q -E "warning:|error:" "$LOG"; then
     cat "$LOG"
     exit 1

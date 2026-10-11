@@ -49,6 +49,9 @@ int main(void)
 {
   void *event;
   OSInitializeSystemClocks();
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSInitProcessorSpeed();
+  #endif
   InitializeFlag(FLAG1_PIN);
   InitializeFlag(FLAG2_PIN);
   /* Two pending events at most, TIM4 at the priority of the application. */
@@ -61,6 +64,16 @@ int main(void)
      event = OSCreateEventDescriptor();
      OSCreateSynchronousTask(ClearLed2Task,0,2000,0,event,NULL);
      OSCreateTask(SetLed2Task,0,0,10000,10000,1,1,0,event);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     /* Execution times at 96 MHz, generous. The workload of an event-driven task is its
+     ** execution time divided by the share of the processor left to it, here its delay;
+     ** the utilization of both, 20/1000 + 20/2000, is 8 in 256ths. */
+     event = OSCreateEventDescriptor();
+     OSCreateSynchronousTask(ClearLed1Task,20,1000,8,event,NULL);
+     OSCreateTask(SetLed1Task,20,0,5000,5000,event);
+     event = OSCreateEventDescriptor();
+     OSCreateSynchronousTask(ClearLed2Task,20,2000,8,event,NULL);
+     OSCreateTask(SetLed2Task,20,0,10000,10000,event);
   #else
      event = OSCreateEventDescriptor();
      OSCreateSynchronousTask(ClearLed1Task,1000,event,NULL);

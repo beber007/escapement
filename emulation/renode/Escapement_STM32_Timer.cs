@@ -5,6 +5,10 @@
 //   1. the callback of the UG bit ran whichever bit was written, so that writing
 //      CC1G generated an update event and raised UIF;
 //   2. CC1G through CC4G were not implemented.
+// And external clock mode 2 added, for the STM32U3's power-aware kernel, whose timers count
+// the MSIK on tim_etr3 (RM0487 rev. 3, table 409): with ECE set in SMCR and ETRSEL of
+// TIMx_AF1 (0x60) at 3, the counter and its channels count etrFrequency divided by ETPS,
+// and frequency, the internal clock, otherwise.
 //
 // A tickless kernel such as Escapement arms a deadline in CCR1 and forces its
 // first interrupt through CC1G: it was therefore handed a spurious overflow.
@@ -53,9 +57,11 @@ namespace Antmicro.Renode.Peripherals.Timers
     [AllowedTranslations(AllowedTranslation.ByteToDoubleWord | AllowedTranslation.WordToDoubleWord)]
     public class Escapement_STM32_Timer : LimitTimer, IDoubleWordPeripheral, IKnownSize, INumberedGPIOOutput, IRegisterablePeripheral<IGPIOReceiver, NumberRegistrationPoint<int>>, IRegisterablePeripheral<IGPIOReceiver, NullRegistrationPoint>, IGPIOReceiver
     {
-        public Escapement_STM32_Timer(IMachine machine, ulong frequency, uint initialLimit) : base(machine.ClockSource, frequency, limit: initialLimit, direction: Direction.Ascending, enabled: false, eventEnabled: true, autoUpdate: false)
+        public Escapement_STM32_Timer(IMachine machine, ulong frequency, uint initialLimit, ulong etrFrequency = 0) : base(machine.ClockSource, frequency, limit: initialLimit, direction: Direction.Ascending, enabled: false, eventEnabled: true, autoUpdate: false)
         {
             this.machine = machine;
+            this.internalFrequency = frequency;
+            this.etrFrequency = etrFrequency;
             sysbus = machine.GetSystemBus(this);
             this.initialLimit = initialLimit;
             // If initialLimit is 0, throw an error - this is an invalid state for us, since we would not be able to infer the counter's width
@@ -237,10 +243,17 @@ namespace Antmicro.Renode.Peripherals.Timers
                     .WithEnumField(4, 3, out triggerSelection, name: "Trigger Selection (TS)")
                     .WithTaggedFlag("Master/Slave mode (MSM)", 7)
                     .WithTag("External trigger filter (ETF)", 8, 3)
-                    .WithTag("External trigger prescaler (ETPS)", 12, 2)
-                    .WithTaggedFlag("External clock enable (ECE)", 14)
+                    .WithValueField(12, 2, out externalTriggerPrescaler, name: "External trigger prescaler (ETPS)")
+                    .WithFlag(14, out externalClockEnable, name: "External clock enable (ECE)")
                     .WithTaggedFlag("External trigger polarity (ETP)", 15)
                     .WithReservedBits(16, 16)
+                    .WithWriteCallback((_, __) => UpdateCounterClock())
+                },
+                {(long)Registers.AlternateFunction1, new DoubleWordRegister(this)
+                    .WithReservedBits(0, 14)
+                    .WithValueField(14, 4, out externalTriggerSelection, name: "etr_in source selection (ETRSEL)")
+                    .WithReservedBits(18, 14)
+                    .WithWriteCallback((_, __) => UpdateCounterClock())
                 },
                 {(long)Registers.DmaOrInterruptEnable, new DoubleWordRegister(this)
                     .WithFlag(0, out updateInterruptEnable, name: "Update interrupt enable (UIE)")
@@ -594,6 +607,7 @@ namespace Antmicro.Renode.Peripherals.Timers
         {
             base.Reset();
             registers.Reset();
+            UpdateCounterClock();
             autoReloadValue = initialLimit;
             enableRequested = false;
             Limit = initialLimit;
@@ -812,6 +826,37 @@ namespace Antmicro.Renode.Peripherals.Timers
 
         private bool IsTriggerMode => slaveModeSelection.Value == SlaveModeSelection.TriggerMode;
 
+        // The counter's clock: etrFrequency over ETPS in external clock mode 2 on tim_etr3,
+        // the MSIK, the internal clock otherwise; its channels with it, which take the
+        // frequency only when they are built otherwise.
+        private void UpdateCounterClock()
+        {
+            var external = externalClockEnable.Value && externalTriggerSelection.Value == 3;
+            if(external && etrFrequency == 0)
+            {
+                this.Log(LogLevel.Warning, "External clock mode 2 on tim_etr3 without an etrFrequency: the counter keeps its internal clock");
+            }
+            var counted = external && etrFrequency != 0 ? etrFrequency >> (int)externalTriggerPrescaler.Value : internalFrequency;
+            if(external && 4 * counted > internalFrequency)
+            {
+                this.Log(LogLevel.Warning, "tim_etrp at {0} Hz, above a quarter of the internal clock (RM0487, p. 1631)", counted);
+            }
+            if(Frequency == counted)
+            {
+                return;
+            }
+            Frequency = counted;
+            for(var i = 0; i < NumberOfCCChannels; ++i)
+            {
+                channels[i].Timer.Frequency = counted;
+            }
+        }
+
+        private readonly ulong internalFrequency;
+        private readonly ulong etrFrequency;
+        private readonly IValueRegisterField externalTriggerPrescaler;
+        private readonly IFlagRegisterField externalClockEnable;
+        private readonly IValueRegisterField externalTriggerSelection;
         private uint autoReloadValue;
         private uint repetitionsLeft;
         private bool updateInterruptFlag;
@@ -1026,7 +1071,9 @@ namespace Antmicro.Renode.Peripherals.Timers
             // gap intended
             DmaControl = 0x48,
             DmaAddressForFullTransfer = 0x4C,
-            Option = 0x50
+            Option = 0x50,
+            // gap intended
+            AlternateFunction1 = 0x60
         }
 
         private enum TriggerSelection

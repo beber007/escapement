@@ -62,6 +62,9 @@ int main(void)
 {
   void *event;
   OSInitializeSystemClocks();
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSInitProcessorSpeed();
+  #endif
   Results.Marker = MARKER;
   OSInitTimerEvent(1,1,OS_IO_TIM4);
   Results.NoLSE = !OSInitStop2();
@@ -69,6 +72,9 @@ int main(void)
   #if defined(ESCAPEMENT_VERSION_SOFT)
      OSCreateSynchronousTask(EventTask,0,PERIOD,0,event,event);
      OSCreateTask(StartTask,50 * TIME_SCALE,4,0,PERIOD,1,1,0,event);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateSynchronousTask(EventTask,50 * TIME_SCALE,PERIOD,1,event,event);
+     OSCreateTask(StartTask,50 * TIME_SCALE,4,0,PERIOD,event);
   #else
      OSCreateSynchronousTask(EventTask,PERIOD,event,event);
      OSCreateTask(StartTask,4,0,PERIOD,event);

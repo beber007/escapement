@@ -77,7 +77,7 @@ and slows down only as far as those times still meet every deadline.
 | Arduino UNO Q (STM32U585) | Cortex-M33, 160 MHz | hard, soft; the idle task in Stop 2 | the board, checked at each commit; Renode |
 | Raspberry Pi Pico 2 (RP2350) | Cortex-M33, 150 MHz | hard, soft; two cores sharing lock-free buffers | the board, checked at each commit: the six examples that count in memory and the UART; Renode |
 | NUCLEO-U575ZI-Q (STM32U575) | Cortex-M33, 160 MHz | the hard kernel's example in Stop 2, for current measurement; the endurance tests of the hard and soft kernels, from the flash too | the endurance tests on the board since 2026-09-28; Renode |
-| NUCLEO-U385RG-Q (STM32U385) | Cortex-M33, 96 MHz | hard, soft; the idle task in Stop 2; written from the reference manual before the board came ([`docs/stm32u3.md`](docs/stm32u3.md)) | the board since 2026-10-09, its check and endurance test; Renode, its platform checking the clock set-up and the wake-up from Stop 2 against the manual |
+| NUCLEO-U385RG-Q (STM32U385) | Cortex-M33, 96 MHz | hard, soft, power-aware with DVFS between 48 and 96 MHz; the idle task in Stop 2; written from the reference manual before the board came ([`docs/stm32u3.md`](docs/stm32u3.md)) | the board since 2026-10-09, its check and endurance test; Renode, its platform checking the clock set-up and the wake-up from Stop 2 against the manual |
 
 ## An application
 
@@ -162,7 +162,7 @@ right. The host test says the scheduler made the decisions it should have.
 | Compilation | GitHub Actions, with the developer's GCC and a second one, 14.2, and clang | the examples of the Pico, the Pico 2, the STM32U5 and the STM32U3, on each push to `main` and each pull request; the kernels and the ports also compiled by clang without a warning (`tools/clang_check.sh`) |
 | The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the three kernels, each under EDF and DM: activations on time, ties in priority order, three wraps of the kernel clock, event-driven tasks, the queue and the slot buffers, (m,k)-firm overload, the power-aware kernel's speeds;<br>every line run or excluded with its reason, branches above a floor (`tools/coverage.py`);<br>random task sets, half of them across the 2^30 wrap, every trace checked against EDF or DM and Spuri's bound, and the power-aware kernel's speeds against a reference of its policies (`tools/differential.py`) |
 | Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue preempted at every access, the slot buffers and Evéquoz's queue between two cores free to reorder;<br>no read mixes two records or goes backwards, every run of the queue is linearizable;<br>faulty variants each model must catch |
-| Replayable execution | Renode and `renode-test` | on the four chips: tasks at their periods, the UART, timer events, the 2^30 wrap;<br>the RP2040's DVFS driver raising the voltage before the frequency;<br>the RP2350's slot buffers and queue between its cores;<br>the STM32U5's idle task in Stop 2, across the wrap too;<br>the STM32U3's clock set-up against the rules of its reference manual |
+| Replayable execution | Renode and `renode-test` | on the four chips: tasks at their periods, the UART, timer events, the 2^30 wrap;<br>the RP2040's DVFS driver raising the voltage before the frequency;<br>the RP2350's slot buffers and queue between its cores;<br>the STM32U5's idle task in Stop 2, across the wrap too;<br>the STM32U3's clock set-up and DVFS driver against the rules of its reference manual |
 | Internal state on hardware | OpenOCD and SWD on the Picos; the reports of an STM32U5 to the Linux of its Arduino UNO Q | a trace read without stopping a core: deadlines armed ahead of the counter, timer events on the microsecond, the speeds of the power-aware kernel;<br>cost counters read back from SRAM;<br>endurance runs, every part checked each second;<br>at each commit, three boards checked on the CI's images (`tools/board_ci.md`) |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
 
@@ -244,22 +244,28 @@ Tasks declare their worst-case execution time. The kernel uses it to work out ho
 it can slow the core down without putting a deadline at risk, which is what the DRA,
 OTE and DM_SLACK algorithms compute. The power-aware kernel schedules by EDF\*, an EDF
 that breaks ties in a fixed way, so it can predict when each task will finish. Whether
-this actually saves energy depends on the chip, and measuring decided it on two
+this actually saves energy depends on the chip, and measuring decided it on each
 ([`docs/power-aware.md`](docs/power-aware.md), [`docs/roadmap.md`](docs/roadmap.md)). On
 the STM32U5 it does not: a cycle costs least at full speed, and racing to Stop 2 wins at
 every load. On the RP2350, within its specified voltage, some 10 % at best. On the
 RP2040, measured on 2026-10-10, up to some 5 % with the idle task in WFI and nothing
 once it sleeps in SLEEP, which takes some 73 % off by itself, and 60 % of what is left
-with PLL_SYS stopped (`make SLEEP_GATE=1`).
+with PLL_SYS stopped (`make SLEEP_GATE=1`). On the STM32U3, measured on 2026-10-10, a
+cycle costs 14 % less at 48 MHz in its lower voltage range than at 96, more than racing
+to Stop 2 gives back: the kernel runs there with DVFS since 2026-10-11, what it saves a
+task set not measured yet ([`docs/stm32u3.md`](docs/stm32u3.md)).
 
 </details>
 
 <details>
-<summary>A time base independent of the core, on the RP2040</summary>
+<summary>A time base independent of the core, on the RP2040 and the STM32U3</summary>
 
 The kernel's counter runs on a one-microsecond tick taken from the reference clock.
 Changing the processor frequency does not move it, which the power-aware kernel
-depends on.
+depends on. On the STM32U3, whose timers otherwise follow the core's clock, the
+power-aware kernel has them count the MSIK, which stays at 12 MHz: 5.8 million changes
+of speed in a minute lost the kernel's clock not a microsecond on the board
+([`docs/stm32u3.md`](docs/stm32u3.md)).
 
 </details>
 

@@ -152,6 +152,9 @@
    #error "OS_SYSTEM_CLOCK_HZ: 96, 48, 24 or 12 MHz on the STM32U3"
 #endif
 #define CLOCK_BOOST          (OS_SYSTEM_CLOCK_HZ > 24000000u)
+#if defined(ESCAPEMENT_VERSION_HARD_PA) && OS_SYSTEM_CLOCK_HZ != 96000000u
+   #error "the power-aware kernel starts at 96 MHz on the STM32U3: no MHZ="
+#endif
 
 
 typedef struct UNLOCK_ISR_DATA {
@@ -163,6 +166,11 @@ void (*_OSIdleHook)(void) = NULL;
 static UNLOCK_ISR_DATA UnlockDescriptor;
 static volatile UINT32 MSIRelocks;
 static BOOL Locked;
+
+#ifdef ESCAPEMENT_VERSION_HARD_PA
+   static UINT8 CurrentSpeed = OS_MAX_SPEED;
+   static void SetPoint48(void);
+#endif
 
 /* With OS_CLOCK_TIMES, the cycle counter of the DWT, which the image starts, read at each
 ** step of the clock set-up, for ClockU3 to report how long each took on the board: the
@@ -288,6 +296,15 @@ void OSInitializeSystemClocks(void)
 ** already read it done. */
 void _OSRaiseSystemClock(void)
 {
+  #ifdef ESCAPEMENT_VERSION_HARD_PA
+     /* The MSIK, which the timers count, back from Stop 2 before they start again (MSIKON,
+     ** set by the hardware on the way out, p. 419). */
+     while ((RCC_CR & RCC_CR_MSIKRDY) == 0);
+     if (CurrentSpeed != OS_MAX_SPEED) {
+        SetPoint48();
+        return;
+     }
+  #endif
   #if CLOCK_BOOST
      /* The booster's clock before the booster (p. 405, 429): the MSIS, which stays on
      ** as the system clock, as it must while the booster is (caution, p. 334). Stop 2
@@ -341,3 +358,116 @@ BOOL _OSWaitMSILock(UINT16 (*clock)(void), UINT16 ticks)
   while ((RCC_CR & RCC_CR_MSIPLL0RDY) == 0 && (UINT16)(clock() - start) < ticks);
   return (RCC_CR & RCC_CR_MSIPLL0RDY) == 0;
 } /* end of _OSWaitMSILock */
+
+
+#ifdef ESCAPEMENT_VERSION_HARD_PA
+
+/* Work done at each operating point relative to the fastest, times 256, the fastest left
+** out: 48 / 96 * 256. */
+const UINT8 _OSSlowdownRatios[] = {128};
+
+
+/* OSInitProcessorSpeed: OSInitializeSystemClocks left the chip at 96 MHz in range 1. */
+void OSInitProcessorSpeed(void)
+{
+  CurrentSpeed = OS_MAX_SPEED;
+} /* end of OSInitProcessorSpeed */
+
+
+UINT8 OSGetProcessorSpeed(void)
+{
+  return CurrentSpeed;
+} /* end of OSGetProcessorSpeed */
+
+
+/* SetMSISDivider: The MSIS's divider alone, written while it is ready and then until it
+** is ready again (RCC_ICSCR1, p. 421); the MSIK's, which clocks the timers, untouched. */
+static void SetMSISDivider(UINT32 div)
+{
+  while ((RCC_CR & RCC_CR_MSISRDY) == 0);
+  RCC_ICSCR1 = (RCC_ICSCR1 & ~RCC_ICSCR1_MSISDIV_MASK) | RCC_ICSCR1_MSISDIV(div);
+  while ((RCC_CR & RCC_CR_MSISRDY) == 0);
+} /* end of SetMSISDivider */
+
+
+/* SetPoint96: Up from 48 MHz in range 2, as 9.3.3 orders it (p. 333-334): range 1 once
+** range 2 is ready, R1EN and R2EN changing together (p. 369), R1RDY, then the frequency.
+** The booster and the 2 wait states are those of both points, and stay. R1RDY took 19.4 us
+** at 12 MHz on the board (ClockU3, docs/stm32u3.md), most of the change. */
+static void SetPoint96(void)
+{
+  if ((PWR_VOSR & PWR_VOSR_R1EN) == 0) {
+     while ((PWR_VOSR & (PWR_VOSR_R1RDY | PWR_VOSR_R2RDY)) != PWR_VOSR_R2RDY);
+     PWR_VOSR = (PWR_VOSR & ~(PWR_VOSR_R1EN | PWR_VOSR_R2EN)) | PWR_VOSR_R1EN;
+  }
+  while ((PWR_VOSR & PWR_VOSR_R1RDY) == 0);
+  SetMSISDivider(MSIDIV_96MHZ);
+} /* end of SetPoint96 */
+
+
+/* SetPoint48: Down to 48 MHz in range 2: the frequency first, then the range, R2RDY
+** awaited so that the next raise finds range 2 ready. Also the point a wake-up from Stop 2
+** returns to, the chip already at 48 MHz in range 2 (9.3.5, p. 351; RCC_ICSCR1, p. 421):
+** the booster, which Stop 2 keeps, and the wait states are only checked there. */
+static void SetPoint48(void)
+{
+  if ((RCC_CFGR4 & RCC_CFGR4_BOOSTSEL_MASK) != RCC_CFGR4_BOOSTSEL_MSIS)
+     RCC_CFGR4 = (RCC_CFGR4 & ~RCC_CFGR4_BOOSTSEL_MASK) | RCC_CFGR4_BOOSTSEL_MSIS;
+  PWR_VOSR |= PWR_VOSR_BOOSTEN;
+  while ((PWR_VOSR & PWR_VOSR_BOOSTRDY) == 0);
+  if ((FLASH_ACR & FLASH_ACR_LATENCY_MASK) != FLASH_WAIT_STATES) {
+     FLASH_ACR = (FLASH_ACR & ~(FLASH_ACR_LATENCY_MASK | FLASH_ACR_PRFTEN)) | FLASH_WAIT_STATES;
+     while ((FLASH_ACR & FLASH_ACR_LATENCY_MASK) != FLASH_WAIT_STATES);
+  }
+  if ((RCC_ICSCR1 & RCC_ICSCR1_MSISDIV_MASK) != RCC_ICSCR1_MSISDIV(MSIDIV_48MHZ))
+     SetMSISDivider(MSIDIV_48MHZ);
+  if ((PWR_VOSR & PWR_VOSR_R1EN) != 0) {
+     while ((PWR_VOSR & PWR_VOSR_R1RDY) == 0);
+     PWR_VOSR = (PWR_VOSR & ~(PWR_VOSR_R1EN | PWR_VOSR_R2EN)) | PWR_VOSR_R2EN;
+  }
+  while ((PWR_VOSR & PWR_VOSR_R2RDY) == 0);
+} /* end of SetPoint48 */
+
+
+/* OSSetProcessorSpeed: Moves to the other operating point, the range raised before the
+** frequency and lowered after it. The kernel calls it from tasks and from the timer
+** handler alike, so the whole change is done with interrupts masked; the timers, on the
+** MSIK, count on through it. */
+void OSSetProcessorSpeed(UINT8 speed)
+{
+  UINT32 primask;
+  __asm volatile ("MRS %0, PRIMASK" : "=r" (primask) :: "memory");
+  _OSDisableInterrupts();
+  if (speed != CurrentSpeed && speed <= OS_MAX_SPEED) {
+     OSTrace(OS_TRACE_SPEED,speed,CurrentSpeed);
+     if (speed == OS_96MHZ_SPEED)
+        SetPoint96();
+     else
+        SetPoint48();
+     CurrentSpeed = speed;
+  }
+  __asm volatile ("MSR PRIMASK, %0" :: "r" (primask) : "memory");
+} /* end of OSSetProcessorSpeed */
+
+
+/* _OSRaiseSpeedOnWake: OSSetProcessorSpeed(OS_MAX_SPEED) for the interrupt that wakes the
+** idle task from a WFI at 48 MHz (make SLEEP_SPEED=0). The flag of the idle task is tested
+** and cleared with interrupts masked, so that an interrupt of higher priority arriving
+** meanwhile raises the speed itself rather than run slow. */
+void _OSRaiseSpeedOnWake(void)
+{
+  UINT32 primask;
+  __asm volatile ("MRS %0, PRIMASK" : "=r" (primask) :: "memory");
+  _OSDisableInterrupts();
+  if (_OSIdleAsleep) {
+     _OSIdleAsleep = FALSE;
+     if (CurrentSpeed != OS_MAX_SPEED) {
+        OSTrace(OS_TRACE_SPEED,OS_MAX_SPEED,CurrentSpeed);
+        SetPoint96();
+        CurrentSpeed = OS_MAX_SPEED;
+     }
+  }
+  __asm volatile ("MSR PRIMASK, %0" :: "r" (primask) : "memory");
+} /* end of _OSRaiseSpeedOnWake */
+
+#endif /* ESCAPEMENT_VERSION_HARD_PA */

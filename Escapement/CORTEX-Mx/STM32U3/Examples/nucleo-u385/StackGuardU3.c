@@ -23,11 +23,16 @@ static UINT32 Recurse(UINT32 level);
 int main(void)
 {
   OSInitializeSystemClocks();
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSInitProcessorSpeed();
+  #endif
   Sentinel = 0xA5A5A5A5u;
   /* A period of 100 s: the kernel's overload check would stop it at the next arrival of
   ** a task still running, long before the stack runs out. */
   #if defined(ESCAPEMENT_VERSION_SOFT)
      OSCreateTask(OverflowTask,0,0,100000000,100000000,1,1,0,NULL);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateTask(OverflowTask,100000000,0,100000000,100000000,NULL);
   #else
      OSCreateTask(OverflowTask,0,100000000,100000000,NULL);
   #endif

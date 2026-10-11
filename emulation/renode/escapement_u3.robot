@@ -12,7 +12,10 @@
 # 010) and lays out the state RM0487 gives the wake-up, so that the tests tagged stop2 see
 # the idle task replay the raise of the clock from there, by the same rules; they take
 # the frequency of the build as MHZ and its platform as PLATFORM (escapement_u3_48mhz.repl
-# for MHZ=48, and so on for 24 and 12), 96 MHz and escapement_u3.repl by default.
+# for MHZ=48, and so on for 24 and 12), 96 MHz and escapement_u3.repl by default. Run on a
+# make KERNEL=PA build with KERNEL:PA, the suite also checks the DVFS driver, the clock
+# after each wake-up at either operating point; a test whose image that build leaves out
+# is skipped.
 *** Settings ***
 Suite Setup                   Setup
 Suite Teardown                Teardown
@@ -29,6 +32,7 @@ ${PWR}                        ${0x40030800}
 ${FLASH}                      ${0x40022000}
 ${MHZ}                        96
 ${PLATFORM}                   escapement_u3.repl
+${KERNEL}                     ${EMPTY}
 
 *** Keywords ***
 Load Escapement
@@ -44,6 +48,12 @@ Load Escapement
     Execute Command           sysbus LoadELF @${EXAMPLE}/build/${binary}.elf
     ${table}=                 Execute Command  sysbus GetSymbolAddress "CortexMxVectorTable"
     Execute Command           sysbus.cpu VectorTableOffset ${table.strip()}
+
+Skip Unless Built
+    [Documentation]           Skips the test when the build did not make its image.
+    [Arguments]               ${binary}
+    ${built}=                 Evaluate  os.path.exists(r"${EXAMPLE}/build/${binary}.elf")  modules=os
+    Skip If                   not ${built}  ${binary} is not built by this kernel
 
 Send On LPUART1
     [Documentation]           Bytes into LPUART1 as a sender writes them, all at once.
@@ -64,18 +74,21 @@ The Clock Is Back At Its Frequency
     ...                       it for the build's MHZ: the MSIS on MSIRC0 and its divider, the
     ...                       system clock on the MSIS (SWS 00), range 1 ready at 96 MHz and
     ...                       range 2 chosen below, the booster on and ready above 24 MHz.
+    ...                       Under the power-aware kernel, whichever of its two operating
+    ...                       points the divider reads, 96 or 48 MHz, with that point's range.
     ${icscr1}=                Read Word  ${RCC + 0x008}
     ${cfgr1}=                 Read Word  ${RCC + 0x01C}
     ${vosr}=                  Read Word  ${PWR + 0x3F8}
-    ${div}=                   Evaluate  {96: 0, 48: 1, 24: 2, 12: 3}[int(${MHZ})]
+    ${mhz}=                   Evaluate  (96, 48)[(${icscr1} >> 29) & 1] if '${KERNEL}' == 'PA' else int(${MHZ})
+    ${div}=                   Evaluate  {96: 0, 48: 1, 24: 2, 12: 3}[${mhz}]
     # R1RDY at 96 MHz, which the raise waits for; R2RDY is not, the chip waking in range 2.
-    ${range}=                 Evaluate  0x10001 if int(${MHZ}) == 96 else 0x2
-    ${boost}=                 Evaluate  0x1000100 if int(${MHZ}) > 24 else 0
+    ${range}=                 Evaluate  0x10001 if ${mhz} == 96 else 0x2
+    ${boost}=                 Evaluate  0x1000100 if ${mhz} > 24 else 0
     Log To Console            ICSCR1 ${icscr1} CFGR1 ${cfgr1} VOSR ${vosr}
     Should Be Equal As Integers  ${{ (${icscr1} >> 29) & 3 }}  ${div}
     Should Be Equal As Integers  ${{ (${icscr1} >> 31) & 1 }}  0
     Should Be Equal As Integers  ${{ (${cfgr1} >> 2) & 3 }}  0
-    Should Be Equal As Integers  ${{ ${vosr} & (0x30003 if int(${MHZ}) == 96 else 0x3) }}  ${range}
+    Should Be Equal As Integers  ${{ ${vosr} & (0x30003 if ${mhz} == 96 else 0x3) }}  ${range}
     Should Be Equal As Integers  ${{ ${vosr} & 0x1000100 }}  ${boost}
 
 Sleep In Stop 2 Within Its Times
@@ -354,8 +367,11 @@ A lock that does not come is waited for no longer than its bound
     ${in_pwr}=                Read Word  ${PWR + 0x3FC}
     Should Be Equal As Integers  ${missed}  ${entries}
     Should Be True            64 <= ${wake} < 98
+    # Under the power-aware kernel the idle task sleeps at the point of the last task, 48
+    # MHz here, but at 96 should an interrupt have raised it: the raise then comes too.
     ${expected}=              Evaluate  0x200 if int(${MHZ}) > 48 else 0
-    Should Be Equal As Integers  ${in_rcc}  ${expected}
+    Run Keyword If            '${KERNEL}' == 'PA'  Should Be True  ${in_rcc} in (0, 0x200)
+    ...  ELSE                 Should Be Equal As Integers  ${in_rcc}  ${expected}
     Should Be Equal As Integers  ${in_pwr}  0
 
 With MSIPLL0FAST the chip wakes locked
@@ -364,6 +380,7 @@ With MSIPLL0FAST the chip wakes locked
     ...                       419). The platform never locking again otherwise (RCC 0x3EC), no
     ...                       wake-up misses its lock, and no rule is broken.
     [Tags]                    stop2
+    Skip Unless Built         SleepFastU3
     Load Escapement           SleepFastU3  ${PLATFORM}
     Execute Command           sysbus WriteDoubleWord ${RCC + 0x3EC} 0x7FFFFFFF
     Execute Command           emulation RunFor "3"
@@ -394,6 +411,7 @@ SleepU3 runs from the flash
     ...                       SRAM by _OSResetHandler, runs from the flash, and reports on USART1
     ...                       across Stop 2 as the image in SRAM does, no rule broken.
     [Tags]                    stop2
+    Skip Unless Built         SleepU3Flash
     Load Escapement           SleepU3Flash  ${PLATFORM}
     ${usart1}=                Create Terminal Tester  sysbus.usart1  defaultPauseEmulation=true
     ${first}=                 Wait For Line On Uart  SLEEP  timeout=2.5  testerId=${usart1}
@@ -791,8 +809,7 @@ The endurance test drops optional instances, never a mandatory one
     ...                       past its deadline nor bears a number other than the kernel's.
     ...                       The soft kernel only builds it.
     [Timeout]                 10 minutes
-    ${built}=                 Evaluate  os.path.exists(r"${EXAMPLE}/build/SoakFirmU3.elf")  modules=os
-    Skip If                   not ${built}  built for the soft kernel only
+    Skip Unless Built         SoakFirmU3
     Load Escapement           SoakFirmU3
 
     Execute Command           emulation RunFor "3.5"
@@ -847,6 +864,7 @@ The operating points of DVFSU3 keep to the manual's sequences
     ...                       rule of the platform broken, the regulator followed by REGS, and
     ...                       every CRC right. One line on USART1 a point, its words the
     ...                       regulator, the point, the CRCs and those wrong.
+    Skip Unless Built         DVFSU3Short
     Load Escapement           DVFSU3Short
     ${usart1}=                Create Terminal Tester  sysbus.usart1  defaultPauseEmulation=true
     FOR  ${i}  IN RANGE  16
@@ -859,4 +877,45 @@ The operating points of DVFSU3 keep to the manual's sequences
         Should Be Equal As Integers  ${{ int($words[9], 16) }}  0
     END
     Log To Console            ${line.Line}
+    No Rule Broken
+
+The DVFS driver keeps to the manual and the timers to their time
+    [Documentation]           BenchDVFSU3Short, the bench of the power-aware kernel's changes of
+    ...                       speed (BenchDVFSU3.c) with windows of 2 ms of LPTIM1: TIM2 counted
+    ...                       against LPTIM1 at 96 MHz, then changing between 48 and 96 MHz at
+    ...                       each turn; each change by the sequences of RM0487 (9.3.3), no rule
+    ...                       of the platform broken. TIM2 counts the MSIK in external clock
+    ...                       mode 2, which the platform gives it at 12 MHz whatever the MSIS
+    ...                       runs at: both windows read the microsecond of LPTIM1, within a
+    ...                       tick at each end. The board's figures are its own (docs/stm32u3.md).
+    Skip Unless Built         BenchDVFSU3Short
+    Load Escapement           BenchDVFSU3Short
+    ${usart1}=                Create Terminal Tester  sysbus.usart1  defaultPauseEmulation=true
+    ${line}=                  Wait For Line On Uart  DVFSB  timeout=2  testerId=${usart1}
+    ${line}=                  Wait For Line On Uart  DVFSB  timeout=2  testerId=${usart1}
+    Log To Console            ${line.Line}
+    ${w}=                     Evaluate  [0] + [int(x, 16) for x in $line.Line.split()[1:]]
+    Should Be Equal As Integers  ${{ $w[1] }}  2
+    Should Be Equal As Integers  ${{ $w[15] }}  0
+    Should Be True            ${{ $w[3] }} >= 66 and ${{ $w[5] }} >= 66
+    Should Be True            ${{ abs($w[2] * 32768 - $w[3] * 1000000) }} <= 2 * 1000000
+    Should Be True            ${{ abs($w[4] * 32768 - $w[5] * 1000000) }} <= 2 * 1000000
+    Should Be True            ${{ $w[6] }} > 10
+    ${changes}=               Read Word  ${RCC + 0x3E8}
+    Should Be True            ${changes} >= ${{ $w[6] }}
+    No Rule Broken
+
+The power-aware kernel changes speed through the endurance test
+    [Documentation]           SoakU3 under the power-aware kernel for 3.5 s: every part active and
+    ...                       none in error, as under the others, while the kernel moves between
+    ...                       48 and 96 MHz, which the platform counts (RCC 0x3E8), by the
+    ...                       manual's sequences.
+    [Timeout]                 10 minutes
+    Skip If                   '${KERNEL}' != 'PA'  the power-aware kernel only
+    Load Escapement           SoakU3
+    Execute Command           emulation RunFor "3.5"
+    Every Part Of Soak Without Error
+    ${changes}=               Read Word  ${RCC + 0x3E8}
+    Log To Console            ${changes} changes of the MSIS
+    Should Be True            ${changes} > 100
     No Rule Broken

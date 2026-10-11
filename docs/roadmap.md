@@ -41,8 +41,8 @@ ships, and that each endurance run and measurement it cites was made on that cod
 
 **Scope.** The hard, soft and power-aware kernels, each under EDF and DM, on the boards
 that check every commit: the RP2040 (all three kernels), the RP2350, the STM32U5 and,
-since the user added it on 2026-10-09, the STM32U3 (hard and soft, and power-aware if
-task 11 finds DVFS worth it there). The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
+since the user added it on 2026-10-09, the STM32U3 (all three kernels, the power-aware
+one since task 11 found DVFS worth it there). The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
 
 **Tasks, in order, each finished before the next begins.** Since 2026-10-09, a task left
 with nothing but a wait (an endurance run, the CI, the user's hands) may be set aside for
@@ -230,8 +230,16 @@ task 4 began the same day.
    kernel's run of task 14 on the board. If it does not, the port stays hard and soft.
    Needs the user's hands for the PPK2. Measured on 2026-10-10 (`stm32u3.md`,
    "Measuring DVFS"): on the SMPS a CRC costs 14.2 % less at 48 MHz in range 2 than at
-   96 MHz in range 1, far more than the Stop 2 given up: DVFS pays. Left: the
-   power-aware kernel on the port, and the verdict in `power-aware.md`.
+   96 MHz in range 1, far more than the Stop 2 given up: DVFS pays. **Done on
+   2026-10-11** (`stm32u3.md`, "The power-aware kernel"; the verdict in
+   `power-aware.md`): two operating points, 48 MHz in range 2 and 96 in range 1, 24 and 12
+   costing more a cycle than 48. Where the plan had TIM2 and TIM4 rescaled, they count the
+   MSIK instead, 12 MHz whatever the core runs at: rewriting a prescaler loses the
+   fraction of a microsecond under way at each change. On the board `BenchDVFSU3` lost no
+   microsecond over 5.8 million changes in a minute, a raise taking 15.2 µs, a fall 4.3;
+   the board check on the power-aware images passed by hand, and `board/u3` checks them
+   at each commit from this one on, before the hard kernel's. Renode runs the whole suite on a
+   `KERNEL=PA` build. The kernel's run of task 14 is to come with the others.
 12. **A review of the whole, code and documentation.** Added by the user on 2026-10-10,
    before the freeze so that what it finds is fixed before the candidate and its runs.
    By agents on Claude Fable 5.1, each given one part and none the conclusions of
@@ -250,7 +258,7 @@ task 4 began the same day.
    was to stay as it was at 041af76, the commit of its week.)
 14. **Endurance on the candidate**: 8 hours for each kernel on each platform, as the
    user decided on 2026-10-10 (a week until then, cut to 24 hours, then to this; rule 3
-   of `CLAUDE.md`, "Before a release"). Nine runs, ten with the STM32U3's power-aware kernel, one board each platform, run in turn
+   of `CLAUDE.md`, "Before a release"). Ten runs, one board each platform, run in turn
    on it and in parallel across them, from flash once task 4 is done; the soft kernel
    with the (m,k)-firm variant of task 2 (`SoakFirm*`), the others with `Soak*`:
    - RP2040, probe2's Pico: hard, soft, power-aware, 24 hours in all; the PPK2 of task 9
@@ -258,8 +266,7 @@ task 4 began the same day.
    - RP2350, probe3's Pico 2: hard, soft, 16 hours; the board CI skips the Pico 2 while
      a run holds `lock-probe3`, as it skipped probe2's Pico (`board_ci.md`);
    - STM32U5, the NUCLEO-U575ZI-Q: hard, soft, 16 hours;
-   - STM32U3, the NUCLEO-U385RG-Q: hard, soft, 16 hours, and power-aware, 24 in all,
-     if task 11 ports it.
+   - STM32U3, the NUCLEO-U385RG-Q: hard, soft, power-aware, 24 hours in all.
    The runs before the candidate are cited beside, not in their place: the hard kernel's
    week on the Pico at 041af76, the power-aware kernel's 4 d 18 h 47 min at 80cc6dc
    (stopped on 2026-10-10 for task 9's PPK2, no restart, no error, 384 wraps), the soft
@@ -270,7 +277,8 @@ task 4 began the same day.
 
 **Not in 0.1**, open after it: DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
 the PPK2 as a check of each commit on the STM32U5 (item 4); how
-often a wake-up byte of LPUART1 comes out wrong (item 6); testing a dropped optional
+often a wake-up byte of LPUART1 comes out wrong (item 6); what the STM32U3's power-aware
+kernel saves a task set (item 7); testing a dropped optional
 instance again; an exhaustive enumeration of small task sets and fuzzing; a test of
 optional instances by processor demand that counts its own cost, bounded and measured on
 each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`).
@@ -457,6 +465,12 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
 6. **LPUART1 at 115,200 baud through Stop 2 — done on 2026-10-02** (Done, "LPUART1 at
    115,200 baud through Stop 2"). Left: how often a wake-up byte comes out wrong, which
    no check of a minute can bound.
+7. **What the STM32U3's power-aware kernel saves.** Its points were measured with the
+   PPK2 on 2026-10-10, a cycle 14 % cheaper at 48 MHz in range 2 (`stm32u3.md`,
+   "Measuring DVFS"), not the kernel: a task set, `TaskLEDU3` or `SleepU3`, under the
+   hard kernel racing to Stop 2 against the power-aware kernel under each policy, as on
+   the RP2040 (`power-aware.md`, "Measuring the RP2040"). Needs the user's hands for the
+   PPK2 in place of JP4.
 
 ## Done
 

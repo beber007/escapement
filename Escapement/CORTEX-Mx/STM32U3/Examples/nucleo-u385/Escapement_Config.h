@@ -40,7 +40,7 @@
 
 
 /* Select which Escapement version to use: the hard real-time kernel, unless the build asks
-** for the soft one with make KERNEL=SOFT. The power-aware kernel is not ported yet. */
+** for the soft one with make KERNEL=SOFT or the power-aware one with make KERNEL=PA. */
 #if !defined(ESCAPEMENT_VERSION_SOFT) && !defined(ESCAPEMENT_VERSION_HARD_PA)
    #define ESCAPEMENT_VERSION_HARD
 #endif

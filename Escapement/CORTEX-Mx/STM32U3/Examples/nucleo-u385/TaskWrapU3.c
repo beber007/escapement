@@ -55,6 +55,9 @@ static void ProbeTask(void *argument);
 #if defined(ESCAPEMENT_VERSION_SOFT)
    #define CreateTask(task,wcet,period,parameters) \
               OSCreateTask(task,wcet,0,period,period,1,1,0,parameters)
+#elif defined(ESCAPEMENT_VERSION_HARD_PA)
+   #define CreateTask(task,wcet,period,parameters) \
+              OSCreateTask(task,wcet,0,period,period,parameters)
 #else
    #define CreateTask(task,wcet,period,parameters) \
               OSCreateTask(task,0,period,period,parameters)
@@ -66,6 +69,9 @@ int main(void)
 {
   TaskParametersDef *TaskParameters;
   OSInitializeSystemClocks();
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSInitProcessorSpeed();
+  #endif
   InitializeFlag(FLAG1_PIN);
   InitializeFlag(FLAG2_PIN);
   InitializeFlag(FLAG3_PIN);

@@ -246,6 +246,10 @@ static void CountLate(volatile UINT32 *bins, UINT32 late);
    #define PERIODIC(task,wcet,period) OSCreateTask(task,wcet,0,period,period,1,1,0,NULL)
    #define EVENT_DRIVEN(task,wcet,workload,event) \
               OSCreateSynchronousTask(task,wcet,workload,32,event,NULL)
+#elif defined(ESCAPEMENT_VERSION_HARD_PA)
+   #define PERIODIC(task,wcet,period) OSCreateTask(task,wcet,0,period,period,NULL)
+   #define EVENT_DRIVEN(task,wcet,workload,event) \
+              OSCreateSynchronousTask(task,wcet,workload,32,event,NULL)
 #else
    #define PERIODIC(task,wcet,period) OSCreateTask(task,0,period,period,NULL)
    #define EVENT_DRIVEN(task,wcet,workload,event) \
@@ -257,6 +261,9 @@ int main(void)
 {
   PaintStack();
   OSInitializeSystemClocks();
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSInitProcessorSpeed();
+  #endif
   Results.Marker = MARKER;
   Results.Resets = RCC_CSR & RCC_CSR_RESETS;
   RCC_CSR |= RCC_CSR_RMVF;
@@ -298,7 +305,8 @@ int main(void)
   OSSetISRDescriptor(ISR_TIMER_INDEX,&AlarmISR);
   RCC_APB1ENR1 |= RCC_APB1ENR1_TIM3EN;
   (void)RCC_APB1ENR1;
-  TIM3_PSC = OS_SYSTEM_CLOCK_HZ / 1000000u - 1u;
+  _OSTimerOnMSIK(TIM3_BASE);            // under the power-aware kernel
+  TIM3_PSC = OS_TIMER_PRESCALER;
   TIM3_ARR = 1000 - 1;
   TIM3_EGR = UPDATE_BIT;                // load the prescaler
   TIM3_SR = 0;

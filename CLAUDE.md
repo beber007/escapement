@@ -100,12 +100,15 @@ make -C .../nucleo-u575 KERNEL=SOFT           # SoakFirmU5 too: SoakU5 with an (
                                               # every port's soft build has its SoakFirm
 
 # STM32U3 (NUCLEO-U385RG-Q, Cortex-M33) — written from RM0487 before the board came, on
-# the bench since 2026-10-09; hard and soft kernels, the idle task in Stop 2, no KERNEL=PA
-# yet; Renode on a platform of our own whose RCC, PWR and FLASH check the manual's rules,
+# the bench since 2026-10-09; hard, soft and power-aware kernels, the idle task in Stop 2;
+# Renode on a platform of our own whose RCC, PWR and FLASH check the manual's rules,
 # the wake-up from Stop 2 included (docs/stm32u3.md)
 make -C Escapement/CORTEX-Mx/STM32U3/Examples/nucleo-u385 [MHZ=96|48|24|12] [FAST=1]
                                               # PHASES=30 [WAKE=|RUN=]: SleepU3 for the PPK2
+make -C .../nucleo-u385 KERNEL=PA [POWER=] [SLEEP_SPEED=0]   # DVFS between 48 and 96 MHz,
+                                              # the timers on the MSIK; BenchDVFSU3 times it
 renode-test emulation/renode/escapement_u3.robot
+renode-test --variable KERNEL:PA emulation/renode/escapement_u3.robot   # on a KERNEL=PA build
 BOARD=u3 NUCLEO_SERIAL=... NUCLEO_TTY=... OPENOCD=~/opt/openocd-upstream/bin/openocd \
     tools/unoq_check.sh SoakU3.elf SHA       # on the UNO Q: the board check (board/u3)
 tools/soak.py nucleo-u3 0 1m SoakU3.elf       # its long run (service escapement-soak-u3)

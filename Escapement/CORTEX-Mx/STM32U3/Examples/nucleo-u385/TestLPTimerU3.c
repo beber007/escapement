@@ -35,10 +35,15 @@ static void MeasureTask(void *argument);
 int main(void)
 {
   OSInitializeSystemClocks();
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSInitProcessorSpeed();
+  #endif
   Results.Marker = MARKER;
   Results.NoLSE = !OSInitLPTimer();
   #if defined(ESCAPEMENT_VERSION_SOFT)
      OSCreateTask(MeasureTask,50,0,PERIOD,PERIOD,1,1,0,NULL);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateTask(MeasureTask,50,0,PERIOD,PERIOD,NULL);
   #else
      OSCreateTask(MeasureTask,0,PERIOD,PERIOD,NULL);
   #endif

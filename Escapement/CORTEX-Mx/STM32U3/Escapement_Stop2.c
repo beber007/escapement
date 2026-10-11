@@ -24,10 +24,11 @@
 ** 48 MHz requires (10.2.3, p. 405). The MSI's PLL mode lost its lock with the MSI and
 ** locks again (MSIPLL0RDY, p. 418): _OSWaitMSILock waits for it, at most
 ** OS_STOP2_LOCK_TICKS of LPTIM1, unless MSIPLL0FAST kept it (make FAST=1); the rest of
-** the margin is slept in Sleep on that clock (SlowSleep). Then _OSRaiseSystemClock reads PWR_VOSR, RCC_ICSCR1 and RCC_CFGR4 and replays the raise of
-** OSInitializeSystemClocks from there, range 1 and its ready flag before 96 MHz
-** (Escapement_Processor.c). TIM2 and TIM4 are moved on by the time LPTIM1 counted
-** (Escapement_TimerEvent.c). Both are stopped and started again on an edge of LPTIM1, so
+** the margin is slept in Sleep on that clock (SlowSleep). Then _OSRaiseSystemClock reads
+** PWR_VOSR, RCC_ICSCR1 and RCC_CFGR4 and replays the raise of OSInitializeSystemClocks
+** from there, range 1 and its ready flag before 96 MHz (Escapement_Processor.c); under the
+** power-aware kernel, up to the operating point in effect when the idle task slept. TIM2
+** and TIM4 are moved on by the time LPTIM1 counted (Escapement_TimerEvent.c). Both are stopped and started again on an edge of LPTIM1, so
 ** that the time between is whole ticks, 15625/512 us each, the fraction carried to the
 ** next sleep. Interrupts stay masked from the reading of TIM2 to its start again: one that
 ** comes meanwhile wakes the chip and is taken after, late by the wake-up.
@@ -120,7 +121,12 @@ static UINT32 Fraction;                    // of a microsecond, in 512ths, carri
 ** wake-up, given back in 512ths of a microsecond. The 30 were measured on the U5 at 160 MHz
 ** (docs/stm32u5.md); this chip's are the board's to measure. */
 #define RESTART_CYCLES       30u
-#define RESTART_FRACTION     (RESTART_CYCLES * 512u / (OS_SYSTEM_CLOCK_HZ / 1000000u))
+#ifdef ESCAPEMENT_VERSION_HARD_PA
+   #define RESTART_FRACTION  (RESTART_CYCLES * 512u / \
+                              (OSGetProcessorSpeed() == OS_96MHZ_SPEED ? 96u : 48u))
+#else
+   #define RESTART_FRACTION  (RESTART_CYCLES * 512u / (OS_SYSTEM_CLOCK_HZ / 1000000u))
+#endif
 static BOOL WindowOpen;                    // the window of LPUART1, and its end on LPTIM1
 static UINT16 WindowEnd;
 static BOOL WindowArmed;                   // the compare of LPTIM1 set at WindowEnd

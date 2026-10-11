@@ -61,6 +61,9 @@ static void ClobberHighRegisters(void);
 int main(void)
 {
   OSInitializeSystemClocks();
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSInitProcessorSpeed();
+  #endif
   Queue = OSInitFIFOQueue(NODES,sizeof(RECORD));
   Slots = OSInitBuffer(sizeof(SLOT),OS_BUFFER_TYPE_3_SLOT,NULL);
   Drain = OSCreateEventDescriptor();
@@ -70,6 +73,11 @@ int main(void)
      OSCreateSynchronousTask(DrainerTask,50,400,64,Drain,NULL);
      OSCreateTask(PokerTask,50,0,1000,1000,1,1,0,NULL);
      OSCreateTask(FillerTask,3000,0,5000,5000,1,1,0,NULL);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     /* Execution times at 96 MHz, generous, which the kernel may slow down to. */
+     OSCreateSynchronousTask(DrainerTask,50,400,32,Drain,NULL);
+     OSCreateTask(PokerTask,50,0,1000,1000,NULL);
+     OSCreateTask(FillerTask,3000,0,5000,5000,NULL);
   #else
      OSCreateSynchronousTask(DrainerTask,400,Drain,NULL);
      OSCreateTask(PokerTask,0,1000,1000,NULL);

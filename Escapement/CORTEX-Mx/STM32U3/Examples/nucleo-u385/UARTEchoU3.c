@@ -47,6 +47,9 @@ int main(void)
 {
   /* 96 MHz, which the baud rate is computed from. */
   OSInitializeSystemClocks();
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSInitProcessorSpeed();
+  #endif
   if (!OSInitUART(UART_TRANSMIT_FIFO_NB_NODE,UART_TRANSMIT_FIFO_NODE_SIZE,
                   UARTUserReceiveInterruptHandler,UART_VECTOR))
      while (TRUE);

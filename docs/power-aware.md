@@ -1,8 +1,9 @@
 # The power-aware variant and DVFS
 
 The power-aware kernel, `EscapementHardPA`, lowers the frequency and the core voltage
-when the execution times the tasks declare leave room before the next deadline. Its one
-driver is the RP2040's, described below. The kernel also runs in the host test
+when the execution times the tasks declare leave room before the next deadline. It has
+two drivers, the RP2040's, described below, and since 2026-10-11 the STM32U3's
+(`stm32u3.md`, "The power-aware kernel"). The kernel also runs in the host test
 (`test/host`). This page sets out what the datasheets lead one to expect, what the
 bench has measured, and what emulation can and cannot show.
 
@@ -10,7 +11,11 @@ bench has measured, and what emulation can and cannot show.
 racing to Stop 2 beats every slower speed at every load (below). On the RP2350, the
 same day: DVFS saves some 10 % at best within the specification, with the idle task in
 SLEEP and PLL_SYS running, and next to nothing once SLEEP stops PLL_SYS (roadmap items 3
-and 5). On the RP2040, the one chip with a driver: not measured yet (roadmap item 1).
+and 5). On the RP2040, 2026-10-10: up to some 5 % with the idle task in WFI, nothing once
+it sleeps in SLEEP ("Measuring the RP2040", below). On the STM32U3, the same day: a cycle
+costs 14 % less at 48 MHz in range 2 than at 96 in range 1, and its Stop 2 too little for
+racing to make up for it: the one chip here where DVFS beats racing to the deepest
+sleep the kernel uses (below).
 
 ## Is DVFS worth anything?
 
@@ -210,6 +215,7 @@ load is continuous and rules out sleeping.
 | **Cortex-M7 (STM32H7…)** | Presumably the largest gain in absolute watts. At 400–550 MHz switching should make up most of the budget, so V² would apply to most of it; not checked against a datasheet here. Typical workloads (audio, SDR, motor control) are **continuous** and cannot sleep. | Core not covered by the generic layer, which has the M0, M3, M4 and M33. |
 | **STM32L4** | Once the cheapest STM32 port: a Cortex-M4, which the generic layer covers, with wider voltage scaling than the L1. Set aside (`roadmap.md`). | Renode ships no L4 platform, so the emulation would have to be built along with the port. |
 | **STM32U5** | Four voltage ranges, a 40 nm process, less leakage than anything else here. Ported, without DVFS. | Stop 2 draws tens of µA or less, so race-to-sleep dominates. Measured on 2026-10-03: DVFS gains nothing (below). |
+| **STM32U3** | Two voltage ranges, 0.9 and 0.75 V typical, on an SMPS, and a system clock that is the MSI divided, with no PLL to lock again. Ported since 2026-10-09, with DVFS since 2026-10-11. | Measured on 2026-10-10: a cycle costs 14 % less at 48 MHz in range 2 than at 96 in range 1, and more again at 24 and 12 MHz (below). |
 | ESP32, Ambiq Apollo | — | To rule out. The ESP32 already has vendor DFS (`esp_pm`) with automatic idling; on Ambiq parts the voltage is managed internally, with no lever for the user. |
 
 **The STM32U585 of the UNO Q, read on 2026-09-26** (RM0456 rev. 7, datasheet DS13086
@@ -242,6 +248,18 @@ On the LDO, the U585's only regulator, the same images drew 20.44, 10.50, 6.20 a
 mA, 128, 131, 155 and 180 pC a cycle: twice the SMPS's, in the same order, where the
 figures above, 84 and 73 µA/MHz, put a cycle 13 % cheaper slower. DVFS has nothing to
 gain on the U5, on either regulator.
+
+**The STM32U385 of a NUCLEO-U385RG-Q, measured on 2026-10-10** (`stm32u3.md`, "Measuring
+DVFS"), a PPK2 in place of JP4, a CRC computed without a pause at each operating point,
+its charge counted against the CRCs done: on the SMPS, 48 MHz in range 2 does the same
+work for 14.2 % less charge than 96 MHz in range 1, and 24 and 12 MHz cost more than 48
+in either range. Racing at 96 MHz and sleeping in Stop 2 for the time saved, 144 µs a
+CRC, would save some 1.4 nC of Stop 2 at even 10 µA, against the 41.6 nC a CRC saves at
+48 MHz. **DVFS pays on the STM32U3**, where on the U5, the RP2350 and the RP2040 racing to
+their deepest sleep wins. Its driver has two points, 48 and 96 MHz, since a kernel that lowers the speed as
+far as the deadlines allow would spend more at 24 or 12 (`stm32u3.md`, "The power-aware
+kernel"). What it saves a task set under the kernel, against the hard kernel racing to
+Stop 2, has not been measured: the PPK2 has measured the points, not the kernel.
 
 The bulk of a port is the comparator timer, the vector table and the UART, not energy
 management: the context switch, the atomics and the scheduler do not move.

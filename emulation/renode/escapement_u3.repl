@@ -59,11 +59,15 @@
 // PWR 0x3F0 reads the Stop 2 entered. RCC_CFGR1 reads SWS as SW. PWR_SVMSR reads REGS
 // as PWR_CR3's REGSEL, as on a package with the SMPS (p. 367, 376).
 //
+// RCC 0x3E8 counts the changes of the MSIS's frequency written in RCC_ICSCR1 after the first
+// that takes it above 12 MHz: those of the power-aware kernel's DVFS driver.
+//
 // So the platform checks the order the port writes in and that it waits, not the times
 // or the frequencies: a booster that takes too long, a crystal that needs another drive,
 // the 107 ppm of the MSI's lock, how long a wake-up or a relock takes, the current in
 // Stop 2, only the board tells. The timers count at 96 MHz before
-// their prescaler, the rate OSInitializeSystemClocks sets, not the 96.010 of the lock.
+// their prescaler, the rate OSInitializeSystemClocks sets, not the 96.010 of the lock, or
+// the MSIK's 12 MHz in external clock mode 2, as the power-aware kernel has them.
 
 cpu: CPU.CortexM @ sysbus
     cpuType: "cortex-m33"
@@ -84,16 +88,19 @@ timer2: Timers.Escapement_STM32_Timer @ sysbus 0x40000000
     -> nvic@45
     frequency: 96000000
     initialLimit: 0xFFFFFFFF
+    etrFrequency: 12000000
 
 timer3: Timers.Escapement_STM32_Timer @ sysbus 0x40000400
     -> nvic@46
     frequency: 96000000
     initialLimit: 0xFFFFFFFF
+    etrFrequency: 12000000
 
 timer4: Timers.Escapement_STM32_Timer @ sysbus 0x40000800
     -> nvic@47
     frequency: 96000000
     initialLimit: 0xFFFFFFFF
+    etrFrequency: 12000000
 
 iwdg: Timers.STM32_IndependentWatchdog @ sysbus 0x40003000
     frequency: 32000
@@ -152,6 +159,8 @@ if request.IsInit:
     sysrdy = False
     msiscount = 0
     msikcount = 0
+    changes = 0
+    raised = False
     relock = 8
     afterwake = False
     fastok = False
@@ -164,6 +173,8 @@ elif request.IsRead:
         v = lsedead
     elif r == 0x3EC:
         v = relock
+    elif r == 0x3E8:
+        v = changes
     elif r == 0x000:
         if msiscount > 0:
             msiscount -= 1
@@ -258,6 +269,11 @@ else:
         was = 12
         if (old >> 23) & 1:
             was = (96 if not (old >> 31) & 1 else 24) >> ((old >> 29) & 3)
+        if msis != was:
+            if raised:
+                changes += 1
+            elif msis > 12:
+                raised = True
         if msis > was and afterwake and (regs.get(0x000, 0) >> 6) & 1 and pllcount != 0:
             viol |= 1 << 9
         vosr = bus.ReadDoubleWord(0x40030800 + 0x3F8)

@@ -40,9 +40,9 @@ The port is the STM32U5's, changed where the chip differs.
 | Part | File | What it does, and where RM0487 says so |
 |---|---|---|
 | Clocks | `Escapement_Processor.c` | the MSIS from MSIRC0 at 96 MHz (48, 24 or 12 with `make MHZ=`), locked on the 32.768 kHz crystal in the MSI's PLL mode, by the sequence below; the RCC's interrupt (IRQ 9) puts the PLL mode back if it unlocks |
-| Kernel timer | `Escapement_Timer.c` | TIM2, 32 bits (table 401, p. 1609), counting microseconds of HCLK ("Timer clock", p. 408) and wrapping at 2^30; URS set (TIMx_CR1, p. 1688) |
+| Kernel timer | `Escapement_Timer.c` | TIM2, 32 bits (table 401, p. 1609), counting microseconds of HCLK ("Timer clock", p. 408), of the MSIK under the power-aware kernel ("The power-aware kernel", below), and wrapping at 2^30; URS set (TIMx_CR1, p. 1688) |
 | Timer events | `Escapement_TimerEvent.c` | TIM4: the U3 has no TIM5, and its interrupt, 48, is reserved (table 134, p. 629) |
-| UART | `Escapement_UART.c` | USART1 on PA9 and PA10, alternate function 7, to the ST-LINK's virtual COM port, 115,200 baud from PCLK2 (RCC_CCIPR1, p. 468), with its FIFO; LPUART1 on PA2 and PA3, alternate function 8, D1 and D0, from HSI16 (RCC_CCIPR3, p. 471), which receives through Stop 2 |
+| UART | `Escapement_UART.c` | USART1 on PA9 and PA10, alternate function 7, to the ST-LINK's virtual COM port, 115,200 baud from PCLK2 (RCC_CCIPR1, p. 468), from HSI16 under the power-aware kernel, with its FIFO; LPUART1 on PA2 and PA3, alternate function 8, D1 and D0, from HSI16 (RCC_CCIPR3, p. 471), which receives through Stop 2 |
 | Low-power timer | `Escapement_LPTimer.c` | LPTIM1 on the LSE (LPTIM1SEL, p. 471), 16 bits, reset through the RCC rather than by its ENABLE bit (ES0626, 2.11.1) |
 | Stop 2 | `Escapement_Stop2.c` | the idle task in Stop 2 between the kernel's events, LPTIM1 waking it, as on the U5; on waking, the lock of the MSI waited for and the raise of the clock replayed from what the registers read (below) |
 | Interrupts | `Escapement_Interrupts.c` | the 125 entries of table 134 (p. 627-632), all routed to the kernel's dispatcher; 13 of them are reserved on the U375/385 |
@@ -80,16 +80,15 @@ idle task of Stop 2 installed. `ClockU3` times the clock set-up on the board, th
 domain reset first so that the LSE starts as after a power-on: the port reads the DWT's
 cycle counter at each step when built with `OS_CLOCK_TIMES`, which only its image is,
 every other left byte for byte as it was. `DVFSU3Flash`, with no kernel, steps through
-the operating points for the PPK2 ("Measuring DVFS"). The outputs are D7 (PA8), D8 (PC7), D12 (PA6)
+the operating points for the PPK2 ("Measuring DVFS"), and `BenchDVFSU3`, with no kernel
+either, times the power-aware kernel's driver ("The power-aware kernel"). The outputs are D7 (PA8), D8 (PC7), D12 (PA6)
 and D13 (PA5, also LD2). `SoakU3` reports on USART1. It adds to word 93 of its results
 whether the MSI ever locked (bit 24), beside the count of relocks. Every example builds
 with `-Wall` and no warning, with the hard and the soft kernel under both algorithms, at
-all four frequencies.
+all four frequencies, and with the power-aware kernel under each of its policies.
 
 Left out for now, and refused at build time where it applies:
 
-- The power-aware kernel. TIM2 counts HCLK on this chip, so a DVFS driver would have to
-  rescale TIM2 and TIM4 at each change of speed (plan §5.3).
 - The HSE as the reference of the PLL mode. It would have to be 16 MHz (RCC_ICSCR1,
   p. 423), and the board comes without that crystal.
 - A name of its own in `tools/soak.py`, which reads it as `nucleo` (below).
@@ -493,6 +492,68 @@ CRC saved: **DVFS pays on the STM32U3**, unlike the STM32U5. The changes, in cyc
 the clock in effect: range 1 ready in 295 at 12 MHz (24.6 µs), range 2 in 86 at 48 MHz
 (1.8 µs), the booster in 35 at 12 MHz (2.9 µs), REGS following REGSEL in 178 to 206 at
 12 MHz (15 to 17 µs); the package has its SMPS.
+
+## The power-aware kernel
+
+Since 2026-10-11 (release 0.1, task 11), `make KERNEL=PA` builds the power-aware kernel
+on this port, its DVFS driver in `Escapement_Processor.c`, between two operating points:
+
+| Point | MSIS | Range | Booster | Flash |
+|---|---|---|---|---|
+| `OS_48MHZ_SPEED` | MSIRC0 / 2 | 2 | on | 2 wait states |
+| `OS_96MHZ_SPEED`, the maximum | MSIRC0 / 1 | 1 | on | 2 wait states |
+
+Two only, from "Measuring DVFS" above: at 24 and 12 MHz a cycle costs more than at
+48 MHz in range 2, 19.8 and 24.9 pC against 18.1 on the SMPS, at either range. The kernel
+lowers the speed as far as the deadlines allow, and would spend more there than at 48 MHz
+with Stop 2 after. Both points keep the booster and 2 wait states (table 43, p. 227), so a
+change touches the range and the divider alone, in the order of 9.3.3 (p. 333-334): up,
+R1EN once R2RDY is set, R1RDY, then MSISDIV; down, MSISDIV, then R2EN once R1RDY is set,
+and R2RDY, so that the next raise finds range 2 ready. Interrupts stay masked meanwhile.
+
+TIM2 counts HCLK, which the changes halve and double. The plan (§5.3) had its prescaler
+rewritten at each change, but loading a prescaler takes an update event, which restarts
+its count: the fraction of a microsecond under way would be lost at every change, and the
+kernel changes speed thousands of times a second. Under the power-aware kernel TIM2, TIM4
+and `SoakU3`'s TIM3 count the MSIK instead, in external clock mode 2: tim_etr3 is the MSIK
+on all three (table 409, p. 1613; ETRSEL, TIMx_AF1, p. 1715; ECE, TIMx_SMCR, p. 1690). The
+MSIK stays at 12 MHz from MSIRC0, locked on the LSE as the MSIS is, whatever the MSIS's
+divider; divided by 4 before the timer (ETPS), its 3 MHz are at most a quarter of the
+timer's clock from 12 MHz up, as RM0487 requires (p. 1631), and by 3 in it
+(`OS_TIMER_PRESCALER`, `Escapement_Processor.h`). USART1 runs on HSI16 (USART1SEL,
+RCC_CCIPR1, p. 468), as LPUART1 does. The other kernels keep TIM2 on HCLK, their images
+byte for byte as before.
+
+The idle task sleeps at the speed of the task before it, which the kernel leaves as it
+is. Entered at 48 MHz, Stop 2 wakes at 48 MHz in range 2, with nothing to raise; entered
+at 96, the chip wakes at 48 in range 2 (9.3.5, p. 351; RCC_ICSCR1, p. 421) and
+`_OSRaiseSystemClock` takes it back to 96 by the hard kernel's path. Either way the MSIK
+is awaited before TIM2 starts again: the hardware sets MSIKON on the way out, STOPKERWUCK
+being 0 (RCC_CR, p. 419).
+
+**On the board, 2026-10-11**, `BenchDVFSU3` (no kernel, interrupts masked, from SRAM),
+two rounds, each the same: TIM2 counted 60,006,431 µs over 1,966,081 ticks of LPTIM1,
+60,000,031 µs of the LSE, 107 ppm fast, the lock of the MSI (table 102, p. 403), with no
+change of speed; and the same 60,006,431 µs over the same ticks while the driver changed
+speed 5,830,972 times, then 5,830,435: not a microsecond lost to the changes. Up to
+96 MHz took 15.2 µs on average, 16 at most, most of it the wait for R1RDY; down to
+48 MHz 4.3, 5 at most; `_OSRaiseSpeedOnWake` from 48 MHz 15.2. Each figure includes two
+reads of TIM2, 0.21 µs at 48 MHz and 0.10 at 96. The longest change holds the interrupts
+16 µs, against the 87 µs of a byte at 115,200 baud and the 8 bytes of USART1's FIFO.
+
+The board check of `tools/board_ci.sh` on the power-aware images (`soak_u3_pa`), run by
+hand the same day: `SleepU3` a minute, 600 instances, 1,141 entries into Stop 2, none
+late, every start within 1 µs of its period, every timer event within 9 µs, TIM2 7.6 ppm
+off LPTIM1 across the sleeps; `SoakU3` two minutes, no error, no restart; then its
+reports timed five minutes against Linux's clock, the kernel's second 68 ppm short of
+NTP's, which, with the 107 ppm of the lock above, puts the LSE some 39 ppm slow.
+
+Under Renode the platform's timers take the MSIK's 12 MHz in external clock mode 2
+(`Escapement_STM32_Timer.cs`, `etrFrequency`), and the RCC counts the changes of the
+MSIS's frequency at 0x3E8. `escapement_u3.robot` run with `--variable KERNEL:PA` on a
+`make KERNEL=PA` build passes whole, each image the build leaves out skipped:
+`BenchDVFSU3Short` changes speed some 2,000 times in 2 ms of LPTIM1 by the manual's
+sequences, and `SoakU3` some 2,400 times in 3.5 s, every part without error.
 
 ## What only the board can decide
 

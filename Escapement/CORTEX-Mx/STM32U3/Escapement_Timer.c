@@ -31,7 +31,8 @@
 ** mark their cause and defer the work to the software timer interrupt, of lower priority.
 ** TIM2 has no kernel clock of its own on this chip: it counts HCLK, through the APB
 ** prescaler, so the microsecond is the MSIS's, 107 ppm short when locked on the LSE
-** (Escapement_Processor.c).
+** (Escapement_Processor.c); under the power-aware kernel, which changes HCLK, the MSIK's,
+** from the same RC.
 ** Platform version: STM32U385 (NUCLEO-U385RG-Q), any STM32U375/385.
 */
 
@@ -62,8 +63,9 @@
 
 /* TIM2 is clocked by PCLK1, the system clock with the APB prescaler at 1, as reset leaves
 ** it: the timers take twice PCLK1 only when that prescaler divides ("Timer clock",
-** p. 408). 32 bits, as TIM3 and TIM4 (table 401, p. 1609). */
-#define TIMER_PRESCALER      (OS_SYSTEM_CLOCK_HZ / 1000000u - 1u)
+** p. 408); under the power-aware kernel by the MSIK (OS_TIMER_PRESCALER,
+** Escapement_Processor.h). 32 bits, as TIM3 and TIM4 (table 401, p. 1609). */
+#define TIMER_PRESCALER      OS_TIMER_PRESCALER
 
 
 /* Timer interrupt cause marked by the ISR and that is used by the lower priority handler
@@ -122,6 +124,7 @@ void _OSInitializeTimer(void)
   ** stopped on its overload check (the U5 on the UNO Q, 2026-09-26; Renode sets it at
   ** once). With URS only a wrap of the counter raises it (RM0487, TIMx_CR1, p. 1688). */
   TIM_CR1 = TIM_CR1_URS;
+  _OSTimerOnMSIK(TIM2_BASE);
   TIM_ARR = 0x3FFFFFFF;                  // wraps at 2^30
   TIM_PSC = TIMER_PRESCALER;
   TIM_EGR = UPDATE_INT_BIT;              // load the prescaler

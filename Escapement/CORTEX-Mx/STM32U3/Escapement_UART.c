@@ -35,7 +35,9 @@
 **
 ** USART1 runs on PCLK2, the system clock with the APB prescaler at 1, USART1SEL left at
 ** its reset value (RCC_CCIPR1, p. 468): its baud rate is the MSIS's, 107 ppm fast
-** when locked on the LSE, far within what a receiver tolerates.
+** when locked on the LSE, far within what a receiver tolerates. Under the power-aware
+** kernel, which changes the system clock, it runs on HSI16, as LPUART1 does (USART1SEL);
+** the board check reads SoakU3's reports through it so (docs/stm32u3.md).
 **
 ** LPUART1, whose registers sit at the same offsets (52.7, p. 2478-2502), goes out on PA2
 ** (TX) and PA3 (RX), alternate function 8, D1 and D0 of the board's Arduino connector
@@ -107,12 +109,14 @@
 #define RCC_APB3ENR          *((volatile UINT32 *)(0x40030C00 + 0xA8))
 #define RCC_APB3SLPENR       *((volatile UINT32 *)(0x40030C00 + 0xD0))
 #define RCC_APB3STPENR       *((volatile UINT32 *)(0x40030C00 + 0xF8))
+#define RCC_CCIPR1           *((volatile UINT32 *)(0x40030C00 + 0x100))
 #define RCC_CCIPR3           *((volatile UINT32 *)(0x40030C00 + 0x108))
 #define RCC_CR               *((volatile UINT32 *)(0x40030C00 + 0x00))
 #define RCC_CR_HSION         (1u << 11)   /* RCC_CR, p. 418 */
 #define RCC_CR_HSIRDY        (1u << 13)
 #define LPUART1SEL_MASK      3u           /* RCC_CCIPR3, p. 471 */
 #define LPUART1SEL_HSI16     1u
+#define USART1SEL_HSI16      1u           /* RCC_CCIPR1, p. 468 */
 #define RCC_AHB2ENR1_GPIOAEN (1u << 0)    /* RM0487, RCC_AHB2ENR1, p. 443 */
 #define RCC_APB2ENR_USART1EN (1u << 14)   /* RCC_APB2ENR, p. 447-448 */
 /* LPUART1EN, LPUART1SLPEN and LPUART1STPEN: all three, for its interrupt to wake the chip
@@ -124,13 +128,19 @@
 #define NVIC_ISPR(irq)       ((volatile UINT32 *)0xE000E200)[(irq) >> 5]
 #define NVIC_BIT(irq)        (1u << ((irq) & 0x1F))
 
-/* USART1 is clocked by PCLK2 (USART1SEL left at its reset value); LPUART1 by HSI16. */
+/* USART1 is clocked by PCLK2 (USART1SEL left at its reset value), or by HSI16 under the
+** power-aware kernel; LPUART1 by HSI16. */
 #define BAUD_RATE            115200u
 #ifndef OS_LPUART1_BAUD_RATE
    #define OS_LPUART1_BAUD_RATE 57600u
 #endif
 #define LP_BAUD_RATE         OS_LPUART1_BAUD_RATE
 #define HSI16_HZ             16000000u
+#ifdef ESCAPEMENT_VERSION_HARD_PA
+   #define USART1_CLOCK_HZ   HSI16_HZ
+#else
+   #define USART1_CLOCK_HZ   OS_SYSTEM_CLOCK_HZ
+#endif
 
 
 typedef struct UART_INTERRUPT_DESCRIPTOR { // Interrupt handler opaque descriptor
@@ -204,6 +214,13 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
   }
   else {
      descriptor->Base = USART1_BASE;
+     #ifdef ESCAPEMENT_VERSION_HARD_PA
+        /* HSI16, which entering Stop 2 clears, set again after it as for LPUART1
+        ** (Escapement_Stop2.c). */
+        RCC_CR |= RCC_CR_HSION;
+        while ((RCC_CR & RCC_CR_HSIRDY) == 0);
+        RCC_CCIPR1 |= USART1SEL_HSI16;
+     #endif
      RCC_APB2ENR |= RCC_APB2ENR_USART1EN;
      (void)RCC_APB2ENR;                // 2 cycles of the bus before the blocks (p. 410)
      /* PA9 and PA10 to alternate function 7, PA9 pulled up for while the transmitter is
@@ -216,7 +233,7 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
      /* 8 bits, no parity, one stop bit, oversampling by 16: the divisor is the clock over
      ** the baud rate, rounded (RM0487, 51.5.8, p. 2377). */
      REG(descriptor,USART_CR1) = 0;
-     REG(descriptor,USART_BRR) = (OS_SYSTEM_CLOCK_HZ + BAUD_RATE / 2) / BAUD_RATE;
+     REG(descriptor,USART_BRR) = (USART1_CLOCK_HZ + BAUD_RATE / 2) / BAUD_RATE;
      /* FIFOEN while the USART is disabled: its 8 bytes give 700 us to read a byte, where
      ** one frame, 87 us, lost one after 17 h of SoakU5 on a NUCLEO-U575ZI-Q (2026-09-29). */
      REG(descriptor,USART_CR1) = CR1_FIFOEN;

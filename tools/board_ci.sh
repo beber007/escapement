@@ -38,6 +38,7 @@
 #                    BOARD_CI_U3_SERIAL and BOARD_CI_U3_TTY, and the OpenOCD
 #                    BOARD_CI_OPENOCD_U3 (~/opt/openocd-upstream/bin/openocd), which
 #                    knows the STM32U3; its long run, escapement-soak-u3, goes on likewise.
+#                    The power-aware kernel's images are checked first, without it.
 #   BOARD_CI_PICO2   1 when a Pico 2 is wired too: its six examples that count in memory
 #                    (tools/pico2_check.py) and its two of the UART, through the probe's
 #                    own (tools/pico2_uart.py), are run on the CI's images and posted as
@@ -331,12 +332,23 @@ fi
 u3=""
 if [ "${BOARD_CI_U3:-}" = 1 ] && [ -f "$DIR/fw/soak_u3/SoakU3.elf" ]; then
     status pending "running on the NUCLEO-U385RG-Q" board/u3
-    if (cd "$SRC" && BOARD=u3 NUCLEO_SERIAL=${BOARD_CI_U3_SERIAL:-} \
-            NUCLEO_TTY=${BOARD_CI_U3_TTY:-} \
+    # u3check ELF [none]: the checks of one kernel's images, with none for a check
+    # without the long run (tools/unoq_check.sh); empty, the service is the default one.
+    u3check() {
+        (cd "$SRC" && BOARD=u3 NUCLEO_SERIAL=${BOARD_CI_U3_SERIAL:-} \
+            NUCLEO_TTY=${BOARD_CI_U3_TTY:-} BOARD_SOAK_SERVICE=${2:-} \
             OPENOCD=${BOARD_CI_OPENOCD_U3:-$HOME/opt/openocd-upstream/bin/openocd} \
-            sh tools/unoq_check.sh "$DIR/fw/soak_u3/SoakU3.elf" "$SHA") >>"$LOG" 2>&1; then
+            sh tools/unoq_check.sh "$1" "$SHA") >>"$LOG" 2>&1
+    }
+    # The power-aware kernel first, if the images have it, then the hard kernel, whose
+    # check carries the long run on.
+    pa=yes
+    if [ -f "$DIR/fw/soak_u3_pa/SoakU3.elf" ]; then
+        u3check "$DIR/fw/soak_u3_pa/SoakU3.elf" none || pa=""
+    fi
+    if u3check "$DIR/fw/soak_u3/SoakU3.elf" && [ -n "$pa" ]; then
         u3=success
-        status success "Stop 2 for 1 min, endurance test for 2, clock within 300 ppm; the long run goes on" \
+        status success "Stop 2 for 1 min, endurance test for 2, clock within 300 ppm, hard and power-aware kernels; the long run goes on" \
             board/u3
     else
         u3=failure

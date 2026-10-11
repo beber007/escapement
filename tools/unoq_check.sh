@@ -40,6 +40,10 @@
 # status: posted once an hour, it was up to an hour behind, and a failure whose post was
 # lost left it pending, which the end then turned into a success (a review, 2026-09-30).
 #
+# BOARD_SOAK_SERVICE=none checks without a long run: none stopped, none carried on, the
+# board left running the checked image. tools/board_ci.sh checks the power-aware kernel of
+# the STM32U385 so, before the hard kernel, whose check carries the long run on.
+#
 # With an image of the long run linked into the flash beside the checked one,
 # flash/<image> (the NUCLEO-U385RG-Q's, tools/board_images.sh), the checks still run from
 # SRAM and the long run goes on from the flash: tools/nucleo_flash.sh writes it there only
@@ -157,7 +161,7 @@ if [ -n "$carry" ] && [ -f "$UNIT" ]; then
     sed "s/BOARD_SOAK_SHA=[0-9a-f]*/BOARD_SOAK_SHA=$SHA/" "$UNIT" >"$UNIT.new" &&
         mv "$UNIT.new" "$UNIT"
     systemctl --user daemon-reload
-elif [ -f "$SOAK/$IMAGE" ]; then
+elif [ "$SERVICE" != none ] && [ -f "$SOAK/$IMAGE" ]; then
     sh "$SOAK/$(loader "$SOAK/$IMAGE")" "$SOAK/$IMAGE"
 fi
 [ -f "$UNIT" ] && systemctl --user start "$SERVICE"

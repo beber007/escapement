@@ -126,8 +126,9 @@ BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex)
   RCC_APB1ENR1 |= RCC_APB1ENR1_TIM4EN;
   (void)RCC_APB1ENR1;
   TIM_CR1 = 0;
+  _OSTimerOnMSIK(TIM4_BASE);           // under the power-aware kernel (Escapement_Processor.h)
   TIM_ARR = 0xFFFFFFFF;
-  TIM_PSC = OS_SYSTEM_CLOCK_HZ / 1000000u - 1u;
+  TIM_PSC = OS_TIMER_PRESCALER;
   TIM_EGR = UPDATE_BIT;                // load the prescaler
   TIM_SR = 0;
   TIM_DIER = CC1_BIT;
