@@ -539,6 +539,34 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    LGPL) runs on 32-bit ARM, used on a Cortex-M4 by a project of the Technikum Wien;
    Bound-T's port to the Cortex-M was left unfinished. The RP2040 running from SRAM, with
    no cache and the flash idle, is the case where a bound looks within reach.
+11. **What a visitor of the repository sees.** Added by the user on 2026-10-11: no fair,
+   no demonstration in person, everything for the visit of the GitHub page, where a
+   reader touches nothing, gives it some seconds, often on a phone. Three pieces, in this
+   order, after release 0.1:
+   1. *How it schedules, drawn by the kernel itself.* Figures from the host's `trace`
+      mode (`test/host`), drawn by a script to write in the manner of
+      `tools/schedule_figure.py`, not by hand: the task set a course uses to show fixed
+      priorities failing where EDF does not, (50, 25) and (80, 35), 94 % of the
+      processor (FIU, COP 5614, lecture 22, 2023), under EDF, where every deadline is
+      kept, and under DM, where the second task is unfinished at 80 and the kernel stops
+      there (`api.md`, "When an instance overruns"), as run on the host on 2026-10-11;
+      and an (m,k)-firm set past 100 %, the kernel dropping the optional instances it
+      chooses. Every task within its `wcet`: what fails is an algorithm, never a
+      contract.
+   2. *The bench, seen.* A badge for each board's endurance on the candidate, read from
+      the statuses `endurance/<platform>-<kernel>` as the Pico's is from `board/soak`
+      (tag `soak-pico`); a short film of the bench during a run, its own counters laid
+      over it, by the user's hands.
+   3. *The kernel in the browser.* The host build compiled to WebAssembly and served by
+      GitHub Pages: a reader gives tasks, periods, `wcet` and (m,k), picks EDF or DM, and
+      sees the schedule the kernel's own code computes. It has no `fork` in `trace` mode
+      and runs single threaded; its `alarm` would go, and the kernel, run in a Web
+      Worker, stopped after a delay when it loops on an overrun, the page saying why. The
+      page to say what it proves: the scheduling, in simulated time; neither the
+      kernel's costs, nor timing on a chip, nor energy. A time given past its `wcet` to be
+      shown as a broken contract. Searched on 2026-10-11, no RTOS scheduler was found
+      offered so; Wokwi, which runs RP2040 firmware in a browser, not checked for
+      images of our own.
 
 ## Done
 
