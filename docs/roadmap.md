@@ -300,13 +300,21 @@ task 4 began the same day.
    loading a NUCLEO only if it is silent; stopped two minutes in, both started again at
    14:29 with `BOARD_SOAK_RELOAD`, which `endurance.sh` sets since (a fix to the tools
    alone, its commit held back so as not to start the board CI meanwhile).
+14b. **What the STM32U3's power-aware kernel saves — item 7, brought into 0.1.** Added by
+   the user on 2026-10-11, during the runs of task 14. Measured on the candidate's own
+   images, so that the verdict is on the code released: a task set, `TaskLEDU3` or
+   `SleepU3`, under the hard kernel racing to Stop 2 against the power-aware kernel
+   under each policy (`KERNEL=PA`, `POWER=` OTE, DRA, DR_OTE, DM_SLACK), as on the
+   RP2040 (`power-aware.md`, "Measuring the RP2040"). After the U3's runs end, the board
+   free; the PPK2 in place of JP4 by the user's hands. The verdict written in
+   `power-aware.md` and `stm32u3.md`, and in the release's notes. A fault it finds in
+   the code makes an `rc2`, and the U3's runs start again.
 15. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release.
 
 **Not in 0.1**, open after it: DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
 the PPK2 as a check of each commit on the STM32U5 (item 4); how
-often a wake-up byte of LPUART1 comes out wrong (item 6); what the STM32U3's power-aware
-kernel saves a task set (item 7); testing a dropped optional
+often a wake-up byte of LPUART1 comes out wrong (item 6); testing a dropped optional
 instance again; an exhaustive enumeration of small task sets and fuzzing; a test of
 optional instances by processor demand that counts its own cost, bounded and measured on
 each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`).
@@ -495,12 +503,12 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
 6. **LPUART1 at 115,200 baud through Stop 2 — done on 2026-10-02** (Done, "LPUART1 at
    115,200 baud through Stop 2"). Left: how often a wake-up byte comes out wrong, which
    no check of a minute can bound.
-7. **What the STM32U3's power-aware kernel saves.** Its points were measured with the
-   PPK2 on 2026-10-10, a cycle 14 % cheaper at 48 MHz in range 2 (`stm32u3.md`,
-   "Measuring DVFS"), not the kernel: a task set, `TaskLEDU3` or `SleepU3`, under the
-   hard kernel racing to Stop 2 against the power-aware kernel under each policy, as on
-   the RP2040 (`power-aware.md`, "Measuring the RP2040"). Needs the user's hands for the
-   PPK2 in place of JP4.
+7. **What the STM32U3's power-aware kernel saves — in release 0.1 as its task 14b.** Its
+   points were measured with the PPK2 on 2026-10-10, a cycle 14 % cheaper at 48 MHz in
+   range 2 (`stm32u3.md`, "Measuring DVFS"), not the kernel: a task set, `TaskLEDU3` or
+   `SleepU3`, under the hard kernel racing to Stop 2 against the power-aware kernel under
+   each policy, as on the RP2040 (`power-aware.md`, "Measuring the RP2040"). Needs the
+   user's hands for the PPK2 in place of JP4.
 8. **A reset of the NUCLEO-U385RG-Q that nothing asked for.** Its long run at cc1a4ac
    restarted on 2026-10-11 at 08:44:48 UTC, 49 min in, the flags of RCC_CSR reading the
    pin alone: neither the watchdog, nor a brown-out, nor software. No tool of the bench
