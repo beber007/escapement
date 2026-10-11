@@ -53,9 +53,10 @@ static void FinalizeContextSwitchPreparation(void);
 ** e.g. Sections 5.2 and 5.9.1, pages 5-3 and 5-19 for Cortex-M3) located at address 0.
 ** After the processor exits reset, it reads address 0 to find the initial SP value that
 ** it loads before proceeding to the content of address 4 to branch into the reset ISR
-** _OSResetHandler. On the RP2040 and RP2350 the image runs from SRAM: the table follows
-** the entry code there (RP2040_SRAM.ld, RP2350_SRAM.ld), and each application points
-** VTOR at it in main. */
+** _OSResetHandler. On the RP2040 and RP2350 an image in SRAM has the table follow the
+** entry code there (RP2040_SRAM.ld, RP2350_SRAM.ld), and each application points VTOR
+** at it in main; an image in the flash (make FLASH=1) has it in the flash, where the boot
+** finds it. */
 __attribute__ ((section(".isr_vector_general")))
 void (* const CortexMxVectorTable[])(void) =
 {
@@ -456,13 +457,14 @@ void _OSIOHandler(void)
 **    case of an error, i.e., when more than OSMALLOC_INTERNAL_HEAP_SIZE bytes of memory
 **    is consumed by dynamic allocations done in main.
 ** OSMalloc should NEVER be called from an application task or by a user defined ISR. */
-void *OSMalloc(UINT16 size)
+void *OSMalloc(UINT16 request)
 {
   extern void *_OSStackBasePointer;
+  /* Rounded up to a word in 32 bits: in the 16 of the parameter, 65,533 to 65,535 bytes
+  ** came to 0 and the block handed out was the one before (a review, 2026-10-11). */
+  UINT32 size = ((UINT32)request + 3u) & ~3u;
   if (_OSStackBasePointer == NULL)
      _OSStackBasePointer = &_OSEndRAM; /* initialize to end of ram */
-  if (size % 4 != 0)
-     size += 4 - size % 4;
   _OSStackBasePointer = (UINT8 *)_OSStackBasePointer - size;
   /* Check that requested memory block doesn't overlap main's activation record. */
   // cppcheck-suppress arithOperationsOnVoidPointer ; the address is an integer here too

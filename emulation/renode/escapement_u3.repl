@@ -116,9 +116,10 @@ lpuart1: UART.STM32F7_USART @ sysbus 0x40042400
     frequency: 16000000
     IRQ -> nvic@66
 
-// LPTIM1 on the 32.768 kHz crystal, Renode's model of the STM32L0's low-power timer, as
+// LPTIM1 on the 32.768 kHz crystal, Renode's model of the STM32L0's low-power timer, in
+// our fixed copy, which matches a compare of 0 (Escapement_STM32L0_LpTimer.cs), as
 // on the U5: its first registers, ISR to CNT, lie as this chip's do (42.7, p. 1922-1940).
-lptim1: Timers.STM32L0_LpTimer @ sysbus 0x40044400
+lptim1: Timers.Escapement_STM32L0_LpTimer @ sysbus 0x40044400
     frequency: 32768
     -> nvic@67
 

@@ -610,8 +610,8 @@ into its 5 ms, the link 384,379 bytes and no error. `SoakU5` of the hard kernel 
 started again by `soak.py`'s loader without a writing, then 10 min from 06:58 UTC: every
 count at 0, the latest pulse 42 µs late, 387,198 bytes of the link and no error. From
 SRAM over 24 h the pulse was up to 56 µs late, the firm task's end up to 4,016 µs: ten
-minutes from the flash decide no difference, and the week of the release is to run from
-there. Two writings counted on the bench.
+minutes from the flash decide no difference, and the release's runs (roadmap, task 14,
+8 hours a kernel since 2026-10-10) are to run from there. Two writings counted on the bench.
 
 ### The NUCLEO's MCU measured with a PPK2 (2026-10-03)
 

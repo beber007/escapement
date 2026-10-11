@@ -2,7 +2,8 @@
 
 `tools/board_ci.sh` runs the board checks on each new commit of `main` and posts the
 outcome to GitHub as commit statuses: `board/pico` for the Pico, `board/pico2` for the
-Pico 2, and `board/u5` for the STM32U5 of the Arduino UNO Q that carries the bench. The
+Pico 2, `board/u5` for the STM32U5 of the Arduino UNO Q that carries the bench, and
+`board/u3` for the STM32U3 of a NUCLEO-U385RG-Q plugged into it. The
 checks themselves are listed in
 [`docs/rp2040.md`](../docs/rp2040.md#checks-on-the-board). This page explains how to
 install the script under systemd on Linux, under launchd on a Mac, and on the UNO Q.
@@ -98,8 +99,9 @@ Description=Escapement: board checks on the newest main
 
 [Service]
 Type=oneshot
-# A check takes some 20 minutes; one stuck on a probe's USB is stopped at the hour,
-# its locks then taken over by the next run.
+# A check took 28 minutes on 2026-10-11, the STM32U3's two kernels with it; one stuck on a
+# probe's USB is stopped at the hour, its locks then taken over by the next run, and the
+# commit, never marked as checked, checked again whole.
 TimeoutStartSec=1h
 ExecStart=/bin/sh %h/escapement-rp2040/board-ci/src/tools/board_ci.sh
 EOF

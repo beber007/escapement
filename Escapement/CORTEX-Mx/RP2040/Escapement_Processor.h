@@ -43,7 +43,8 @@
 
 /* Operating points of the power-aware variant, slowest first. The system PLL stays locked
 ** at 1500 MHz whichever is selected: moving between them only changes a post divider or
-** the source of clk_sys, so none waits for the PLL to lock again. */
+** the source of clk_sys, so none waits for the PLL to lock again. Only the idle task's
+** sleep with PLL_SYS stopped (make SLEEP_GATE=1) waits for it, on waking. */
 #define OS_12MHZ_SPEED  0   /* clk_sys on the crystal, through clk_ref */
 #define OS_50MHZ_SPEED  1   /* 1500 MHz / 6 / 5 */
 #define OS_125MHZ_SPEED 2   /* 1500 MHz / 6 / 2, nominal frequency of the RP2040 */

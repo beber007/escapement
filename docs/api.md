@@ -69,7 +69,8 @@ The locals of `main` do not survive the call.
 
 Times are counted in ticks of the kernel's timer, which are microseconds on every port.
 The timers of the RP2040 and the RP2350 run at 1 MHz; TIM2 of the STM32U5 gets there
-through a prescaler set for its 160 MHz clock.
+through a prescaler set for its 160 MHz clock, and the STM32U3's for its 96 MHz, or, under
+the power-aware kernel, from the MSIK's 12 MHz, which the changes of speed leave alone.
 
 A period is given in two parts: `periodCycles` full turns of 2^30 ticks, and a remainder
 `periodOffset` below 2^30. This lets a period reach years. `periodCycles` is 0 for any
@@ -119,12 +120,13 @@ figure. An understated `wcet` lets the kernel pick a speed too low for the task,
 then misses its deadline. `FourSlotCoresPico` declares 400 µs for a reader measured at
 314 µs at most (`rp2040.md`): measure first, then add a margin. Whether slowing down
 saves energy depends on the chip: on the STM32U5 it does not, racing to Stop 2 winning at
-every load, on the RP2350 some 10 % at best, and on the RP2040 up to some 5 % with the
-idle task in WFI and nothing once it sleeps in SLEEP (`power-aware.md`).
+every load, on the RP2350 some 10 % at best, on the RP2040 up to some 5 % with the
+idle task in WFI and nothing once it sleeps in SLEEP, and on the STM32U3 a cycle costs 14 %
+less at 48 MHz than at 96 (`power-aware.md`).
 
 `OSSetMinimalProcessorSpeed(speed)`, called before `OSStartMultitasking`, keeps the
 processor at or above an operating point (`OS_12MHZ_SPEED`, `OS_50MHZ_SPEED`,
-`OS_125MHZ_SPEED` on the Pico).
+`OS_125MHZ_SPEED` on the Pico; `OS_48MHZ_SPEED`, `OS_96MHZ_SPEED` on the NUCLEO-U385RG-Q).
 
 ## Event-driven tasks
 

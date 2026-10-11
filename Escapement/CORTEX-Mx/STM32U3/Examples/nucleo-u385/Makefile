@@ -61,8 +61,9 @@ endif
 ifdef POWER
    CFLAGS += -DPOWER_MANAGEMENT=$(POWER)
 endif
-# make KERNEL=PA SLEEP_SPEED=0 lets the idle task's WFI run at 48 MHz rather than 96;
-# Stop 2, where the idle task enters it, wakes at the point in effect (Escapement_Stop2.c).
+# make KERNEL=PA SLEEP_SPEED=0 lets the idle task's WFI run at 48 MHz rather than 96, in
+# images without Stop 2: with it installed, the idle task sleeps, in Stop 2 or in Sleep,
+# at the point the last task left (Escapement_Stop2.c).
 ifdef SLEEP_SPEED
    CFLAGS += -DOS_SLEEP_SPEED=$(SLEEP_SPEED)
 endif
@@ -99,6 +100,15 @@ endif
 
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p $(B))
+
+# The flags of the last build, in $(B)/flags: under other flags (make, then make
+# KERNEL=PA in the same directory), the objects are removed and made again rather than
+# linked as they were, which the dependencies of -MMD do not see; removed, not dated, since
+# make 3.81, macOS's, dates to the second (a review, 2026-10-11).
+FLAGS := $(CFLAGS) $(AFLAGS)
+ifneq ($(FLAGS),$(shell cat $(B)/flags 2>/dev/null))
+   $(shell rm -f $(B)/*.o $(B)/*.d $(B)/*.elf; echo '$(FLAGS)' > $(B)/flags)
+endif
 
 EXAMPLES = TaskLEDU3 UARTEchoU3 TestTimerEventU3 TaskWrapU3 IPCU3 SoakU3 StackGuardU3 \
            TestLPTimerU3 SleepU3 SleepFastU3 SleepWrapU3 Stop2EventWrapU3 SoakStop2U3 ClockU3 \

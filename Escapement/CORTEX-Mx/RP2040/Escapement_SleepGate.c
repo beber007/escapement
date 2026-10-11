@@ -54,6 +54,10 @@
 #define TIMER_INTE_SET       *((volatile UINT32 *)(TIMER_BASE + 0x2000 + 0x38))
 #define ALARM3_BIT           (1u << 3)
 #define KERNEL_ALARMS        0x7u          /* alarms 0 to 2, the kernel's and the events' */
+#define ALARM2_BIT           (1u << 2)
+#define RESETS_CLR           *((volatile UINT32 *)(0x4000C000 + 0x3000))   /* atomic clear alias */
+#define RESETS_RESET_DONE    *((volatile UINT32 *)(0x4000C000 + 0x08))
+#define RESETS_TIMER_BIT     (1u << 21)
 #define NVIC_ISER            *((volatile UINT32 *)0xE000E100)
 #define NVIC_ICER            *((volatile UINT32 *)0xE000E180)
 #define NVIC_ICPR            *((volatile UINT32 *)0xE000E280)
@@ -88,6 +92,12 @@ void OSInitSleepGate(UINT32 keep0, UINT32 keep1)
   /* Alarm 3 taken by the timer events already, PLL_SYS keeps running. */
   if (OSGetISRDescriptor(OS_IO_TIMER_3) != NULL)
      return;
+  /* The timer out of reset before its registers are written: after a power-on or a
+  ** watchdog reset the bootrom leaves it in reset, and _OSInitializeTimer, which releases
+  ** it too, comes only with OSStartMultitasking (a review, 2026-10-11; the images on the
+  ** bench were loaded after one that had released it). */
+  RESETS_CLR = RESETS_TIMER_BIT;
+  while ((RESETS_RESET_DONE & RESETS_TIMER_BIT) == 0);
   TIMER_ARMED = ALARM3_BIT;
   TIMER_INTR = ALARM3_BIT;
   TIMER_INTE_SET = ALARM3_BIT;
@@ -107,6 +117,11 @@ static void GatedSleep(void)
   _OSDisableInterrupts();
   now = TIMER_TIMERAWL;
   armed = TIMER_ARMED & KERNEL_ALARMS;
+  /* Alarm 2 counts only with an event manager on it: an image before may have left it
+  ** armed, which a reset of the processors keeps, and its _OSAlarmTime, 0 here, made every
+  ** sleep too short to stop PLL_SYS until it fired (a review, 2026-10-11). */
+  if (OSGetISRDescriptor(OS_IO_TIMER_2) == NULL)
+     armed &= ~ALARM2_BIT;
   for (n = 0; n < 3; n += 1)
      if (armed & (1u << n)) {
         left = (INT32)(_OSAlarmTime[n] - now);

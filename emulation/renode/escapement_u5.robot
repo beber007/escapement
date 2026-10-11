@@ -32,6 +32,7 @@ Load Escapement
     Execute Command           mach create "uno_q"
     Execute Command           path add @${CURDIR}
     Execute Command           include @${CURDIR}/Escapement_STM32_Timer.cs
+    Execute Command           include @${CURDIR}/Escapement_STM32L0_LpTimer.cs
     Execute Command           machine LoadPlatformDescription @${CURDIR}/${platform}
     Execute Command           sysbus LoadELF @${example}/build/${binary}.elf
     ${table}=                 Execute Command  sysbus GetSymbolAddress "CortexMxVectorTable"

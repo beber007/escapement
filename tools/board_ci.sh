@@ -146,14 +146,20 @@ api() {   # path: a GET on the repository's API
 # its statuses on the images of a run whose checks had failed), with $attempt set; 4 if
 # GitHub did not answer or the download broke, which the next run tries again.
 ci_images() {
-    run=$(api "actions/workflows/build.yml/runs?head_sha=$SHA&event=push" |
+    # The answer kept before jq reads it: piped, the status was jq's, 0 on an empty input,
+    # and a GitHub that did not answer passed for a run with no images (a review,
+    # 2026-10-11).
+    json=$(api "actions/workflows/build.yml/runs?head_sha=$SHA&event=push") || return 4
+    run=$(printf '%s' "$json" |
           jq -r '.workflow_runs[0] | "\(.status) \(.conclusion) \(.id) \(.run_attempt)"') ||
         return 4
+    [ -n "$run" ] || return 4
     set -- $run
     [ "$1" = completed ] || return 1
     attempt="$3 $4"
     [ "$2" = success ] || return 3
-    url=$(api "actions/runs/$3/artifacts" |
+    json=$(api "actions/runs/$3/artifacts") || return 4
+    url=$(printf '%s' "$json" |
           jq -r '.artifacts[] | select(.name == "board-images") | .archive_download_url') ||
         return 4
     [ -n "$url" ] || return 2

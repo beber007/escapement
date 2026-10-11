@@ -7,16 +7,18 @@ whose code last changed in 2014 and was published in 2016.
 This page separates what is open from what is done. Open items are plans, each with the
 date its facts were read. Done items say where the result is measured or checked, and a
 result counts as measured only where a page gives its date and conditions. Last revised
-on 2026-10-05.
+on 2026-10-11.
 
 ## Direction
 
 Development goes to **ARM Cortex-M**, and the power-aware variant is the point of the
 project. Its target is the **RP2040**. `power-aware.md` argues that dynamic voltage and
 frequency scaling has a niche there because the chip sleeps poorly, and it is the board
-at hand.
+at hand. Measured on 2026-10-10, the niche is small: up to some 5 % with the idle task in
+WFI, nothing once it sleeps in SLEEP; the STM32U3 is where DVFS has paid
+(`power-aware.md`).
 
-New work goes to the **Pico**, the **Pico 2** and the **STM32U5**. The RP2350 of the
+New work goes to the **Pico**, the **Pico 2**, the **STM32U5** and the **STM32U3**. The RP2350 of the
 Pico 2 has a switching core regulator and two cores with exclusive accesses. Its port was
 begun on 2026-09-24 for the cores. A DVFS driver is not planned for it: measured on
 2026-10-03, it would save some 10 % at best, less than sleeping deeper does (items 3
@@ -252,7 +254,20 @@ task 4 began the same day.
    review of 2026-09-30 (`method.md`, "Audits, and what they leave unproved"). Each
    finding checked against the code before it counts, then fixed, declared no fault
    with its reason, or left open in the notes; what the review found and how it was
-   checked written in `method.md`.
+   checked written in `method.md`. **Done on 2026-10-11** (`method.md`, "The review
+   before release 0.1"): five agents at fef9d5e, each finding read against the code or
+   the data. The documentation had nineteen out of date, all corrected; the ports and
+   tools, among smaller ones, a timer written while still in reset by the RP2040's and
+   RP2350's sleep, a power-aware check of the STM32U3 that left the board's long run
+   reading it, and Makefiles that linked one kernel's objects into another's images;
+   the kernels, an overflow of the power-aware kernel's times after two wraps idle,
+   reproduced by `TestLongIdle` and fixed. Each fixed, or left open with its reason.
+12b. **The entry pages made plain and inviting.** Added by the user on 2026-10-11, after
+   the review: `README.md` and the pages a visitor reads first (`architecture.md`,
+   `build.md`, `api.md`) in short sentences, one idea each and the conclusion first, the
+   detail left to the technical pages; the README's opening and its figures laid out to
+   catch the eye, with simple diagrams where they help. No fact added, removed or changed:
+   each figure and date checked unchanged against the diff.
 13. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. From
    it on, fixes only. (Until the runs of task 14 took every kernel again, `EscapementHard.c`
    was to stay as it was at 041af76, the commit of its week.)
@@ -291,7 +306,9 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    first week ended on 2026-10-05 at 20:03 UTC: 7 days across 563 wraps of the kernel
    clock, no error, no restart, no interruption, the pulse at most 129 µs late and the
    timer events 137. The second began at 20:18 UTC on 80cc6dc, the power-aware kernel
-   under OTE with the RP2040's stack guard and the speed reclaimed at every release. Two
+   under OTE with the RP2040's stack guard and the speed reclaimed at every release, and
+   was stopped on 2026-10-10 after 4 d 18 h 47 min for the PPK2 of release 0.1's task 9,
+   no error, no restart, 384 wraps; the release's runs of task 14 take its place. Two
    STM32U5 run alongside until stopped (`stm32u5.md`, "The endurance test"): the UNO Q's
    own, restarted by each board check on its commit, and a NUCLEO-U575ZI-Q, 25 h 56 min
    across 86 wraps at f197a35 on 2026-10-04, no error and no overrun. The statuses
@@ -712,10 +729,10 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
     removal on 2026-09-26;
   - the RP2040 on the models of matgla/Renode_RP2040 with a fixed timer, since
     2026-09-21;
-  - the RP2350 and the STM32U5 on platforms of our own.
+  - the RP2350, the STM32U5 and the STM32U3 on platforms of our own.
 - **Every kernel and algorithm.** EDF, which the examples claimed and none ran until the
   host test showed it, and deadline-monotonic. The hard and the soft kernel run on every
-  target, the power-aware kernel on the RP2040 and the host, under its four policies
+  target, the power-aware kernel on the RP2040, the STM32U3 and the host, under its four policies
   (`architecture.md`, `method.md`).
 - **The scheduler on the host.** Every kernel runs under AddressSanitizer, crossing the
   2^30 wrap three times. The host test also covers what no example runs: event-driven
@@ -729,8 +746,8 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
 - **Checks on the board on every change of `main`**, on the images the CI builds. The
   bench pulls them rather than being pushed to a self-hosted runner. Since 2026-09-26 the
   bench is an Arduino UNO Q, which checks the Pico (status `board/pico`), its own
-  STM32U5 (status `board/u5`) and, since 2026-09-28, the Pico 2 (status `board/pico2`)
-  (`tools/board_ci.md`).
+  STM32U5 (status `board/u5`), since 2026-09-28 the Pico 2 (status `board/pico2`) and
+  since 2026-10-10 a NUCLEO-U385RG-Q (status `board/u3`) (`tools/board_ci.md`).
 - **The RP2350 port (from 2026-09-24).** The generic layer was taken to ARMv8-M, and both
   cores run under Renode, with `ACTLR.EXTEXCLALL` set and memory barriers between the
   cores (`architecture.md`). The CI checks their compiled order against the models

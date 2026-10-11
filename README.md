@@ -54,7 +54,7 @@ and slows down only as far as those times still meet every deadline.
   silicon ([below](#on-the-silicon), [`docs/power-aware.md`](docs/power-aware.md)).
 - An idle task that puts an STM32U5 into Stop 2 and still keeps the kernel's time to
   the microsecond ([`docs/stm32u5.md`](docs/stm32u5.md)).
-- Three boards tested on every commit, a Pico, a Pico 2 and an STM32U5, by a bench that
+- Four boards tested on every commit, a Pico, a Pico 2, an STM32U5 and an STM32U3, by a bench that
   pulls `main` by itself ([`tools/board_ci.md`](tools/board_ci.md)).
 - Every line of the kernels run by the host test or excluded with its reason, and the
   traces of random task sets checked against EDF, DM and the bound of EDF's response
@@ -151,7 +151,7 @@ right. The host test says the scheduler made the decisions it should have.
 | The scheduler alone | every kernel and algorithm run on the host under AddressSanitizer: every line run or excluded with its reason, 91.78 % of the branches, and random task sets checked against the algorithms |
 | Every interleaving | the lock-free buffers and queues explored exhaustively, weak memory included |
 | Replayable execution | the four ports under Renode, as regression tests |
-| Internal state on hardware | the scheduling traced on a running board, and three boards checked at each commit |
+| Internal state on hardware | the scheduling traced on a running board, and four boards checked at each commit |
 | Independent instrument | the periods read by a frequency counter, outside all the project's software |
 
 <details>
@@ -163,7 +163,7 @@ right. The host test says the scheduler made the decisions it should have.
 | The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the three kernels, each under EDF and DM: activations on time, ties in priority order, three wraps of the kernel clock, event-driven tasks, the queue and the slot buffers, (m,k)-firm overload, the power-aware kernel's speeds;<br>every line run or excluded with its reason, branches above a floor (`tools/coverage.py`);<br>random task sets, half of them across the 2^30 wrap, every trace checked against EDF or DM and Spuri's bound, and the power-aware kernel's speeds against a reference of its policies (`tools/differential.py`) |
 | Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue preempted at every access, the slot buffers and Evéquoz's queue between two cores free to reorder;<br>no read mixes two records or goes backwards, every run of the queue is linearizable;<br>faulty variants each model must catch |
 | Replayable execution | Renode and `renode-test` | on the four chips: tasks at their periods, the UART, timer events, the 2^30 wrap;<br>the RP2040's DVFS driver raising the voltage before the frequency;<br>the RP2350's slot buffers and queue between its cores;<br>the STM32U5's idle task in Stop 2, across the wrap too;<br>the STM32U3's clock set-up and DVFS driver against the rules of its reference manual |
-| Internal state on hardware | OpenOCD and SWD on the Picos; the reports of an STM32U5 to the Linux of its Arduino UNO Q | a trace read without stopping a core: deadlines armed ahead of the counter, timer events on the microsecond, the speeds of the power-aware kernel;<br>cost counters read back from SRAM;<br>endurance runs, every part checked each second;<br>at each commit, three boards checked on the CI's images (`tools/board_ci.md`) |
+| Internal state on hardware | OpenOCD and SWD on the Picos; the reports of an STM32U5 to the Linux of its Arduino UNO Q | a trace read without stopping a core: deadlines armed ahead of the counter, timer events on the microsecond, the speeds of the power-aware kernel;<br>cost counters read back from SRAM;<br>endurance runs, every part checked each second;<br>at each commit, four boards checked on the CI's images (`tools/board_ci.md`) |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
 
 </details>
@@ -300,7 +300,9 @@ store-conditional itself runs with interrupts masked, for a few instructions. No
 ever waits for another, so priority inversion cannot happen inside the kernel. The
 emulated reservation only works on one core, so on the RP2040 the kernel runs on core 0
 alone. The RP2040 port does mask interrupts in a few short places: a change of speed,
-the list of pending timer events, and the trace.
+the list of pending timer events, the trace, and the idle task's sleep, around its WFI at
+a slower speed or in SLEEP with PLL_SYS stopped, whose relock it waits for (`make
+SLEEP_GATE=1`).
 
 </details>
 

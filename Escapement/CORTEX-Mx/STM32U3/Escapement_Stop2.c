@@ -212,7 +212,9 @@ void OSAllowStop2(BOOL allowed)
 
 void OSSetStop2Wake(UINT32 micros)
 {
-  WakeUs = micros;
+  /* Under OS_STOP2_MIN_US: a margin as long as the shortest sleep would wrap the length of
+  ** the sleep and wake the chip 1.83 s past its event (a review, 2026-10-11). */
+  WakeUs = micros < OS_STOP2_MIN_US ? micros : OS_STOP2_MIN_US - 1u;
 } /* end of OSSetStop2Wake */
 
 

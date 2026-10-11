@@ -44,6 +44,7 @@ Load Escapement
     Execute Command           mach create "nucleo_u385"
     Execute Command           path add @${CURDIR}
     Execute Command           include @${CURDIR}/Escapement_STM32_Timer.cs
+    Execute Command           include @${CURDIR}/Escapement_STM32L0_LpTimer.cs
     Execute Command           machine LoadPlatformDescription @${CURDIR}/${platform}
     Execute Command           sysbus LoadELF @${EXAMPLE}/build/${binary}.elf
     ${table}=                 Execute Command  sysbus GetSymbolAddress "CortexMxVectorTable"

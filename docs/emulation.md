@@ -1,19 +1,19 @@
 # Emulation
 
-The kernel runs under [Renode](https://renode.io) on the three chips it targets. Each
+The kernel runs under [Renode](https://renode.io) on the four chips it targets. Each
 chip has its own suite of Robot Framework tests, which the CI replays on each push to
 `main` and each pull request, under every kernel and algorithm the port builds.
 Emulation shows that the kernel schedules and drives the registers in the right order.
 It says nothing of energy; the board and an instrument decide that.
 
-| Chip | Platform | Renode | Suite, tests on 2026-10-05 | Builds in the CI |
+| Chip | Platform | Renode | Suite, tests on 2026-10-11 | Builds in the CI |
 |---|---|---|---|---:|
-| RP2040 (Pico) | matgla/Renode_RP2040, with a fixed timer | 1.16.1, `linux-dotnet` | `escapement_pico.robot`, 10 | 11 |
-| RP2350 (Pico 2) | our own, `escapement_pico2.repl` | 1.17.0, portable | `escapement_pico2.robot`, 12 | 4, and 1 under GCC 14.2 |
-| STM32U585 (UNO Q) | our own, `escapement_u5.repl` | 1.17.0, portable | `escapement_u5.robot`, 23 | 4 |
-| STM32U385 (NUCLEO-U385RG-Q) | our own, `escapement_u3.repl`, which checks the clock set-up and its replay after Stop 2 against RM0487 (`stm32u3.md`) | 1.17.0, portable | `escapement_u3.robot`, 25, its 8 tagged `stop2` also at 48, 24 and 12 MHz | 4 |
+| RP2040 (Pico) | matgla/Renode_RP2040, with a fixed timer | 1.16.1, `linux-dotnet` | `escapement_pico.robot`, 12 | 11 |
+| RP2350 (Pico 2) | our own, `escapement_pico2.repl` | 1.17.0, portable | `escapement_pico2.robot`, 13 | 4, and 1 under GCC 14.2 |
+| STM32U585 (UNO Q) | our own, `escapement_u5.repl` | 1.17.0, portable | `escapement_u5.robot`, 24 | 4 |
+| STM32U385 (NUCLEO-U385RG-Q) | our own, `escapement_u3.repl`, which checks the clock set-up and its replay after Stop 2 against RM0487 (`stm32u3.md`) | 1.17.0, portable | `escapement_u3.robot`, 30, those tagged `stop2` also at 48, 24 and 12 MHz, the whole on a `KERNEL=PA` build with `--variable KERNEL:PA` | 6 |
 
-The RP2350 and STM32U5 suites run on a Mac as well as in the CI:
+The RP2350, STM32U5 and STM32U3 suites run on a Mac as well as in the CI:
 
 ```sh
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2

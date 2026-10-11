@@ -22,10 +22,15 @@ set -eu
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 ELF=$1
+OUT=$(mktemp)
+trap 'rm -f "$OUT"' EXIT
 OCD=${OPENOCD:-openocd}
 
 "$OCD" -f interface/cmsis-dap.cfg -c "$(sh "$HERE/probe.sh")" \
     -c "adapter speed ${ADAPTER_KHZ:-5000}" \
     -c "set USE_CORE 0" -f target/rp2350.cfg -c init -c rescue_reset \
     -c "program $ELF verify" -c "reset run" -c exit 2>&1 |
-    grep -E 'Programming|Verified|rror' || true
+    tee "$OUT" | grep -E 'Programming|Verified|rror' || true
+# The writing's outcome as the exit status: the pipe above took grep's, and a failed write
+# left the image before running for the next tool to read (a review, 2026-10-11).
+grep -q 'Verified OK' "$OUT"

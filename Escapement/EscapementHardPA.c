@@ -843,9 +843,16 @@ void _OSTimerInterruptHandler(void)
         OSSetProcessorSpeed(SavedCurrentSpeed);
      }
      else {
-        #if POWER_MANAGEMENT == DM_SLACK
-           LastRemainingWorkUpdate = currentTime;
+        /* Idle, the times a task brings forward are brought to now as well: shifted at
+        ** every wrap and refreshed only while a task ran, LastRemainingWorkUpdate, and
+        ** under DRA and DR_OTE the simulation's time and its zombies, overflowed after two
+        ** wraps with nothing to run (a review, 2026-10-11; TestLongIdle). The simulation
+        ** consumes its work interval by interval, so advancing it more often changes
+        ** nothing it computes. */
+        #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
+           DRASimUpdateElapseTime(currentTime);   // a second call at the same time is none
         #endif
+        LastRemainingWorkUpdate = currentTime;
      }
      ResetProcessorSpeed = FALSE;
   #elif defined(STATIC_POWER_MANAGEMENT)

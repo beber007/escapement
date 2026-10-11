@@ -644,6 +644,10 @@ BOOL IsTaskSchedulable(void)
                  totalWork += etcb->WCET;
               else
                  totalWork += tmp;
+              /* Bounded as the periodic tasks' sum above: each term is under 2^30, and
+              ** two of them past it overflowed (a review, 2026-10-11; TestFirmHeavyEvents). */
+              if (totalWork > 0x3FFFFFFF)
+                 return FALSE;
            }
         }
   #else

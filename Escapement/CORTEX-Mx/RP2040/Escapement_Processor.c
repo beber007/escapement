@@ -94,7 +94,12 @@ void OSInitializeSystemClocks(void)
   ** is acknowledged by a bit of the SELECTED register. */
   CLK_REF_CTRL = CLK_REF_SRC_XOSC;
   while ((CLK_REF_SELECTED & (1u << CLK_REF_SRC_XOSC)) == 0);
-  CLK_SYS_CTRL = CLK_SYS_SRC_REF;
+  /* The glitchless mux alone: the auxiliary source may change only once it has left it
+  ** (datasheet, "Clock generators"), and writing 0 to the whole register would turn it to
+  ** PLL_SYS, still in reset, at the same time, should a firmware run before have left
+  ** clk_sys on another auxiliary source. The RP2350's was fixed so on 2026-09-30, this one
+  ** on 2026-10-11 (a review). */
+  CLK_SYS_CTRL &= ~(UINT32)CLK_SYS_SRC_AUX;
   while ((CLK_SYS_SELECTED & (1u << CLK_SYS_SRC_REF)) == 0);
   /* Both dividers back to 1: a firmware run before may have changed them, and a reset of
   ** the cores by the debugger leaves the clocks as they were. The pico-sdk's left clk_ref

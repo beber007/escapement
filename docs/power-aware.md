@@ -117,7 +117,7 @@ every 100 ms, two cycles of 30 s phases agreeing within 0.5 %:
 | WFI at 125 MHz, as it is | 18.87 mA |
 | WFI at 12 MHz, PLL_SYS locked (`SLEEP_SPEED=0`) | 5.09 mA |
 | SLEEP at 125 MHz, PLL_SYS running (`SLEEP_GATE=1`) | 5.07 mA |
-| SLEEP, PLL_SYS stopped, locked again in 53 µs on waking | 1.22 mA |
+| SLEEP, PLL_SYS stopped, locked again in 55 µs at most on waking | 1.22 mA |
 
 Racing at 125 MHz beats running at 50 MHz when the sleep draws under 2.4 mA, at 12 MHz
 under 3.2 mA; undervolted, under 1.05 and 2.6 mA. The kernel itself, `TaskLEDPico`'s task
@@ -156,7 +156,7 @@ three operating points. `make KERNEL=PA` builds it in the Pico example.
 divider if need be, and takes the PLL back, glitchlessly both ways. None of this waits
 for a lock. The whole change runs with interrupts masked, 3.9 to 8.7 µs by the bench of
 2026-09-24 (`rp2040.md`). The price is a VCO that keeps running at 12 MHz. Stopping it
-there would save its current and cost a relock on the way back up, 53 µs, which in SLEEP
+there would save its current and cost a relock on the way back up, 55 µs at most (`rp2040.md`), which in SLEEP
 takes the idle task from 5.07 to 1.22 mA (measured on 2026-10-10, above); the idle task
 built with `SLEEP_GATE=1` does so, the operating points themselves unchanged. The 50 MHz point replaces the 48 MHz one first declared, which the same VCO
 cannot produce. The timer's 1 µs tick comes from the crystal and does not move.
@@ -210,7 +210,7 @@ load is continuous and rules out sleeping.
 
 | Target | Why | Caveat |
 |---|---|---|
-| **RP2040** | Core voltage adjustable in 50 mV steps, though the datasheet only guarantees 1.05 to 1.16 V (see above). Clock programmable from a few kHz to 133 MHz. Above all, **poor sleep**: no 1 µA Stop mode, and dormant mode loses the clocks. SLEEP, which gates the clocks while the kernel's timer runs on, is given at 0.39 mA typical in the datasheet's example, its PLLs stopped (roadmap, item 1). Race-to-sleep is weak there, so DVFS has a niche. Cortex-M0+, covered by the generic layer. | QSPI flash that does not follow the core voltage. The images run from SRAM, which leaves it idle, but it stays on the rail. |
+| **RP2040** | Core voltage adjustable in 50 mV steps, though the datasheet only guarantees 1.05 to 1.16 V (see above). Clock programmable from a few kHz to 133 MHz. Above all, **poor sleep**: no 1 µA Stop mode, and dormant mode loses the clocks. SLEEP, which gates the clocks while the kernel's timer runs on, is given at 0.39 mA typical in the datasheet's example, its PLLs stopped (roadmap, item 1). Race-to-sleep is weak there, so DVFS has a niche. Cortex-M0+, covered by the generic layer. Measured on 2026-10-10: up to some 5 % with the idle task in WFI, nothing once it sleeps in SLEEP (above). | QSPI flash that does not follow the core voltage. The images run from SRAM, which leaves it idle, but it stays on the rail. |
 | **RP2350** | The RP2040's successor, on a board as cheap, the Pico 2. The same PLL scheme, so the clock half of the DVFS driver should largely carry over, and 150 MHz. Its core regulator is a **switching** one, to be driven anew, which removes the caveat of the RP2040's linear regulator. Its Cortex-M33 is ARMv8-M, which the generic layer covers since 2026-09-24. The port exists, without a DVFS driver (`architecture.md`). | Sleep is better than on the RP2040, with a power manager, switchable domains and SRAM retention, so the argument of poor sleep weakens: measured on 2026-10-03, SLEEP 4.2 mA, DORMANT 0.36 mA, DVFS some 10 % at best (roadmap items 3 and 5). QSPI flash as on the RP2040. Renode has no model of it: a platform of our own (`emulation.md`). |
 | **Cortex-M7 (STM32H7…)** | Presumably the largest gain in absolute watts. At 400–550 MHz switching should make up most of the budget, so V² would apply to most of it; not checked against a datasheet here. Typical workloads (audio, SDR, motor control) are **continuous** and cannot sleep. | Core not covered by the generic layer, which has the M0, M3, M4 and M33. |
 | **STM32L4** | Once the cheapest STM32 port: a Cortex-M4, which the generic layer covers, with wider voltage scaling than the L1. Set aside (`roadmap.md`). | Renode ships no L4 platform, so the emulation would have to be built along with the port. |

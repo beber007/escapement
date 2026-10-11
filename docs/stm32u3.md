@@ -1,11 +1,12 @@
 # The STM32U3 port
 
 `Escapement/CORTEX-Mx/STM32U3` runs the kernel on the STM32U385 of a NUCLEO-U385RG-Q, a
-Cortex-M33 at up to 96 MHz with 1 MB of flash and 256 KB of SRAM. The board was ordered
-on 2026-10-06 and has not arrived. The port was written the same day from the reference
-manual and the errata, before any chip could run it: it has run under Renode only, and
-nothing on this page is measured. The idle task in Stop 2, LPTIM1 and LPUART1 followed
-the same day, written the same way ("The idle task in Stop 2", below).
+Cortex-M33 at up to 96 MHz with 1 MB of flash and 256 KB of SRAM. The port was written on
+2026-10-06 from the reference manual and the errata, before the board came, and run under
+Renode; the idle task in Stop 2, LPTIM1 and LPUART1 followed the same day, written the
+same way ("The idle task in Stop 2", below). The board came on 2026-10-09: what it has
+run and measured since is in "On the board", "Measuring DVFS" and "The power-aware
+kernel".
 
 ```sh
 U3=Escapement/CORTEX-Mx/STM32U3/Examples/nucleo-u385
@@ -87,11 +88,10 @@ whether the MSI ever locked (bit 24), beside the count of relocks. Every example
 with `-Wall` and no warning, with the hard and the soft kernel under both algorithms, at
 all four frequencies, and with the power-aware kernel under each of its policies.
 
-Left out for now, and refused at build time where it applies:
+Left out for now:
 
 - The HSE as the reference of the PLL mode. It would have to be 16 MHz (RCC_ICSCR1,
   p. 423), and the board comes without that crystal.
-- A name of its own in `tools/soak.py`, which reads it as `nucleo` (below).
 
 ## The idle task in Stop 2
 
@@ -102,8 +102,8 @@ event. It stops TIM2 and TIM4 on an edge of LPTIM1, disables USART1 and enters S
 waking it raises the clock and starts both timers again, moved on by the ticks LPTIM1
 counted. LPUART1 receives through Stop 2, and the window after a byte keeps the idle task
 in Sleep for 20 ms, as on the U5. The margins (`OS_STOP2_WAKE_US`, `OS_STOP2_MIN_US`,
-`OS_STOP2_RAISE_US`) and the 30 cycles given back at each restart are the U5's. Nothing
-has measured this chip's.
+`OS_STOP2_RAISE_US`) and the 30 cycles given back at each restart are the U5's; the board
+has measured how much of them a wake-up takes ("On the board"), not lowered them.
 
 What differs from the U5, each from RM0487:
 
@@ -395,8 +395,9 @@ give the same pins as `BoardU3.h`. UM3062 gives JP4's pin 2 as the MCU's side (7
 ("Measuring DVFS").
 
 Still open: LPUART1 on D0 and D1, which an FTDI TTL-232R-3V3 cable on the UNO Q will
-reach (`LINK_TTY` of `tools/unoq_sleep.py`); the current on JP4, which needs the PPK2
-there (roadmap, task 11).
+reach (`LINK_TTY` of `tools/unoq_sleep.py`); the current of Stop 2 and Sleep on JP4
+(`SleepU3` with `PHASES=30`): the PPK2 has measured the operating points there, not the
+sleeps ("Measuring DVFS").
 
 ## The endurance test from the flash
 
@@ -422,7 +423,7 @@ read them) gives 16.1 µA/MHz at 96 MHz in range 1 and 12.9 at 48 MHz in range 2
 less a cycle: range 2 is 0.75 V typical against range 1's 0.9 (RM0487, 9.3.3, p. 333).
 On the U5 the datasheet's figures favoured the slower clock too, and the board did not.
 
-`DVFSU3.c` (`DVFSU3Flash.elf`, written on 2026-10-10, not yet run on the board) computes
+`DVFSU3.c` (`DVFSU3Flash.elf`, written and run on the board on 2026-10-10) computes
 without a pause, a CRC-32 checked against the first, 20 s of LPTIM1 at each of eight
 points: 96 MHz in range 1; 48 MHz in range 1 and in range 2, the voltage alone between
 them; 24 MHz in range 1, in range 2, and in range 2 with the booster on, what the booster
@@ -556,6 +557,17 @@ MSIS's frequency at 0x3E8. `escapement_u3.robot` run with `--variable KERNEL:PA`
 sequences, and `SoakU3` some 2,400 times in 3.5 s, every part without error.
 
 ## What only the board can decide
+
+Written before the board came. Answered since ("On the board", "Measuring DVFS"): the
+revision, Z, though DBGMCU_IDCODE read 0x10016454, its bits 15 to 12 at 6 where the list
+below expects 0; FLASH_OPTR as ST ships it; loading, by an OpenOCD built from its
+sources; the LSE, started in 126 ms; the lock, 627 µs, the microsecond 121 ppm fast
+against NTP on 2026-10-09; range 1 and the booster; the pins; the relock, 24 ticks of
+LPTIM1 at most, 1 with `FAST=1`; USART1 across Stop 2, every report whole; the 30 cycles
+of a restart, TIM2 some 8 ppm ahead of LPTIM1. Still open: what PWR_VOSR reads after
+Stop 2 entered in range 1, LPUART1 on D0 and D1, the cause of the 3 relocks of a day
+(erratum 2.2.1 or not), the margin of the wake-up lowered, FSTEN, and the current of the
+sleeps on JP4.
 
 - **Which revision the chip is.** DBGMCU_IDCODE should read 0x10010454 (Z) or
   0x10070454 (X), and the errata differ between the two (ES0626, table 2). CPUID should

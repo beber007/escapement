@@ -76,6 +76,9 @@ endif
 # but the timer's gated and PLL_SYS stopped (Escapement_SleepGate.c), for the bench: not
 # built by the CI.
 ifdef SLEEP_GATE
+   ifdef SLEEP_SPEED
+      $(error SLEEP_GATE=1 sleeps at the operating point in effect: SLEEP_SPEED would be ignored)
+   endif
    CFLAGS += -DSLEEP_GATE
    SLEEPGATE = $(B)/Escapement_SleepGate.o $(B)/Escapement_Core1.o
 endif
@@ -101,6 +104,15 @@ endif
 
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p $(B))
+
+# The flags of the last build, in $(B)/flags: under other flags (make, then make
+# KERNEL=PA in the same directory), the objects are removed and made again rather than
+# linked as they were, which the dependencies of -MMD do not see; removed, not dated, since
+# make 3.81, macOS's, dates to the second (a review, 2026-10-11).
+FLAGS := $(CFLAGS) $(AFLAGS)
+ifneq ($(FLAGS),$(shell cat $(B)/flags 2>/dev/null))
+   $(shell rm -f $(B)/*.o $(B)/*.d $(B)/*.elf; echo '$(FLAGS)' > $(B)/flags)
+endif
 
 all: $(B)/TaskLEDPico.elf $(B)/UARTEchoPico.elf $(B)/UARTSendersPico.elf $(B)/TaskWrapPico.elf \
      $(B)/TestTimerEventPico.elf $(B)/FourSlotCoresPico.elf $(B)/IPCPico.elf \

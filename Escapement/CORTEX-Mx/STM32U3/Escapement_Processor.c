@@ -231,11 +231,14 @@ static void LockMSI(void)
   UINT32 turns;
   PWR_DBPR |= PWR_DBPR_DBP;                 // RCC_BDCR, in the backup domain, may be written
   while ((PWR_DBPR & PWR_DBPR_DBP) == 0);
-  if ((RCC_BDCR & (RCC_BDCR_LSEON | RCC_BDCR_LSERDY)) == 0) {
+  if ((RCC_BDCR & RCC_BDCR_LSEON) == 0) {
      /* The drive is written while the oscillator is off, before LSEON (p. 404, 473):
      ** medium-high, as on the U5, where the two lowest failed (ES0499 2.2.3, 2.2.16);
-     ** ES0626 has no such erratum, and the crystal of the board decides. */
-     RCC_BDCR = (RCC_BDCR & ~RCC_BDCR_LSEDRV_MASK) | RCC_BDCR_LSEDRV_MEDHIGH;
+     ** ES0626 has no such erratum, and the crystal of the board decides. LSERDY outlives
+     ** LSEON by six cycles of the LSE (p. 473): an LSE cleared just before keeps its drive
+     ** but is started again, where it was left off (a review, 2026-10-11). */
+     if ((RCC_BDCR & RCC_BDCR_LSERDY) == 0)
+        RCC_BDCR = (RCC_BDCR & ~RCC_BDCR_LSEDRV_MASK) | RCC_BDCR_LSEDRV_MEDHIGH;
      RCC_BDCR |= RCC_BDCR_LSEON;
   }
   CLOCK_MARK(0);
@@ -253,7 +256,7 @@ static void LockMSI(void)
      RCC_CR |= RCC_CR_MSIPLL0EN;
      for (turns = 0; (RCC_CR & RCC_CR_MSIPLL0RDY) == 0 && turns < LOCK_TURNS; turns += 1);
      CLOCK_MARK(3);
-     Locked = (RCC_CR & RCC_CR_MSIPLL0EN) != 0;
+     Locked = (RCC_CR & RCC_CR_MSIPLL0RDY) != 0;   // locked, not only enabled
      #ifdef OS_MSIPLL_FAST
         /* The PLL mode kept through Stop 2, the MSI powered and gated there, so that it
         ** wakes locked (p. 403, 415): what that costs in Stop 2 against the wait for the
@@ -274,9 +277,9 @@ static void LockMSI(void)
 
 void OSInitializeSystemClocks(void)
 {
-  /* The image runs from SRAM (STM32U3_SRAM.ld): the core took its stack and first
-  ** instruction from the loader, and the vector table must be named before the first
-  ** interrupt, VTOR pointing at the flash after reset. */
+  /* An image in SRAM (STM32U3_SRAM.ld) took its stack and first instruction from the
+  ** loader, and its vector table must be named before the first interrupt, VTOR pointing
+  ** at the flash after reset; in the flash (STM32U3_FLASH.ld) the write changes nothing. */
   extern void (* const CortexMxVectorTable[])(void);
   *((volatile UINT32 *)0xE000ED08) = (UINT32)CortexMxVectorTable;   // SCB->VTOR
   /* PWR's clock, then 2 cycles of its bus before PWR is written (p. 410): the read back
@@ -337,7 +340,8 @@ void _OSRaiseSystemClock(void)
   ** 48 MHz of a wake-up from 96 need the same 2 in range 2 as 96 in range 1 (table 43). */
   FLASH_ACR = (FLASH_ACR & ~(FLASH_ACR_LATENCY_MASK | FLASH_ACR_PRFTEN)) | FLASH_WAIT_STATES;
   while ((FLASH_ACR & FLASH_ACR_LATENCY_MASK) != FLASH_WAIT_STATES);
-  /* The MSIS at its frequency; the MSIK stays at 12 MHz, which no part of the port uses. */
+  /* The MSIS at its frequency; the MSIK stays at 12 MHz, which the timers count under the
+  ** power-aware kernel. */
   if ((RCC_ICSCR1 & (RCC_ICSCR1_MSISSEL | RCC_ICSCR1_MSISDIV_MASK | RCC_ICSCR1_MSIRGSEL)) !=
       (RCC_ICSCR1_MSISDIV(MSIS_DIV) | RCC_ICSCR1_MSIRGSEL))
      SetMSIDividers(MSIS_DIV,MSIDIV_12MHZ);
@@ -348,12 +352,14 @@ void _OSRaiseSystemClock(void)
 /* _OSWaitMSILock: After a wake-up from Stop 2, until the MSI's PLL mode is locked again,
 ** MSIPLL0RDY, or ticks of the caller's clock, LPTIM1, have passed; TRUE if they did, the
 ** MSIS then running free, within about 1 %, until it locks. Nothing to wait for if the
-** PLL mode is off, the LSE never having started. */
+** PLL mode is off: the LSE never started, or has stopped since, the hardware refusing
+** MSIPLL0EN without it (p. 419); the latter, after a lock, counts as missed (a review,
+** 2026-10-11). */
 BOOL _OSWaitMSILock(UINT16 (*clock)(void), UINT16 ticks)
 {
   UINT16 start;
   if ((RCC_CR & RCC_CR_MSIPLL0EN) == 0)
-     return FALSE;
+     return Locked;
   start = clock();
   while ((RCC_CR & RCC_CR_MSIPLL0RDY) == 0 && (UINT16)(clock() - start) < ticks);
   return (RCC_CR & RCC_CR_MSIPLL0RDY) == 0;

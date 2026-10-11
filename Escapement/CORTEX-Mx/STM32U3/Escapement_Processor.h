@@ -128,8 +128,9 @@ extern void (*_OSIdleHook)(void);
 ** back in it (Escapement_Processor.c). */
 UINT32 OSGetMSIRelocks(void);
 
-/* OSMSILocked: TRUE once the MSI is in its PLL mode on the LSE; FALSE if the LSE did not
-** start, the MSIS then running free, within about 1 % of its frequency. */
+/* OSMSILocked: TRUE once the MSI has locked on the LSE; FALSE if the LSE did not start or
+** the lock did not come within its bound, the MSIS then running free, within about 1 % of
+** its frequency. */
 BOOL OSMSILocked(void);
 
 #endif /* ESCAPEMENT_PROCESSOR_H */

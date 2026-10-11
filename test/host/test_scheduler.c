@@ -1009,6 +1009,28 @@ static void TestLongPeriod(void)
   Check("  no deadline missed", LateArrivals == 0);
 }
 
+/* TestLongIdle: A task of period three turns of 2^30, the processor idle for the three
+** wraps between its instances, run across seven: released at 0, 3 * 2^30 + 1000 and
+** 6 * 2^30 + 2000, three times. Under the power-aware kernel LastRemainingWorkUpdate, and
+** under DRA and DR_OTE the simulation's time and its zombies, were shifted at every wrap
+** and brought forward only while a task ran: after two wraps idle they overflowed, which
+** this build's sanitizer stops on (a review, 2026-10-11). */
+static void TestLongIdle(void)
+{
+  long long duration = 7LL * 0x40000000 + 100000;
+  char label[80];
+
+  CREATE_LONG_TASK(3, 1000, 1000, (void *)0);
+  StartKernel(NULL, NULL);
+  RunAcross(duration);
+
+  printf("\n%lld ticks of simulated time, three turns idle between instances\n\n", duration);
+  Check("  the kernel clock wrapped seven times", HostClockWraps == 7);
+  snprintf(label, sizeof label, "  the task ran three times: %u", Activations[0]);
+  Check(label, Activations[0] == 3);
+  Check("  no deadline missed", LateArrivals == 0);
+}
+
 /* TestTwoSignals: Two events signalled at the same instant, before the timer handler
 ** runs: both tasks wait in its list of tasks to release, and both must run. */
 static unsigned FirstRuns, SecondRuns;
@@ -2784,6 +2806,35 @@ static void TestFirmEventsDM(unsigned which)
   #endif
 }
 
+/* TestFirmHeavyEvents: The test of an optional instance under DM against an event-driven
+** task of higher priority whose load nearly fills a turn: a (1,2)-firm task of 100 ticks
+** every 2^30 - 1, and an event-driven task of 2^30 - 256 in as much, never signalled but
+** counted as released now. Its share alone takes the sum past 2^30, which the periodic
+** tasks' sum was bounded at and the event-driven tasks' was not, two of them overflowing
+** INT32 (a review, 2026-10-11): the optional instance is refused, only the mandatory ones
+** run (1). Without the event-driven task, every instance runs (0). */
+static void TestFirmHeavyEvents(unsigned withEvent)
+{
+  #if BY_DEADLINE
+     (void)withEvent;
+     printf("\nthe events in the test of an optional instance: under DM only\n");
+  #else
+     long long duration = 3LL * 0x3FFFFFFF + 1000;
+     char label[96];
+     OSCreateTask(CountingTask, 100, 0, 0x3FFFFFFF, 0x3FFFFFFF, 1, 2, 0, (void *)0);
+     if (withEvent)
+        OSCreateSynchronousTask(FirstTask, 0x3FFFFF00, 0x3FFFFF00, 0,
+                                OSCreateEventDescriptor(), NULL);
+     StartKernel(NULL, NULL);
+     RunAcross(duration);
+     printf("\na (1,2)-firm task every 2^30 - 1, %s\n\n",
+            withEvent ? "an event-driven load of nearly a turn above it" : "alone");
+     snprintf(label, sizeof label, "  its instances that ran: %u of 4", Activations[0]);
+     Check(label, Activations[0] == (withEvent ? 2u : 4u));
+     Check("  no deadline missed", LateArrivals == 0);
+  #endif
+}
+
 /* TestFirmEventsEDF: Under EDF the test of an optional instance reserves the event-driven
 ** tasks' share of the processor for the work that would end after the server's last
 ** deadline. A (1,2)-firm task, its optional instance tested at its first period, due at
@@ -3447,6 +3498,8 @@ int main(int argc, char *argv[])
   #endif
   else if (argc > 1 && strcmp(argv[1], "longperiod") == 0)
      TestLongPeriod();
+  else if (argc > 1 && strcmp(argv[1], "longidle") == 0)
+     TestLongIdle();
   else if (argc > 1 && strcmp(argv[1], "twosignals") == 0)
      TestTwoSignals();
   else if (argc > 1 && strcmp(argv[1], "eventspacing") == 0)
@@ -3476,6 +3529,8 @@ int main(int argc, char *argv[])
      else if (argc > 2 && strcmp(argv[1], "firmeventsdm") == 0 &&
               (unsigned)atoi(argv[2]) < sizeof FirmEvents / sizeof FirmEvents[0])
         TestFirmEventsDM((unsigned)atoi(argv[2]));
+     else if (argc > 2 && strcmp(argv[1], "firmheavy") == 0)
+        TestFirmHeavyEvents((unsigned)atoi(argv[2]));
      else if (argc > 1 && strcmp(argv[1], "firmatwrap") == 0)
         TestFirmMandatoryAtWrap();
      else if (argc > 1 && strcmp(argv[1], "firmstart") == 0)

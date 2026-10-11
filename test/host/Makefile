@@ -93,6 +93,7 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	   ./$(BUILD)/test_scheduler_$$b simstale && \
 	   ./$(BUILD)/test_scheduler_$$b signals && ./$(BUILD)/test_scheduler_$$b notask && \
 	   ./$(BUILD)/test_scheduler_$$b createbounds && ./$(BUILD)/test_scheduler_$$b longperiod && \
+	   ./$(BUILD)/test_scheduler_$$b longidle && \
 	   ./$(BUILD)/test_scheduler_$$b twosignals && ./$(BUILD)/test_scheduler_$$b eventspacing || exit 1; \
 	   case $$b in soft_*) ./$(BUILD)/test_scheduler_$$b firm && \
 	                      ./$(BUILD)/test_scheduler_$$b createevents && \
@@ -103,6 +104,8 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	                      ./$(BUILD)/test_scheduler_$$b firmeventsdm 1 && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventsdm 2 && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventsdm 3 && \
+	                      ./$(BUILD)/test_scheduler_$$b firmheavy 0 && \
+	                      ./$(BUILD)/test_scheduler_$$b firmheavy 1 && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventsedf 0 && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventsedf 1 && \
 	                      ./$(BUILD)/test_scheduler_$$b firmeventsedf 2 && \

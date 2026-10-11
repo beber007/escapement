@@ -268,9 +268,9 @@ static void LockMSIS(void)
 
 void OSInitializeSystemClocks(void)
 {
-  /* The image runs from SRAM (STM32U5_SRAM.ld): the core took its stack and first
-  ** instruction from the loader, and the vector table must be named before the first
-  ** interrupt, VTOR pointing at the flash after reset. */
+  /* An image in SRAM (STM32U5_SRAM.ld) took its stack and first instruction from the
+  ** loader, and its vector table must be named before the first interrupt, VTOR pointing
+  ** at the flash after reset; in the flash (STM32U5_FLASH.ld) the write changes nothing. */
   extern void (* const CortexMxVectorTable[])(void);
   *((volatile UINT32 *)0xE000ED08) = (UINT32)CortexMxVectorTable;   // SCB->VTOR
   RCC_AHB3ENR |= RCC_AHB3ENR_PWREN;

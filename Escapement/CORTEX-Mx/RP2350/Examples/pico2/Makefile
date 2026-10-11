@@ -100,6 +100,15 @@ endif
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p $(B))
 
+# The flags of the last build, in $(B)/flags: under other flags (make, then make
+# KERNEL=PA in the same directory), the objects are removed and made again rather than
+# linked as they were, which the dependencies of -MMD do not see; removed, not dated, since
+# make 3.81, macOS's, dates to the second (a review, 2026-10-11).
+FLAGS := $(CFLAGS) $(AFLAGS)
+ifneq ($(FLAGS),$(shell cat $(B)/flags 2>/dev/null))
+   $(shell rm -f $(B)/*.o $(B)/*.d $(B)/*.elf; echo '$(FLAGS)' > $(B)/flags)
+endif
+
 all: $(B)/TaskLEDPico2.elf $(B)/UARTEchoPico2.elf $(B)/TestTimerEventPico2.elf \
      $(B)/FourSlotCoresPico2.elf $(B)/ThreeSlotCoresPico2.elf $(B)/TaskWrapPico2.elf \
      $(B)/FIFOCoresPico2.elf $(B)/IPCPico2.elf $(B)/SoakPico2.elf $(B)/LitmusPico2.elf \

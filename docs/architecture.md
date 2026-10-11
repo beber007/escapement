@@ -75,9 +75,9 @@ An application gets the same guarantees from two mechanisms.
   instruction. The 3-slot buffer follows Chen and Burns (1997) with an LL/SC pair.
 
 For use between two cores, each slot buffer orders its accesses with four calls to
-`_OSMemoryBarrier()`. That is a `DMB` on the RP2040, the RP2350 and the STM32U5, and a
-compiler barrier alone in the host build. On every build of the Pico, the Pico 2 and the
-STM32U5, `tools/check_order.py` reads the compiled code and checks that the accesses and
+`_OSMemoryBarrier()`. That is a `DMB` on the RP2040, the RP2350, the STM32U5 and the
+STM32U3, and a compiler barrier alone in the host build. On every build of the four
+ports, `tools/check_order.py` reads the compiled code and checks that the accesses and
 the barriers keep the order of the models, and on the Pico 2 so do the seven of the
 queue between the cores (2026-09-30). It also checks the order of the stores a task
 makes that the timer interrupt may find half done (`method.md`).
@@ -172,6 +172,17 @@ The hardware spinlocks of the SIO were no alternative: they are unreliable on th
   build `SleepU5` for a NUCLEO-U575ZI-Q, to measure the MCU's current, and the endurance
   test, which has run on that board since 2026-09-28 (`tools/board_ci.md`); `SleepU5`
   ran there on 2026-10-02 (`stm32u5.md`). The power-aware kernel is not ported (`power-aware.md`).
+- **STM32U3** (the STM32U385 of a NUCLEO-U385RG-Q): Cortex-M33, port under
+  `Escapement/CORTEX-Mx/STM32U3/`, written on 2026-10-06 from the U5's and the reference
+  manual, on the board since 2026-10-09 (`stm32u3.md`). The MSIS runs at 96 MHz, locked
+  on the 32.768 kHz crystal; there is no PLL. TIM2 serves the kernel and TIM4 the timer
+  events. USART1 goes to the ST-LINK's virtual COM port and LPUART1 to D0 and D1. An idle
+  task can sleep in Stop 2, woken by LPTIM1. All three kernels build its images under
+  `nucleo-u385/`, the power-aware one with DVFS between 48 and 96 MHz since 2026-10-11,
+  its timers then counting the MSIK. They run from SRAM, or from the flash with
+  `FLASH=1`, the long run's. All but `ClockU3`, `StackGuardU3`, `BenchDVFSU3` and
+  `DVFSU3Flash` run under Renode on a platform of our own that checks the clock
+  set-up against the manual.
 - **ARM Cortex-M33** (ARMv8-M Mainline): the generic layer takes it down the
   Cortex-M3/M4 path under `CORTEX_M33`. The registers to save are the same, and so is
   the frame with the floating-point unit left off, and `LDREX`/`STREX`/`CLREX`. It is
@@ -204,11 +215,13 @@ Escapement/
   EscapementSoft.{c,h}      (m,k)-firm real-time kernel
   EscapementHardPA.{c,h}    power-aware hard real-time kernel
   Escapement_Modes.h        names of the scheduling algorithms
-  CORTEX-Mx/                ARM port: generic Cortex-M layer, RP2040, RP2350, STM32U5
+  CORTEX-Mx/                ARM port: generic Cortex-M layer, RP2040, RP2350, STM32U5,
+                            STM32U3
   CORTEX-Mx/RP2040/Examples/ the Raspberry Pi Pico examples
   CORTEX-Mx/RP2350/Examples/ the Raspberry Pi Pico 2 examples
   CORTEX-Mx/STM32U5/Examples/ the Arduino UNO Q examples, and SleepU5, SleepU5Flash
                             and SoakU5 for the NUCLEO-U575ZI-Q
+  CORTEX-Mx/STM32U3/Examples/ the NUCLEO-U385RG-Q examples
 test/host/                  the three kernels built for the host
 test/model/                 exhaustive models of the lock-free mechanisms
 test/litmus/                the lock-free mechanisms on an Armv8-A host that reorders

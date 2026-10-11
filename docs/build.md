@@ -26,8 +26,8 @@ cd Escapement/CORTEX-Mx/RP2040/Examples/pico
 make
 ```
 
-The CI builds these three example directories on each push to `main` and each pull
-request; `STM32U5/Examples/nucleo-u575` is built by its job for the board's images
+The CI builds the four example directories (with `STM32U3/Examples/nucleo-u385`) on
+each push to `main` and each pull request; `STM32U5/Examples/nucleo-u575` is built by its job for the board's images
 (`tools/board_images.sh`). Sizes with GCC 16.2 at commit bf447b8, on 2026-09-27:
 
 | Example | Core | MCU | Tasks | `text` / `data` / `bss` |
@@ -54,13 +54,15 @@ are chosen on the command line (`architecture.md`):
 
 | Option | Directories | Effect |
 |---|---|---|
-| `SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING` | all three | deadline-monotonic scheduling |
-| `KERNEL=SOFT` | all three | the (m,k)-firm kernel |
-| `KERNEL=PA` | `pico` | the power-aware kernel |
-| `POWER=DRA`, `DR_OTE`, `DM_SLACK` | `pico`, with `KERNEL=PA` | another power-management policy than OTE |
+| `SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING` | all four | deadline-monotonic scheduling |
+| `KERNEL=SOFT` | all four | the (m,k)-firm kernel |
+| `KERNEL=PA` | `pico`, `nucleo-u385` | the power-aware kernel |
+| `POWER=DRA`, `DR_OTE`, `DM_SLACK` | `pico`, `nucleo-u385`, with `KERNEL=PA` | another power-management policy than OTE |
 | `UNDERVOLT=1` | `pico`, with `KERNEL=PA` | below the specified core voltage, bench only |
-| `SLEEP_SPEED=0` | `pico`, with `KERNEL=PA` | the idle task sleeps at 12 MHz rather than 125 |
-| `TRACE=1` | all three | a scheduling trace in RAM, not built by the CI |
+| `SLEEP_SPEED=0` | `pico`, `nucleo-u385`, with `KERNEL=PA` | the idle task's WFI at the slowest point, 12 MHz on the Pico, 48 on the U3 |
+| `MHZ=` | `nucleo-u575`, `nucleo-u385` | another system clock (80, 40 or 16 MHz on the U575 rather than 160, 48, 24 or 12 on the U385 rather than 96), not with `KERNEL=PA` |
+| `FLASH=1` | all four | the images linked into the flash, in `build-flash/` |
+| `TRACE=1` | all four | a scheduling trace in RAM, not built by the CI |
 | `PHASES=30` | `uno-q`, `nucleo-u575`, `nucleo-u385` | `SleepU5` or `SleepU3` alternates 30 s in Stop 2 and 30 s in Sleep |
 | `FAST=1` | `nucleo-u385` | the MSI's PLL mode kept through Stop 2 (MSIPLL0FAST) |
 | `SMPS=1` | `nucleo-u575` | the STM32U575's SMPS rather than its LDO |
@@ -83,18 +85,21 @@ none of its mandatory instances may be missed, nor any instance end late (`SoakU
 
 ## On hardware and under emulation
 
-> **All three ports have run on hardware**, and a bench checks each at every commit
+> **All four ports have run on hardware**, and a bench checks each at every commit
 > (`tools/board_ci.md`). The core of the RP2040 below its specified voltage has been
 > seen only by the regulator bench (`rp2040.md`). Every example runs under Renode in
-> the CI except those made for a board: `FourSlotCoresPico` and the two benches of the
-> Pico, `IdlePico2`, `SleepPico2` and `StackGuardPico2`, and `StackGuardU5`
-> (`architecture.md`).
+> the CI except those made for a board: `FourSlotCoresPico`, `SleepPico` and the four
+> benches of the Pico, `IdlePico2`, `SleepPico2`, `DormantPico2`, `LposcPico2` and
+> `StackGuardPico2`, `StackGuardU5`, and `ClockU3`, `StackGuardU3`, `BenchDVFSU3` and
+> `DVFSU3Flash` (`DVFSU3Short` and `BenchDVFSU3Short` run in their place).
 
 The images run from SRAM, loaded over SWD with OpenOCD: those of the Pico and the
 Pico 2 by a Debug Probe (`rp2040.md`), those of the STM32U5 by `tools/unoq_load.sh` and
 the OpenOCD of the UNO Q, which drives the MCU's SWD from the board's Linux processor
-(`stm32u5.md`). Only `SleepU5Flash` is written to a flash, the NUCLEO's, to measure the
-current without a debugger attached.
+(`stm32u5.md`). `make FLASH=1` links them into the flash on every port: the NUCLEO-U385RG-Q
+runs its long run from there since 2026-10-10, the NUCLEO-U575ZI-Q its endurance tests,
+and `SleepU5Flash`, `SleepU3Flash` and `DVFSU3Flash` run from there to measure the current
+without a debugger attached.
 
 ## Host tests and models
 

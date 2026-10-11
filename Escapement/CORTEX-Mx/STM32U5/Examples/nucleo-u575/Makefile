@@ -86,6 +86,15 @@ endif
 
 $(shell mkdir -p $(B))
 
+# The flags of the last build, in $(B)/flags: under other flags (make, then make
+# KERNEL=PA in the same directory), the objects are removed and made again rather than
+# linked as they were, which the dependencies of -MMD do not see; removed, not dated, since
+# make 3.81, macOS's, dates to the second (a review, 2026-10-11).
+FLAGS := $(CFLAGS) $(AFLAGS)
+ifneq ($(FLAGS),$(shell cat $(B)/flags 2>/dev/null))
+   $(shell rm -f $(B)/*.o $(B)/*.d $(B)/*.elf; echo '$(FLAGS)' > $(B)/flags)
+endif
+
 all: $(B)/SleepU5.elf $(B)/SoakU5.elf $(B)/SleepU5Flash.elf $(FIRM)
 
 clean:

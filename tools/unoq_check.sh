@@ -40,8 +40,10 @@
 # status: posted once an hour, it was up to an hour behind, and a failure whose post was
 # lost left it pending, which the end then turned into a success (a review, 2026-09-30).
 #
-# BOARD_SOAK_SERVICE=none checks without a long run: none stopped, none carried on, the
-# board left running the checked image. tools/board_ci.sh checks the power-aware kernel of
+# BOARD_SOAK_SERVICE=none checks without a long run: the board's long run, the service
+# escapement-soak-$BOARD, is stopped as for any check, since its reader would otherwise
+# take the checked image for a restart and load its own over it (a review, 2026-10-11), but
+# not carried on nor started again: the board is left running the checked image. tools/board_ci.sh checks the power-aware kernel of
 # the STM32U385 so, before the hard kernel, whose check carries the long run on.
 #
 # With an image of the long run linked into the flash beside the checked one,
@@ -112,7 +114,11 @@ close() {
         --data @- "https://api.github.com/repos/$REPO/statuses/$sha" || true
 }
 
-systemctl --user stop "$SERVICE" 2>/dev/null
+if [ "$SERVICE" = none ]; then
+    systemctl --user stop "escapement-soak-${BOARD:-u5}" 2>/dev/null
+else
+    systemctl --user stop "$SERVICE" 2>/dev/null
+fi
 ok=yes
 for sleep in $SLEEPS; do
     sleep=$(dirname "$ELF")/$sleep
