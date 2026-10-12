@@ -4,7 +4,7 @@
 */
 /* File Escapement_SleepGate.h: The idle task of the RP2040 in SLEEP rather than a plain
 ** WFI, the clocks gated but those the kernel and the application keep (RP2040 datasheet,
-** 2.11.2 and 2.15.7, SLEEP_EN0 and SLEEP_EN1; docs/roadmap.md, item 1).
+** 2.11.2 and 2.15.7, SLEEP_EN0 and SLEEP_EN1; docs/roadmap.md, Done).
 ** Platform version: RP2040 (Raspberry Pi Pico).
 */
 

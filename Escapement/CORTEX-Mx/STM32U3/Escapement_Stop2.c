@@ -41,7 +41,7 @@
 ** A byte received on LPUART1, or a wake-up from Stop 2 that LPTIM1 did not cause, keeps
 ** the idle task in Sleep for OS_STOP2_LINK_WINDOW_US after it, so that the bytes that
 ** follow are sampled on a running HSI16: the first byte of a silence only wakes the chip
-** (docs/roadmap.md, item 6). The window is counted on LPTIM1, whose compare wakes the chip
+** (issue #7). The window is counted on LPTIM1, whose compare wakes the chip
 ** at its end if nothing else does, for Stop 2 to resume then.
 **
 ** LPTIM1 wakes the chip from Stop 2 with its clock enabled in Run, in Sleep and in Stop

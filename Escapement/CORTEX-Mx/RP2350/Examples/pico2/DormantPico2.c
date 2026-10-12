@@ -3,7 +3,7 @@
 ** Distributed under the terms of LICENSE at the root of this repository.
 */
 /* File DormantPico2.c: DORMANT woken by the always-on timer, and how well that timer keeps
-** the time asleep (docs/roadmap.md, item 5, step 3). LposcPico2 measured LPOSC awake;
+** the time asleep (issue #6). LposcPico2 measured LPOSC awake;
 ** asleep, its supply and its load differ, and only a clock outside the chip can tell.
 **
 ** The always-on timer compares its alarm only while its clock, clk_ref when the switched
@@ -178,7 +178,7 @@ static void StartTimer(UINT32 ms)
 ** CAL_S seconds apart (LposcPico2.c).
 ** Built with CAL_ASLEEP_CLOCKS, the clocks are set as SleepUntil sets them before DORMANT,
 ** clk_ref on LPOSC, which then feeds the clock tree of clk_ref too: whether that load is
-** what moves LPOSC asleep (docs/roadmap.md, item 5). TIMER0 ticks from clk_ref and no
+** what moves LPOSC asleep (issue #6). TIMER0 ticks from clk_ref and no
 ** longer counts microseconds then: the cycles of clk_sys, the crystal's 12 MHz, are
 ** counted instead, by the DWT's cycle counter. */
 #define DEMCR             *((volatile UINT32 *)0xE000EDFC)

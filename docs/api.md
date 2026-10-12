@@ -175,7 +175,7 @@ interrupts running. Under DM, only the tasks of lower priority wait.
 The kernel notices an overrun only at that next release. With a deadline shorter than
 the period, an instance that misses its deadline but ends before its next release is
 late, and nothing reports it. Noticing an instance as it passes its `wcet` would take a
-budget timer for each instance (`roadmap.md`, open work).
+budget timer for each instance (issue #17).
 
 ## Event-driven tasks
 

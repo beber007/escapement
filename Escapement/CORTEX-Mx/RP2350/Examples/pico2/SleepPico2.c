@@ -21,7 +21,7 @@
 ** (POWMAN, DBG_POW_STATE_SWCORE, USING_FAST_POWCK). On the board on 2026-10-03 the alarm
 ** fired awake and never in DORMANT, where an edge on GP1 woke the chip each time; the
 ** pico-extras run clk_ref from LPOSC for that reason (pico_sleep, sleep.c). A kernel would
-** do the same, or wake on an external 32.768 kHz clock (docs/roadmap.md, item 5).
+** do the same, or wake on an external 32.768 kHz clock (issue #6).
 **
 ** Each phase lasts PHASE_PERIODS periods, then the next, round and round: GP16 and GP17,
 ** the PPK2's D0 and D1, give the phase as a number, 0 WFI, 1 SLEEP, 2 DORMANT (tools/
@@ -46,7 +46,7 @@
 ** points of 30 s each: 150 MHz at 1.10 V, then clk_sys divided by 2 and by 4, 75 and
 ** 37.5 MHz, PLL_SYS still at 1.5 GHz, and the crystal's 12 MHz with PLL_SYS stopped,
 ** these three at RUN_VSEL, 1.10 V by default and 1.00 V with RUN_VSEL=9: the current of
-** the core running, for DVFS (docs/roadmap.md, item 3). The datasheet guarantees 1.1 V
+** the core running, for DVFS (issue #23). The datasheet guarantees 1.1 V
 ** only (6.3.2), and its brown-out detector resets the chip under some 0.95 V (6.6.2):
 ** below 1.10 V is for the bench alone, as UNDERVOLT is on the RP2040.
 ** Platform version: RP2350 (Raspberry Pi Pico 2).

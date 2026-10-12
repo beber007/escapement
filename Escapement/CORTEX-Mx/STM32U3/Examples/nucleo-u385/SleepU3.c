@@ -40,7 +40,7 @@
 ** HSI16 starts, which may make it anything (Escapement_UART.c). The sender therefore
 ** sends a wake-up byte, 0x00, waits some 5 ms for the chip's clock, then its count in a
 ** frame: 0x00, the bytes of the count and a CRC-16 encoded with COBS, 0x00 (docs/
-** roadmap.md, item 6; SleepU5.c). Whatever the wake-up byte became ends in an empty
+** issue #7; SleepU5.c). Whatever the wake-up byte became ends in an empty
 ** frame, ignored, or in an invalid one, dropped and counted: a frame of the count dropped
 ** would show as bytes missing from it. Nothing on the bench feeds D0 yet.
 **

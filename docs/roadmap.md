@@ -4,10 +4,10 @@ Escapement continues ZottaOS, a real-time kernel by Claude Evéquoz and Bertrand
 whose code last changed in 2014 and was published in 2016.
 `NOTICE` gives the lineage and the third-party components.
 
-This page separates what is open from what is done. Open items are plans, each with the
-date its facts were read. Done items say where the result is measured or checked, and a
-result counts as measured only where a page gives its date and conditions. Last revised
-on 2026-10-11.
+This page gives the direction and what is done; the open work is in the repository's
+issues since 2026-10-12 ("Open work" below). Done items say where the result is measured or
+checked, and a result counts as measured only where a page gives its date and conditions.
+Last revised on 2026-10-12.
 
 ## Direction
 
@@ -349,24 +349,34 @@ instance again; an exhaustive enumeration of small task sets and fuzzing; a test
 optional instances by processor demand that counts its own cost, bounded and measured on
 each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`).
 
-## Open work, in order
+## Open work
 
-0. **Two weeks of endurance on a board** (`rp2040.md`, "The endurance test"). `SoakPico`
-   runs on probe2's Pico (written Pico W until 2026-10-10, `board_ci.md`), since 2026-09-28 at 20:03 UTC: a week
-   under the hard kernel, EDF, at 69825e4, then a week under the power-aware one. The
-   first week ended on 2026-10-05 at 20:03 UTC: 7 days across 563 wraps of the kernel
-   clock, no error, no restart, no interruption, the pulse at most 129 µs late and the
-   timer events 137. The second began at 20:18 UTC on 80cc6dc, the power-aware kernel
-   under OTE with the RP2040's stack guard and the speed reclaimed at every release, and
-   was stopped on 2026-10-10 after 4 d 18 h 47 min for the PPK2 of release 0.1's task 9,
-   no error, no restart, 384 wraps; the release's runs of task 14 take its place. Two
-   STM32U5 run alongside until stopped (`stm32u5.md`, "The endurance test"): the UNO Q's
-   own, restarted by each board check on its commit, and a NUCLEO-U575ZI-Q, 25 h 56 min
-   across 86 wraps at f197a35 on 2026-10-04, no error and no overrun. The statuses
-   `board/soak`, `board/soak-u5` and `board/soak-nucleo` of each commit give their state
-   since (`tools/board_ci.md`).
+Since 2026-10-12 the open work is in the repository's issues, in order on its project board
+(github.com/beber007/escapement/issues; github.com/users/beber007/projects/1). This page keeps the
+direction and what is done. The open items of the list kept here until then became:
 
-1. **The energy verdict on the RP2040** — in release 0.1 as its task 9, done on
+| Item | Issue |
+|---|---|
+| 0. Two weeks of endurance on a board | #4 |
+| 4. The STM32U5's energy | #5 |
+| 5. A deeper sleep on the RP2350 | #6 |
+| 6. How often a wake-up byte of LPUART1 comes out wrong (what was left of it) | #7 |
+| 7. Why DRA draws some 2 µA more on the STM32U3 (what was left of it) | #8 |
+| 8. A reset of the NUCLEO-U385RG-Q that nothing asked for | #9 |
+| 10. A tool to measure each task's WCET | #10 |
+| 11. What a visitor of the repository sees | #11, #12, #13 |
+| 12. Lock-free mechanisms beyond the slot buffers and the queues | #14 |
+| 13. The drivers, and the description of the boards | #15, #16 |
+| 14. Noticing an overrun as it happens | #17 |
+| 2 and 3. The power-aware kernel and DVFS on the RP2350 | #23, closed as not planned |
+
+and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under Done.
+
+## Done
+
+### Items of the open list, done when it moved to the issues (2026-10-12)
+
+- **The energy verdict on the RP2040** — in release 0.1 as its task 9, done on
    2026-10-10 (`power-aware.md`), and the idle task in SLEEP with PLL_SYS stopped, its
    task 10, the same day (`rp2040.md`, "SLEEP with PLL_SYS stopped").
    Build the bench of `power-aware.md`: a plain Pico
@@ -403,11 +413,11 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    3. the PLL's lock time, to decide whether a long sleep pays for stopping it, as the U5
       stops its clocks in Stop 2.
 
-2. **The Pico 2 on the board — done on 2026-09-30.** Every example has run on a Pico 2,
+- **The Pico 2 on the board — done on 2026-09-30.** Every example has run on a Pico 2,
    and the bench checks six of them and the UART at each commit (Done). Left: the
    power-aware kernel and DVFS (item 3).
 
-3. **DVFS on the RP2350 — measured on 2026-10-03, worth some 10 % at best.** Its
+- **DVFS on the RP2350 — measured on 2026-10-03, worth some 10 % at best.** Its
    regulator and its power manager differ from the RP2040's, and a driver would be
    written from the pico-sdk headers. It is not planned: SLEEP comes first (item 5).
 
@@ -434,117 +444,16 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    1.99 mA, just over the 1.7 that 75 MHz needs, or once DORMANT keeps the time (item 5,
    step 3). SLEEP comes first, PLL_SYS stopped.
 
-4. **The STM32U5's energy.** The idle task sleeps in Stop 2 on the board since 2026-09-27
-   (see Done). Its current was measured on a NUCLEO-U575ZI-Q with a PPK2 on 2026-10-03
-   (`stm32u5.md`, "The NUCLEO's MCU measured with a PPK2"): Stop 2 at some 21 µA on the
-   LDO and 7 µA on the SMPS, `SleepU5`'s Stop 2 phase at 1.02 and 0.60 mA against 10.97
-   and 6.20 mA in Sleep, at 3.3 V. Left: the UNO Q's own U585, which only a difference
-   can show, and the PPK2 as a check of each commit. The margin of the wake-up was priced
-   the same day: some 110 µA a millisecond at twenty wake-ups a second on the SMPS, 3 ms
-   where 2.2 sufficed on the NUCLEO; `OSSetStop2Wake()` sets it per board, the default
-   left at 3 ms. Slower clocks, `make MHZ=80`, `40` or `16`, ran on it the same day: the
-   Sleep phase at 3.77, 2.71 and 1.53 mA on the SMPS, the Stop 2 phase at 0.41, 0.35 and
-   0.27 mA (`stm32u5.md`, "Slower clocks, measured"). The core computing costs 67 pC a
-   cycle at 160 MHz, 71 at 80, 91 at 40, 113 at 16, and on the LDO, the U585's, 128,
-   131, 155 and 180: DVFS gains nothing on the U5, racing to Stop 2 wins at every load,
-   and no power-aware kernel is planned for it. What a slower clock saves, the margin of
-   the wake-up, the idle task now sleeps on the MSIS at 4 MHz until 500 µs before the
-   event: the Stop 2 phase at 0.48 mA rather than 0.60 on the SMPS, 0.78 rather than 1.02
-   on the LDO (`stm32u5.md`, "The margin slept on the MSIS"). The datasheet, read on
-   2026-09-26 (`power-aware.md`), puts it at some four times less current than Sleep at
-   light load, some 5.3 against 1.4 mA with a tenth of the processor busy. The UNO Q's
-   U585 has no SMPS.
-
-   The plan for Stop 2, as read on 2026-09-26, and the two parts of it that changed the
-   next day are in `stm32u5.md`, "The plan, as read on 2026-09-26".
-
-5. **A deeper sleep on the RP2350.** Its idle task sleeps in SLEEP, PLL_SYS stopped,
-   with `make SLEEP_GATE=1` (Done); DORMANT is left. The RP2350 datasheet was read on
-   2026-09-27:
-   - DORMANT stops every oscillator and keeps the state, the code going on after the
-     instruction that entered it (§6.5.3, p. 489-490), as Stop 2 does on the U5;
-   - TIMER0, the kernel's, stops with them (p. 570);
-   - an alarm of the always-on timer or a GPIO wakes the chip;
-   - the PLLs must be stopped before and restarted after, and the 12 MHz crystal takes
-     more than 1 ms to start (p. 557);
-   - the power-down states P1.x reboot through the bootrom instead (p. 446), which is no
-     use to an idle task;
-   - no erratum touches DORMANT, SLEEP or the always-on timer.
-
-   Two things differ from the U5. The always-on timer counts in steps of 1 ms, 62.5 µs at
-   best, and the Pico 2 has no 32.768 kHz crystal. The timer then runs on LPOSC, an RC
-   oscillator within 20 % untrimmed and 1.5 % trimmed, drifting 14 % with temperature
-   and 20 % with the supply (§8.4.1, p. 569-570; §12.10.5.1 says 1 %). The U5's crystal
-   held 15 ppm. A sleep of 100 ms could move the kernel's time by some 1.5 ms. Second,
-   the datasheet gives no current for WFI, SLEEP or DORMANT (§14.9.7), only 11 mA for a
-   core at 150 MHz (p. 1347). The steps:
-   1. measure the three on a Pico 2 with the PPK2 — done on 2026-10-03 (Done);
-   2. if SLEEP saves enough, gate the clocks the kernel does not need while TIMER0 runs
-      on (SLEEP_EN1, p. 550), which keeps the time exact — done on 2026-10-04 (Done);
-   3. for DORMANT, either calibrate LPOSC against the crystal before each sleep and
-      measure the error left, or give the always-on timer an external 32.768 kHz clock
-      on GPIO 12, 14, 20 or 22 (§12.10.7), which is hardware for the bench.
-
-   Left: step 3. The measurements and the gate are in Done, "Sleep on the RP2350,
-   measured and gated". Its first half measured on 2026-10-05: `LposcPico2` (Examples/
-   pico2) counts the always-on timer, on LPOSC at its nominal 32.768 kHz, against TIMER0
-   on the crystal, in windows of 60 s, awake, at room temperature. On the bench's Pico
-   2, 35 windows: LPOSC at 30.099 kHz, 8.1 % slow; from one window to the next it moved
-   135 ppm on average and 432 at most, against 18 ppm of resolution. Calibrated a
-   minute before, a sleep of 100 ms would then be off by 43 µs at most, and one of a
-   second by 0.4 ms, where the uncalibrated 8 % gives 8 ms. FC0 alone cannot calibrate
-   it: its 1/32 kHz is some 1,000 ppm of LPOSC; the comparison with TIMER0 can.
-
-   Asleep, measured on 2026-10-06: `DormantPico2` (Examples/pico2) calibrates LPOSC so
-   for 60 s, then sleeps in DORMANT 60 times, each until the always-on timer's alarm 10 s
-   of its time after the one before, clk_sys on the crystal, which DORMANT stops, and
-   clk_ref on LPOSC, without which the alarm never woke the chip (`SleepPico2.c`). It
-   woke every time. The UNO Q stamped the line sent at each wake-up on its own clock
-   (`tools/pico2_dormant_stamp.py`, the lines in `docs/data/dormant-pico2-2026-10-06.txt`):
-   from the first wake-up to the last, 588.754 s for
-   590 s of the timer, LPOSC asleep 2,113 ppm faster than calibrated awake, a sleep of
-   10 s some 21 ms short. From one sleep to the next it moved 139 ppm on average, 658 at
-   most, in steps of some 135 ppm, between 1,560 and 2,630 ppm, and drifted from some
-   2,350 over the first minutes to 2,080 over the last. The UNO Q's clock, slewed by NTP
-   or not, gave the same within 23 ppm. Calibrated awake, LPOSC keeps time asleep to some
-   0.2 %, a sleep of 100 ms off by 0.2 ms, five times the error awake.
-
-   Most of it is clk_ref, which asleep runs on LPOSC and loads it. `DormantCalAsleepPico2`
-   calibrates with the clocks as asleep, clk_ref on LPOSC, against the cycles of clk_sys on
-   the crystal (the DWT's counter, TIMER0 ticking from clk_ref then). Six runs in turn the
-   same evening (`docs/data/dormant-pico2-2026-10-06-clkref.txt`): calibrated so, LPOSC
-   read 30.118 to 30.128 kHz, against 30.085 to 30.096 with clk_ref on the crystal, some
-   1,150 ppm faster; and asleep it kept time to 493, 705 and 618 ppm, against 1,648,
-   1,987 and 1,877 for the runs calibrated awake.
-
-   The rest is DORMANT itself. `AwakeCalAsleepPico2`, calibrated the same way, sets the
-   clocks as asleep but waits for the alarm awake, the crystal running: it kept time to
-   +249 and +443 ppm, against -360 for the DORMANT run between them
-   (`docs/data/dormant-pico2-2026-10-06-awake.txt`). Asleep LPOSC runs some 900 ppm faster
-   than in the same clocks awake; awake it moved some 250 to 450 ppm between its
-   calibration and the run. Not the crystal stopping: `RoscCalAsleepPico2` enters DORMANT
-   by the ring oscillator, clk_sys on it, the crystal running throughout, and kept time to
-   -701 and -628 ppm, against -268 for the crystal's DORMANT between them
-   (`docs/data/dormant-pico2-2026-10-06-rosc.txt`), all within the -268 to -705 of the
-   crystal's runs. DORMANT itself moves LPOSC, the core's supply most likely, which a
-   calibration made awake cannot reach. Left: the external 32.768 kHz clock on a GPIO, an
-   oscillator ordered on 2026-10-06.
-
-6. **LPUART1 at 115,200 baud through Stop 2 — done on 2026-10-02** (Done, "LPUART1 at
+- **LPUART1 at 115,200 baud through Stop 2 — done on 2026-10-02** (Done, "LPUART1 at
    115,200 baud through Stop 2"). Left: how often a wake-up byte comes out wrong, which
    no check of a minute can bound.
-7. **What the STM32U3's power-aware kernel saves — done on 2026-10-12, as task 14b of
+
+- **What the STM32U3's power-aware kernel saves — done on 2026-10-12, as task 14b of
    release 0.1.** Some 4 % with the idle task in Stop 2 on `SleepU3`, some 7 % in Sleep
    (`stm32u3.md`, "The power-aware kernel"). Left: why DRA draws some 2 µA more than the
    other policies there, in both runs.
-8. **A reset of the NUCLEO-U385RG-Q that nothing asked for.** Its long run at cc1a4ac
-   restarted on 2026-10-11 at 08:44:48 UTC, 49 min in, the flags of RCC_CSR reading the
-   pin alone: neither the watchdog, nor a brown-out, nor software. No tool of the bench
-   touched the board then (the board CI's run of 08:44:13 ended in a second, nothing on
-   the USB in the journal), and the user did not. The board still had the PPK2's logic
-   inputs and ground on its pins, and the FTDI cable on CN10. Not seen again yet; one
-   more during task 14's runs would have to be found before the release.
-9. **An overrun stops the kernel.** Found on 2026-10-11, while drawing on the host the
+
+- **An overrun stops the kernel.** Found on 2026-10-11, while drawing on the host the
    curve of a demonstration: a mandatory instance unfinished at its next release freezes
    the system, interrupts disabled, as in ZottaOS (`api.md`, "When an instance overruns").
    To decide: keep that stop, or drop the late instance, count it and let the
@@ -589,66 +498,8 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    equivalent with its reason; four declarations on the code this removes went, one was
    re-ranked, the identical statements added before it having moved its rank. Branches
    covered 91.97 %.
-10. **A tool to measure each task's WCET.** Added by the user on 2026-10-11: the
-   guarantees hold only if each declared `wcet` is right, and nothing here measures one.
-   The trace's marks (`read_trace.py --pins`) give a task's response time, preemptions and
-   interrupts included, in a ring of 256 events; the cost build measures the kernel, not
-   the tasks. The plan: a build option in which the kernel adds up the time each instance
-   holds the processor, read at each switch, and keeps each task's largest; a
-   `tools/wcet.py` that reads them back without stopping the board, as `read_trace.py`
-   does, and proposes a figure to declare, the largest seen plus a margin, as 400 µs over
-   314 for `FourSlotCoresPico`. What it gives is the worst case seen, valid only for a
-   load that takes the code's worst paths: each example to have a mode that does. A bound
-   instead of a measure needs static analysis. As read on 2026-10-11: aiT (AbsInt,
-   commercial) lists Cortex-M0, M1, M3 and M4, neither the M0+ nor the M33; OTAWA (IRIT,
-   LGPL) runs on 32-bit ARM, used on a Cortex-M4 by a project of the Technikum Wien;
-   Bound-T's port to the Cortex-M was left unfinished. The RP2040 running from SRAM, with
-   no cache and the flash idle, is the case where a bound looks within reach.
-11. **What a visitor of the repository sees.** Added by the user on 2026-10-11: no fair,
-   no demonstration in person, everything for the visit of the GitHub page, where a
-   reader touches nothing, gives it some seconds, often on a phone. Three pieces, in this
-   order, after release 0.1:
-   1. *How it schedules, drawn by the kernel itself.* Figures from the host's `trace`
-      mode (`test/host`), drawn by a script to write in the manner of
-      `tools/schedule_figure.py`, not by hand: the task set a course uses to show fixed
-      priorities failing where EDF does not, (50, 25) and (80, 35), 94 % of the
-      processor (FIU, COP 5614, lecture 22, 2023), under EDF, where every deadline is
-      kept, and under DM, where the second task is unfinished at 80 and the kernel stops
-      there (`api.md`, "When an instance overruns"), as run on the host on 2026-10-11;
-      and an (m,k)-firm set whose instances, all of them run, would take more than the
-      processor, the kernel dropping the optional ones it chooses. Every task within its `wcet`: what fails is an algorithm, never a
-      contract.
-   2. *The bench, seen.* A badge for each board's endurance on the candidate, read from
-      the statuses `endurance/<platform>-<kernel>` as the Pico's is from `board/soak`
-      (tag `soak-pico`); a short film of the bench during a run, its own counters laid
-      over it, by the user's hands. Seen on 2026-10-12, at release 0.1: the README's one
-      badge still shows the power-aware run of 80cc6dc, stopped on 2026-10-10, and only
-      the Pico has one, its runs alone having held a commit for days; the STM32 long
-      runs, `board/soak-u5` and `board/soak-u3`, move to each new commit of `main` and
-      have none. Which status each badge reads, a run on the candidate or the long run
-      going on, to be decided per platform, the tags `soak-pico`, `v0.1.0-rc1` and
-      `zottaos-heritage` kept.
-   3. *The kernel in the browser.* The host build compiled to WebAssembly and served by
-      GitHub Pages: a reader gives tasks, periods, `wcet` and (m,k), picks EDF or DM, and
-      sees the schedule the kernel's own code computes. It has no `fork` in `trace` mode
-      and runs single threaded; its `alarm` would go, and the kernel, run in a Web
-      Worker, stopped after a delay when it loops on an overrun, the page saying why. The
-      page to say what it proves: the scheduling, in simulated time; neither the
-      kernel's costs, nor timing on a chip, nor energy. A time given past its `wcet` to be
-      shown as a broken contract. Searched on 2026-10-11, no RTOS scheduler was found
-      offered so; Wokwi, which runs RP2040 firmware in a browser, not checked for
-      images of our own.
 
-14. **Noticing an overrun as it happens.** Added on 2026-10-12 with item 9. The kernel
-   notices an overrun only at the task's next release; a budget timer for each instance,
-   armed at its `wcet` when it starts (the soft and power-aware kernels have one; the hard
-   kernel would need it declared), would notice it as it passes its figure, before the
-   others pay for it, and call the hook or stop then. It could not demote the instance:
-   one stack, the same ground as item 9. One comparator serves the releases already, so
-   the budget would share it, which a design would have to weigh, and its cost per
-   switch be measured. Not begun without a need.
-
-## Done
+### Before
 
 - **No periodic tick, checked (2026-10-05).** The host test's trace prints each
   interrupt of the comparator, and `tools/differential.py` fails a trace in which the

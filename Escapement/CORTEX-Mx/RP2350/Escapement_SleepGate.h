@@ -5,7 +5,7 @@
 /* File Escapement_SleepGate.h: The idle task of the RP2350 in SLEEP rather than a plain
 ** WFI, the clocks gated but those the kernel and the application keep, and PLL_SYS
 ** stopped through each sleep (RP2350 datasheet, 6.5.2, SLEEP_EN0 and SLEEP_EN1;
-** docs/roadmap.md, item 5), transposed from the RP2040's.
+** issue #6), transposed from the RP2040's.
 ** Platform version: RP2350 (Raspberry Pi Pico 2).
 */
 
@@ -24,7 +24,7 @@
 ** itself. During SLEEP only the clocks of keep0 and keep1 run, and TIMER0 and its tick,
 ** always kept; an interrupt ends it. Each sleep also stops PLL_SYS, clk_sys on the
 ** crystal meanwhile, and locks it again before the interrupt is taken, which delays it
-** by that lock (docs/roadmap.md, item 5). */
+** by that lock (issue #6). */
 void OSInitSleepGate(UINT32 keep0, UINT32 keep1);
 
 #endif /* ESCAPEMENT_SLEEPGATE_H */
