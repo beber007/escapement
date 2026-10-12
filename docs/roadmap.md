@@ -603,6 +603,33 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
       offered so; Wokwi, which runs RP2040 firmware in a browser, not checked for
       images of our own.
 
+12. **Lock-free mechanisms beyond the slot buffers and the queues.** Added by the user on
+   2026-10-12, after release 0.1, from a search of the literature the same day. What
+   `api.md` offers: the latest value from one writer to one reader (the 3- and 4-slot
+   buffers), a queue of nodes for any number of tasks on one core, and a queue of
+   pointers between the cores of the RP2350 alone. Three gaps, in the order they would
+   serve:
+   1. *The latest value read by several readers*, a sensor read by a control task, a
+      log and a display. Candidates: the NBW protocol of Kopetz and Reisinger (RTSS
+      1993), a sequence count the writer bumps before and after each write and the
+      readers retry on, the writer never kept waiting, a bound on the retries needed for
+      a hard reader; Chen and Burns' mechanism of n+2 slots for n readers (York,
+      YCS-288, 1997), which their 3-slot buffer, ours, is the one-reader case of, no
+      reader ever retrying; and Huang, Pillai and Shin (USENIX 2002), who combine the
+      two for less memory. YCS-288 is not online: its construction to be read from the
+      report itself before any code.
+   2. *A queue between the RP2040's two cores*, where the LL/SC pair, emulated, sees one
+      core only (`api.md`, "Between the two cores"). Lamport's queue for one producer and
+      one consumer takes no atomic instruction; it is correct under sequential
+      consistency and fails without barriers (Torquati, arXiv:1012.1824), which a model
+      with weak memory would check, as for the slot buffers. Wait-free, its time bounded.
+   3. *A bipartite buffer* (Simon Cooke's "bip buffer"), which hands out contiguous
+      blocks, for a UART fed by DMA. Escapement has no DMA driver, and its UART does
+      well with the queue of nodes: later, with such a driver.
+   Each one a task of its own, as the slot buffers were: an exhaustive model with the
+   faulty variants it must catch, weak memory included, the host test, and an example
+   checked on a board.
+
 ## Done
 
 - **No periodic tick, checked (2026-10-05).** The host test's trace prints each
