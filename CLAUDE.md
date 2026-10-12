@@ -117,6 +117,8 @@ renode-test --variable KERNEL:PA emulation/renode/escapement_u3.robot   # on a K
 BOARD=u3 NUCLEO_SERIAL=... NUCLEO_TTY=... OPENOCD=~/opt/openocd-upstream/bin/openocd \
     tools/unoq_check.sh SoakU3.elf SHA       # on the UNO Q: the board check (board/u3)
 tools/soak.py nucleo-u3 0 1m SoakU3.elf       # its long run (service escapement-soak-u3)
+tools/pa_u3.py 300 hard=H.elf ote=O.elf ...   # on the UNO Q: SleepU3 FLASH=1 PHASES=30 images
+                                              # through the PPK2 in place of JP4, D8 on its D0
 renode-test --variable MHZ:48 --variable PLATFORM:escapement_u3_48mhz.repl --include stop2 \
     emulation/renode/escapement_u3.robot      # the Stop 2 tests on a MHZ=48 build (24, 12)
 

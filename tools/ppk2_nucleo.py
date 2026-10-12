@@ -213,13 +213,11 @@ def median(bins, n):
     return 0.0
 
 
-def phases(seconds):
-    """Each run of D0 at one level is a phase, its sums kept as samples come; the first
-    and the last, cut by the window, are left out of the means by level. The median of
-    each, from counts by bin of BIN_UA, is the level the phase spends most of its time
-    at: the core's running, for a phase that computes most of each period."""
-    found = []                         # [level, n, sum, min, max, bins]
-    ppk2 = open_ppk2()
+def record(ppk2, seconds):
+    """Each run of D0 at one level is a phase, its sums kept as samples come: a list of
+    [level, samples, sum, min, max, counts by bin of BIN_UA], and the samples read a
+    second."""
+    found = []
     for values, levels in blocks(ppk2, seconds):
         cuts = np.concatenate(([0], np.flatnonzero(levels[1:] != levels[:-1]) + 1,
                                [len(levels)]))
@@ -236,7 +234,20 @@ def phases(seconds):
                                      return_counts=True)
             for b_, c in zip(bins.tolist(), counts.tolist()):
                 phase[5][b_] = phase[5].get(b_, 0) + c
-    rate = sum(p[1] for p in found) / seconds          # the samples read a second
+    return found, sum(p[1] for p in found) / seconds
+
+
+def whole(found, level):
+    """The phases of a level that the window did not cut: all but the first and last."""
+    return [p for i, p in enumerate(found) if p[0] == level and 0 < i < len(found) - 1]
+
+
+def phases(seconds):
+    """The phases of record, the first and the last, cut by the window, left out of the
+    means by level. The median of each, from its counts by bin, is the level the phase
+    spends most of its time at: the core's running, for a phase that computes most of
+    each period."""
+    found, rate = record(open_ppk2(), seconds)
     print(f"{rate / 1000:.0f} kS/s read of the PPK2's {RATE // 1000}")
     for i, (level, n, total, low, high, bins) in enumerate(found):
         cut = " (cut by the window)" if i in (0, len(found) - 1) else ""
@@ -244,11 +255,11 @@ def phases(seconds):
               f"{total / n:9.1f} uA, median {median(bins, n):9.1f}, min {low:8.1f}, "
               f"max {high:8.1f}{cut}")
     for level in sorted({p[0] for p in found}, reverse=True):
-        whole = [p for i, p in enumerate(found) if p[0] == level and 0 < i < len(found) - 1]
-        if whole:
-            n = sum(p[1] for p in whole)
-            print(f"{name(level)}: {len(whole)} whole phases, mean "
-                  f"{sum(p[2] for p in whole) / n:.1f} uA")
+        kept = whole(found, level)
+        if kept:
+            n = sum(p[1] for p in kept)
+            print(f"{name(level)}: {len(kept)} whole phases, mean "
+                  f"{sum(p[2] for p in kept) / n:.1f} uA")
 
 
 def trace(ms):

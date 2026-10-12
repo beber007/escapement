@@ -15,7 +15,8 @@ and 5). On the RP2040, 2026-10-10: up to some 5 % with the idle task in WFI, not
 it sleeps in SLEEP ("Measuring the RP2040", below). On the STM32U3, the same day: a cycle
 costs 14 % less at 48 MHz in range 2 than at 96 in range 1, and its Stop 2 too little for
 racing to make up for it: the one chip here where DVFS beats racing to the deepest
-sleep the kernel uses (below).
+sleep the kernel uses (below). Its power-aware kernel, 2026-10-12: some 4 % less charge
+than the hard kernel racing to Stop 2, on a task set that computes 0.1 % of its time.
 
 ## Is DVFS worth anything?
 
@@ -258,8 +259,15 @@ CRC, would save some 1.4 nC of Stop 2 at even 10 µA, against the 41.6 nC a CRC 
 48 MHz. **DVFS pays on the STM32U3**, where on the U5, the RP2350 and the RP2040 racing to
 their deepest sleep wins. Its driver has two points, 48 and 96 MHz, since a kernel that lowers the speed as
 far as the deadlines allow would spend more at 24 or 12 (`stm32u3.md`, "The power-aware
-kernel"). What it saves a task set under the kernel, against the hard kernel racing to
-Stop 2, has not been measured: the PPK2 has measured the points, not the kernel.
+kernel"). What it saves a task set under the kernel, measured on 2026-10-12 on the
+images of `v0.1.0-rc1` (`stm32u3.md`, "The power-aware kernel"): `SleepU3`, one task of
+some 100 µs every 100 ms, drew 485.4 and 484.7 µA in two runs under the hard kernel
+racing to Stop 2, and 465.9 to 468.6 µA under the power-aware kernel with each of its
+four policies, 3.3 to 4.0 % less, DRA the least; with the idle task in Sleep, 3.646 and
+3.642 mA against 3.398 to 3.400, 6.6 to 6.8 % less. On the RP2040 the
+same kernel saved up to some 5 % with its idle task in WFI and nothing once it slept
+(above). The STM32U3 is the one chip here where it saves charge with the idle task in
+its deepest sleep, a little.
 
 The bulk of a port is the comparator timer, the vector table and the UART, not energy
 management: the context switch, the atomics and the scheduler do not move.

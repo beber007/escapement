@@ -549,6 +549,42 @@ off LPTIM1 across the sleeps; `SoakU3` two minutes, no error, no restart; then i
 reports timed five minutes against Linux's clock, the kernel's second 68 ppm short of
 NTP's, which, with the 107 ppm of the lock above, puts the LSE some 39 ppm slow.
 
+**What it saves, measured on 2026-10-12** (release 0.1, task 14b), on the candidate's own
+images: `SleepU3` built from `v0.1.0-rc1` with `FLASH=1 PHASES=30`, under the hard kernel,
+which runs at 96 MHz and races to its sleep, and under the power-aware kernel with each
+policy, which runs its task, some 100 µs of work at 96 MHz declared 200, at 48 MHz in
+range 2. One periodic task every 100 ms, a timer event 40 ms on, a report on USART1 each
+second; the idle task 30 s in Stop 2, D8 high, then 30 s in Sleep, D8 low. The PPK2 in
+ampere-meter mode in place of JP4, its D0 on D8 (CN10, pin 21); each image written
+through it (`tools/nucleo_flash.sh`), the MCU then powered down 6 s by the PPK2's switch,
+so that the debug domain went down with it, and 300 s of samples once it ran again from
+its flash, CN1 left in (`tools/pa_u3.py`). Each mean is over the four or five phases of
+each kind the window held whole; two runs of the five images, from 15:24 and from 15:56
+UTC, the gain against the hard kernel of the same run:
+
+| `SleepU3`, kernel and policy | Idle in Stop 2, runs 1 and 2 | Idle in Sleep, runs 1 and 2 |
+|---|---|---|
+| hard, racing at 96 MHz | 485.39, 484.68 µA | 3.6460, 3.6420 mA |
+| power-aware, OTE | 466.70, 466.45 µA (−3.9, −3.8 %) | 3.3989, 3.3977 mA (−6.8, −6.7 %) |
+| power-aware, DRA | 468.62, 468.56 µA (−3.5, −3.3 %) | 3.3985, 3.3989 mA (−6.8, −6.7 %) |
+| power-aware, DR_OTE | 466.29, 466.30 µA (−3.9, −3.8 %) | 3.3975, 3.3985 mA (−6.8, −6.7 %) |
+| power-aware, DM_SLACK | 465.93, 466.20 µA (−4.0, −3.8 %) | 3.3977, 3.3998 mA (−6.8, −6.6 %) |
+
+Within a run the phases of an image agreed within 0.12 %, from one run to the next
+within 0.15 %. Each image ran its 3,070 instances with no wake-up late, the LSE
+running and the MSI locked again at each of its 2,984 wake-ups; every start within 3 µs
+of its period, every timer event within 11 µs. OTE, DR_OTE and DM_SLACK give the same
+figures within 0.1 %; DRA draws some 2 µA more in Stop 2 in both runs, its phases
+apart from theirs, for a reason not looked into. **The power-aware kernel saves some
+4 % of this task set's charge with the idle task in Stop 2, some 7 % in Sleep.** The
+work itself, 0.1 % of the time, is too small a part of the charge to account for that;
+the time awake that `stm32u5.md` found to make up a Stop 2 phase's mean, the Sleep of the
+wake-up margin before each event and the report each second, is spent at 48 MHz in range
+2 under the power-aware kernel, at 96 in range 1 under the hard one, and the Sleep phase
+shows what that difference is worth. A reading, not a measure of each part. A task set
+that computes more of its time should gain more, up to the 14 % of a cycle at 48 MHz; one
+that does less, less: neither measured.
+
 Under Renode the platform's timers take the MSIK's 12 MHz in external clock mode 2
 (`Escapement_STM32_Timer.cs`, `etrFrequency`), and the RCC counts the changes of the
 MSIS's frequency at 0x3E8. `escapement_u3.robot` run with `--variable KERNEL:PA` on a

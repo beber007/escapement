@@ -306,7 +306,8 @@ task 4 began the same day.
    kernels on 2026-10-12 near 06:30, the Pico's and the STM32U3's power-aware kernels at
    14:30. The logs stay on the UNO Q, in `~/endurance-rc1/images`. `escapement-soak-u3`
    started again after, the commits held back pushed.
-14b. **What the STM32U3's power-aware kernel saves — item 7, brought into 0.1.** Added by
+14b. **What the STM32U3's power-aware kernel saves — item 7, brought into 0.1 — done on
+   2026-10-12.** Added by
    the user on 2026-10-11, during the runs of task 14. Measured on the candidate's own
    images, so that the verdict is on the code released: `SleepU3`, built from the tag
    with `FLASH=1 PHASES=30`, under the hard kernel racing to Stop 2 against the
@@ -316,7 +317,15 @@ task 4 began the same day.
    JP4 would count. After the U3's runs end, the board
    free; the PPK2 in place of JP4 by the user's hands. The verdict written in
    `power-aware.md` and `stm32u3.md`, and in the release's notes. A fault it finds in
-   the code makes an `rc2`, and the U3's runs start again.
+   the code makes an `rc2`, and the U3's runs start again. Measured from 15:24 to 15:51
+   UTC, then again from 15:56 to 16:23, 300 s an image (`tools/pa_u3.py`): 3.3 to 4.0 %
+   less charge than the hard kernel with the idle task in Stop 2, 6.6 to 6.8 % less in
+   Sleep, the two runs within 0.15 % of each other, DRA some 2 µA above the other
+   policies in both, no fault in any image; no `rc2` (`stm32u3.md`, "The power-aware
+   kernel").
+   Each image was written through the PPK2, CN1 left in, then powered down 6 s; the
+   ST-LINK's virtual COM port hands over what it held while no one read it, which the
+   tool drops.
 15. **The release.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release. Then, as the user decided on 2026-10-11, `main` takes
    changes through pull requests only: a rule of GitHub on it, a pull request required
@@ -519,12 +528,10 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
 6. **LPUART1 at 115,200 baud through Stop 2 — done on 2026-10-02** (Done, "LPUART1 at
    115,200 baud through Stop 2"). Left: how often a wake-up byte comes out wrong, which
    no check of a minute can bound.
-7. **What the STM32U3's power-aware kernel saves — in release 0.1 as its task 14b.** Its
-   points were measured with the PPK2 on 2026-10-10, a cycle 14 % cheaper at 48 MHz in
-   range 2 (`stm32u3.md`, "Measuring DVFS"), not the kernel: a task set, `TaskLEDU3` or
-   `SleepU3`, under the hard kernel racing to Stop 2 against the power-aware kernel under
-   each policy, as on the RP2040 (`power-aware.md`, "Measuring the RP2040"). Needs the
-   user's hands for the PPK2 in place of JP4.
+7. **What the STM32U3's power-aware kernel saves — done on 2026-10-12, as task 14b of
+   release 0.1.** Some 4 % with the idle task in Stop 2 on `SleepU3`, some 7 % in Sleep
+   (`stm32u3.md`, "The power-aware kernel"). Left: why DRA draws some 2 µA more than the
+   other policies there, in both runs.
 8. **A reset of the NUCLEO-U385RG-Q that nothing asked for.** Its long run at cc1a4ac
    restarted on 2026-10-11 at 08:44:48 UTC, 49 min in, the flags of RCC_CSR reading the
    pin alone: neither the watchdog, nor a brown-out, nor software. No tool of the bench

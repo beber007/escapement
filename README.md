@@ -277,7 +277,7 @@ Whether this saves energy depends on the chip, and each was measured
 | STM32U5 | 2026-10-03 | saves nothing: a cycle costs least at full speed, and racing to Stop 2 wins at every load |
 | RP2350 | 2026-10-03 | some 10 % at best, within the specified voltage |
 | RP2040 | 2026-10-10 | up to some 5 % with the idle task in WFI, nothing once it sleeps in SLEEP, which takes some 73 % off by itself, and 60 % of what is left with PLL_SYS stopped (`make SLEEP_GATE=1`) |
-| STM32U3 | 2026-10-10 | pays: a cycle costs 14 % less at 48 MHz in the lower voltage range than at 96, more than racing to Stop 2 gives back. The kernel runs there with DVFS since 2026-10-11; what it saves a task set is not measured yet ([`docs/stm32u3.md`](docs/stm32u3.md)) |
+| STM32U3 | 2026-10-10 | pays: a cycle costs 14 % less at 48 MHz in the lower voltage range than at 96, more than racing to Stop 2 gives back. The kernel runs there with DVFS since 2026-10-11; on a light task set, 2026-10-12, it draws some 4 % less than the hard kernel racing to Stop 2 ([`docs/stm32u3.md`](docs/stm32u3.md)) |
 
 </details>
 
