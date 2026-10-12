@@ -630,6 +630,16 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    faulty variants it must catch, weak memory included, the host test, and an example
    checked on a board.
 
+   **None begins without a need**, as the user asked the same day: an application or an
+   example that wants it, weighed against what already serves. Today each has a way
+   round. Several readers: a 3-slot buffer for each, n times the memory and n copies
+   at each write, and no code to write; NBW besides lets a reader retry for as long as
+   the writer comes back, which a hard task cannot be given without a bound. The
+   RP2040's cores: the SIO's FIFOs between them, of 32-bit words, free once core 1 is
+   launched, carry pointers, and the 4-slot buffer already crosses the cores for the
+   latest value; a queue of our own pays only past their depth. DMA: no driver wants
+   it. A gap in a table is not a need.
+
 ## Done
 
 - **No periodic tick, checked (2026-10-05).** The host test's trace prints each
