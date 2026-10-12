@@ -186,6 +186,39 @@ BOOL OSCreateTask(void task(void *), UINT16 periodCycles, INT32 periodOffset,
 void OSEndTask(void);
 
 
+/* OVERRUNS -------------------------------------------------------------------------- */
+/* A periodic task overruns when its instance is still unfinished as its next one is due.
+** The kernel then counts it and calls the hook the application gave, if any. Without one,
+** or when the hook returns OS_OVERRUN_STOP, it stops: interrupts disabled, a loop for
+** ever, the whole system halted, as ZottaOS did. With OS_OVERRUN_CONTINUE, the instance
+** under way goes on, with its deadline as it is, and the release that found it is
+** skipped: the task is next released one period later. All tasks share one stack, so an
+** instance that has started can be neither dropped nor given a later deadline: its
+** frames lie above those of the instances it preempted. Under EDF it keeps the earliest
+** deadline until it ends, and the others wait for it. The kernel notices an overrun only
+** at that next release, never as the instance passes its deadline (api.md, "When an
+** instance overruns"). */
+#define OS_OVERRUN_STOP      0
+#define OS_OVERRUN_CONTINUE  1
+
+/* OSSetOverrunHook: Gives the kernel the function it calls at each overrun, NULL for
+** none. The hook runs in the kernel's timer interrupt, between two releases: it must be
+** short and wait for nothing. It may set outputs to a safe state, arm a watchdog, or
+** signal an event (OSScheduleSuspendedTask) to an event-driven task that reports. It
+** returns OS_OVERRUN_STOP or OS_OVERRUN_CONTINUE.
+** Parameter: (UINT8 (*)(void *)) the hook, which receives the argument the task was
+**   created with, the one way the application tells its tasks apart. */
+void OSSetOverrunHook(UINT8 (*hook)(void *argument));
+
+/* OSGetOverruns: Returns the overruns of all tasks since the start. */
+UINT32 OSGetOverruns(void);
+
+/* OSGetTaskOverruns: Returns the overruns of the periodic task that calls it, 0 when
+** called by an event-driven task, which cannot overrun: it is released again only once
+** it has ended. */
+UINT32 OSGetTaskOverruns(void);
+
+
 /* EVENT-DRIVEN (SPORADIC OR SYNCHRONOUS) TASK FUNCTIONS ----------------------------- */
 /* OSCreateEventDescriptor: Creates and returns a descriptor with all the needed informa-
 ** tion to block and wake-up a sporadic or event-driven task instance.
