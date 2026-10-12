@@ -650,6 +650,32 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    the figures of item 10's tool, read by the probe while the kernel writes them, with
    NBW's sequence count, a part of that item rather than a task of this one.
 
+   **Drivers are where a need is likeliest** (the user asked on 2026-10-12). Two cases
+   the mechanisms serve badly:
+   - *DMA, the hardware as producer.* By blocks (an ADC sampling, I2S, a display on
+     SPI), the queue of nodes does it: at the end of a transfer the handler queues the
+     full block, takes a free node and starts the DMA again. As a circular stream, it
+     does not: the producer's index is the DMA's count, read from a register, and a ring
+     to read it wants a reader that sees when the DMA has gone a lap past it, and the
+     order between the DMA's writes and the core's reads; the ring, or the bipartite
+     buffer of gap 3, would find its use there. **The first candidate: LPUART1 received
+     by DMA through Stop 2.** Each byte wakes the core today (`SleepU3` counts the
+     sleeps the window of LPUART1 holds in Sleep); with the DMA, the bytes would land in
+     SRAM while the core stays in Stop 2, the task woken at the end of a frame. A need
+     at the heart of the project, energy, and measurable with the PPK2, byte by byte
+     against frame by frame. Both chips allow it, read on 2026-10-12: the STM32U3 has no
+     LPDMA, but its GPDMA1 serves in Stop 2 the requests of LPUART1, I2C3 and LPTIM1, 3
+     and 4 alone, its interrupts waking the chip (RM0487 rev. 3, table 87, note 14,
+     p. 343; p. 410); the STM32U5's LPDMA1 is autonomous in Sleep and Stop 0 to 2
+     (RM0456 rev. 7, table 147, p. 767; p. 422), its GPDMA in Stop 0 and 1 only.
+   - *A bus shared by tasks* (I2C or SPI with several devices). Nothing locks in
+     Escapement, so one task owns the bus and serves the others' requests through a
+     queue, an event telling each its request is done: the mechanisms compose. But a
+     queue serves in order of arrival, not of deadline, and under EDF an urgent request
+     waits behind a slow one. Either a queue ordered by deadline or Baker's Stack
+     Resource Policy (1991): a question of the kernel's design, to settle the day a
+     driver needs it, not an algorithm to add.
+
 ## Done
 
 - **No periodic tick, checked (2026-10-05).** The host test's trace prints each
