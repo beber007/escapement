@@ -29,6 +29,15 @@ Set by the user; no session reopens them.
   Work goes on a branch while an endurance run holds `main` still. The board checks run
   once a change is merged: `tools/board_ci.sh` tests `main` alone, and a pull request
   runs nothing on the bench.
+- **Each release keeps a stable branch, `release/X.Y`, for its fixes** (decided by the
+  user on 2026-10-12). Made from the release's tag, under the same rule of GitHub as
+  `main`. A fix goes to it through a pull request, then is tagged `vX.Y.Z+1` and carried
+  to `main` too. A fix to a kernel goes through "Before a release" in proportion: a
+  candidate, the board checks, and the endurance of the kernel it touches; a fix to a
+  tool or to the documentation does not. The board CI tests `main` alone: the checks of
+  a fix on a release branch are run by hand until it learns to. The first pull request
+  to `release/0.1` brings the job `build` its workflow lacks (added after `v0.1.0`), the
+  one check the rule requires.
 
 ## Commands
 
