@@ -10,13 +10,13 @@ Set by the user; no session reopens them.
 
 - **One task worked on at a time, each carried to its end.** A task is finished when it
   is done, checked by its instrument, documented and committed. What turns up along the
-  way, a defect, an idea, a measurement worth making, is written in the open list of
-  `docs/roadmap.md` and left there, not followed. Where a finding blocks the task in
+  way, a defect, an idea, a measurement worth making, is written in an issue and left
+  there, not followed. Where a finding blocks the task in
   hand, say so and ask, rather than start a second direction.
 - **A task left with nothing but a wait may be set aside** (rule changed by the user on
   2026-10-09). When all its work is done and only a passive wait with a known end
-  remains, an endurance run, the CI, the user's hands on the bench, the next task of
-  `docs/roadmap.md`, in its order, may begin, provided it touches neither the board, the
+  remains, an endurance run, the CI, the user's hands on the bench, the next task, the
+  next open issue in the order of the project board, may begin, provided it touches neither the board, the
   probe nor the machine of a run in progress. When a wait ends, closing that task comes
   before anything else. At most two tasks wait at once; beyond that, wait.
 - **A release ships when it is coherent, not on a date.** Every claim it makes is
@@ -38,6 +38,23 @@ Set by the user; no session reopens them.
   a fix on a release branch are run by hand until it learns to. The first pull request
   to `release/0.1` brings the job `build` its workflow lacks (added after `v0.1.0`), the
   one check the rule requires.
+- **The open work lives in the issues; a pull request holds one subject** (decided by the
+  user on 2026-10-12). Each open task, idea or question is an issue, labelled (`kernel`,
+  `bench`, `drivers`, `energy`, `tools`, `ci`, `idea`, `showcase`) and ordered on the
+  project board "Escapement" (field Order); `docs/roadmap.md` keeps the direction and what
+  is done, each item done written there by the pull request that does the work. A change
+  of the documentation alone opens no pull request: it waits on a branch for the next
+  one of real work. A commit outside the subject of a pull request goes to a pull request
+  of its own, merged first if the other builds on it. A pull request is opened, and
+  merged, only once the user agrees. Before asking to merge: reviews again and again,
+  each reading the whole diff and above all what changed since the last, until one finds
+  nothing; the mutants of the kernel lines changed (`tools/mutants.py --only`), each
+  survivor killed by a test or declared equivalent with its reason; for each fault
+  found, a test seen to fail on it first, then the fix, then every check again, and why
+  the tests had let it pass written down; the history cleaned, each commit one change
+  that passes the tests alone, the fixes of the reviews folded into the commits they
+  fix, the final tree checked identical. `main` and `release/*` merge by rebase only,
+  and a branch merged is deleted.
 
 ## Commands
 
@@ -89,11 +106,11 @@ OPENOCD=... PROBE=probe3 tools/soak.py pico2 8h 1m [ELF]   # a long run, as for 
                                               # (both with OPENOCD as above, holding the lock)
 ADAPTER_KHZ=1000 OPENOCD=... PROBE=probe3 tools/pico2_sleep_load.sh build/SleepPico2.elf
 PROBE=probe3 tools/pico2_sleep_load.sh --wake 285     # SleepPico2: WFI, SLEEP, DORMANT for
-                                              # the PPK2 (roadmap item 5), its DORMANT woken
+                                              # the PPK2 (issue #6), its DORMANT woken
                                               # by bytes on GP1; PPK2_SOURCE_MV=5000
                                               # PPK2_PHASES=WFI,SLEEP,DORMANT tools/ppk2_nucleo.py
 make SLEEP_GATE=1 -C ...pico2                  # IdlePico2's idle task in SLEEP, PLL_SYS stopped
-                                              # (roadmap item 5); loaded as SleepPico2 is
+                                              # (issue #6); loaded as SleepPico2 is
 
 # STM32U5 (Arduino UNO Q, STM32U585, Cortex-M33) — examples run from SRAM, which
 # leaves Arduino's firmware in the flash; its Renode suite runs on a platform of our own

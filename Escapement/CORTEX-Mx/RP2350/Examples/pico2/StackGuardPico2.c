@@ -8,7 +8,7 @@
 ** (Escapement_CortexMx.c), so the overflow must fault there, a HardFault with STKOF set
 ** in the CFSR, the main stack pointer still above the end of the globals; Depth says how
 ** deep the task went. Without the limit the stack ran through the globals and into the
-** code, on the board on 2026-10-04 (docs/roadmap.md, item 7). Sentinel, the last global
+** code, on the board on 2026-10-04 (docs/roadmap.md, Done, "A stack that faults"). Sentinel, the last global
 ** the linker places, kept its value both times there: it is no witness of the overrun,
 ** the stack pointer is.
 ** Platform version: RP2350 (Raspberry Pi Pico 2).

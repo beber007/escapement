@@ -41,7 +41,7 @@
 
 /* The window after a byte received on LPUART1, or a wake-up it caused, during which the
 ** idle task stays in Sleep, so that a client may wake the chip with one byte and send its
-** message at 115,200 baud once the clock is up (docs/roadmap.md, item 6). It covers the
+** message at 115,200 baud once the clock is up (issue #7). It covers the
 ** wake-up, the jitter of the sender and the gaps in a message. In microseconds, counted
 ** on LPTIM1: SleepWrapU3 leaves it unscaled, which LPTIM1's 16 bits would not hold. */
 #ifndef OS_STOP2_LINK_WINDOW_US
