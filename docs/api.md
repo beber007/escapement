@@ -136,22 +136,46 @@ Every kernel assumes that each mandatory instance ends before its task's next re
 a task set its algorithm schedules (under EDF, deadlines equal to periods, a load of
 100 % at most; under DM, in general less), each task within its declared `wcet` (the
 soft and power-aware kernels) or within the time the designer's analysis gave it (the
-hard kernel). If an instance is still unfinished when its task is released again, the
-hard and power-aware kernels, and the soft kernel under EDF, take it for an overload,
-disable interrupts and loop for ever in their timer interrupt (`while (TRUE)`, built with
-`DEBUG_MODE`, which `Escapement.h` defines). The whole system stops, including the tasks
-that kept to their figures; a debugger shows where. ZottaOS did the same, as a help for
-development (`Escapement.h`, its comment of 2012). The soft kernel under DM stops so only
-for an instance that had started: one that never had is taken out of the ready queue as
-an optional one is, and the next released, with nothing to report it (run on the host on
-2026-10-11).
+hard kernel). A periodic instance still unfinished when its task is released again
+overruns: one that started, under every kernel, and under the soft kernel a mandatory one
+that never did. An optional one that never started is dropped instead, which is what it
+is for. An event-driven task cannot overrun: it is released again only once it has
+ended.
 
-The check comes only at that next release. With a deadline shorter than the period, an
-instance that misses its deadline but ends before its next release is late, and nothing
-reports it. Under the soft kernel, an optional instance still waiting at that point is
-dropped instead, which is what it is for. Removing `DEBUG_MODE` is no way out: by a
-reading of the soft kernel's code under EDF, not tried, it would then insert the
-instance again into the ready queue it is still in.
+At an overrun the kernel counts it and calls the hook the application gave:
+
+```c
+static UINT8 OnOverrun(void *argument)   /* the argument the task was created with */
+{
+   SetOutputsSafe();                     /* short, from the kernel's timer interrupt */
+   OSScheduleSuspendedTask(ReportEvent); /* an event-driven task may report it */
+   return OS_OVERRUN_CONTINUE;           /* or OS_OVERRUN_STOP */
+}
+/* in main, before OSStartMultitasking() */
+OSSetOverrunHook(OnOverrun);
+```
+
+Without a hook, or when it returns `OS_OVERRUN_STOP`, the kernel stops: interrupts
+disabled, a loop for ever, the whole system halted, as ZottaOS did. That is the default:
+the contract is broken, and a hard real-time system holds no guarantee past it. The hook
+can set the outputs safe first, or arm a watchdog that resets the chip.
+
+With `OS_OVERRUN_CONTINUE`, the instance under way goes on, with its deadline as it is,
+and the release that found it is skipped: the task is next released one period later.
+Under the soft kernel the release skipped still counts in the task's (m,k) pattern, a
+mandatory instance missed. `OSGetOverruns()` gives the overruns of all tasks, and a task
+calling `OSGetTaskOverruns()` its own. What going on cannot do, because all tasks share
+one stack: drop an instance that started, or give it a later deadline, since its frames
+lie above those of the instances it preempted, which cannot run before it ends. Under
+EDF the late instance keeps the earliest deadline until it ends, and the others wait for
+it: one overrun makes others, EDF's domino. A bounded overrun, a burst of interrupts, is
+then lived through; an instance that loops for ever still holds the processor, the
+interrupts running. Under DM, only the tasks of lower priority wait.
+
+The kernel notices an overrun only at that next release. With a deadline shorter than
+the period, an instance that misses its deadline but ends before its next release is
+late, and nothing reports it. Noticing an instance as it passes its `wcet` would take a
+budget timer for each instance (`roadmap.md`, open work).
 
 ## Event-driven tasks
 
