@@ -568,6 +568,14 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    LGPL) runs on 32-bit ARM, used on a Cortex-M4 by a project of the Technikum Wien;
    Bound-T's port to the Cortex-M was left unfinished. The RP2040 running from SRAM, with
    no cache and the flash idle, is the case where a bound looks within reach.
+   Its figures want a reading that is never half written (added on 2026-10-12, from item
+   12): the kernel updates them from its interrupt while the probe reads them at any
+   time, and a time of 64 bits, or a sum beside its largest, is two words or more to a
+   Cortex-M0+. A sequence count, Kopetz and Reisinger's NBW protocol as a seqlock has
+   it, fits: the kernel bumps it before and after each update, and `tools/wcet.py` reads
+   again while it is odd or has changed. The reader being the tool on the PC, its retries
+   cost the tasks nothing, which is what keeps NBW from a hard task (item 12). The
+   counters the film of item 11.2 would lay over the bench, read the same way.
 11. **What a visitor of the repository sees.** Added by the user on 2026-10-11: no fair,
    no demonstration in person, everything for the visit of the GitHub page, where a
    reader touches nothing, gives it some seconds, often on a phone. Three pieces, in this
@@ -638,7 +646,9 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    RP2040's cores: the SIO's FIFOs between them, of 32-bit words, free once core 1 is
    launched, carry pointers, and the 4-slot buffer already crosses the cores for the
    latest value; a queue of our own pays only past their depth. DMA: no driver wants
-   it. A gap in a table is not a need.
+   it. A gap in a table is not a need. The one need seen so far is the kernel's own:
+   the figures of item 10's tool, read by the probe while the kernel writes them, with
+   NBW's sequence count, a part of that item rather than a task of this one.
 
 ## Done
 
