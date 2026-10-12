@@ -391,6 +391,17 @@ static void ElectedNoZombie(HostTCB *task, BOOL ending)
 ** StartKernel() recognised when it ran it first. All of it happens at one instant, so the
 ** periodic tasks released by the last timer interrupt must come in priority order; the
 ** event-driven ones may come in between, woken by the tasks before them. */
+/* Dispatch: What the context switch of the target does to the task it hands the processor
+** to (Escapement_CortexMx_a.S): one not yet STATE_RUNNING starts a new instance and becomes
+** so. Left out, a task that had started stayed STATE_INIT on the host, and the soft kernel's
+** tests of STATE_RUNNING took other paths than on the target: an optional instance of an
+** (m,k)-firm task that overran was dropped while it ran (2026-10-12). */
+static void Dispatch(HostTCB *task)
+{
+  if (task != NULL && !(task->TaskState & 0x01))      /* STATE_RUNNING */
+     task->TaskState |= 0x01;
+}
+
 static void RunElected(HostTCB *interrupted)
 {
   BOOL started = FALSE;
@@ -402,6 +413,7 @@ static void RunElected(HostTCB *interrupted)
      if (task == NULL || task == IdleTCB || task == interrupted)
         break;
      ElectedNoZombie(task, FALSE);
+     Dispatch(task);
      if (IsLate(task, HostClockNow()))
         LateArrivals += 1;
      if (IsOutOfReach(task, HostClockNow()))
@@ -1745,6 +1757,50 @@ static void SetKernelHooks(void)
   HostTimeReadHook = AtWrap ? WrapInterrupt : NULL;
 }
 
+/* CheckQueues: Between two slices, the ready queue leads to its end with no task twice,
+** and holds every periodic task that has not ended, each found in the arrival queue for
+** its next release. A task lost from the ready queue never runs again, and in a set that
+** overruns looked like one overloaded, its releases skipped as told: a soft kernel that
+** inserted an admitted optional instance again, still in the queue, passed differential.py
+** so (2026-10-12). */
+static void CheckQueues(void)
+{
+  HostTCB *ready[MAX_TASKS + 2], *task = _OSQueueHead;
+  unsigned n = 0, i;
+  while ((task = task->Next[0]) != NULL) {
+     for (i = 0; i < n; i += 1)
+        if (ready[i] == task) {
+           printf("FAILED: a task twice in the ready queue at %d:", TimedNow());
+           for (i = 0; i <= n; i += 1) {
+              HostTCB *t = i < n ? ready[i] : task;
+              printf(" %d/%#x", t == IdleTCB ? -1 : (t->TaskState & TASKTYPE_BLOCKING) ? -2 :
+                     (int)((TimedTask *)t->Argument - Timed), t->TaskState);
+           }
+           printf("\n");
+           exit(1);
+        }
+     if (n == MAX_TASKS + 2) {
+        printf("FAILED: the ready queue does not end at %d\n", TimedNow());
+        exit(1);
+     }
+     ready[n++] = task;
+  }
+  for (task = _OSQueueHead->Next[1]; task != IdleTCB && task != NULL; task = task->Next[1])
+     /* Periodic, no zombie; nor an optional instance of the soft kernel being dropped
+     ** (STATE_DROP), out of the queue before it is a zombie (ScheduleNextTask), which an
+     ** interrupt at a barrier may find in between. */
+     if (!(task->TaskState & (TASKTYPE_BLOCKING | 0x02 | 0x20))) {
+        for (i = 0; i < n && ready[i] != task; i += 1)
+           ;
+        if (i == n) {
+           printf("FAILED: a periodic task not ended is lost from the ready queue at %d: "
+                  "task %d, state %#x\n", TimedNow(),
+                  (int)((TimedTask *)task->Argument - Timed), task->TaskState);
+           exit(1);
+        }
+     }
+}
+
 /* RunTimedUntil: The loop of RunTimed, which an interrupt inside the kernel enters again
 ** to run the tasks it elected, until the one it interrupted is elected again. */
 static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
@@ -1753,6 +1809,7 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
      INT32 now, toEvent, step;
      HostTCB *active;
      ServeSoftTimer();
+     CheckQueues();
      if (interrupted != NULL && _OSActiveTask == interrupted)
         return;
      now = TimedNow();
@@ -1770,6 +1827,7 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
      if (active != IdleTCB) {
         TimedTask *task = (TimedTask *)active->Argument;
         ElectedNoZombie(active, _OSNoSaveContext);
+        Dispatch(active);
         if (task->PeriodLowOnly && !task->Started) {
            /* First elected: its arrival is a period before the next the kernel set, the
            ** deadline after it. */
