@@ -553,6 +553,42 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    kernel within seconds once the margin was gone: its test of optional instances reads
    the declared figures and does not see that time. The soft kernel under DM does not
    stop for a mandatory instance that never started: it drops it in silence (`api.md`).
+   **Decided and done on 2026-10-12**, after two reviews the user asked for. A first
+   design, skipping by default and dropping a late instance that never started, then a
+   second, its deadline moved a period on under EDF and a budget to demote it, were each
+   found wrong on the same ground: all tasks share one stack, so an instance that started
+   can be neither dropped nor given a later deadline, its frames lying above those of
+   the instances it preempted; and skipping by default protects no one under EDF, where
+   the late instance keeps the earliest deadline. What was kept, in the three kernels:
+   the stop stays the default; a hook of the application (`OSSetOverrunHook`), called
+   at the overrun with the task's argument, may set outputs safe, signal an event, and
+   answer `OS_OVERRUN_STOP` or `OS_OVERRUN_CONTINUE`, the latter skipping the release,
+   the late instance keeping its deadline; counts, `OSGetOverruns` and
+   `OSGetTaskOverruns`. The silent drop of the soft kernel under DM is now an overrun,
+   told and counted, and the reinsertion its EDF build would have made without
+   `DEBUG_MODE` is gone. Checked on the host, nine builds: `overrunskip` and
+   `overrunstop` (the stop met in a child process, with and without a hook), and
+   `differential.py` drawing a third as many sets that overrun, every release skipped
+   the one that found an instance unfinished, computed apart (5,257 over 900 sets).
+   Not protection: an instance looping for ever still holds the processor (`api.md`,
+   "When an instance overruns"). A review the user asked for before merging found two
+   faults the tests had let pass, each with the reason why (`method.md`, "Hypotheses that
+   were wrong"): an admitted optional instance, preempted before it started, inserted
+   twice into the ready queue under EDF; and test/host never setting STATE_RUNNING. It
+   also left the deadline of an instance still under way as it was under DM, a release
+   skipped having rewritten it: no fault, nothing reading it then, and so no test to show
+   it. (m,k)-firm sets that overrun, the timer taken at the kernel's barriers, a check that
+   the ready queue stays whole, and `overrunadmitted` came of it. Then the mutants of the
+   lines changed, 232 at 300 task sets on home: six survived the tests, for four holes,
+   each closed by a test seen to fail on its mutant first. The stop did not check that it
+   masks interrupts (`overrunstop` does now); no test had the timer's handler late by
+   several periods, where a kernel that kept the task it had just put back unpicked it
+   from the arrival queue (`overrunlate`); and no set dropped an optional instance from
+   behind another of an earlier deadline (`optionalbehind`), the deadlines of the
+   (m,k)-firm sets drawn equal to their periods. Every other survivor is declared
+   equivalent with its reason; four declarations on the code this removes went, one was
+   re-ranked, the identical statements added before it having moved its rank. Branches
+   covered 91.97 %.
 10. **A tool to measure each task's WCET.** Added by the user on 2026-10-11: the
    guarantees hold only if each declared `wcet` is right, and nothing here measures one.
    The trace's marks (`read_trace.py --pins`) give a task's response time, preemptions and
@@ -602,6 +638,15 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
       shown as a broken contract. Searched on 2026-10-11, no RTOS scheduler was found
       offered so; Wokwi, which runs RP2040 firmware in a browser, not checked for
       images of our own.
+
+14. **Noticing an overrun as it happens.** Added on 2026-10-12 with item 9. The kernel
+   notices an overrun only at the task's next release; a budget timer for each instance,
+   armed at its `wcet` when it starts (the soft and power-aware kernels have one; the hard
+   kernel would need it declared), would notice it as it passes its figure, before the
+   others pay for it, and call the hook or stop then. It could not demote the instance:
+   one stack, the same ground as item 9. One comparator serves the releases already, so
+   the budget would share it, which a design would have to weigh, and its cost per
+   switch be measured. Not begun without a need.
 
 ## Done
 
