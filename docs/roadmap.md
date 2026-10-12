@@ -326,7 +326,7 @@ task 4 began the same day.
    Each image was written through the PPK2, CN1 left in, then powered down 6 s; the
    ST-LINK's virtual COM port hands over what it held while no one read it, which the
    tool drops.
-15. **The release.** Its notes, from `git log` since the fork and from this page; the tag
+15. **The release — done on 2026-10-12.** Its notes, from `git log` since the fork and from this page; the tag
    `v0.1.0`; a GitHub release. Then, as the user decided on 2026-10-11, `main` takes
    changes through pull requests only: a rule of GitHub on it, a pull request required
    with the CI's `build` passed, a linear history, neither a force push nor a deletion,
@@ -335,7 +335,12 @@ task 4 began the same day.
    checks still run once a change is merged: `tools/board_ci.sh` builds `main` alone, and
    a pull request runs nothing on the bench (its header). Pull requests let work go on
    while an endurance run holds `main` still, as the eight commits waiting through task
-   14's runs did not.
+   14's runs did not. The tag `v0.1.0` on 8f3f794, its CI and its four board checks
+   passed, the code the candidate's runs and measures were made on but for the number of
+   the release in `Escapement.h` (`ESCAPEMENT_RELEASE`, its 31 board images byte for byte
+   those before), and the release published the same day. The rule on `main`, a ruleset
+   of GitHub, requires the job `build` the workflow gained for it, which passes only if
+   every other job did.
 
 **Not in 0.1**, open after it: DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
 the PPK2 as a check of each commit on the STM32U5 (item 4); how
@@ -580,7 +585,13 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
    2. *The bench, seen.* A badge for each board's endurance on the candidate, read from
       the statuses `endurance/<platform>-<kernel>` as the Pico's is from `board/soak`
       (tag `soak-pico`); a short film of the bench during a run, its own counters laid
-      over it, by the user's hands.
+      over it, by the user's hands. Seen on 2026-10-12, at release 0.1: the README's one
+      badge still shows the power-aware run of 80cc6dc, stopped on 2026-10-10, and only
+      the Pico has one, its runs alone having held a commit for days; the STM32 long
+      runs, `board/soak-u5` and `board/soak-u3`, move to each new commit of `main` and
+      have none. Which status each badge reads, a run on the candidate or the long run
+      going on, to be decided per platform, the tags `soak-pico`, `v0.1.0-rc1` and
+      `zottaos-heritage` kept.
    3. *The kernel in the browser.* The host build compiled to WebAssembly and served by
       GitHub Pages: a reader gives tasks, periods, `wcet` and (m,k), picks EDF or DM, and
       sees the schedule the kernel's own code computes. It has no `fork` in `trace` mode

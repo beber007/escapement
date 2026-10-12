@@ -22,6 +22,13 @@ Set by the user; no session reopens them.
 - **A release ships when it is coherent, not on a date.** Every claim it makes is
   checked on the code it ships, and every endurance run and measurement it cites was made
   on that code. There is no deadline to trade that against.
+- **`main` takes changes through pull requests only** (decided by the user on
+  2026-10-11, in force since release 0.1). A rule of GitHub on it: a pull request, the
+  CI's `build` passed, a linear history, neither a force push nor a deletion, and no
+  push straight to it, the user's included, unless the rule is turned off on purpose.
+  Work goes on a branch while an endurance run holds `main` still. The board checks run
+  once a change is merged: `tools/board_ci.sh` tests `main` alone, and a pull request
+  runs nothing on the bench.
 
 ## Commands
 

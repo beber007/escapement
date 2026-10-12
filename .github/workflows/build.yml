@@ -588,3 +588,21 @@ jobs:
             robot_output.xml
             logs/
           retention-days: 14
+
+  build:
+    # The one check the rule on main requires of a pull request (CLAUDE.md, "Rules that do
+    # not change"): it passes only if every job above did, whatever the matrix holds.
+    name: build
+    if: always()
+    needs: [examples, board-images, second-compiler, second-compiler-run, tools, encoding,
+            analysis, host-scheduler, clang, coverage, models, emulation-rp2350,
+            emulation-stm32u5, emulation-stm32u3, emulation-rp2040]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Every job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || exit 1; done
