@@ -7,7 +7,9 @@ reference for every parameter, and the examples under `Escapement/CORTEX-Mx/*/Ex
 show each call at work.
 
 The API is not yet stable: until 1.0 a release may change a call, as semantic
-versioning allows for 0.x.
+versioning allows for 0.x. `Escapement.h` gives the release an application is built
+against: `ESCAPEMENT_RELEASE`, "0.1.0", and its numbers `ESCAPEMENT_RELEASE_MAJOR`,
+`_MINOR` and `_PATCH`.
 
 ## Choosing a kernel
 

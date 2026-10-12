@@ -32,6 +32,13 @@
 
 #include "Escapement_Config.h"     /* Import the kernel version */
 
+/* The release of Escapement, as semantic versioning numbers it; the "Version date" lines
+** of the headers are ZottaOS's. RELEASE rather than VERSION, which names the kernel. */
+#define ESCAPEMENT_RELEASE_MAJOR 0
+#define ESCAPEMENT_RELEASE_MINOR 1
+#define ESCAPEMENT_RELEASE_PATCH 0
+#define ESCAPEMENT_RELEASE       "0.1.0"
+
 /* DEBUGGING HELP -------------------------------------------------------------------- */
 /* There are 3 error sources that are not trivial to locate when developing an applica-
 ** tion. The first is detecting when an application runs out of memory with function
