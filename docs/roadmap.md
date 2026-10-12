@@ -302,10 +302,12 @@ task 4 began the same day.
    alone, its commit held back so as not to start the board CI meanwhile).
 14b. **What the STM32U3's power-aware kernel saves — item 7, brought into 0.1.** Added by
    the user on 2026-10-11, during the runs of task 14. Measured on the candidate's own
-   images, so that the verdict is on the code released: a task set, `TaskLEDU3` or
-   `SleepU3`, under the hard kernel racing to Stop 2 against the power-aware kernel
-   under each policy (`KERNEL=PA`, `POWER=` OTE, DRA, DR_OTE, DM_SLACK), as on the
-   RP2040 (`power-aware.md`, "Measuring the RP2040"). After the U3's runs end, the board
+   images, so that the verdict is on the code released: `SleepU3`, built from the tag
+   with `FLASH=1 PHASES=30`, under the hard kernel racing to Stop 2 against the
+   power-aware kernel under each policy (`KERNEL=PA`, `POWER=` OTE, DRA, DR_OTE,
+   DM_SLACK), as on the RP2040 (`power-aware.md`, "Measuring the RP2040"); five images.
+   `TaskLEDU3` was set aside: it drives LD2 on D13, whose current the PPK2 in place of
+   JP4 would count. After the U3's runs end, the board
    free; the PPK2 in place of JP4 by the user's hands. The verdict written in
    `power-aware.md` and `stm32u3.md`, and in the release's notes. A fault it finds in
    the code makes an `rc2`, and the U3's runs start again.
