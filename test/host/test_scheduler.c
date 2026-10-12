@@ -31,6 +31,16 @@
 **   test_scheduler reclaim   the same, the time left slowing down a task that is not the last
 **   test_scheduler reuse     the same, that time wanted by two tasks in turn
 **   test_scheduler overrun   the same, a task taking six times its WCET
+**   test_scheduler overrunskip an instance unfinished at its next release, the hook going
+**                            on: that release skipped, the overruns counted
+**   test_scheduler overrunstop the same without a hook, in a child process: the kernel stops
+**   test_scheduler overrunlate the timer's handler late by several periods: each release
+**                            due skipped, the arrival queue whole
+**   test_scheduler optionalbehind an optional instance dropped at its release behind another
+**                            of an earlier deadline; soft kernel under EDF only
+**   test_scheduler overrunadmitted an optional instance admitted and preempted before it
+**                            starts, released again: dropped, the queue whole; soft kernel
+**                            under EDF only
 **   test_scheduler minspeed  the same, the power-aware kernel kept above its slowest speed
 **   test_scheduler firm      (m,k)-firm tasks under overload, soft kernel only
 **   test_scheduler firmwrap  optional instances across the wraparound, soft kernel only
@@ -1508,6 +1518,8 @@ typedef struct TimedTask {
   unsigned Instance;          /* the one running or next to run, numbered from 0 */
   INT32 Work;                 /* left to do by that instance, in 256ths of a tick */
   unsigned Misses, EarlyStarts;
+  UINT32 Overruns;            /* overrunskip: OSGetTaskOverruns() at its last end */
+  unsigned Skipped;           /* overrunskip: releases skipped while its instance ran */
   unsigned LateEnds;          /* ends past the deadline of the instance the kernel ran,
                               ** told from the next arrival it had set when it first
                               ** elected it: right whatever was dropped, and across the
@@ -1606,6 +1618,8 @@ static void TimedTaskCode(void *argument)
   if (task->Event != NULL) {
      if (NbEventEnds < MAX_ENDS)
         EventEnds[NbEventEnds++] = TimedNow();
+     if (OSGetTaskOverruns() != 0)        /* an event-driven task never overruns */
+        task->Overruns += 1;
      task->Instance += 1;
      task->Work = NextWork(task);
      OSSuspendSynchronousTask();
@@ -1613,6 +1627,7 @@ static void TimedTaskCode(void *argument)
   }
   if (NbEnds < MAX_ENDS)
      Ends[NbEnds++] = TimedNow();
+  task->Overruns = OSGetTaskOverruns();
   if (task->PeriodLowOnly) {
      /* The lateness modulo 2^30, from -2^29. */
      INT32 late = (HostClockNow() - task->DueAt) & 0x3FFFFFFF;
@@ -1631,7 +1646,8 @@ static void TimedTaskCode(void *argument)
   }
   if (TimedNow() > (INT32)task->Instance * task->Period + task->Deadline)
      task->Misses += 1;
-  task->Instance += 1;
+  task->Instance += 1 + task->Skipped;
+  task->Skipped = 0;
   task->Work = task->Each ? 0 : NextWork(task);
   OSEndTask();
 }
@@ -1908,6 +1924,280 @@ static void CreateTimedTask(INT32 wcet, INT32 period, INT32 deadline, INT32 take
   task->Work = NextWork(task);
   CREATE_TIMED_TASK(TimedTaskCode, wcet, period, deadline, task);
 }
+
+/* The overruns (EscapementHard.h, "OVERRUNS"): a task of 200 every 1000 and one of 300
+** every 2000 whose third instance, released at 4000, takes 2500. Under DM the first
+** task preempts it and it ends near 7100, past its next release at 6000, which is
+** skipped: one overrun. Under EDF it keeps its deadline of 6000, the earliest after it
+** passes, and the instance of the first task released at 6000 cannot start: at 7000
+** that one overruns too, EDF's domino, which the kernel does not prevent. */
+static unsigned OverrunCalls;
+static void *OverrunArgument;
+static TimedTask *Reporter;           /* an event-driven task the hook signals */
+static UINT8 ContinueOnOverrun(void *argument)
+{
+  OverrunCalls += 1;
+  OverrunArgument = argument;
+  OSScheduleSuspendedTask(Reporter->Event);
+  /* The release skipped counts as an instance once the late one has ended, so that
+  ** the next one is checked against its own deadline. */
+  ((TimedTask *)argument)->Skipped += 1;
+  return OS_OVERRUN_CONTINUE;
+}
+
+static void OverrunSet(void)
+{
+  TimedRun = TIMED_BUSY;
+  CreateTimedTask(200, 1000, 1000, 0, -1);
+  CreateTimedTask(300, 2000, 2000, 2500, 2);
+}
+
+static void TestOverrunSkip(void)
+{
+  const INT32 duration = 24000;
+  unsigned i;
+  char label[96];
+  OverrunSet();
+  Reporter = &Timed[NbTimed++];
+  Reporter->WCET = 50;
+  Reporter->Only = -1;
+  Reporter->Work = Reporter->WCET * 256;
+  Reporter->Event = OSCreateEventDescriptor();
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     OSCreateSynchronousTask(TimedTaskCode, 50, 1000, 0, Reporter->Event, Reporter);
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA)
+     OSCreateSynchronousTask(TimedTaskCode, 50, 1000, (UINT8)((50 * 256 + 999) / 1000),
+                             Reporter->Event, Reporter);
+  #else
+     OSCreateSynchronousTask(TimedTaskCode, 1000, Reporter->Event, Reporter);
+  #endif
+  OSSetOverrunHook(ContinueOnOverrun);
+  StartKernel(NULL, NULL);
+  RunTimed(duration);
+  printf("\n%d ticks, the third instance of the second task taking 2500 of its 2000\n\n",
+         duration);
+  #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+     const unsigned expected = 1;
+     snprintf(label, sizeof label, "  the hook called once, for that task: %u", OverrunCalls);
+     Check(label, OverrunCalls == 1 && OverrunArgument == &Timed[1]);
+  #else
+     const unsigned expected = 2;
+     snprintf(label, sizeof label, "  the hook called twice, the first task last: %u",
+              OverrunCalls);
+     Check(label, OverrunCalls == 2 && OverrunArgument == &Timed[0]);
+  #endif
+  snprintf(label, sizeof label, "  overruns counted: %u in all", (unsigned)OSGetOverruns());
+  Check(label, OSGetOverruns() == expected);
+  snprintf(label, sizeof label, "  each task's own count: %u and %u",
+           (unsigned)Timed[0].Overruns, (unsigned)Timed[1].Overruns);
+  Check(label, Timed[0].Overruns == expected - 1 && Timed[1].Overruns == 1);
+  snprintf(label, sizeof label, "  the hook's signal ran the reporting task each time: %u",
+           Reporter->Instance);
+  Check(label, Reporter->Instance == OverrunCalls);
+  Check("  OSGetTaskOverruns is 0 for that event-driven task", Reporter->Overruns == 0);
+  for (i = 0; i < 2; i += 1) {
+     snprintf(label, sizeof label, "  period %5d: %u instances ended or skipped (expected %d)",
+              Timed[i].Period, Timed[i].Instance, duration / Timed[i].Period);
+     Check(label, WithinOne(Timed[i].Instance, (unsigned)(duration / Timed[i].Period)));
+     Check("  no instance started before its arrival", Timed[i].EarlyStarts == 0);
+  }
+  snprintf(label, sizeof label, "  the late instance missed its deadline: %u", Timed[1].Misses);
+  Check(label, Timed[1].Misses == 1);
+  #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+     snprintf(label, sizeof label, "  the first task, of higher priority, missed none: %u",
+              Timed[0].Misses);
+     Check(label, Timed[0].Misses == 0);
+  #else
+     snprintf(label, sizeof label, "  the first task missed one deadline waiting for it: %u",
+              Timed[0].Misses);
+     Check(label, Timed[0].Misses == 1);
+  #endif
+  #if defined(ESCAPEMENT_VERSION_HARD_PA)
+     {
+        /* The late instance, its WCET used up, runs at the fastest speed; the policy's
+        ** state, left as it was by the release skipped, must still ask for operating
+        ** points only. */
+        extern unsigned HostInvalidSpeeds;
+        Check("  every speed asked for is an operating point", HostInvalidSpeeds == 0);
+     }
+  #endif
+}
+
+/* TestOverrunStop: The same set, without a hook and with one that answers OS_OVERRUN_STOP:
+** the kernel must stop at the overrun, which a child process meets and loops in, until its
+** alarm ends it, its coverage written, with a code that tells whether the hook ran. */
+#define STOPPED_AT_OVERRUN 42
+static volatile BOOL StopHookRan;
+extern unsigned HostMasked;
+static void StoppedAtOverrun(int signal)
+{
+  (void)signal;
+  /* The stop masks interrupts: left on, an interrupt could go on feeding a watchdog and
+  ** keep alive a system that has stopped (tools/mutants.py, 2026-10-12). */
+  ChildExit(STOPPED_AT_OVERRUN + (StopHookRan ? 1 : 0) + (HostMasked ? 2 : 0));
+}
+
+static UINT8 StopOnOverrun(void *argument)
+{
+  StopHookRan = argument == &Timed[1];
+  return OS_OVERRUN_STOP;
+}
+
+static void OverrunStopsIn(UINT8 (*hook)(void *), const char *label)
+{
+  int status;
+  pid_t child = fork();
+  if (child < 0) {
+     Check("  fork", FALSE);
+     return;
+  }
+  if (child == 0) {
+     FILE *quiet = freopen("/dev/null", "w", stdout);
+     (void)quiet;
+     signal(SIGALRM, StoppedAtOverrun);  /* not the test's watchdog, which fails */
+     alarm(2);
+     OverrunSet();
+     OSSetOverrunHook(hook);
+     StartKernel(NULL, NULL);
+     RunTimed(24000);
+     ChildExit(0);                       /* ran to the end: the kernel did not stop */
+  }
+  waitpid(child, &status, 0);
+  Check(label, WIFEXITED(status) &&
+               WEXITSTATUS(status) == STOPPED_AT_OVERRUN + (hook != NULL ? 1 : 0) + 2);
+}
+
+static void TestOverrunStop(void)
+{
+  printf("\nthe same set, the hook stopping the system or no hook\n\n");
+  OverrunStopsIn(NULL, "  without a hook, the kernel stops at the overrun, masked");
+  OverrunStopsIn(StopOnOverrun, "  the hook told of it answers OS_OVERRUN_STOP: it stops");
+}
+
+/* TestOverrunLate: The timer's handler late by several periods, as long masked sections
+** or interrupts of a higher priority make it on the target: two tasks of periods 100 and
+** 150, released at 0 and never run, and the handler run once more at 450. The first
+** overruns at 100, 200, 300 and 400, the second at 150, 300 and 450, each release skipped
+** finding its task due again; the next releases are at 500 and 600. A kernel that kept
+** the task it had just put back for the next arrival unpicked it from the arrival queue
+** where it no longer was (tools/mutants.py, 2026-10-12). */
+static unsigned LateCalls[2];
+static int LateTasks[2];
+static UINT8 CountLate(void *argument)
+{
+  LateCalls[(int *)argument - LateTasks] += 1;
+  return OS_OVERRUN_CONTINUE;
+}
+
+static void NeverRuns(void *argument)
+{
+  (void)argument;
+  OSEndTask();
+}
+
+static void TestOverrunLate(void)
+{
+  HostTCB *task;
+  INT32 next[3];
+  unsigned n = 0;
+  char label[96];
+  CREATE_TIMED_TASK(NeverRuns, 10, 100, 100, &LateTasks[0]);
+  CREATE_TIMED_TASK(NeverRuns, 10, 150, 150, &LateTasks[1]);
+  OSSetOverrunHook(CountLate);
+  StartKernel(NULL, NULL);
+  TimerHandler();                     /* the releases at 0 */
+  HostAdvanceBy(450);
+  TimerHandler();                     /* late by four periods of the first task */
+  printf("\nthe timer's handler late by several periods\n\n");
+  snprintf(label, sizeof label, "  overruns: %u and %u, %u in all", LateCalls[0], LateCalls[1],
+           (unsigned)OSGetOverruns());
+  Check(label, LateCalls[0] == 4 && LateCalls[1] == 3 && OSGetOverruns() == 7);
+  for (task = _OSQueueHead->Next[1]; task != IdleTCB && task != NULL && n < 3; task = task->Next[1])
+     next[n++] = task->NextArrivalTimeLow;
+  snprintf(label, sizeof label, "  the arrival queue whole, next at %d and %d",
+           n > 0 ? next[0] : -1, n > 1 ? next[1] : -1);
+  Check(label, n == 2 && task == IdleTCB && next[0] == 500 && next[1] == 600);
+}
+
+#if defined(ESCAPEMENT_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
+/* TestOptionalBehind: An optional instance dropped at its task's next release while
+** another, of an earlier deadline, waits ahead of it after the sentinel. Two (1,4)-firm
+** tasks run their mandatory instances at 0: one of 10 every 200, deadline 30, one of 10
+** every 150. Then one instance of 300 runs from 20 to 320, with no end in between where
+** the kernel would test optional instances: at 150 the second task's optional instance
+** waits, due at 300, at 200 the first one's, due at 230, ahead of it. At 300 the second
+** task's is dropped from behind the first one's. A task of 100 every 100 does not do it:
+** it ends at each release, where the optional instances are tested and dropped. A search that found
+** the instance only first after the sentinel left it in the queue, inserted again
+** (tools/mutants.py, 2026-10-12): with a deadline equal to the period, the instance
+** dropped at its release is always the first, and no set had a shorter one. */
+static TimedTask *NewFirm(INT32 wcet, INT32 period, INT32 deadline, UINT8 m, UINT8 k,
+                          UINT8 start)
+{
+  TimedTask *task = &Timed[NbTimed++];
+  task->WCET = task->Takes = wcet;
+  task->Period = period;
+  task->Deadline = deadline;
+  task->Only = -1;
+  task->Work = NextWork(task);
+  OSCreateTask(TimedTaskCode, wcet, 0, period, deadline, m, k, start, task);
+  return task;
+}
+
+static void TestOptionalBehind(void)
+{
+  TimedTask *busy;
+  char label[96];
+  TimedRun = TIMED_BUSY;
+  NewFirm(10, 200, 30, 1, 4, 0);
+  NewFirm(10, 150, 150, 1, 4, 0);
+  busy = NewFirm(300, 400, 400, 1, 1, 0);
+  StartKernel(NULL, NULL);
+  RunTimed(600);
+  printf("\nan optional instance dropped behind another of an earlier deadline\n\n");
+  Check("  the ready queues stay whole (CheckQueues)", TRUE);
+  snprintf(label, sizeof label, "  the long instance ended, once: %u", busy->Instance);
+  Check(label, busy->Instance == 1);
+  snprintf(label, sizeof label, "  no overrun: %u", (unsigned)OSGetOverruns());
+  Check(label, OSGetOverruns() == 0);
+}
+
+/* TestOverrunAdmitted: An optional instance admitted, then preempted before its first
+** instruction, still in state INIT when its task is released again. A (1,2)-firm task of
+** 5 every 100, whose optional instance released at 100 is admitted at 150, when a task of
+** 50 every 100 ends there and a task of 40 every 150, deadline 40, is released at that
+** very instant: its earlier deadline preempts the optional one, and that instance takes
+** 200, past the release at 200 of the first task. The kernel, which searched for the
+** optional instance after the sentinel alone, took it for removed and inserted it again
+** into the ready queue it was still in (2026-10-12); CheckQueues sees it twice. */
+static void TestOverrunAdmitted(void)
+{
+  TimedTask *task = &Timed[NbTimed++];
+  char label[96];
+  TimedRun = TIMED_BUSY;
+  task->WCET = 5;
+  task->Period = task->Deadline = 100;
+  task->Takes = 5;
+  task->Only = -1;
+  task->Work = NextWork(task);
+  OSCreateTask(TimedTaskCode, 5, 0, 100, 100, 1, 2, 0, task);
+  CreateTimedTask(50, 100, 100, 50, -1);
+  CreateTimedTask(40, 150, 40, 200, 1);
+  OSSetOverrunHook(ContinueOnOverrun);
+  Reporter = &Timed[NbTimed++];        /* the hook signals it */
+  Reporter->WCET = 1;
+  Reporter->Only = -1;
+  Reporter->Work = 256;
+  Reporter->Event = OSCreateEventDescriptor();
+  OSCreateSynchronousTask(TimedTaskCode, 1, 1000, 0, Reporter->Event, Reporter);
+  StartKernel(NULL, NULL);
+  RunTimed(1000);
+  printf("\nan optional instance admitted, then preempted before it starts\n\n");
+  Check("  the ready queues stay whole (CheckQueues)", TRUE);
+  snprintf(label, sizeof label, "  overruns: %u", (unsigned)OSGetOverruns());
+  Check(label, OSGetOverruns() == 4);
+}
+#endif
 
 static void TestTimed(TimedMode mode)
 {
@@ -2335,6 +2625,16 @@ static void TestTimeWrap(TimedMode mode)
 ** Tasks are numbered in the order of their lines, as the trace numbers them. The run
 ** starts at phase of the counter, 0 unless given: a phase short of 2^30 takes the run
 ** across the wraparound of the kernel clock, the trace counting time from the start. */
+/* TraceOverrun: The hook of a trace with overruns (line "H"): tells each one, the release
+** skipped counted as an instance of the task once the late one ends, and goes on. */
+static UINT8 TraceOverrun(void *argument)
+{
+  TimedTask *task = (TimedTask *)argument;
+  fprintf(TraceOut, "O %d %d\n", TimedNow(), (int)(task - Timed));
+  task->Skipped += 1;
+  return OS_OVERRUN_CONTINUE;
+}
+
 static void TestTrace(INT32 duration, INT32 phase)
 {
   char kind[2];
@@ -2393,6 +2693,10 @@ static void TestTrace(INT32 duration, INT32 phase)
         Timed[a].Each = TRUE;
         Timed[a].Work = 0;
      }
+     else if (kind[0] == 'H')
+        OSSetOverrunHook(TraceOverrun);
+     else if (kind[0] == 'B')
+        AtBarriers = TRUE;            /* the timer interrupt at the kernel's barriers */
      else {
         printf("FAILED: a line not understood, at \"%s\"\n", kind);
         exit(1);
@@ -2712,6 +3016,9 @@ static void TestFirm(void)
   snprintf(label, sizeof label, "  an optional instance that fits still runs: %u of %u", Firm[2].Runs, c);
   Check(label, WithinOne(Firm[2].Runs, c) && FirmHolds(&Firm[2], c) && Firm[2].Runs >= c);
   Check("  no deadline missed", LateArrivals == 0);
+  /* Optional instances dropped are what the kernel is for, no overrun. */
+  snprintf(label, sizeof label, "  no overrun counted: %u", (unsigned)OSGetOverruns());
+  Check(label, OSGetOverruns() == 0);
 }
 
 /* TestFirmInstance: The first instance of an (m,k)-firm task is instance 0, as
@@ -3531,6 +3838,18 @@ int main(int argc, char *argv[])
      TestTimed(TIMED_REUSE);
   else if (argc > 1 && strcmp(argv[1], "overrun") == 0)
      TestTimed(TIMED_OVERRUN);
+  else if (argc > 1 && strcmp(argv[1], "overrunskip") == 0)
+     TestOverrunSkip();
+  else if (argc > 1 && strcmp(argv[1], "overrunstop") == 0)
+     TestOverrunStop();
+  else if (argc > 1 && strcmp(argv[1], "overrunlate") == 0)
+     TestOverrunLate();
+  #if defined(ESCAPEMENT_VERSION_SOFT) && SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
+  else if (argc > 1 && strcmp(argv[1], "overrunadmitted") == 0)
+     TestOverrunAdmitted();
+  else if (argc > 1 && strcmp(argv[1], "optionalbehind") == 0)
+     TestOptionalBehind();
+  #endif
   else if (argc > 1 && strcmp(argv[1], "minspeed") == 0)
      TestTimed(TIMED_MINSPEED);
   else if (argc > 1 && strcmp(argv[1], "endinside") == 0)

@@ -77,6 +77,7 @@ typedef struct TCB {
   #endif
   UINT16 PeriodHigh;             // Number of full 2^30 cycles of the interarrival period
   UINT16 NextArrivalTimeHigh;    // Number of full 2^30 cycles of the next arrival time
+  UINT32 Overruns;               // Releases that found an instance unfinished
 } TCB;
 
 OSCheckTCBLayout();
@@ -310,6 +311,7 @@ BOOL OSCreateTask(void task(void *), UINT16 periodCycles, INT32 periodOffset,
      return FALSE;
   ptcb->Next[READYQ] = NULL;
   ptcb->TaskState = STATE_ZOMBIE;
+  ptcb->Overruns = 0;
   ptcb->TaskCodePtr = task;
   ptcb->PeriodLow = periodOffset;
   ptcb->PeriodHigh = periodCycles;
@@ -392,6 +394,58 @@ void OSEndTask(void)
 }
 
 
+/* NextPeriodicArrival: Puts a periodic task in the arrival queue for its next release,
+** one period after the one just due. */
+static void NextPeriodicArrival(TCB *task)
+{
+  task->NextArrivalTimeHigh = task->PeriodHigh;
+  task->NextArrivalTimeLow += task->PeriodLow;
+  if (task->NextArrivalTimeLow > 0x3FFFFFFF) {
+     task->NextArrivalTimeHigh += 1;
+     task->NextArrivalTimeLow &= 0x3FFFFFFF;
+  }
+  ArrivalQueueInsert(task);
+} /* end of NextPeriodicArrival */
+
+
+/* The overruns (EscapementHard.h, "OVERRUNS"): the hook the application gave and the
+** count of all tasks, both read and written by the timer's handler alone but for the
+** hook, set before the kernel starts or by a task between two of its passes. */
+static UINT8 (*volatile OverrunHook)(void *argument) = NULL;
+static volatile UINT32 TotalOverruns = 0;
+
+void OSSetOverrunHook(UINT8 (*hook)(void *argument))
+{
+  OverrunHook = hook;
+} /* end of OSSetOverrunHook */
+
+UINT32 OSGetOverruns(void)
+{
+  return TotalOverruns;
+} /* end of OSGetOverruns */
+
+UINT32 OSGetTaskOverruns(void)
+{
+  if (_OSActiveTask->TaskState & TASKTYPE_BLOCKING)
+     return 0;
+  return _OSActiveTask->Overruns;
+} /* end of OSGetTaskOverruns */
+
+
+/* Overrun: Counts an overrun of a periodic task and asks the application's hook what to
+** do; without one, or unless it answers OS_OVERRUN_CONTINUE, stops the system. */
+static void Overrun(TCB *task)
+{
+  UINT8 (*hook)(void *) = OverrunHook;
+  TotalOverruns += 1;
+  task->Overruns += 1;
+  if (hook == NULL || hook(task->Argument) != OS_OVERRUN_CONTINUE) {
+     _OSDisableInterrupts();
+     while (TRUE);  // the stop, which the host test meets in a child process
+  }
+} /* end of Overrun */
+
+
 /* _OSTimerInterruptHandler: Software interrupt handler for the timer that manages task
 ** instance arrivals. Because the timer is a bit counter with a predefined number of bits,
 ** when a timer event occurs, it can be that there are no arrivals. In this case, we only
@@ -449,14 +503,20 @@ void _OSTimerInterruptHandler(void)
            _OSQueueHead->Next[ARRIVALQ] = arrival->Next[ARRIVALQ];
            /* At this point an arriving periodic task should be state STATE_ZOMBIE, but event-
            ** driven tasks should be in state STATE_ZOMBIE | TASKTYPE_BLOCKING. */
-           #ifdef DEBUG_MODE
-              if (!(arrival->TaskState & STATE_ZOMBIE)) { // Is task still in the ready queue?
-                 /* An arriving task should not be in state STATE_RUNNING */
-                 /* COVERAGE-OFF: an assertion that a schedulable task set never meets */
-                 _OSDisableInterrupts();
-                 while (TRUE); // If we get here, the processor utilization > 100%.
-              }  /* COVERAGE-ON */
-           #endif
+           if (!(arrival->TaskState & STATE_ZOMBIE)) { // Is task still in the ready queue?
+              /* An event-driven task comes back only once it has ended. */
+              #ifdef DEBUG_MODE
+                 if (arrival->TaskState & TASKTYPE_BLOCKING)
+                    while (TRUE);  // COVERAGE-LINE: an assertion of DEBUG_MODE
+              #endif
+              /* A periodic one overruns: unless the application goes on, Overrun stops. The
+              ** instance under way keeps its state and its deadline, and this release is
+              ** skipped. */
+              NextPeriodicArrival(arrival);
+              Overrun(arrival);    // the queues whole again before the hook runs
+              arrival = _OSQueueHead->Next[ARRIVALQ];
+              continue;
+           }
            /* Set task to INIT while keeping flag TASKTYPE_BLOCKING */
            arrival->TaskState &= TASKTYPE_BLOCKING;
            #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
@@ -468,15 +528,8 @@ void _OSTimerInterruptHandler(void)
            #endif
            ReadyQueueInsert(arrival);
            /* Prepare the next instance arrival */
-           if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0) {
-              arrival->NextArrivalTimeHigh = arrival->PeriodHigh;
-              arrival->NextArrivalTimeLow += arrival->PeriodLow;
-              if (arrival->NextArrivalTimeLow > 0x3FFFFFFF) {
-                 arrival->NextArrivalTimeHigh += 1;
-                 arrival->NextArrivalTimeLow &= 0x3FFFFFFF;
-              }
-              ArrivalQueueInsert(arrival);
-           }
+           if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0)
+              NextPeriodicArrival(arrival);
            #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
               else
                  arrival->NextArrivalTimeLow += ((ETCB *)arrival)->PeriodLow;

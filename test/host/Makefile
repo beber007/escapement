@@ -83,6 +83,8 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	   ./$(BUILD)/test_scheduler_$$b early && ./$(BUILD)/test_scheduler_$$b slack && \
 	   ./$(BUILD)/test_scheduler_$$b expiry && ./$(BUILD)/test_scheduler_$$b reclaim && \
 	   ./$(BUILD)/test_scheduler_$$b reuse && ./$(BUILD)/test_scheduler_$$b overrun && \
+	   ./$(BUILD)/test_scheduler_$$b overrunskip && ./$(BUILD)/test_scheduler_$$b overrunstop && \
+	   ./$(BUILD)/test_scheduler_$$b overrunlate && \
 	   ./$(BUILD)/test_scheduler_$$b minspeed && \
 	   ./$(BUILD)/test_scheduler_$$b endinside && ./$(BUILD)/test_scheduler_$$b endinsidebusy && \
 	   ./$(BUILD)/test_scheduler_$$b timewrap && ./$(BUILD)/test_scheduler_$$b timewrapbusy && \
@@ -126,7 +128,9 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	                         ./$(BUILD)/test_scheduler_$$b firmwrapend && \
 	                         ./$(BUILD)/test_scheduler_$$b firmoverloadsum && \
 	                         ./$(BUILD)/test_scheduler_$$b firmdiscount && \
-	                         ./$(BUILD)/test_scheduler_$$b firmdiscountnear || exit 1;; esac; \
+	                         ./$(BUILD)/test_scheduler_$$b firmdiscountnear && \
+	                         ./$(BUILD)/test_scheduler_$$b overrunadmitted && \
+	                         ./$(BUILD)/test_scheduler_$$b optionalbehind || exit 1;; esac; \
 	done
 	@for k in $(IPC); do echo; echo "=== $$k"; ./$(BUILD)/test_ipc_$$k || exit 1; done
 

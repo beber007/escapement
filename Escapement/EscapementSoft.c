@@ -103,6 +103,8 @@ typedef struct TCB {
   BOOL NextInstanceMandatory;    // True if next instance to arrive is mandatory
   UINT32 NextMandatoryArrivalTimeHigh; // Arrival time of the next mandatory instance and
   INT32 NextMandatoryArrivalTimeLow;   // corresponds to instance NextMandatoryInstance
+  UINT32 Overruns;               // Releases that found an instance unfinished
+  BOOL Mandatory;                // The instance last released is mandatory
 } TCB;
 
 OSCheckTCBLayout();
@@ -370,6 +372,8 @@ BOOL OSCreateTask(void task(void *), INT32 wcet, UINT16 periodCycles, INT32 peri
   if ((ptcb = (TCB*)OSMalloc(sizeof(TCB))) == NULL)
      return FALSE;
   ptcb->TaskState = STATE_ZOMBIE;
+  ptcb->Overruns = 0;
+  ptcb->Mandatory = FALSE;
   ptcb->TaskCodePtr = task;
   ptcb->Argument = argument;
   ptcb->PeriodLow = periodOffset;
@@ -718,6 +722,44 @@ UINT8 OSGetTaskInstance(void)
 }
 
 
+/* The overruns (EscapementSoft.h, "OVERRUNS"): the hook the application gave and the
+** count of all tasks, both read and written by the timer's handler alone but for the
+** hook, set before the kernel starts or by a task between two of its passes. */
+static UINT8 (*volatile OverrunHook)(void *argument) = NULL;
+static volatile UINT32 TotalOverruns = 0;
+
+void OSSetOverrunHook(UINT8 (*hook)(void *argument))
+{
+  OverrunHook = hook;
+} /* end of OSSetOverrunHook */
+
+UINT32 OSGetOverruns(void)
+{
+  return TotalOverruns;
+} /* end of OSGetOverruns */
+
+UINT32 OSGetTaskOverruns(void)
+{
+  if (_OSActiveTask->TaskState & TASKTYPE_BLOCKING)
+     return 0;
+  return _OSActiveTask->Overruns;
+} /* end of OSGetTaskOverruns */
+
+
+/* Overrun: Counts an overrun of a periodic task and asks the application's hook what to
+** do; without one, or unless it answers OS_OVERRUN_CONTINUE, stops the system. */
+static void Overrun(TCB *task)
+{
+  UINT8 (*hook)(void *) = OverrunHook;
+  TotalOverruns += 1;
+  task->Overruns += 1;
+  if (hook == NULL || hook(task->Argument) != OS_OVERRUN_CONTINUE) {
+     _OSDisableInterrupts();
+     while (TRUE);  // the stop, which the host test meets in a child process
+  }
+} /* end of Overrun */
+
+
 /* _OSTimerInterruptHandler: Software interrupt handler for the timer that manages task
 ** instance arrivals. Because the timer is a bit counter with a predefined number of bits,
 ** when a timer event occurs, it can be that there are no arrivals. In this case, we only
@@ -728,6 +770,7 @@ void _OSTimerInterruptHandler(void)
   ETCB *etcb;
   TCB *arrival, *tmp;
   UINT16 nextMandatoryInstance;
+  BOOL skip;
   extern volatile BOOL _OSOverflowInterruptFlag;
   extern volatile BOOL _OSComparatorInterruptFlag;
   do {
@@ -778,65 +821,78 @@ void _OSTimerInterruptHandler(void)
         while (arrival->NextArrivalTimeLow <= currentTime &&
              ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {
            _OSQueueHead->Next[ARRIVALQ] = arrival->Next[ARRIVALQ];
+           skip = FALSE;
            /* The previous task instance may still be in ready queue if it is an optional one
            ** and did not get a chance to run. */
            if (!(arrival->TaskState & STATE_ZOMBIE)) { // Is task still in the ready queue?
-              /* At this point an arriving task should not be in state STATE_RUNNING */
+              /* An event-driven task comes back only once it has ended. */
               #ifdef DEBUG_MODE
-                 if (arrival->TaskState & STATE_RUNNING) {
-                    /* COVERAGE-OFF: an assertion that a schedulable task set never meets */
-                    _OSDisableInterrupts();
-                    while (TRUE); // If we get here, the processor utilization > 100%.
-                 }  /* COVERAGE-ON */
+                 if (arrival->TaskState & TASKTYPE_BLOCKING)
+                    while (TRUE);  // COVERAGE-LINE: an assertion of DEBUG_MODE
               #endif
-              /* Remove the optional instance */
-              #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-                 for (tmp = _OSQueueHead; tmp->Next[READYQ] != arrival; tmp = tmp->Next[READYQ]);
-                 tmp->Next[READYQ] = arrival->Next[READYQ];
-              #else
-                 /* Optional EDF instances are always after _OSQueueTail. However in case of an
-                 ** overload, the non-zombie instance may also be mandatory and should be de-
-                 ** tectable while testing the application. */
-                 #ifdef DEBUG_MODE
-                    for (tmp = _OSQueueHead; tmp != _OSQueueTail; tmp = tmp->Next[READYQ])
-                       if (tmp == arrival)
-                          /* COVERAGE-OFF: an assertion, as above */
-                          while (TRUE); // If we get here, the processor utilization > 100%.
-                          /* COVERAGE-ON */
-                 #endif
-                 for (tmp = _OSQueueTail; tmp->Next[READYQ] != NULL; tmp = tmp->Next[READYQ])
-                    if (tmp->Next[READYQ] == arrival) {
+              if ((arrival->TaskState & STATE_RUNNING) || arrival->Mandatory) {
+                 /* An instance that started, or a mandatory one, overruns: unless the
+                 ** application goes on, Overrun stops. The instance keeps its state and
+                 ** its deadline, and this release is skipped, though counted in the
+                 ** task's pattern below: a mandatory one skipped is a deadline missed.
+                 ** The hook runs once the task is back in the arrival queue. */
+                 skip = TRUE;
+              }
+              else {
+                 /* Remove the optional instance, which never started */
+                 #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+                    for (tmp = _OSQueueHead; tmp->Next[READYQ] != arrival; tmp = tmp->Next[READYQ]);
+                    tmp->Next[READYQ] = arrival->Next[READYQ];
+                 #else
+                    /* Optional EDF instances waiting are after _OSQueueTail. One admitted
+                    ** has moved ahead of it (ScheduleNextTask) and may still be in state
+                    ** INIT, preempted before its first instruction: the search goes on from
+                    ** the head then, the queue whole again (FinalizeContextSwitchPreparation),
+                    ** and it is dropped too, with nothing on the stack. Searched for after
+                    ** _OSQueueTail alone, it was taken for removed and inserted again into
+                    ** the queue it was still in (differential.py, (m,k)-firm tasks that
+                    ** overrun, the timer taken at the kernel's barriers, 2026-10-12). */
+                    for (tmp = _OSQueueTail; tmp->Next[READYQ] != NULL; tmp = tmp->Next[READYQ])
+                       if (tmp->Next[READYQ] == arrival)
+                          break;
+                    if (tmp->Next[READYQ] != arrival)
+                       for (tmp = _OSQueueHead; tmp->Next[READYQ] != _OSQueueTail &&
+                                                tmp->Next[READYQ] != arrival; tmp = tmp->Next[READYQ]);
+                    if (tmp->Next[READYQ] == arrival)
                        tmp->Next[READYQ] = arrival->Next[READYQ];
-                       break;
-                    }
-              #endif
-              /* Pretend that this instance finished in case the current instance is optional
-              ** and it is not inserted into the ready queue. This avoids taking this branch
-              ** and simplifies the above costly for loop. */
-              arrival->TaskState |= STATE_ZOMBIE;
+                 #endif
+                 /* Pretend that this instance finished in case the current instance is
+                 ** optional and it is not inserted into the ready queue. This avoids taking
+                 ** this branch and simplifies the above costly for loop. */
+                 arrival->TaskState |= STATE_ZOMBIE;
+              }
            }
-           /* Set task to INIT while keeping flag TASKTYPE_BLOCKING */
-           arrival->TaskState &= TASKTYPE_BLOCKING;
-           #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
-              /* Under DM, all tasks are inserted into the ready queue, with optional tasks
-              ** having the lowest priority */
-              arrival->Priority = arrival->StaticPriority;
-              if (!(arrival->TaskState & TASKTYPE_BLOCKING) && !arrival->NextInstanceMandatory)
-                 arrival->Priority += _OSQueueTail->StaticPriority;
-              ReadyQueueInsert(arrival);
-           #else
-              /* All tasks are also inserted into the ready queue under EDF, but optional tasks
-              ** are inserted after the sentinel as to mimic a two-level multiqueue. */
-              if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0)
-                 arrival->NextDeadline = arrival->NextArrivalTimeLow + arrival->Deadline;
-              else
-                 ((ETCB *)arrival)->NextDeadline =
-                                    GetSuspendedSchedulingDeadline((ETCB *)arrival,currentTime);
-              if ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextInstanceMandatory)
+           if (!skip) {
+              /* Set task to INIT while keeping flag TASKTYPE_BLOCKING */
+              arrival->TaskState &= TASKTYPE_BLOCKING;
+              #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+                 /* Under DM, all tasks are inserted into the ready queue, with optional tasks
+                 ** having the lowest priority */
+                 arrival->Priority = arrival->StaticPriority;
+                 if (!(arrival->TaskState & TASKTYPE_BLOCKING) && !arrival->NextInstanceMandatory)
+                    arrival->Priority += _OSQueueTail->StaticPriority;
                  ReadyQueueInsert(arrival);
-              else
-                 OptionalReadyQueueInsert(arrival);
-           #endif
+              #else
+                 /* All tasks are also inserted into the ready queue under EDF, but optional
+                 ** tasks are inserted after the sentinel as to mimic a two-level multiqueue. */
+                 if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0)
+                    arrival->NextDeadline = arrival->NextArrivalTimeLow + arrival->Deadline;
+                 else
+                    ((ETCB *)arrival)->NextDeadline =
+                                       GetSuspendedSchedulingDeadline((ETCB *)arrival,currentTime);
+                 if ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextInstanceMandatory)
+                    ReadyQueueInsert(arrival);
+                 else
+                    OptionalReadyQueueInsert(arrival);
+              #endif
+              if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0)
+                 arrival->Mandatory = arrival->NextInstanceMandatory;
+           }
            /* Prepare the next instance arrival */
            if ((arrival->TaskState & TASKTYPE_BLOCKING) == 0) {
               /* Compute instance number of this arrival returned by GetTaskInstance. */
@@ -866,8 +922,10 @@ void _OSTimerInterruptHandler(void)
               }
               #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
                  /* Only optional instances read it, but the time shift above applies to
-                 ** every instance in the ready queue: left unset, it would overflow. */
-                 arrival->NextDeadline = arrival->NextArrivalTimeLow + arrival->Deadline;
+                 ** every instance in the ready queue: left unset, it would overflow. A
+                 ** release skipped leaves it to the instance still under way. */
+                 if (!skip)
+                    arrival->NextDeadline = arrival->NextArrivalTimeLow + arrival->Deadline;
               #endif
               if (arrival->Instance + 1 >= arrival->K)
                  arrival->NextInstanceMandatory = arrival->NextMandatoryInstance == 0;
@@ -886,6 +944,8 @@ void _OSTimerInterruptHandler(void)
               else
                  arrival->NextArrivalTimeLow += ((ETCB *)arrival)->PeriodLow;
            #endif
+           if (skip)
+              Overrun(arrival);    // unless the application goes on, stops
            arrival = _OSQueueHead->Next[ARRIVALQ];
         }
         /* Process pending event-driven tasks found in the RescheduleSynchronousTaskList. */
