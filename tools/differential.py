@@ -37,6 +37,13 @@ times; the trace counts time from the start. At every instant of a trace:
   deadline; the second run of each such set gives each instance a time of its own, and
   counts the drops a WCET schedule, or the same test at a later point, would have admitted.
 
+Then a third as many sets that overrun, periodic tasks or, for the soft kernel, (m,k)-firm
+ones half the time, one instance of one task taking 1.2 to 3 times its period, the hook of
+the trace going on (EscapementHard.h, "OVERRUNS"), half of them with the timer interrupt
+taken at the kernel's barriers, test/host checking the ready queue whole meanwhile:
+the same checks but for the deadlines and the speeds, which an overload breaks, and each
+release that finds an instance of its task unfinished skipped, the very releases the
+kernel tells ("O"), computed here apart; under EDF the late instance keeps its deadline.
 The speeds the power-aware kernel picks are checked apart, on every task set of its five
 builds: tools/speed_reference.py computes the speed of each dispatch from the policy's
 specification, and a speed other than its own fails, a policy that runs faster than it
@@ -181,6 +188,30 @@ def draw(rng, deadline_monotonic):
             return tasks
 
 
+def draw_overrun(rng, deadline_monotonic, firm_too=False):
+    """A periodic task set the algorithm schedules, or, firm_too and one time in two,
+    (m,k)-firm tasks, of which one instance of one task takes 1.2 to 3 times its period:
+    it overruns, the hook of the trace goes on, and the releases that find an instance of
+    their task unfinished, mandatory or started, are skipped (EscapementHard.h and
+    EscapementSoft.h, "OVERRUNS"). No event-driven task: one signalled again while it
+    runs, in the overload, is released when it ends, which instances() does not model."""
+    if firm_too and rng.random() < 0.5:
+        tasks = draw_firm(rng, deadline_monotonic)
+    else:
+        while True:
+            tasks = [t for t in draw(rng, deadline_monotonic) if t["kind"] == "P"]
+            if tasks:
+                break
+    i = rng.randrange(len(tasks))
+    t = tasks[i]
+    count = DURATION // t["period"] + 1
+    late = rng.randrange(max(1, count - 2))
+    each = [t["takes"]] * count
+    each[late] = rng.randint(t["period"] * 6 // 5, 3 * t["period"])
+    tasks[i] = dict(t, each=each)
+    return tasks
+
+
 def edge_signals(rng, tasks, phase, deadline_monotonic):
     """tasks with one more event-driven task, signalled at the edges random signals miss:
     across the wraparound, a signal just before it and a second within the workload, whose
@@ -295,9 +326,9 @@ def instances(tasks, dm):
     return sorted(out, key=lambda x: (x[1], x[0]))
 
 
-def run(build, tasks, phase=0):
+def run(build, tasks, phase=0, overruns=False, barriers=False):
     binary = os.path.join(HOST, os.environ.get("BUILD", "build"), "test_scheduler_" + build)
-    lines = []
+    lines = (["H"] if overruns else []) + (["B"] if barriers else [])
     for t in tasks:
         if t["kind"] == "P":
             lines.append("P %d %d %d %d" % (t["wcet"], t["period"], t["deadline"], t["takes"]))
@@ -442,11 +473,15 @@ def demand_test(tasks, i, target, t):
     return True, len(jobs)
 
 
-def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
+def check(build, tasks, trace, speeds=True, phase=0, decisions=None, overruns=False):
     """Raises Failure at the first point the trace breaks the algorithm, or, speeds
     True, a speed the power-aware policy of build would not pick. A run started at
     phase of the counter, not 0, crosses its 2^30 wraparound, where the timer interrupts
-    too, the kernel shifting its times."""
+    too, the kernel shifting its times. With overruns, a set that overruns, its hook going
+    on: a release of a periodic task that finds an instance of it unfinished is skipped,
+    and must be the very one the trace tells ("O"); the late instance keeps its deadline,
+    and the rest holds but the deadlines and the speeds, which an overload breaks, and
+    what of the optional instances rests on the WCETs, which the late one has passed."""
     dm = build in DEADLINE_MONOTONIC
     power_aware = build.startswith("pa_")
     todo = instances(tasks, dm)                   # not yet released, in release order
@@ -457,10 +492,14 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
     # instances at while it waited, and whether it was the only one undecided there
     jobs = {i: [] for i in range(len(tasks))}
     longest = [0] * len(tasks)                    # the longest response seen, per task
+    skipped, told = [], []                        # overruns: (release, task) skipped, told
 
     def release_until(t):
         while todo and todo[0][1] <= t:
             i, r, d, k, optional = todo.pop(0)
+            if overruns and tasks[i]["kind"] in "PF" and due(i) is not None:
+                skipped.append((r, i))
+                continue
             # An optional instance not started when its task arrives again is dropped.
             for job in jobs[i]:
                 if job[4] and not job[5]:
@@ -488,7 +527,9 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
     if phase:
         release_times.add(0x40000000 - phase)
     last_interrupt = None
-    firm_only = all(x["kind"] == "F" for x in tasks)
+    # The decisions on optional instances are checked against the WCETs, which a set that
+    # overruns breaks: left out there.
+    firm_only = all(x["kind"] == "F" for x in tasks) and not overruns
 
     def decide(t, admitted=None):
         """The optional instances the kernel decided on by t, nothing else due: admitted
@@ -611,6 +652,9 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
                 consider(t, True)
                 retest(t)
             continue
+        if fields[0] == "O":
+            told.append((int(fields[1]), int(fields[2])))
+            continue
         if fields[0] == "T":
             if now != int(fields[1]):
                 raise Failure("the trace stops at %d, not %s" % (now, fields[1]))
@@ -623,7 +667,8 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
         if t != now or step <= 0:
             raise Failure("t=%d: a segment of %d ticks where %d was expected" % (t, step, now))
         release_until(t)
-        later = [x for x in todo if t < x[1] < t + step and not x[4]]
+        later = [x for x in todo if t < x[1] < t + step and not x[4] and
+                 not (overruns and due(x[0]) is not None)]
         if i < 0:
             if waiting():
                 raise Failure("t=%d: idle while task %s waits" % (t, waiting()))
@@ -646,7 +691,7 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
             if before and not job[6]:
                 raise Failure("t=%d: an optional instance of task %d starts while %s must "
                               "run" % (t, i, before))
-            if all(x["kind"] in "PF" for x in tasks):
+            if all(x["kind"] in "PF" for x in tasks) and not overruns:
                 end, missed = worst_case_end(tasks, jobs, todo, i, job, t, dm)
                 if end > job[1]:
                     raise Failure("t=%d: an optional instance of task %d starts that, every "
@@ -675,7 +720,7 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
         job[3] -= step * rate
         now = t + step
         if job[3] <= 0:
-            if now > job[1]:
+            if now > job[1] and not overruns:
                 raise Failure("task %d: the instance released at %d ends at %d, past its "
                               "deadline %d" % (i, job[0], now, job[1]))
             jobs[i].remove(job)
@@ -688,9 +733,19 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None):
         for job in jobs[i]:
             if job[4] and not job[5] and job[1] <= now:
                 dropped(i, job)
-            if job[1] <= now and (not job[4] or job[5]):
+            if job[1] <= now and (not job[4] or job[5]) and not overruns:
                 raise Failure("task %d: the instance released at %d never ended by its "
                               "deadline %d" % (i, job[0], job[1]))
+    if overruns:
+        # Releases at the end of the run, after the trace stops, may be skipped: compared
+        # up to the last instant told or computed within it.
+        # At one instant the kernel takes the releases in the order of its arrival queue,
+        # not of the tasks: the order within an instant is not checked.
+        computed = sorted(x for x in skipped if x[0] < now)
+        if sorted(x for x in told if x[0] < now) != computed:
+            raise Failure("the overruns told, %s, are not the releases that find an "
+                          "instance unfinished, %s" % (told, computed))
+        return
     if speeds and power_aware and all(t["kind"] in "PE" for t in tasks):
         try:
             speed_reference.check_speeds(build, tasks, trace, instances(tasks, dm),
@@ -838,8 +893,28 @@ def self_test():
     if (end, missed) != (135, (1, 110, 235, 230)):
         sys.exit("self-test: an instance delayed past its deadline was not seen: %s, %s" %
                  (end, missed))
+    # A task of 20 every 100 whose first instance takes 150: the release at 100 finds it
+    # unfinished and is skipped, which the hook tells; the instance ends at 150, and the
+    # one released at 200 runs as usual.
+    late = [dict(periodic(20, 100, 100, 15), each=[150] + [15] * (DURATION // 100 + 1))]
+    good = "S 0 100 0 2\nO 100 0\nI 100\nS 100 50 0 2\nE 150 0\nS 150 50 -1 0\nI 200\n" \
+           "S 200 15 0 2\nE 215 0\nS 215 85 -1 0\nT 300\n"
+    check("hard_edf", late, good, overruns=True)
+    wrong_overruns = {
+        "an overrun not told": good.replace("O 100 0\n", ""),
+        "an overrun told where none is": good.replace("I 200\n", "O 200 0\nI 200\n"),
+        "the release skipped run all the same":
+            good.replace("S 150 50 -1 0\n", "S 150 15 0 2\nE 165 0\nS 165 35 -1 0\n"),
+    }
+    for name, trace in wrong_overruns.items():
+        try:
+            check("hard_edf", late, trace, overruns=True)
+        except Failure:
+            continue
+        sys.exit("self-test: a trace with %s passed" % name)
     print("self-test: %d faulty traces caught" %
-          (len(wrong) + len(wrong_events) + len(wrong_speeds) + len(wrong_firm) + 1))
+          (len(wrong) + len(wrong_events) + len(wrong_speeds) + len(wrong_firm) +
+           len(wrong_overruns) + 1))
 
 
 # Sets beyond the 300 a run draws that once caught a fault no run of 300 did, checked by
@@ -907,9 +982,31 @@ def main():
                 print("%s, set %d %s, phase %d: %s" % (build, set_n, tasks, phase, e))
                 break
         else:
-            print("%s: %d task sets, every trace holds" % (build, count) +
-                  (", and %d kept" % len(kept) if kept else ""))
-            if decisions["admitted"] + decisions["dropped"]:
+            overrunning, skips = count // 3, 0
+            orng = random.Random("%s-%d-overrun" % (build, seed))
+            for n in range(overrunning):
+                tasks = draw_overrun(orng, build in DEADLINE_MONOTONIC,
+                                     firm_too=build.startswith("soft"))
+                wrap = random.Random("%s-%d-%d-overrun-wrap" % (build, seed, n))
+                phase = 0x40000000 - wrap.randint(1, DURATION) if wrap.random() < 0.5 else 0
+                # Half of them with the timer interrupt taken at the kernel's barriers too,
+                # where test/host checks that the ready queue stays whole: a task lost from
+                # it looks, in an overload, like one whose releases are skipped.
+                barriers = wrap.random() < 0.5
+                try:
+                    trace = run(build, tasks, phase, overruns=True, barriers=barriers)
+                    skips += sum(1 for line in trace.splitlines() if line.startswith("O "))
+                    check(build, tasks, trace, phase=phase, overruns=True)
+                except (Failure, subprocess.TimeoutExpired) as e:
+                    failed += 1
+                    print("%s, overrunning set %d %s, phase %d%s: %s" %
+                          (build, n, tasks, phase, ", at the barriers" if barriers else "", e))
+                    break
+            else:
+                print("%s: %d task sets, every trace holds" % (build, count) +
+                      (", and %d kept" % len(kept) if kept else "") +
+                      "; %d sets that overrun, %d releases skipped" % (overrunning, skips))
+            if not failed and decisions["admitted"] + decisions["dropped"]:
                 print("  optional instances: %(admitted)d admitted, %(dropped)d dropped (%(sure)d "
                       "checked), of which %(fits)d could have run, every instance taking its WCET "
                       "and keeping its deadline, "
