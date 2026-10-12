@@ -279,7 +279,7 @@ task 4 began the same day.
    2026-10-11**: `v0.1.0-rc1` on c0ff963, its CI and its four board checks passed. From
    it on, fixes only. (Until the runs of task 14 took every kernel again, `EscapementHard.c`
    was to stay as it was at 041af76, the commit of its week.)
-14. **Endurance on the candidate**: 8 hours for each kernel on each platform, as the
+14. **Endurance on the candidate — done on 2026-10-12.** 8 hours for each kernel on each platform, as the
    user decided on 2026-10-10 (a week until then, cut to 24 hours, then to this; rule 3
    of `CLAUDE.md`, "Before a release"). Ten runs, one board each platform, run in turn
    on it and in parallel across them, from flash once task 4 is done; the soft kernel
@@ -299,7 +299,13 @@ task 4 began the same day.
    NUCLEO boards took over the image they were running instead of the tag's, `soak.py`
    loading a NUCLEO only if it is silent; stopped two minutes in, both started again at
    14:29 with `BOARD_SOAK_RELOAD`, which `endurance.sh` sets since (a fix to the tools
-   alone, its commit held back so as not to start the board CI meanwhile).
+   alone, its commit held back so as not to start the board CI meanwhile). All ten
+   passed, each status `endurance/<platform>-<kernel>` posted on c0ff963 in success: 8
+   hours, no error, no restart, 26 wraps of the kernel clock, no reading REJECTED; the hard
+   kernels ended on 2026-10-11 near 22:30 UTC, the Pico 2's and the STM32U5's soft
+   kernels on 2026-10-12 near 06:30, the Pico's and the STM32U3's power-aware kernels at
+   14:30. The logs stay on the UNO Q, in `~/endurance-rc1/images`. `escapement-soak-u3`
+   started again after, the commits held back pushed.
 14b. **What the STM32U3's power-aware kernel saves — item 7, brought into 0.1.** Added by
    the user on 2026-10-11, during the runs of task 14. Measured on the candidate's own
    images, so that the verdict is on the code released: `SleepU3`, built from the tag
