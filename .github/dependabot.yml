@@ -1,0 +1,11 @@
+# Dependabot for the actions the workflows use. The CI image (ci/Dockerfile) is left out:
+# Dependabot would read only its base image, while the toolchains, Renode, .NET and the
+# Python packages are installed by commands it does not read, and a change to the
+# Dockerfile reaches the CI only once ci-image.yml rebuilds the image by hand under a new
+# tag that build.yml names.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

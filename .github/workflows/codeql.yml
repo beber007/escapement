@@ -1,0 +1,39 @@
+name: codeql
+
+# CodeQL over our C code, a fourth static analysis beside cppcheck, GCC's -fanalyzer and
+# clang (build.yml). It reads what a build compiles: tools/clang_check.sh, the three
+# kernels under both algorithms, the Cortex-M layer and each port, compiled for each
+# Cortex-M as the images are. A push to main analyses the whole code, and its alerts land
+# in the Security tab; on a pull request CodeQL reports only the alerts on the lines it
+# changes, so that a pull request touching no C reports nothing. The rule of main does
+# not require this check.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: CodeQL on the kernels and the ports
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: clang
+        run: sudo apt-get update -q && sudo apt-get install -y -q clang
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: c-cpp
+          build-mode: manual
+          queries: security-and-quality
+      - name: Every kernel, algorithm and port
+        run: sh tools/clang_check.sh
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:c-cpp

@@ -374,6 +374,16 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ## Done
 
+### Issues closed
+
+- **CodeQL and Dependabot (#22), 2026-10-13.** CodeQL reads the C code as
+  `tools/clang_check.sh` compiles it, the three kernels under both algorithms, the
+  Cortex-M layer and each port, with the queries `security-and-quality` (`codeql.yml`):
+  the whole code on every push to `main`, only the lines it changes on a pull request.
+  Dependabot follows the actions of the workflows each week; the CI image is left out,
+  as Dependabot would read only its base image and the image changes only when rebuilt
+  by hand under a new tag (`dependabot.yml`).
+
 ### Items of the open list, done when it moved to the issues (2026-10-12)
 
 - **The energy verdict on the RP2040** — in release 0.1 as its task 9, done on

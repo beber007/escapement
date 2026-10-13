@@ -25,7 +25,8 @@ exists because the fifth still runs through a debugger, and that turned out to m
 (the `TIMER_DBGPAUSE` investigation in `rp2040.md`). Beside these levels, the CI runs:
 
 - static analysis: cppcheck over each port, GCC's `-fanalyzer`, clang
-  (`tools/clang_check.sh`);
+  (`tools/clang_check.sh`), and since 2026-10-13 CodeQL over what clang compiles there
+  (`codeql.yml`);
 - the compiled order of the accesses the lock-free code depends on (below);
 - since 2026-10-04, coverage: a commit fails that leaves a line of the kernels unrun by
   the host test without saying why (`tools/coverage.py`);
