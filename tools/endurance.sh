@@ -13,12 +13,26 @@
 # PLATFORM is pico, pico2, u5 or u3, its kernels hard, soft and pa as DIR holds them; the
 # probe, the ST-LINK and the OpenOCD come from the environment as tools/soak.py takes them
 # (PROBE, OPENOCD, NUCLEO_SERIAL, NUCLEO_TTY). The run of a board the board CI also checks
-# must not overlap its checks: the Pico 2's probe lock keeps them apart, the STM32U3's long
-# run of the board CI, escapement-soak-u3, is to be stopped first, and no commit pushed
-# meanwhile.
+# must not overlap its checks, which come with every commit of main and of a pull request:
+# the Pico's and the Pico 2's probe locks keep them apart, and for the STM32U3 this script
+# holds the lock board-ci/lock-u3 (tools/board_ci.sh skips the board while it is held),
+# the long run of the board CI, escapement-soak-u3, to be stopped first.
 set -u
 PLATFORM=$1 SHA=$2 DIR=$3 DURATION=${4:-8h}
 HERE=$(cd "$(dirname "$0")" && pwd)
+if [ "$PLATFORM" = u3 ]; then
+    # Taken over if its process is gone, as tools/board_ci.sh takes its locks.
+    lock=${BOARD_CI_WORK:-$HOME/escapement-rp2040}/board-ci/lock-u3
+    mkdir -p "$(dirname "$lock")"
+    if ! mkdir "$lock" 2>/dev/null; then
+        if kill -0 "$(cat "$lock/pid" 2>/dev/null)" 2>/dev/null; then
+            echo "the NUCLEO-U385RG-Q is in use ($lock)" >&2; exit 2
+        fi
+        rm -rf "$lock" && mkdir "$lock" || exit 2
+    fi
+    echo $$ >"$lock/pid"
+    trap 'rm -rf "$lock"' EXIT
+fi
 case $PLATFORM in
     pico) KIND=pico ;; pico2) KIND=pico2 ;; u5) KIND=nucleo ;; u3) KIND=nucleo-u3 ;;
     *) echo "PLATFORM is pico, pico2, u5 or u3" >&2; exit 2 ;;

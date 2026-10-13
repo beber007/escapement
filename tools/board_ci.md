@@ -13,16 +13,36 @@ install the script under systemd on Linux, under launchd on a Mac, and on the UN
 A timer starts `board_ci.sh` every two minutes. The script fetches `main`. When `main`
 has moved since the last run, it runs the checks on a Pico wired to the machine and
 posts the outcome as the commit status `board/pico`. Posting takes a fine-grained token
-for this repository alone ("Commit statuses: read and write"). Only `main` is ever
-built, and only its owner pushes to it. Since the machine pulls, no pull request runs
-there. A run with nothing new ends at once, in some 2 s, when the commit was already
-checked or its CI has not finished. The timer ran every half hour until 2026-09-27, when
+for this repository alone ("Commit statuses: read and write"). When `main` is checked,
+it takes the open pull requests, oldest first, one a run: the head of each whose branch
+is in this repository, not yet checked, gets the same checks and statuses, and the rule
+of `main` requires them before a merge (issue #21, 2026-10-13). A pull request from a
+fork is never taken: its head must be that of the branch of the same name here, which
+only those who may push to the repository can make, and Dependabot, whose pull requests
+change the versions of the actions alone (`.github/dependabot.yml`): the tools they run
+on the bench are then `main`'s, and an action that went bad could at worst change the
+images the CI builds, loaded into the boards, not into this machine. Since the machine
+pulls, nothing a fork sends runs there. A pull request's images are those its run
+builds, its head merged into its base, and its tools those of its head: a branch behind
+`main` may fail on a change of the tools since, until it takes `main` in. The list of pull requests is read without the token, GitHub
+giving it to anyone for a public repository. The script always runs as `main` has it,
+the tools of the checks as the commit checked has them; on a pull request the long runs
+of the STM32 boards are checked without their long run (`BOARD_SOAK_SERVICE=none`,
+`unoq_check.sh`), nothing written to a flash, then started again: `soak.py` counts them
+interrupted and loads `main`'s image again. A change to `board_ci.sh` itself is thus checked on the bench only once merged.
+A run with nothing new ends at once, in some 2 s, when every commit was already checked
+or its CI has not finished. The timer ran every half hour until 2026-09-27, when
 that wait had become the longest part of a check.
 
 A run holds a lock. Between runs the board is free for work by hand, which must not
 overlap a run. Each Debug Probe has a lock of its own too, `lock-probe1` and so on, which
 an endurance run (`tools/soak.py pico`) holds for as long as it lasts: the board CI then
-skips the board on that probe, without posting its status, and checks the others. The logs stay on the machine, under `~/escapement-rp2040/board-ci/logs`.
+skips the board on that probe, without posting its status, and checks the others. The
+NUCLEO-U385RG-Q, on no probe of ours, has `lock-u3`, which `tools/endurance.sh` holds
+for a candidate's runs on it: a pull request no longer leaves `main` alone, and its
+checks would load their images over such a run. A
+pull request checked so lacks that status, which its merge requires: a new push to its
+branch, or its head taken out of `board-ci/prs-checked`, has it checked again. The logs stay on the machine, under `~/escapement-rp2040/board-ci/logs`.
 A lock whose process is gone is taken over, under `flock` where there is one, as on the
 UNO Q: two processes taking over one stale lock at once could both hold it (a review,
 2026-09-30).

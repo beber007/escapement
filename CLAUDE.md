@@ -27,15 +27,16 @@ Set by the user; no session reopens them.
   CI's `build` passed, a linear history, neither a force push nor a deletion, and no
   push straight to it, the user's included, unless the rule is turned off on purpose.
   Work goes on a branch while an endurance run holds `main` still. The board checks run
-  once a change is merged: `tools/board_ci.sh` tests `main` alone, and a pull request
-  runs nothing on the bench.
+  on each pull request from a branch of this repository, never a fork's, and on `main`
+  once it is merged (`tools/board_ci.sh`); the rule requires `board/pico`,
+  `board/pico2`, `board/u5` and `board/u3` too (issue #21, 2026-10-13).
 - **Each release keeps a stable branch, `release/X.Y`, for its fixes** (decided by the
   user on 2026-10-12). Made from the release's tag, under the same rule of GitHub as
   `main`. A fix goes to it through a pull request, then is tagged `vX.Y.Z+1` and carried
   to `main` too. A fix to a kernel goes through "Before a release" in proportion: a
   candidate, the board checks, and the endurance of the kernel it touches; a fix to a
-  tool or to the documentation does not. The board CI tests `main` alone: the checks of
-  a fix on a release branch are run by hand until it learns to. The first pull request
+  tool or to the documentation does not. The board CI checks a pull request to a
+  release branch as one to `main`. The first pull request
   to `release/0.1` brings the job `build` its workflow lacks (added after `v0.1.0`), the
   one check the rule requires.
 - **The open work lives in the issues; a pull request holds one subject** (decided by the

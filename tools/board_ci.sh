@@ -2,15 +2,22 @@
 # Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
 # LICENSE at the root of this repository.
 #
-# Run the board checks on the newest commit of main and post the outcome to GitHub as a
-# commit status ("board/pico"). Meant for the machine the Pico is wired to, run by a
-# timer; installing it: tools/board_ci.md, the checks: docs/rp2040.md.
+# Run the board checks on the newest commit of main, then on the head of each open pull
+# request from a branch of this repository, and post the outcome to GitHub as commit
+# statuses ("board/pico"). Meant for the machine the Pico is wired to, run by a timer;
+# installing it: tools/board_ci.md, the checks: docs/rp2040.md.
 #
 #   tools/board_ci.sh [--force]      # --force: test main again even if already tested
 #
-# The machine pulls; GitHub never pushes code to it. Only main is ever built, and only
-# its owner pushes to it: a pull request, from a fork or not, runs nothing here — which
-# a self-hosted runner on a public repository could not promise.
+# The machine pulls; GitHub never pushes code to it. It checks main, and a pull request
+# only if its head is that of a branch of this repository, which only those who may push
+# to it, and Dependabot, can make (tools/board_ci.md): a pull request from a fork runs
+# nothing here, whatever it changes —
+# which a self-hosted runner on a public repository could not promise (issue #21). Main
+# comes first; then each run checks one pull request, the oldest whose head is not yet
+# checked. The script itself always runs as main has it; the tools of the checks are
+# those of the commit checked. On a pull request the long runs of the STM32 boards do not
+# take its images: they go on with main's (resume() below).
 #
 # On Linux it builds in one container and drives the probe from another; on macOS,
 # with the toolchain and OpenOCD from Homebrew, it runs both on the machine itself:
@@ -85,8 +92,11 @@ elif ! take "$LOCK"; then
     echo "another run holds $LOCK"; exit 0
 fi
 echo $$ >"$LOCK/pid"
-held=""
-trap 'rm -rf "$LOCK" $held' EXIT
+held="" PR="" MAIN=""
+# After a pull request, main is checked out again: the timer starts this script from the
+# checkout, and must find main's.
+trap 'rm -rf "$LOCK" $held
+      [ -z "$PR" ] || git -C "$SRC" checkout --quiet --force --detach "$MAIN"' EXIT
 
 # hold <probe>: the lock of one Debug Probe, which tools/soak.py holds for as long as an
 # endurance run lasts on the board wired to it; returns 1 while a live process holds it.
@@ -99,20 +109,35 @@ hold() {
 
 [ -d "$SRC/.git" ] || git clone --quiet "https://github.com/$REPO.git" "$SRC"
 git -C "$SRC" fetch --quiet origin main
-SHA=$(git -C "$SRC" rev-parse origin/main)
-if [ "${1:-}" != "--force" ] && [ "$(cat "$DIR/last" 2>/dev/null)" = "$SHA" ]; then
-    exit 0
+MAIN=$(git -C "$SRC" rev-parse origin/main)
+main_due=""
+if [ "${1:-}" = "--force" ] || [ "$(cat "$DIR/last" 2>/dev/null)" != "$MAIN" ]; then
+    main_due=yes
 fi
-git -C "$SRC" checkout --quiet --force --detach "$SHA"
+# The open pull requests from a branch of this repository whose head is not checked yet,
+# oldest first, as number:head:branch. GitHub lists them to anyone: no token. The answer
+# kept before jq reads it, as in ci_images below; none read, none this run.
+prs=""
+if json=$(curl --silent --show-error --fail \
+        "https://api.github.com/repos/$REPO/pulls?state=open&sort=created&direction=asc&per_page=100"); then
+    for pr in $(printf '%s' "$json" | jq -r --arg r "$REPO" \
+            '.[] | select(.head.repo.full_name == $r) | "\(.number):\(.head.sha):\(.head.ref)"'); do
+        sha=${pr#*:}; sha=${sha%%:*}
+        grep -qx "$sha" "$DIR/prs-checked" 2>/dev/null || prs="$prs $pr"
+    done
+fi
+[ -n "$main_due$prs" ] || exit 0
+git -C "$SRC" checkout --quiet --force --detach "$MAIN"
 git -C "$SRC" clean --quiet -fdx
 # The timer runs this script from the checkout it has just updated, and the shell goes on
 # reading the file it opened: a change to the script took effect one run late, and the
 # first run of a new check reported the old ones. Start the new script instead, once.
+# Always main's: a pull request's tools are checked out only further down.
 if [ "${BOARD_CI_RESTARTED:-}" != yes ] &&
    [ "$STARTED_AS" != "$(cksum <"$SRC/tools/board_ci.sh")" ]; then
-    BOARD_CI_RESTARTED=yes exec sh "$SRC/tools/board_ci.sh" --force
+    BOARD_CI_RESTARTED=yes exec sh "$SRC/tools/board_ci.sh" "$@"
 fi
-LOG=$DIR/logs/$(date +%Y%m%d-%H%M%S)-$(echo "$SHA" | cut -c1-7).log
+SHA=$MAIN
 
 status() {   # state description [context, board/pico by default]
     [ -r "$TOKEN" ] || return 0
@@ -140,16 +165,19 @@ api() {   # path: a GET on the repository's API
         -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/$1"
 }
 
-# ci_images: the images the CI built for $SHA into $DIR/fw. Returns 1 while its run is
+# ci_images <event>: the images the CI built for $SHA into $DIR/fw, in its run on that
+# event (push for main, pull_request for a pull request, whose run builds the head merged
+# into its base, as it would land). Returns 1 while its run is
 # not over, which the next run of this script waits for; 2 if there are none; 3 if the
 # run failed, its images then vouching for nothing (a review, 2026-09-30: the board posted
 # its statuses on the images of a run whose checks had failed), with $attempt set; 4 if
 # GitHub did not answer or the download broke, which the next run tries again.
 ci_images() {
+    event=$1
     # The answer kept before jq reads it: piped, the status was jq's, 0 on an empty input,
     # and a GitHub that did not answer passed for a run with no images (a review,
     # 2026-10-11).
-    json=$(api "actions/workflows/build.yml/runs?head_sha=$SHA&event=push") || return 4
+    json=$(api "actions/workflows/build.yml/runs?head_sha=$SHA&event=$event") || return 4
     run=$(printf '%s' "$json" |
           jq -r '.workflow_runs[0] | "\(.status) \(.conclusion) \(.id) \(.run_attempt)"') ||
         return 4
@@ -247,30 +275,61 @@ dvfs() {
             exit !(ok && rows == 8) }'
 }
 
-checks="fourslot_hard fourslot_pa cost_hard events_hard events_soft events_pa dvfs_pa"
-if [ "$IMAGES" = ci ]; then
-    [ -r "$TOKEN" ] || { echo "BOARD_CI_IMAGES=ci needs $TOKEN"; exit 1; }
+# checked: $SHA checked, not to be again: main's in the file last, a pull request's added to
+# prs-checked.
+checked() {
+    if [ -z "$PR" ]; then echo "$SHA" >"$DIR/last"; else echo "$SHA" >>"$DIR/prs-checked"; fi
+}
+
+# The commit to check: main if due, else the pull requests in turn; with the CI's images,
+# the first whose run is over, so that a run not over or failed, main's included, holds
+# none of the others back. One commit a run.
+[ "$IMAGES" != ci ] || [ -r "$TOKEN" ] || { echo "BOARD_CI_IMAGES=ci needs $TOKEN"; exit 1; }
+picked=""
+for candidate in ${main_due:+main} $prs; do
+    if [ "$candidate" = main ]; then
+        SHA=$MAIN PR="" event=push
+    else
+        PR=${candidate%%:*} rest=${candidate#*:}
+        SHA=${rest%%:*} BRANCH=${rest#*:} event=pull_request
+    fi
+    [ "$IMAGES" = ci ] || { picked=yes; break; }
     got=0
-    ci_images || got=$?
-    if [ $got -eq 1 ]; then
-        echo "the CI has not finished with $SHA"; exit 0
+    ci_images $event || got=$?
+    if [ $got -eq 0 ]; then
+        picked=yes; break
+    elif [ $got -eq 1 ]; then
+        echo "the CI has not finished with $SHA"
     elif [ $got -eq 3 ]; then
         # Posted once per attempt of the run: one run again and passing is then checked.
-        if [ "$(cat "$DIR/ci-failed" 2>/dev/null)" != "$SHA $attempt" ]; then
-            echo "$SHA $attempt" >"$DIR/ci-failed"
+        if ! grep -qx "$SHA $attempt" "$DIR/ci-failed" 2>/dev/null; then
+            echo "$SHA $attempt" >>"$DIR/ci-failed"
             status error "the CI failed on this commit: not checked on the board"
         fi
-        echo "the CI failed on $SHA (run $attempt)"; exit 0
+        echo "the CI failed on $SHA (run $attempt)"
     elif [ $got -eq 4 ]; then
-        echo "no answer from GitHub for $SHA: tried again at the next run"; exit 0
-    elif [ $got -ne 0 ]; then
-        echo "$SHA" >"$DIR/last"
+        echo "no answer from GitHub for $SHA: tried again at the next run"
+    else
+        checked
         status error "no images from the CI for this commit"
-        exit 1
     fi
-else
-    checks="order_hard order_soft order_pa $checks"
+done
+[ -n "$picked" ] || { PR=""; exit 0; }
+what=main
+if [ -n "$PR" ]; then
+    # Its head only if the branch of that name here is at it: GitHub's list is not trusted
+    # to tell a fork from this repository.
+    git -C "$SRC" fetch --quiet origin "refs/heads/$BRANCH" &&
+        [ "$(git -C "$SRC" rev-parse FETCH_HEAD)" = "$SHA" ] ||
+        { echo "pull request #$PR: $BRANCH is not at $SHA here, checked at a next run"; exit 0; }
+    git -C "$SRC" checkout --quiet --force --detach "$SHA"
+    git -C "$SRC" clean --quiet -fdx
+    what="pull request #$PR"
 fi
+LOG=$DIR/logs/$(date +%Y%m%d-%H%M%S)-$(echo "$SHA" | cut -c1-7).log
+
+checks="fourslot_hard fourslot_pa cost_hard events_hard events_soft events_pa dvfs_pa"
+[ "$IMAGES" = ci ] || checks="order_hard order_soft order_pa $checks"
 
 # The Pico, unless an endurance run holds its probe: then no check and no status.
 pico=yes
@@ -281,7 +340,7 @@ fi
 [ -z "$pico" ] || status pending "running on the Pico"
 failed=""
 {
-    echo "main at $SHA, $(date), images: $IMAGES"
+    echo "$what at $SHA, $(date), images: $IMAGES"
     [ "$IMAGES" = build ] || cat "$DIR/fw/compiler" 2>/dev/null || true
     [ -n "$pico" ] || echo "the Pico is not checked: its probe is held ($DIR/lock-${PROBE:-probe1})"
     for check in $checks; do
@@ -319,47 +378,66 @@ failed=""
     done
 } >"$LOG" 2>&1
 
+# The long runs of the STM32 boards go on with main's commit, never a pull request's: on
+# one, each board is checked without its long run (BOARD_SOAK_SERVICE=none, which every
+# version of tools/unoq_check.sh since 0.1 knows: the long run stopped, neither carried
+# on nor its flash written), which resume() then starts again. soak.py finds the board
+# running the checked image, whose seconds fall short of those the long run counted plus
+# the time it was stopped, counts it interrupted and loads its own image again.
+service="" long="the long run goes on"
+if [ -n "$PR" ]; then service=none long="the long run kept on main's image"; fi
+resume() {   # resume <board>: its long run started again after a pull request's check
+    [ -z "$PR" ] || [ ! -f "$HOME/.config/systemd/user/escapement-soak-$1.service" ] ||
+        systemctl --user start "escapement-soak-$1"
+}
+
 # The STM32U5 of the UNO Q, on the CI's image of its endurance test.
 u5=""
 if [ "${BOARD_CI_U5:-}" = 1 ] && [ -f "$DIR/fw/soak_u5/SoakU5.elf" ]; then
     status pending "running on the UNO Q's STM32U5" board/u5
-    if (cd "$SRC" && sh tools/unoq_check.sh "$DIR/fw/soak_u5/SoakU5.elf" "$SHA") \
-            >>"$LOG" 2>&1; then
+    if (cd "$SRC" && BOARD_SOAK_SERVICE=$service \
+            sh tools/unoq_check.sh "$DIR/fw/soak_u5/SoakU5.elf" "$SHA") >>"$LOG" 2>&1; then
         u5=success
-        status success "Stop 2 for 1 min with the HSE and 1 without, endurance test for 2, clock within 300 ppm; the long run goes on" \
+        status success "Stop 2 for 1 min with the HSE and 1 without, endurance test for 2, clock within 300 ppm; $long" \
             board/u5
     else
         u5=failure
         status failure "Stop 2, the endurance test or the clock failed; see the bench's log" board/u5
     fi
+    resume u5
 fi
 
-# The STM32U385 of the NUCLEO-U385RG-Q, on the CI's images.
+# The STM32U385 of the NUCLEO-U385RG-Q, on the CI's images, unless an endurance run holds
+# it (lock-u3, tools/endurance.sh): then no check and no status, as for a probe.
 u3=""
-if [ "${BOARD_CI_U3:-}" = 1 ] && [ -f "$DIR/fw/soak_u3/SoakU3.elf" ]; then
+if [ "${BOARD_CI_U3:-}" = 1 ] && [ -f "$DIR/fw/soak_u3/SoakU3.elf" ] && ! hold u3; then
+    echo "the NUCLEO-U385RG-Q is not checked: an endurance run holds it ($DIR/lock-u3)" >>"$LOG"
+elif [ "${BOARD_CI_U3:-}" = 1 ] && [ -f "$DIR/fw/soak_u3/SoakU3.elf" ]; then
     status pending "running on the NUCLEO-U385RG-Q" board/u3
     # u3check ELF [none]: the checks of one kernel's images, with none for a check
-    # without the long run (tools/unoq_check.sh); empty, the service is the default one.
+    # without the long run (tools/unoq_check.sh); empty, the service is the default one,
+    # or none on a pull request.
     u3check() {
         (cd "$SRC" && BOARD=u3 NUCLEO_SERIAL=${BOARD_CI_U3_SERIAL:-} \
-            NUCLEO_TTY=${BOARD_CI_U3_TTY:-} BOARD_SOAK_SERVICE=${2:-} \
+            NUCLEO_TTY=${BOARD_CI_U3_TTY:-} BOARD_SOAK_SERVICE=${2:-$service} \
             OPENOCD=${BOARD_CI_OPENOCD_U3:-$HOME/opt/openocd-upstream/bin/openocd} \
             sh tools/unoq_check.sh "$1" "$SHA") >>"$LOG" 2>&1
     }
     # The power-aware kernel first, if the images have it, then the hard kernel, whose
-    # check carries the long run on.
+    # check carries the long run on, on main.
     pa=yes
     if [ -f "$DIR/fw/soak_u3_pa/SoakU3.elf" ]; then
         u3check "$DIR/fw/soak_u3_pa/SoakU3.elf" none || pa=""
     fi
     if u3check "$DIR/fw/soak_u3/SoakU3.elf" && [ -n "$pa" ]; then
         u3=success
-        status success "Stop 2 for 1 min, endurance test for 2, clock within 300 ppm, hard and power-aware kernels; the long run goes on" \
+        status success "Stop 2 for 1 min, endurance test for 2, clock within 300 ppm, hard and power-aware kernels; $long" \
             board/u3
     else
         u3=failure
         status failure "Stop 2, the endurance test or the clock failed; see the bench's log" board/u3
     fi
+    resume u3
 fi
 
 # The Pico 2, on the CI's images.
@@ -391,7 +469,7 @@ elif [ "${BOARD_CI_PICO2:-}" = 1 ] && [ -f "$DIR/fw/pico2/SoakPico2.elf" ]; then
     fi
 fi
 
-echo "$SHA" >"$DIR/last"
+checked
 if [ -z "$pico" ]; then
     :
 elif [ -n "$failed" ]; then
