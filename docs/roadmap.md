@@ -376,6 +376,12 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **Board checks on pull requests (#21), 2026-10-13.** `tools/board_ci.sh` checks the
+  head of each open pull request from a branch of this repository, after `main`, one a
+  run, and posts the same four statuses on it; a fork's is never taken, its head having
+  to be that of a branch here. The long runs of the STM32 boards stay on `main`'s image,
+  stopped for the check and started again. The rule of `main` requires the four statuses.
+
 - **CodeQL and Dependabot (#22), 2026-10-13.** CodeQL reads the C code as
   `tools/clang_check.sh` compiles it, the three kernels under both algorithms, the
   Cortex-M layer and each port, with the queries `security-and-quality` (`codeql.yml`):
