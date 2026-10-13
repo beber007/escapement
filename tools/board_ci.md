@@ -30,6 +30,13 @@ the tools of the checks as the commit checked has them; on a pull request the lo
 of the STM32 boards are checked without their long run (`BOARD_SOAK_SERVICE=none`,
 `unoq_check.sh`), nothing written to a flash, then started again: `soak.py` counts them
 interrupted and loads `main`'s image again. A change to `board_ci.sh` itself is thus checked on the bench only once merged.
+On a pull request the bench also leaves one comment, its own, found by a marker and
+replaced at each check (issue #28, 2026-10-13): the statuses it posted, the key figures
+of the log and the whole log, the probes' serial numbers and this machine's paths taken
+out. It takes "Pull requests: read and write" on the token, which GitHub accepts, as
+"Issues: write", for a comment on a pull request; without it the statuses alone are
+posted. A commit of `main` has no pull request and gets the statuses alone.
+
 A run with nothing new ends at once, in some 2 s, when every commit was already checked
 or its CI has not finished. The timer ran every half hour until 2026-09-27, when
 that wait had become the longest part of a check.
@@ -192,8 +199,9 @@ ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000f", MODE="0660", GROUP="plugdev"
 EOF
 sudo usermod -aG plugdev "$USER" && sudo udevadm control --reload
 git clone https://github.com/beber007/escapement.git ~/escapement-rp2040/board-ci/src
-# a fine-grained token for this repository alone: "Commit statuses: read and write"
-# and "Actions: read-only"; cat it in, then Ctrl-D
+# a fine-grained token for this repository alone: "Commit statuses: read and write",
+# "Actions: read-only" and "Pull requests: read and write" (the comment on each pull
+# request, below); cat it in, then Ctrl-D
 mkdir -p ~/.config/escapement-board-ci && (umask 077 && cat > ~/.config/escapement-board-ci/token)
 ```
 

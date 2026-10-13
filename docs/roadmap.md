@@ -376,6 +376,10 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **The bench's results on the pull request (#28), 2026-10-13.** `tools/board_ci.sh`
+  leaves one comment on each pull request it checks, replaced at each check: the
+  statuses, the key figures and the whole log, serial numbers and local paths taken out.
+
 - **Board checks on pull requests (#21), 2026-10-13.** `tools/board_ci.sh` checks the
   head of each open pull request from a branch of this repository, after `main`, one a
   run, and posts the same four statuses on it; a fork's is never taken, its head having
