@@ -140,6 +140,8 @@ fi
 SHA=$MAIN
 
 status() {   # state description [context, board/pico by default]
+    # Kept for the comment on a pull request, the last of each context counting.
+    printf '%s\t%s\t%s\n' "${3:-board/pico}" "$1" "$2" >>"$DIR/posted"
     [ -r "$TOKEN" ] || return 0
     jq -n --arg s "$1" --arg d "$2" --arg c "${3:-board/pico}" \
         '{state: $s, context: $c, description: $d}' |
@@ -327,6 +329,8 @@ if [ -n "$PR" ]; then
     what="pull request #$PR"
 fi
 LOG=$DIR/logs/$(date +%Y%m%d-%H%M%S)-$(echo "$SHA" | cut -c1-7).log
+STARTED=$(date +%s)
+: >"$DIR/posted"
 
 checks="fourslot_hard fourslot_pa cost_hard events_hard events_soft events_pa dvfs_pa"
 [ "$IMAGES" = ci ] || checks="order_hard order_soft order_pa $checks"
@@ -389,6 +393,62 @@ if [ -n "$PR" ]; then service=none long="the long run kept on main's image"; fi
 resume() {   # resume <board>: its long run started again after a pull request's check
     [ -z "$PR" ] || [ ! -f "$HOME/.config/systemd/user/escapement-soak-$1.service" ] ||
         systemctl --user start "escapement-soak-$1"
+}
+
+# comment: the outcome on the pull request, one comment of the bench's, found by its
+# marker and replaced at each check (issue #28): the statuses posted, the key figures and
+# the whole log, the probes' serial numbers and this machine's paths taken out. Needs
+# the token to write pull requests; without, the statuses alone are posted.
+comment() {
+    [ -r "$TOKEN" ] || return 0
+    marker="<!-- board-ci -->"
+    log=$(sed -e "s|$HOME|~|g" -e 's/[0-9A-F]\{16,\}/<serial>/g' "$LOG")
+    body=$(
+        echo "$marker"
+        echo "### Board checks of $(echo "$SHA" | cut -c1-7)"
+        echo
+        echo "$(date -u '+%Y-%m-%d %H:%M UTC'), $((($(date +%s) - STARTED + 59) / 60)) min, images: $IMAGES"
+        echo
+        echo "| Board | State | Description |"
+        echo "|---|---|---|"
+        # The last status of each context, in the order first posted.
+        awk -F'\t' '!($1 in last) { order[++n] = $1 } { last[$1] = $2 "\t" $3 }
+            END { for (i = 1; i <= n; i++) { split(last[order[i]], f, "\t")
+                  printf "| %s | %s | %s |\n", order[i], f[1], f[2] } }' "$DIR/posted"
+        echo
+        echo "<details><summary>Key figures</summary>"
+        echo
+        echo '```text'
+        printf '%s\n' "$log" | grep -E '^(=== |ok|FAILED|mean|maximum|rounds|4-slot buffer|events delivered|[0-9]+ -> [0-9]+ MHz|SleepU|[0-9]+ reports over)' || true
+        echo '```'
+        echo "</details>"
+        echo
+        echo "<details><summary>The bench's log ($(printf '%s\n' "$log" | wc -l) lines)</summary>"
+        echo
+        echo '```text'
+        printf '%s\n' "$log" | head -c 60000
+        echo '```'
+        echo "</details>"
+    )
+    auth="Authorization: Bearer $(cat "$TOKEN")"
+    url="https://api.github.com/repos/$REPO/issues"
+    # The answer kept before jq reads it, as in ci_images: unread, a second comment is
+    # posted rather than none.
+    id=""
+    if json=$(curl --silent --show-error --fail -H "$auth" "$url/$PR/comments?per_page=100"); then
+        id=$(printf '%s' "$json" |
+             jq -r --arg m "$marker" '[.[] | select(.body | startswith($m))][0].id // empty') ||
+            id=""
+    fi
+    if [ -n "$id" ]; then
+        method=PATCH target=$url/comments/$id
+    else
+        method=POST target=$url/$PR/comments
+    fi
+    jq -n --arg b "$body" '{body: $b}' |
+        curl --silent --show-error --fail --output /dev/null -X "$method" -H "$auth" \
+            -H "Accept: application/vnd.github+json" --data @- "$target" ||
+        echo "the comment on pull request #$PR was not posted"
 }
 
 # The STM32U5 of the UNO Q, on the CI's image of its endurance test.
@@ -480,4 +540,5 @@ else
     status success "compiled order, 4-slot across cores, round cost, timer events, DVFS"
 fi
 cat "$LOG"
+[ -z "$PR" ] || comment
 [ -z "$failed" ] && [ "$u5" != failure ] && [ "$u3" != failure ] && [ "$pico2" != failure ]
