@@ -78,6 +78,37 @@ kilobytes of RAM.**
 | **+28 ppm** | is how far the periods are off, read by an external frequency counter. A Pico 2 reads the same, so the offset is the counter's reference, not the boards ([`docs/rp2040.md`](docs/rp2040.md)) |
 | **108,000** | task activations in three hours on an STM32U5, none a microsecond off its period. Between them the idle task slept in Stop 2 454,487 times, the kernel's clock stopped ([`docs/stm32u5.md`](docs/stm32u5.md)) |
 
+## How it schedules
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/edf-dm-dark.svg">
+  <img src="docs/images/edf-dm-light.svg" alt="Two tasks at 94 % of the processor: under EDF every deadline is kept; under deadline-monotonic scheduling the second task is unfinished at 80, its deadline" width="100%">
+</picture>
+
+Two tasks, one every 50 ticks that runs 25, one every 80 that runs 35, take 94 % of the
+processor. Under EDF the hard kernel keeps every deadline. Under deadline-monotonic
+scheduling the first task always comes first, and the second has done 30 of its 35 when
+its deadline comes at 80. Neither task ran past its execution time: it is the algorithm
+that fails, not a task. The kernel stops at such an overrun by default; here the
+overrun hook lets it go on, the second task's release at 80 skipped
+([`docs/api.md`](docs/api.md#when-an-instance-overruns)).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/firm-dark.svg">
+  <img src="docs/images/firm-light.svg" alt="Two (m,k)-firm tasks asking for 110 % of the processor: the soft kernel drops two optional instances in the 400 ticks shown and keeps every deadline" width="100%">
+</picture>
+
+Make each task 5 longer and the same two ask for 110 %. Declared (m,k)-firm, 2 of every
+3 instances of the first mandatory and 1 of every 2 of the second, they still keep every
+deadline under the soft kernel. It starts an optional instance only if every mandatory
+deadline still holds with it ([`docs/api.md`](docs/api.md)), and drops the others: two
+in the 400 ticks shown.
+
+Both figures are the kernels themselves, built for the host, where time is counted in
+ticks of a variable, and traced as they ran, not drawn by hand: `tools/host_figures.py`
+runs them, checks each trace against its algorithm and what this section says of it,
+and draws them. The CI fails if a kernel would draw them otherwise.
+
 ## Where it runs
 
 | Board | Core | Kernels | Run on |

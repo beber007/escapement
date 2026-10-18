@@ -249,6 +249,8 @@ jobs:
         run: make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
       - name: Random task sets, every trace checked against the algorithm of its build
         run: python3 tools/differential.py
+      - name: The README's figures of how it schedules, as the kernels draw them now
+        run: python3 -O tools/host_figures.py --self-test --check
 
   clang:
     # A third compiler for the kernels and the ports, compiled for each Cortex-M as the
