@@ -376,6 +376,12 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **The boards checked side by side (#32), 2026-10-18.** `tools/board_ci.sh` runs the
+  Pico, the Pico 2, the STM32U5 and the STM32U3 at once, each through its own debugger,
+  and puts their logs together after: 16 minutes for a check against 28 in turn, the
+  STM32U3's two kernels the longest. The clocks against Linux's read the same as in turn,
+  +36.2, -80.7 and -91.9 ppm against +36.2, -81 and -92.3.
+
 - **How it schedules, drawn by the kernel itself (#11), 2026-10-18.** Two figures in the
   README, from the host build's trace: (50, 25) and (80, 35) at 94 % of the processor,
   every deadline kept under EDF, the second task unfinished at 80 under DM; the same
