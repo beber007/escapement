@@ -48,6 +48,13 @@ echo "timer:    $(systemctl --user show -p ActiveState --value escapement-board-
      "last $(systemctl --user show -p LastTriggerUSec --value escapement-board-ci.timer)"
 last=$(ls -t "$WORK/logs" 2>/dev/null | head -1)
 [ -n "$last" ] && echo "last log: $last, $(tail -1 "$WORK/logs/$last" | cut -c1-90)"
+# A run's boards, side by side, each in its own log until the run puts them together;
+# a board it does not check keeps the log of a run before.
+if [ -d "$WORK/lock" ]; then
+    for job in "$WORK"/job-*.log; do
+        [ "$job" -nt "$WORK/lock" ] && echo "  $(basename "$job" .log | cut -c5-): $(tail -1 "$job" | cut -c1-80)"
+    done
+fi
 
 echo
 echo "== Endurance runs"

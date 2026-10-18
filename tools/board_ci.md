@@ -42,17 +42,22 @@ or its CI has not finished. The timer ran every half hour until 2026-09-27, when
 that wait had become the longest part of a check.
 
 A run holds a lock. Between runs the board is free for work by hand, which must not
-overlap a run. Each Debug Probe has a lock of its own too, `lock-probe1` and so on, which
-an endurance run (`tools/soak.py pico`) holds for as long as it lasts: the board CI then
-skips the board on that probe, without posting its status, and checks the others. The
-NUCLEO-U385RG-Q, on no probe of ours, has `lock-u3`, which `tools/endurance.sh` holds
-for a candidate's runs on it: a pull request no longer leaves `main` alone, and its
-checks would load their images over such a run. A
-pull request checked so lacks that status, which its merge requires: a new push to its
-branch, or its head taken out of `board-ci/prs-checked`, has it checked again. The logs stay on the machine, under `~/escapement-rp2040/board-ci/logs`.
-A lock whose process is gone is taken over, under `flock` where there is one, as on the
-UNO Q: two processes taking over one stale lock at once could both hold it (a review,
-2026-09-30).
+overlap a run. Within one, the boards are checked side by side, each through its own
+debugger (a Debug Probe, an ST-LINK, the UNO Q's own SWD), each with its own log, put
+together in a fixed order once all are done: 16 minutes on 2026-10-18 against 28 in turn,
+with the same clocks against Linux's. Under the containers of Linux, the probe container
+must see the table of probes (`tools/probe.sh`): without it, the Pico's OpenOCD takes the
+first Debug Probe it finds, which may be the Pico 2's. Each Debug Probe has a lock of its
+own too, `lock-probe1` and so on, which an endurance run (`tools/soak.py pico`) holds for
+as long as it lasts: the board CI then skips the board on that probe, without posting its
+status, and checks the others. The NUCLEO-U385RG-Q, on no probe of ours, has `lock-u3`,
+which `tools/endurance.sh` holds for a candidate's runs on it: a pull request no longer
+leaves `main` alone, and its checks would load their images over such a run. A pull
+request checked so lacks that status, which its merge requires: a new push to its branch,
+or its head taken out of `board-ci/prs-checked`, has it checked again. The logs stay on
+the machine, under `~/escapement-rp2040/board-ci/logs`. A lock whose process is gone is
+taken over, under `flock` where there is one, as on the UNO Q: two processes taking over
+one stale lock at once could both hold it (a review, 2026-09-30).
 
 The checks run on the CI's images only when its run succeeded. A run that failed gets
 the status `error` once per attempt of that run, and nothing is checked on the board: its
@@ -78,7 +83,7 @@ must agree with it.
 
 | Probe or port | Board | Role | Held by |
 |---|---|---|---|
-| probe1 | Pico W | the checks of each commit, `board/pico` | `board_ci.sh`, some 10 min of a check's 20 |
+| probe1 | Pico W | the checks of each commit, `board/pico` | `board_ci.sh`, a minute of a check's 16, side by side with the others (2026-10-18) |
 | probe2 | Pico | the endurance test, a week per kernel, `board/soak`; the PPK2 since 2026-10-10 (roadmap, task 9) | `escapement-soak-pico`, stopped on 2026-10-10 |
 | probe3 | Pico 2, the probe's UART on GP0 and GP1 | the checks of each commit, `board/pico2` | `board_ci.sh` |
 | STLINK-V3 | NUCLEO-U575ZI-Q | a run until stopped, `board/soak-nucleo` | `escapement-soak-nucleo` |
@@ -126,8 +131,9 @@ Description=Escapement: board checks on the newest main
 
 [Service]
 Type=oneshot
-# A check took 28 minutes on 2026-10-11, the STM32U3's two kernels with it; one stuck on a
-# probe's USB is stopped at the hour, its locks then taken over by the next run, and the
+# A check took 28 minutes on 2026-10-11, the boards in turn, and 16 on 2026-10-18, side
+# by side (issue #32), the STM32U3's two kernels the longest; one stuck on a probe's
+# USB is stopped at the hour, its locks then taken over by the next run, and the
 # commit, never marked as checked, checked again whole.
 TimeoutStartSec=1h
 ExecStart=/bin/sh %h/escapement-rp2040/board-ci/src/tools/board_ci.sh

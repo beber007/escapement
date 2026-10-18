@@ -35,7 +35,7 @@
 #                    no compiler: the token must then also read Actions. The compiled
 #                    order, which the bench checked under a second compiler, is then the
 #                    CI's to check (build.yml).
-#   BOARD_CI_U5      1 on the Arduino UNO Q: after the Pico, the STM32U5 of the board is
+#   BOARD_CI_U5      1 on the Arduino UNO Q: beside the Pico, the STM32U5 of the board is
 #                    checked too (tools/unoq_check.sh), on the CI's image, and posted as
 #                    the status "board/u5"; the endurance run it holds goes on with the
 #                    commit if it passes.
@@ -95,8 +95,11 @@ echo $$ >"$LOCK/pid"
 held="" PR="" MAIN=""
 # After a pull request, main is checked out again: the timer starts this script from the
 # checkout, and must find main's.
-trap 'rm -rf "$LOCK" $held
-      [ -z "$PR" ] || git -C "$SRC" checkout --quiet --force --detach "$MAIN"' EXIT
+cleanup() {
+    rm -rf "$LOCK" $held
+    [ -z "$PR" ] || git -C "$SRC" checkout --quiet --force --detach "$MAIN"
+}
+trap cleanup EXIT
 
 # hold <probe>: the lock of one Debug Probe, which tools/soak.py holds for as long as an
 # endurance run lasts on the board wired to it; returns 1 while a live process holds it.
@@ -337,16 +340,17 @@ checks="fourslot_hard fourslot_pa cost_hard events_hard events_soft events_pa dv
 
 # The Pico, unless an endurance run holds its probe: then no check and no status.
 pico=yes
-if ! hold "${PROBE:-probe1}"; then
-    pico=""
-    checks=""
-fi
-[ -z "$pico" ] || status pending "running on the Pico"
-failed=""
+hold "${PROBE:-probe1}" || pico=held
 {
     echo "$what at $SHA, $(date), images: $IMAGES"
     [ "$IMAGES" = build ] || cat "$DIR/fw/compiler" 2>/dev/null || true
-    [ -n "$pico" ] || echo "the Pico is not checked: its probe is held ($DIR/lock-${PROBE:-probe1})"
+} >"$LOG" 2>&1
+board_pico() {
+    if [ "$pico" = held ]; then
+        echo "the Pico is not checked: its probe is held ($DIR/lock-${PROBE:-probe1})"
+        return 0
+    fi
+    failed=""
     for check in $checks; do
         # shellcheck disable=SC2046  # its words are the fields wanted
         set -- $(echo "$check" | tr _ ' ')
@@ -380,7 +384,15 @@ failed=""
         fi
         git -C "$SRC" checkout --quiet -- "$PICO/Escapement_Config.h"
     done
-} >"$LOG" 2>&1
+    if [ -n "$failed" ]; then
+        status failure "failed:$failed"
+        return 1
+    elif [ "$IMAGES" = ci ]; then
+        status success "4-slot across cores, round cost, timer events, DVFS, on the CI's images"
+    else
+        status success "compiled order, 4-slot across cores, round cost, timer events, DVFS"
+    fi
+}
 
 # The long runs of the STM32 boards go on with main's commit, never a pull request's: on
 # one, each board is checked without its long run (BOARD_SOAK_SERVICE=none, which every
@@ -453,27 +465,32 @@ comment() {
 
 # The STM32U5 of the UNO Q, on the CI's image of its endurance test.
 u5=""
-if [ "${BOARD_CI_U5:-}" = 1 ] && [ -f "$DIR/fw/soak_u5/SoakU5.elf" ]; then
-    status pending "running on the UNO Q's STM32U5" board/u5
+if [ "${BOARD_CI_U5:-}" = 1 ] && [ -f "$DIR/fw/soak_u5/SoakU5.elf" ]; then u5=yes; fi
+board_u5() {
+    verdict=0
     if (cd "$SRC" && BOARD_SOAK_SERVICE=$service \
-            sh tools/unoq_check.sh "$DIR/fw/soak_u5/SoakU5.elf" "$SHA") >>"$LOG" 2>&1; then
-        u5=success
+            sh tools/unoq_check.sh "$DIR/fw/soak_u5/SoakU5.elf" "$SHA"); then
         status success "Stop 2 for 1 min with the HSE and 1 without, endurance test for 2, clock within 300 ppm; $long" \
             board/u5
     else
-        u5=failure
         status failure "Stop 2, the endurance test or the clock failed; see the bench's log" board/u5
+        verdict=1
     fi
     resume u5
-fi
+    return $verdict
+}
 
 # The STM32U385 of the NUCLEO-U385RG-Q, on the CI's images, unless an endurance run holds
 # it (lock-u3, tools/endurance.sh): then no check and no status, as for a probe.
 u3=""
-if [ "${BOARD_CI_U3:-}" = 1 ] && [ -f "$DIR/fw/soak_u3/SoakU3.elf" ] && ! hold u3; then
-    echo "the NUCLEO-U385RG-Q is not checked: an endurance run holds it ($DIR/lock-u3)" >>"$LOG"
-elif [ "${BOARD_CI_U3:-}" = 1 ] && [ -f "$DIR/fw/soak_u3/SoakU3.elf" ]; then
-    status pending "running on the NUCLEO-U385RG-Q" board/u3
+if [ "${BOARD_CI_U3:-}" = 1 ] && [ -f "$DIR/fw/soak_u3/SoakU3.elf" ]; then
+    if hold u3; then u3=yes; else u3=held; fi
+fi
+board_u3() {
+    if [ "$u3" = held ]; then
+        echo "the NUCLEO-U385RG-Q is not checked: an endurance run holds it ($DIR/lock-u3)"
+        return 0
+    fi
     # u3check ELF [none]: the checks of one kernel's images, with none for a check
     # without the long run (tools/unoq_check.sh); empty, the service is the default one,
     # or none on a pull request.
@@ -481,64 +498,118 @@ elif [ "${BOARD_CI_U3:-}" = 1 ] && [ -f "$DIR/fw/soak_u3/SoakU3.elf" ]; then
         (cd "$SRC" && BOARD=u3 NUCLEO_SERIAL=${BOARD_CI_U3_SERIAL:-} \
             NUCLEO_TTY=${BOARD_CI_U3_TTY:-} BOARD_SOAK_SERVICE=${2:-$service} \
             OPENOCD=${BOARD_CI_OPENOCD_U3:-$HOME/opt/openocd-upstream/bin/openocd} \
-            sh tools/unoq_check.sh "$1" "$SHA") >>"$LOG" 2>&1
+            sh tools/unoq_check.sh "$1" "$SHA")
     }
     # The power-aware kernel first, if the images have it, then the hard kernel, whose
     # check carries the long run on, on main.
-    pa=yes
+    pa=yes verdict=0
     if [ -f "$DIR/fw/soak_u3_pa/SoakU3.elf" ]; then
         u3check "$DIR/fw/soak_u3_pa/SoakU3.elf" none || pa=""
     fi
     if u3check "$DIR/fw/soak_u3/SoakU3.elf" && [ -n "$pa" ]; then
-        u3=success
         status success "Stop 2 for 1 min, endurance test for 2, clock within 300 ppm, hard and power-aware kernels; $long" \
             board/u3
     else
-        u3=failure
         status failure "Stop 2, the endurance test or the clock failed; see the bench's log" board/u3
+        verdict=1
     fi
     resume u3
-fi
+    return $verdict
+}
 
 # The Pico 2, on the CI's images.
 pico2=""
 PICO2_PROBE=${BOARD_CI_PICO2_PROBE:-probe3}
 if [ "${BOARD_CI_PICO2:-}" = 1 ] && [ -f "$DIR/fw/pico2/SoakPico2.elf" ]; then
-    hold "$PICO2_PROBE" || pico2=held
+    if hold "$PICO2_PROBE"; then pico2=yes; else pico2=held; fi
 fi
-if [ "$pico2" = held ]; then
-    echo "the Pico 2 is not checked: its probe is held ($DIR/lock-$PICO2_PROBE)" >>"$LOG"
-elif [ "${BOARD_CI_PICO2:-}" = 1 ] && [ -f "$DIR/fw/pico2/SoakPico2.elf" ]; then
-    status pending "running on the Pico 2" board/pico2
+board_pico2() {
+    if [ "$pico2" = held ]; then
+        echo "the Pico 2 is not checked: its probe is held ($DIR/lock-$PICO2_PROBE)"
+        return 0
+    fi
     OPENOCD_RP2350=${BOARD_CI_OPENOCD_RP2350:-$HOME/opt/openocd-rpi/bin/openocd}
     # The UART's images come with the commits from 2026-09-30 on.
     uart=""
     if [ -f "$DIR/fw/pico2/UARTEchoPico2.elf" ]; then uart=", UART echo and senders"; fi
     if ! (cd "$SRC" && PROBE=$PICO2_PROBE OPENOCD=$OPENOCD_RP2350 \
-            python3 tools/pico2_check.py "$DIR/fw/pico2") >>"$LOG" 2>&1; then
-        pico2=failure
+            python3 tools/pico2_check.py "$DIR/fw/pico2"); then
         status failure "an example that counts in memory failed; see the bench's log" board/pico2
+        return 1
     elif [ -n "$uart" ] && ! (cd "$SRC" && PROBE=$PICO2_PROBE OPENOCD=$OPENOCD_RP2350 \
-            python3 tools/pico2_uart.py "$DIR/fw/pico2") >>"$LOG" 2>&1; then
-        pico2=failure
+            python3 tools/pico2_uart.py "$DIR/fw/pico2"); then
         status failure "the UART echo or senders failed; see the bench's log" board/pico2
-    else
-        pico2=success
-        status success "slot buffers and queue across cores, IPC, endurance test, litmus tests$uart, on the CI's images" \
-            board/pico2
+        return 1
     fi
-fi
+    status success "slot buffers and queue across cores, IPC, endurance test, litmus tests$uart, on the CI's images" \
+        board/pico2
+}
+
+# The boards side by side, each through its own debugger and with its own log, put
+# together in this order once all are done (issue #32): in turn a check took 28 minutes,
+# side by side 16 on 2026-10-18, the STM32U3's two kernels, still in turn, the longest.
+# The clocks of the STM32 boards against Linux's read the same either way, to 0.4 ppm,
+# their jitter too. Each job leaves the parent's trap alone, which frees the locks once
+# every job has ended. The pending statuses are posted first, in this order, which the
+# table of the comment keeps.
+[ "$pico" != yes ] || status pending "running on the Pico"
+[ -z "$u5" ] || status pending "running on the UNO Q's STM32U5" board/u5
+[ "$u3" != yes ] || status pending "running on the NUCLEO-U385RG-Q" board/u3
+[ "$pico2" != yes ] || status pending "running on the Pico 2" board/pico2
+# Started in the background, the jobs and what they run ignore SIGINT (POSIX): a Ctrl-C
+# on a run by hand ended it alone, its checks left loading images over the next run's (a
+# review, 2026-10-18). Interrupted, the run now stops each job and what it runs, each
+# process frozen before its children are listed, so that none starts another unseen
+# (listed first, one in 40 went on past the locks, a review, 2026-10-18); waits for the
+# jobs' shells, then frees the locks, and ends by the signal it got, as a run in turn
+# did. Not its process group: a script that ran it would go too.
+stop() {   # pid: it, then its descendants
+    kill -STOP "$1" 2>/dev/null || true
+    # shellcheck disable=SC2046  # one pid a word
+    set -- "$1" $(ps -A -o pid= -o ppid= | awk -v p="$1" '$2 == p { print $1 }')
+    kill -TERM "$1" 2>/dev/null || true
+    kill -CONT "$1" 2>/dev/null || true
+    shift
+    for pid; do stop "$pid"; done
+}
+interrupted() {   # signal
+    trap "" INT TERM
+    for job in $jobs; do stop "${job#*:}"; done
+    wait
+    cleanup || true
+    trap - EXIT "$1"
+    kill -"$1" $$
+}
+jobs=""
+trap 'interrupted INT' INT
+trap 'interrupted TERM' TERM
+# Each job's log beside the logs, not among them: tools/bench_status.sh shows the newest
+# there, and one of a run stopped before the end would stay. The next run overwrites it.
+for board in pico u5 u3 pico2; do
+    eval "due=\$$board"
+    [ -n "$due" ] || continue
+    (trap - EXIT INT TERM; "board_$board") >"$DIR/job-$board.log" 2>&1 &
+    jobs="$jobs $board:$!"
+done
+failed=""
+for job in $jobs; do
+    wait "${job#*:}" || failed="$failed ${job%%:*}"
+done
+# From here on, their pids, free, are never stopped by interrupted().
+boards=$jobs jobs=""
+# A job stopped by an error, under set -e, before its last status left its board pending
+# for good, the commit marked checked all the same (a review, 2026-10-18); in turn, such
+# an error had stopped the whole run before that mark.
+for board in $failed; do
+    last=$(awk -F'\t' -v c="board/$board" '$1 == c { s = $2 } END { print s }' "$DIR/posted")
+    [ "$last" != pending ] ||
+        status failure "the check stopped before its end; see the bench's log" "board/$board"
+done
+for job in $boards; do
+    cat "$DIR/job-${job%%:*}.log" >>"$LOG"
+done
 
 checked
-if [ -z "$pico" ]; then
-    :
-elif [ -n "$failed" ]; then
-    status failure "failed:$failed"
-elif [ "$IMAGES" = ci ]; then
-    status success "4-slot across cores, round cost, timer events, DVFS, on the CI's images"
-else
-    status success "compiled order, 4-slot across cores, round cost, timer events, DVFS"
-fi
 cat "$LOG"
 [ -z "$PR" ] || comment
-[ -z "$failed" ] && [ "$u5" != failure ] && [ "$u3" != failure ] && [ "$pico2" != failure ]
+[ -z "$failed" ]
