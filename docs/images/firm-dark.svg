@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="268" viewBox="0 0 600 268" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="600" height="268" rx="8" fill="#0d1117"/>
+<text x="16" y="28" font-size="17" font-weight="700" fill="#e6edf3">110 % of the processor asked for: the kernel drops what may go</text>
+<text x="16" y="50" font-size="13" fill="#9198a1">Task 1: 2 of every 3 instances mandatory; task 2: 1 of every 2.</text>
+<text x="16" y="68" font-size="13" fill="#9198a1">An optional instance starts only if every mandatory deadline still</text>
+<text x="16" y="86" font-size="13" fill="#9198a1">holds. The soft kernel on the host, traced as it ran.</text>
+<text x="104" y="122" font-size="15" font-weight="600" fill="#e6edf3">(m,k)-firm under EDF</text>
+<text x="584" y="122" font-size="13" font-weight="600" fill="#3fb950" text-anchor="end">every deadline kept, 2 dropped</text>
+<line x1="104.0" y1="136" x2="104.0" y2="212" stroke="#21262d" stroke-width="1"/>
+<text x="104.0" y="228" font-size="12" fill="#9198a1" text-anchor="middle">0</text>
+<line x1="164.0" y1="136" x2="164.0" y2="212" stroke="#21262d" stroke-width="1"/>
+<text x="164.0" y="228" font-size="12" fill="#9198a1" text-anchor="middle">50</text>
+<line x1="224.0" y1="136" x2="224.0" y2="212" stroke="#21262d" stroke-width="1"/>
+<text x="224.0" y="228" font-size="12" fill="#9198a1" text-anchor="middle">100</text>
+<line x1="284.0" y1="136" x2="284.0" y2="212" stroke="#21262d" stroke-width="1"/>
+<text x="284.0" y="228" font-size="12" fill="#9198a1" text-anchor="middle">150</text>
+<line x1="344.0" y1="136" x2="344.0" y2="212" stroke="#21262d" stroke-width="1"/>
+<text x="344.0" y="228" font-size="12" fill="#9198a1" text-anchor="middle">200</text>
+<line x1="404.0" y1="136" x2="404.0" y2="212" stroke="#21262d" stroke-width="1"/>
+<text x="404.0" y="228" font-size="12" fill="#9198a1" text-anchor="middle">250</text>
+<line x1="464.0" y1="136" x2="464.0" y2="212" stroke="#21262d" stroke-width="1"/>
+<text x="464.0" y="228" font-size="12" fill="#9198a1" text-anchor="middle">300</text>
+<line x1="524.0" y1="136" x2="524.0" y2="212" stroke="#21262d" stroke-width="1"/>
+<text x="524.0" y="228" font-size="12" fill="#9198a1" text-anchor="middle">350</text>
+<line x1="584.0" y1="136" x2="584.0" y2="212" stroke="#21262d" stroke-width="1"/>
+<text x="584.0" y="228" font-size="12" fill="#9198a1" text-anchor="middle">400</text>
+<text x="94" y="228" font-size="12" fill="#9198a1" text-anchor="end">ticks</text>
+<text x="94" y="152" font-size="14" font-weight="600" fill="#e6edf3" text-anchor="end">Task 1</text>
+<text x="94" y="167" font-size="12" fill="#9198a1" text-anchor="end">every 50, 30</text>
+<line x1="104" y1="166" x2="584" y2="166" stroke="#9198a1" stroke-width="1"/>
+<path d="M104.0 167 l-4 7 h8 z" fill="#9198a1"/>
+<rect x="104.00" y="144" width="36.00" height="22" fill="#4493f8"/>
+<path d="M164.0 167 l-4 7 h8 z" fill="#9198a1"/>
+<rect x="188.00" y="144" width="12.00" height="22" fill="#4493f8"/>
+<rect x="200.00" y="144" width="24.00" height="22" fill="#4493f8"/>
+<path d="M224.0 167 l-4 7 h8 z" fill="#9198a1"/>
+<path d="M228.0 150.0 l10 10 m0 -10 l-10 10" stroke="#4493f8" stroke-width="2" stroke-linecap="round"/>
+<path d="M284.0 167 l-4 7 h8 z" fill="#9198a1"/>
+<rect x="284.00" y="144" width="12.00" height="22" fill="#4493f8"/>
+<rect x="296.00" y="144" width="24.00" height="22" fill="#4493f8"/>
+<path d="M344.0 167 l-4 7 h8 z" fill="#9198a1"/>
+<rect x="368.00" y="144" width="24.00" height="22" fill="#4493f8"/>
+<rect x="392.00" y="144" width="12.00" height="22" fill="#4493f8"/>
+<path d="M404.0 167 l-4 7 h8 z" fill="#9198a1"/>
+<path d="M408.0 150.0 l10 10 m0 -10 l-10 10" stroke="#4493f8" stroke-width="2" stroke-linecap="round"/>
+<path d="M464.0 167 l-4 7 h8 z" fill="#9198a1"/>
+<rect x="464.00" y="144" width="24.00" height="22" fill="#4493f8"/>
+<rect x="488.00" y="144" width="12.00" height="22" fill="#4493f8"/>
+<path d="M524.0 167 l-4 7 h8 z" fill="#9198a1"/>
+<rect x="524.00" y="144" width="36.00" height="22" fill="#4493f8"/>
+<text x="94" y="190" font-size="14" font-weight="600" fill="#e6edf3" text-anchor="end">Task 2</text>
+<text x="94" y="205" font-size="12" fill="#9198a1" text-anchor="end">every 80, 40</text>
+<line x1="104" y1="204" x2="584" y2="204" stroke="#9198a1" stroke-width="1"/>
+<path d="M104.0 205 l-4 7 h8 z" fill="#9198a1"/>
+<rect x="140.00" y="182" width="24.00" height="22" fill="#ab7df8"/>
+<rect x="164.00" y="182" width="24.00" height="22" fill="#ab7df8"/>
+<path d="M200.0 205 l-4 7 h8 z" fill="#9198a1"/>
+<rect x="224.00" y="182" width="48.00" height="22" fill="#ab7df8" fill-opacity="0.4"/>
+<path d="M296.0 205 l-4 7 h8 z" fill="#9198a1"/>
+<rect x="320.00" y="182" width="24.00" height="22" fill="#ab7df8"/>
+<rect x="344.00" y="182" width="24.00" height="22" fill="#ab7df8"/>
+<path d="M392.0 205 l-4 7 h8 z" fill="#9198a1"/>
+<rect x="404.00" y="182" width="48.00" height="22" fill="#ab7df8" fill-opacity="0.4"/>
+<path d="M488.0 205 l-4 7 h8 z" fill="#9198a1"/>
+<rect x="500.00" y="182" width="24.00" height="22" fill="#ab7df8"/>
+<rect x="560.00" y="182" width="24.00" height="22" fill="#ab7df8"/>
+<rect x="104" y="240" width="14" height="12" fill="#9198a1"/>
+<text x="124" y="250" font-size="12" fill="#9198a1">mandatory</text>
+<rect x="208" y="240" width="14" height="12" fill="#9198a1" fill-opacity="0.4"/>
+<text x="228" y="250" font-size="12" fill="#9198a1">optional, run (2)</text>
+<path d="M349 241 l10 10 m0 -10 l-10 10" stroke="#9198a1" stroke-width="2" stroke-linecap="round"/>
+<text x="366" y="250" font-size="12" fill="#9198a1">optional, dropped</text>
+</svg>

@@ -698,6 +698,7 @@ behaviour, a test, a model, the board or an instrument.
 | Whether DVFS saves energy is not settled | issues #23 and #5 | **stale**: settled against it on the U5, some 10 % at best on the RP2350; open on the RP2040, settled on 2026-10-10: up to some 5 % in WFI, nothing in SLEEP |
 | The program shown is a whole program for the Pico | since 2026-10-04 the Pico's Makefile builds it from the page, and the Renode suite checks that its LED blinks at 1 Hz | **false**: it never routed GPIO 25 to the SIO nor made it an output, and on the chip the LED would not have lit. The page now shows the whole program |
 | Responses stay under the bound of the analysis | `tools/response_times.py` on the traces in `docs/data` | holds, and since 2026-10-04 under EDF too |
+| How it schedules: EDF keeps (50, 25) and (80, 35), DM leaves the second unfinished at 80; the (m,k)-firm set at 110 % keeps every deadline, optional instances dropped | since 2026-10-18 `tools/host_figures.py --check` in the CI: the host runs, each statement checked on its trace, and the figures compared with what the run draws | holds |
 | The figures: 4,716 bytes, 3.2 µs, +28 ppm, 108,000 activations | each dated, with its source | measurements of a day, not claims about every build |
 
 Six claims had gone stale as the work moved on, two were false, and two were read by
