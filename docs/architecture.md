@@ -83,12 +83,14 @@ queue between the cores (2026-09-30). It also checks the order of the stores a t
 makes that the timer interrupt may find half done (`method.md`).
 
 Each mechanism has an exhaustive model in `test/model`, run by the CI. The queue model
-runs a few operations preempting one another at every possible access and checks each
-run for linearizability. The slot-buffer models explore every interleaving of a writer
-with its reader, the writer being an interrupt handler or code on the other core. They
-check the properties Rushby model-checked for Simpson's algorithm: no read mixes two
-records, and none goes backwards. Between two cores, each core is also free to reorder
-its accesses. The models found six defects, now fixed (`method.md`).
+runs a few operations preempting one another at every possible access, checks each run
+for linearizability, and checks that each access to a descriptor, which lives on its
+operation's stack, comes while that operation still runs (2026-10-23). The slot-buffer
+models explore every interleaving of a writer with its reader, the writer being an
+interrupt handler or code on the other core. They check the properties Rushby
+model-checked for Simpson's algorithm: no read mixes two records, and none goes
+backwards. Between two cores, each core is also free to reorder its accesses. The
+models found six defects, now fixed (`method.md`).
 
 ### Across the two cores
 
