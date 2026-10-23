@@ -307,11 +307,13 @@ not change. Always retry it in a loop, and never read a failure as a conflict.
 
 ### Between the two cores
 
-All three mechanisms assume one core. The LL/SC pair of the Cortex-M0+ is emulated with
-a reservation bit that only interrupts clear, and the queue's announced operation
-assumes preemptions that nest. Slot buffers are the exception, when read with
+All three mechanisms assume one core. Slot buffers are the exception, when read with
 `OS_READ_MULTIPLE`; `OS_READ_ONLY_ONCE` marks the slot read with an LL/SC pair, which
-the Cortex-M0+ emulates for one core only.
+the Cortex-M0+ emulates for one core only. The emulated pair relies on a reservation
+bit that only interrupts clear, and the queue's announced operation assumes preemptions
+that nest: a caller completes, through `PendingOp`, an operation it preempted, whose
+descriptor on that operation's stack is then still alive. `test/model/fifo.py` checks
+it access by access; nothing checks it at run time.
 
 The 4-slot buffer works between the two cores of the Pico, as `FourSlotCoresPico` shows
 on the board (`rp2040.md`). Both slot buffers work between those of the Pico 2, since

@@ -376,6 +376,13 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **No descriptor of the queue used once its operation returned (#26), 2026-10-23.**
+  `test/model/fifo.py` checks each read and write of a descriptor, which lives on its
+  operation's stack, for an operation still running or preempted by the one touching
+  it; a variant that returns with `PendingOp` still set is caught, which
+  linearizability alone let pass. The reasoning on which CodeQL's alerts 25 to 27
+  (`cpp/stack-address-escape`) were dismissed is now checked.
+
 - **The figure scripts share one module (#31), 2026-10-23.** `tools/figure_svg.py` holds
   what `tools/host_figures.py`, `tools/schedule_figure.py` and `tools/dvfs_figure.py`
   wrote three times: the font, the light and dark palettes, the page, the time axis, a

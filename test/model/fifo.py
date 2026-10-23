@@ -20,6 +20,12 @@ one running, which it then preempts, and runs to its end before the preempted on
 on: preemptions nest, as they do on one core. Every such run is explored, from queues
 already holding items and from indices about to wrap.
 
+Each descriptor lives on the stack of its operation (`des` in FIFOEnqueue and
+FIFODequeue): every read or write of one must come from its own operation or from one
+that preempts it, while the operation is still running, never once it has returned.
+The model keeps every descriptor to the end of a run, so this is checked access by
+access rather than left to the results.
+
 Each run must be linearizable: some order of its operations, consistent with the order
 in which non-overlapping ones ran, must give every operation its result from the
 abstract queue, and leave that queue where the array is. The abstract queue holds
@@ -39,6 +45,11 @@ QLEN = 2
 MAXINDEX = 4            # GetFIFOArrayMaxIndex keeps a multiple of the length; small here
 NOIDX = 0xFFFF
 FAULT = set()           # names of injected faults
+ACCESSED = []           # the descriptors the step being run reads or writes
+
+
+class DeadDescriptor(Exception):
+    pass
 
 
 # ---- the concrete queue, as the kernels hold it --------------------------------------
@@ -58,16 +69,32 @@ def step(state, ops):
 
 
 def desc_get(descs, i, field):
+    ACCESSED.append(i)
     return dict(descs[i])[field]
 
 
 def desc_set(descs, i, field, value):
+    ACCESSED.append(i)
     d = dict(descs[i])
     d[field] = value
     return descs[:i] + (tuple(sorted(d.items())),) + descs[i + 1:]
 
 
 def run_top(state, ops):
+    """The top frame's next step, each descriptor it touches checked alive: its
+    operation's frame still on the stack, which on one core means the operation runs or
+    is preempted by the one touching it."""
+    del ACCESSED[:]
+    succ = step_top(state, ops)
+    alive = {opid for ftype, opid, _, _ in state[6] if ftype == "op"}
+    dead = sorted(set(ACCESSED) - alive)
+    if dead:
+        raise DeadDescriptor(f"the descriptor of operation {dead[0]} used after it "
+                             f"returned, by {state[6][-1]}")
+    return succ
+
+
+def step_top(state, ops):
     q, head, tail, pending, reserved, descs, stack, started, history = state
     frame = stack[-1]
     below = stack[:-1]
@@ -112,6 +139,7 @@ def run_top(state, ops):
         if pc == 0:                                       # initialise the descriptor
             d = (("Done", False), ("Head", NOIDX), ("Item", arg), ("Propose", NOIDX),
                  ("SlotPropose", UNSET), ("SlotReturn", UNSET))
+            ACCESSED.append(opid)
             return [at(1, descs=descs[:opid] + (d,) + descs[opid + 1:])]
         if pc == 1:                                       # op = queue->PendingOp
             return [at(2, (("op", pending),))]
@@ -126,7 +154,9 @@ def run_top(state, ops):
         if pc == 4:
             helper = ("enqh" if enq else "deqh", opid, 0, (("sig", signal),))
             return [call(5, helper, ())]
-        if pc == 5:
+        if pc == 5:                                       # queue->PendingOp = NULL
+            if "pending-left" in FAULT:
+                return [at(6)]
             return [at(6, pending=None)]
         if pc == 6:
             r = desc_get(descs, opid, "SlotReturn")
@@ -319,7 +349,11 @@ def explore(ops, start_items=(), start_signal=False, index=0):
             if not linearizable(ops, history, final, start_items, start_signal):
                 return f"not linearizable: {ops} from {start_items} -> {history}, final {final}"
             continue
-        for n in step(state, ops):
+        try:
+            successors = step(state, ops)
+        except DeadDescriptor as e:
+            return f"{e}: {ops} from {start_items} -> {history}"
+        for n in successors:
             if len(n[6]) > 12:
                 return f"unbounded: {ops}"
             if n not in seen:
@@ -364,12 +398,16 @@ def main():
                          "a dequeue that leaves the signal it finds unmarked (the kernels before)"),
                         ("sc-always", "an SC that ignores the reservation"),
                         ("reservation-survives", "a reservation that survives a preemption"),
-                        ("no-help", "a caller that does not complete the announced operation")):
+                        ("no-help", "a caller that does not complete the announced operation"),
+                        ("pending-left", "an operation that returns with PendingOp still set")):
         FAULT.clear()
         FAULT.add(fault)
         failure = check_all()
-        print(f"  {name} is caught: {'yes' if failure else 'NOT CAUGHT'}")
-        ok = ok and failure is not None
+        # A descriptor used once dead leaves every result right: the check of the
+        # descriptors must be what catches it, not linearizability
+        caught = failure and (fault != "pending-left" or "used after it returned" in failure)
+        print(f"  {name} is caught: {'yes' if caught else 'NOT CAUGHT: ' + str(failure)}")
+        ok = ok and bool(caught)
     FAULT.clear()
     print("all checks passed" if ok else "FAILED")
     return 0 if ok else 1
