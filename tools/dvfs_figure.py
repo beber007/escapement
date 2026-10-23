@@ -11,7 +11,10 @@ No dependency but tools/figure_svg.py, so that the figure can be regenerated fro
 data alone:
 
     tools/read_trace.py build/TaskLEDPico.elf --csv > docs/data/pico-pa-trace.csv
-    tools/dvfs_figure.py docs/data/pico-pa-trace.csv docs/images/pico-dvfs.svg
+    tools/dvfs_figure.py docs/data/pico-pa-trace.csv docs/images/pico-dvfs
+
+which writes docs/images/pico-dvfs-light.svg and pico-dvfs-dark.svg, for a light and a
+dark page.
 """
 import csv
 import os
@@ -23,14 +26,14 @@ import figure_svg as svg   # noqa: E402
 MARK, SPEED = 7, 6
 MHZ = {0: 12, 1: 50, 2: 125}
 
-# pin, name, caption, colour — the order and colours of the F4's chronogram, removed with
-# it on 2026-09-26, and the probe, which toggles its output on each instance, drawn from
-# its mark to the next event
+# pin, name, caption, hue of tools/figure_svg.py — the order and colours of the F4's
+# chronogram, removed with it on 2026-09-26, and the probe, which toggles its output on
+# each instance, drawn from its mark to the next event
 TASKS = [
-    (4,  "GP4",  "probe · 1 ms",  "#1a7f37"),
-    (25, "GP25", "LED · 10 ms",   "#1f6feb"),
-    (2,  "GP2",  "task · 20 ms",  "#6f42c1"),
-    (3,  "GP3",  "task · 60 ms",  "#bc4c00"),
+    (4,  "GP4",  "probe · 1 ms",  "green"),
+    (25, "GP25", "LED · 10 ms",   "blue"),
+    (2,  "GP2",  "task · 20 ms",  "purple"),
+    (3,  "GP3",  "task · 60 ms",  "orange"),
 ]
 PROBE = 4
 
@@ -61,9 +64,8 @@ def read(path):
     return runs, speeds, rows[-1][0]
 
 
-def panel(out, top, t0, t1, runs, speeds, title, ticks, unit, scale,
+def panel(out, th, top, t0, t1, runs, speeds, title, ticks, unit, scale,
           px0=LEFT, px1=W - RIGHT):
-    th = svg.LIGHT
     x = svg.scale(t0, t1, px0, px1)
     labels = px0 == LEFT
     lanes_h = len(TASKS) * (LANE_H + LANE_GAP)
@@ -78,8 +80,8 @@ def panel(out, top, t0, t1, runs, speeds, title, ticks, unit, scale,
         base, high = lt + LANE_H - 4, lt + 4
         if labels:
             svg.label(out, th, LEFT - 10, lt + 10, name, caption, 11.5, 10, 11)
-        out.append(svg.hline(px0, px1, base, colour, 1.2, 0.4))
-        svg.bars(out, x, runs[pin], t0, t1, high, base, colour)
+        out.append(svg.hline(px0, px1, base, th[colour], 1.2, 0.4))
+        svg.bars(out, x, runs[pin], t0, t1, high, base, th[colour])
 
     st = top + lanes_h + 14
     y = lambda mhz: st + SPEED_H - SPEED_H * mhz / 125
@@ -103,30 +105,28 @@ def panel(out, top, t0, t1, runs, speeds, title, ticks, unit, scale,
     return bottom + 36
 
 
-def render(runs, speeds, last):
-    th = svg.LIGHT
+def render(th, runs, speeds, last):
     span = (last // 1000) * 1000
     out = [svg.text(LEFT, 26, "The power-aware kernel changing the clock of a real "
                     "Raspberry Pi Pico", 15, th["ink"], weight="600"),
            svg.text(LEFT, 43, "Written by the firmware into RAM, read over SWD without "
                     "stopping a core, timed to the microsecond", 12, th["muted"])]
-    y = panel(out, 76, 0, span, runs, speeds, f"The whole trace, {span // 1000} ms",
+    y = panel(out, th, 76, 0, span, runs, speeds, f"The whole trace, {span // 1000} ms",
               range(0, span + 1, 2000), "ms", 1000)
     split = LEFT + (W - RIGHT - LEFT) * 0.64
     top = y + 34
-    panel(out, top, 990, 1310, runs, speeds, "Zoom: 50 MHz for the 20 ms task",
+    panel(out, th, top, 990, 1310, runs, speeds, "Zoom: 50 MHz for the 20 ms task",
           range(1000, 1301, 50), "ms", 1000, LEFT, split - 14)
-    y = panel(out, top, 1995, 2075, runs, speeds, "12 MHz for the probe",
+    y = panel(out, th, top, 1995, 2075, runs, speeds, "12 MHz for the probe",
               range(2000, 2071, 20), "ms", 1000, split + 14, W - RIGHT)
     return svg.document(th, W, y + 12, out)
 
 
 def main():
     src = sys.argv[1] if len(sys.argv) > 1 else "docs/data/pico-pa-trace.csv"
-    dst = sys.argv[2] if len(sys.argv) > 2 else "docs/images/pico-dvfs.svg"
+    dst = sys.argv[2] if len(sys.argv) > 2 else "docs/images/pico-dvfs"
     runs, speeds, last = read(src)
-    with open(dst, "w") as fh:
-        fh.write(render(runs, speeds, last) + "\n")
+    svg.write(dst, lambda th: render(th, runs, speeds, last))
     for pin, name, *_ in TASKS:
         print(f"{name}: {len(runs[pin])} instances")
     print(f"{len(speeds) - 1} changes of speed")
