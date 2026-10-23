@@ -16,7 +16,8 @@ before drawing it, so that a kernel that schedules otherwise fails here:
   deadline by dropping optional instances, two in the 400 ticks shown.
 
 Each figure is written twice, for a light and a dark page, as the README's banner is.
-test/host must be built (make -C test/host). No dependency:
+test/host must be built (make -C test/host). No dependency but tools/differential.py and
+tools/figure_svg.py:
 
   python3 tools/host_figures.py           write docs/images/{edf-dm,firm}-{light,dark}.svg
   python3 tools/host_figures.py --check   fail if a file differs from what the run draws
@@ -24,7 +25,6 @@ test/host must be built (make -C test/host). No dependency:
 
 The checks raise differential.Failure, not assert, which python3 -O would take out.
 """
-import importlib.util
 import os
 import sys
 
@@ -34,26 +34,18 @@ IMAGES = os.path.join(ROOT, "docs", "images")
 # repeat only after 2400, of which the figure shows the first 400
 SPAN = 400
 
-_spec = importlib.util.spec_from_file_location(
-    "differential", os.path.join(ROOT, "tools", "differential.py"))
-differential = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(differential)
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+import differential          # noqa: E402
+import figure_svg as svg     # noqa: E402
 Failure = differential.Failure
-differential.DURATION = SPAN                 # this script's copy of it runs and checks the span
 
 THEMES = {
-    "light": {"bg": "#ffffff", "ink": "#1f2328", "muted": "#59636e", "grid": "#e7ecf0",
-              "tasks": ["#1f6feb", "#8250df"], "miss": "#cf222e", "kept": "#1a7f37"},
-    "dark": {"bg": "#0d1117", "ink": "#e6edf3", "muted": "#9198a1", "grid": "#21262d",
-             "tasks": ["#4493f8", "#ab7df8"], "miss": "#f85149", "kept": "#3fb950"},
+    "light": dict(svg.LIGHT, tasks=["#1f6feb", "#8250df"], miss="#cf222e", kept="#1a7f37"),
+    "dark": dict(svg.DARK, tasks=["#4493f8", "#ab7df8"], miss="#f85149", kept="#3fb950"),
 }
 W, LEFT, RIGHT = 600, 104, 16
 LANE_H, LANE_GAP = 26, 12
-FONT = "ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif"
-
-
-def x(t):
-    return LEFT + (W - RIGHT - LEFT) * t / SPAN
+x = svg.scale(0, SPAN, LEFT, W - RIGHT)
 
 
 def work_by(slices, t):
@@ -91,7 +83,7 @@ def run(build, tasks, overruns=False):
     when --self-test and --check share a process."""
     key = (build, overruns, repr(tasks))
     if key not in _runs:
-        _runs[key] = differential.run(build, tasks, overruns=overruns)
+        _runs[key] = differential.run(build, tasks, overruns=overruns, duration=SPAN)
     return _runs[key]
 
 
@@ -128,14 +120,15 @@ def parse(trace, tasks):
     return slices, ends, skipped
 
 
-def instances(trace, tasks, firm=False):
-    """Per task, each release in the span: its time, the slices it ran, its end, whether
-    its release was skipped (line "O"), and, (m,k)-firm, whether it was dropped. An
-    instance is the slices up to an "E", and belongs to the oldest release not yet
-    served, its own or an earlier one if it is late; an (m,k)-firm instance runs by its
-    deadline or not at all, so a release whose deadline passed before the instance began
-    was dropped, as is one not begun by a deadline within the span."""
-    slices, ends, skipped = parse(trace, tasks)
+def instances(parsed, tasks, firm=False):
+    """Per task, from what parse() read of a trace, each release in the span: its time, the
+    slices it ran, its end, whether its release was skipped (line "O"), and, (m,k)-firm,
+    whether it was dropped. An instance is the slices up to an "E", and belongs to the
+    oldest release not yet served, its own or an earlier one if it is late; an
+    (m,k)-firm instance runs by its deadline or not at all, so a release whose deadline
+    passed before the instance began was dropped, as is one not begun by a deadline
+    within the span."""
+    slices, ends, skipped = parsed
     out = {}
     for i, task in enumerate(tasks):
         jobs = [{"release": r, "slices": [], "end": None, "skipped": r in skipped[i]}
@@ -172,12 +165,8 @@ def lane(out, th, top, task, jobs, colour, firm=None):
     """One task's row: its slices, a tick at each release, each deadline missed in red,
     under (m,k)-firm scheduling the optional instances pale and those dropped crossed."""
     base, high = top + LANE_H, top + 4
-    out.append(f'<text x="{LEFT - 10}" y="{top + 12}" font-size="14" font-weight="600" '
-               f'fill="{th["ink"]}" text-anchor="end">{task["name"]}</text>')
-    out.append(f'<text x="{LEFT - 10}" y="{top + 27}" font-size="12" fill="{th["muted"]}" '
-               f'text-anchor="end">{task["caption"]}</text>')
-    out.append(f'<line x1="{LEFT}" y1="{base}" x2="{W - RIGHT}" y2="{base}" '
-               f'stroke="{th["muted"]}" stroke-width="1"/>')
+    svg.label(out, th, LEFT - 10, top + 12, task["name"], task["caption"], 14, 12, 15)
+    out.append(svg.hline(LEFT, W - RIGHT, base, th["muted"]))
     for j, job in enumerate(jobs):
         r = job["release"]
         mark = (f'fill="none" stroke="{th["muted"]}" stroke-width="1.2"' if job["skipped"]
@@ -206,35 +195,24 @@ def lane(out, th, top, task, jobs, colour, firm=None):
 
 
 def panel(out, th, top, title, verdict, ok, tasks, jobs, firm=None):
-    out.append(f'<text x="{LEFT}" y="{top}" font-size="15" font-weight="600" '
-               f'fill="{th["ink"]}">{title}</text>')
-    out.append(f'<text x="{W - RIGHT}" y="{top}" font-size="13" font-weight="600" '
-               f'fill="{th["kept"] if ok else th["miss"]}" text-anchor="end">{verdict}</text>')
+    out.append(svg.text(LEFT, top, title, 15, th["ink"], weight="600"))
+    out.append(svg.text(W - RIGHT, top, verdict, 13, th["kept"] if ok else th["miss"],
+                        weight="600", anchor="end"))
     first = top + 18
     bottom = first + len(tasks) * (LANE_H + LANE_GAP) - LANE_GAP
-    for t in range(0, SPAN + 1, 50):
-        out.append(f'<line x1="{x(t):.1f}" y1="{first - 4}" x2="{x(t):.1f}" '
-                   f'y2="{bottom + 8}" stroke="{th["grid"]}" stroke-width="1"/>')
-        out.append(f'<text x="{x(t):.1f}" y="{bottom + 24}" font-size="12" '
-                   f'fill="{th["muted"]}" text-anchor="middle">{t}</text>')
-    out.append(f'<text x="{LEFT - 10}" y="{bottom + 24}" font-size="12" '
-               f'fill="{th["muted"]}" text-anchor="end">ticks</text>')
+    svg.grid(out, th, x, range(0, SPAN + 1, 50), first - 4, bottom + 8, bottom + 24, 12)
+    out.append(svg.text(LEFT - 10, bottom + 24, "ticks", 12, th["muted"], anchor="end"))
     for i, task in enumerate(tasks):
         pattern = (task["m"], task["k"]) if firm else None
         lane(out, th, first + i * (LANE_H + LANE_GAP), task, jobs[i], th["tasks"][i], pattern)
     return bottom + 24
 
 
-def svg(th, title, lines, body, height):
-    head = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{height}" '
-            f'viewBox="0 0 {W} {height}" font-family="{FONT}">',
-            f'<rect width="{W}" height="{height}" rx="8" fill="{th["bg"]}"/>',
-            f'<text x="16" y="28" font-size="17" font-weight="700" fill="{th["ink"]}">'
-            f'{title}</text>']
-    for n, text in enumerate(lines):
-        head.append(f'<text x="16" y="{50 + 18 * n}" font-size="13" fill="{th["muted"]}">'
-                    f'{text}</text>')
-    return "\n".join(head + body + ["</svg>"]) + "\n"
+def page(th, title, lines, body, height):
+    head = [svg.text(16, 28, title, 17, th["ink"], weight="700")]
+    head += [svg.text(16, 50 + 18 * n, text, 13, th["muted"])
+             for n, text in enumerate(lines)]
+    return svg.document(th, W, height, head + body, rounded=8) + "\n"
 
 
 EDF_DM = [{"kind": "P", "wcet": 25, "period": 50, "deadline": 50, "takes": 25,
@@ -249,12 +227,15 @@ def check_edf_dm(edf_trace, dm_trace, tasks=EDF_DM):
     EDF. Then what the README says of the DM run that the algorithm does not:
     task 2 unfinished at 80 with 30 of its 35 done, and that release alone skipped. Each
     deadline being the next release, any other late instance would skip one too."""
-    require(not any(parse(edf_trace, tasks)[2].values()), "a release skipped under EDF")
-    skipped = parse(dm_trace, tasks)[2]
-    differential.check("hard_edf", tasks, edf_trace, speeds=False)
-    differential.check("hard_dm", tasks, dm_trace, speeds=False, overruns=True)
-    edf = instances(edf_trace, tasks)
-    dm = instances(dm_trace, tasks)
+    edf_parsed = parse(edf_trace, tasks)
+    require(not any(edf_parsed[2].values()), "a release skipped under EDF")
+    dm_parsed = parse(dm_trace, tasks)
+    skipped = dm_parsed[2]
+    differential.check("hard_edf", tasks, edf_trace, speeds=False, duration=SPAN)
+    differential.check("hard_dm", tasks, dm_trace, speeds=False, overruns=True,
+                       duration=SPAN)
+    edf = instances(edf_parsed, tasks)
+    dm = instances(dm_parsed, tasks)
     first = dm[1][0]
     deadline = first["release"] + tasks[1]["deadline"]
     done = work_by(first["slices"], deadline)
@@ -277,10 +258,9 @@ def edf_dm():
                   False, tasks, dm)
         for n, text in enumerate(["By default the kernel stops at an overrun; here the hook",
                                   "lets it go on, task 2's release at 80 skipped."]):
-            body.append(f'<text x="{LEFT}" y="{y + 22 + 16 * n}" font-size="12" '
-                        f'fill="{th["muted"]}">{text}</text>')
+            body.append(svg.text(LEFT, y + 22 + 16 * n, text, 12, th["muted"]))
         y += 16
-        return svg(th, "%d %% of the processor: EDF keeps up, fixed priorities do not"
+        return page(th, "%d %% of the processor: EDF keeps up, fixed priorities do not"
                    % load(tasks),
                    ["Two periodic tasks, each due by its next release, each within its",
                     "execution time. The hard kernel on the host, traced as it ran."],
@@ -299,10 +279,11 @@ def check_firm(trace, tasks=FIRM):
     every instance run to its deadline and every mandatory one run, but reads no "O" line
     without overruns: none may skip a release here. Then the count the README gives: two
     optional instances dropped in the span."""
-    skipped = parse(trace, tasks)[2]
+    parsed = parse(trace, tasks)
+    skipped = parsed[2]
     require(not any(skipped.values()), "a release skipped in the (m,k)-firm set", skipped)
-    differential.check("soft_edf", tasks, trace, speeds=False)
-    jobs = instances(trace, tasks, firm=True)
+    differential.check("soft_edf", tasks, trace, speeds=False, duration=SPAN)
+    jobs = instances(parsed, tasks, firm=True)
     dropped = sum(job["dropped"] for i in jobs for job in jobs[i])
     ran = sum(1 for i, t in enumerate(tasks) for j, job in enumerate(jobs[i])
               if job["slices"] and not differential.mandatory(j, t["m"], t["k"]))
@@ -322,18 +303,15 @@ def firm():
         legend = y + 22
         body.append(f'<rect x="{LEFT}" y="{legend - 10}" width="14" height="12" '
                     f'fill="{th["muted"]}"/>')
-        body.append(f'<text x="{LEFT + 20}" y="{legend}" font-size="12" fill="{th["muted"]}">'
-                    'mandatory</text>')
+        body.append(svg.text(LEFT + 20, legend, "mandatory", 12, th["muted"]))
         body.append(f'<rect x="{LEFT + 104}" y="{legend - 10}" width="14" height="12" '
                     f'fill="{th["muted"]}" fill-opacity="0.4"/>')
-        body.append(f'<text x="{LEFT + 124}" y="{legend}" font-size="12" '
-                    f'fill="{th["muted"]}">optional, run ({ran})</text>')
+        body.append(svg.text(LEFT + 124, legend, f"optional, run ({ran})", 12, th["muted"]))
         cx, cy = LEFT + 250, legend - 4
         body.append(f'<path d="M{cx - 5} {cy - 5} l10 10 m0 -10 l-10 10" '
                     f'stroke="{th["muted"]}" stroke-width="2" stroke-linecap="round"/>')
-        body.append(f'<text x="{cx + 12}" y="{legend}" font-size="12" fill="{th["muted"]}">'
-                    'optional, dropped</text>')
-        return svg(th, "%d %% of the processor asked for: the kernel drops what may go"
+        body.append(svg.text(cx + 12, legend, "optional, dropped", 12, th["muted"]))
+        return page(th, "%d %% of the processor asked for: the kernel drops what may go"
                    % load(tasks),
                    ["Task 1: 2 of every 3 instances mandatory; task 2: 1 of every 2.",
                     "An optional instance starts only if every mandatory deadline still",
@@ -425,7 +403,7 @@ def self_test():
         ("a release skipped under EDF", "skipped under EDF",
          lambda: check_edf_dm(swap(edf, "I 160\n", "I 160\nO 160 1\n"), dm)),
         ("a slice of a task before any of its releases not skipped", "belongs to no release",
-         lambda: instances("O 0 0\nS 0 25 0 0\nE 25 0\n", EDF_DM)),
+         lambda: instances(parse("O 0 0\nS 0 25 0 0\nE 25 0\n", EDF_DM), EDF_DM)),
         # The traces as printed, a load the README does not give
         ("the load of the EDF and DM set not the README's", "does not say",
          lambda: with_load(98, lambda: check_edf_dm(edf, dm))),
@@ -493,7 +471,8 @@ def self_test():
     lane(mandatory, light, 0, FIRM[1], [
         {"release": 0, "slices": [], "end": None, "skipped": False, "dropped": False}],
          "#000000", (1, 2))
-    unrun = instances(without(firm_trace, "S 0 30 0 0", "E 30 0"), FIRM, firm=True)[0][0]
+    unrun = instances(parse(without(firm_trace, "S 0 30 0 0", "E 30 0"), FIRM), FIRM,
+                      firm=True)[0][0]
     drawn = [
         ("a mandatory instance never run not taken for one dropped", not unrun["dropped"]),
         ("a load the README does not give refused",

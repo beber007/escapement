@@ -11,13 +11,17 @@ priority order, each for its execution time, the costs being the medians the tra
 itself shows (tools/response_times.py for the bounds). Below, the trace: the kernel from
 the alarm to the first task's mark, each task from its start mark to its end mark, the
 probe, which marks only its start, up to the next task's start when one follows at once,
-for the median of those times otherwise. No dependency:
+for the median of those times otherwise. No dependency but tools/figure_svg.py:
 
     tools/schedule_figure.py docs/data/pico-response-dm.csv.gz docs/images/pico-schedule.svg
 """
 import gzip
+import os
 import statistics
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import figure_svg as svg   # noqa: E402
 
 ALARM, MARK = 1, 7
 PROBE = 4
@@ -33,7 +37,6 @@ KERNEL = "#8c959f"
 
 W, LEFT, RIGHT = 900, 128, 24
 LANE_H, LANE_GAP = 22, 6
-INK, MUTED, GRID = "#1f2328", "#59636e", "#e7ecf0"
 
 
 def read(path):
@@ -112,57 +115,34 @@ def computed(release, entry, probe, switch, spans):
 
 
 def panel(out, top, t0, t1, runs, title, ticks):
-    x = lambda us: LEFT + (W - RIGHT - LEFT) * (us - t0) / (t1 - t0)
+    th = svg.LIGHT
+    x = svg.scale(t0, t1, LEFT, W - RIGHT)
     lanes = [("kernel", "kernel", "entry", KERNEL)] + [(p, n, c, col)
                                                        for p, n, c, col, _ in TASKS]
     bottom = top + len(lanes) * (LANE_H + LANE_GAP)
-    out.append(f'<text x="{LEFT}" y="{top - 12}" font-size="12.5" font-weight="600" '
-               f'fill="{INK}">{title}</text>')
-    for tick in ticks:
-        gx = x(t0 + tick)
-        out.append(f'<line x1="{gx:.1f}" y1="{top - 4}" x2="{gx:.1f}" y2="{bottom}" '
-                   f'stroke="{GRID}" stroke-width="1"/>')
-        out.append(f'<text x="{gx:.1f}" y="{bottom + 15}" font-size="11" fill="{MUTED}" '
-                   f'text-anchor="middle">{tick}</text>')
-    out.append(f'<text x="{W - RIGHT}" y="{bottom + 30}" font-size="11" fill="{MUTED}" '
-               'text-anchor="end">µs after the release</text>')
-    for i, (key, name, label, colour) in enumerate(lanes):
+    out.append(svg.text(LEFT, top - 12, title, 12.5, th["ink"], weight="600"))
+    svg.grid(out, th, lambda tick: x(t0 + tick), ticks, top - 4, bottom, bottom + 15, 11)
+    out.append(svg.text(W - RIGHT, bottom + 30, "µs after the release", 11, th["muted"],
+                        anchor="end"))
+    for i, (key, name, caption, colour) in enumerate(lanes):
         lt = top + i * (LANE_H + LANE_GAP)
         base, high = lt + LANE_H - 4, lt + 4
-        out.append(f'<text x="{LEFT - 10}" y="{lt + 10}" font-size="11.5" '
-                   f'font-weight="600" fill="{INK}" text-anchor="end">{name}</text>')
-        out.append(f'<text x="{LEFT - 10}" y="{lt + 21}" font-size="10" fill="{MUTED}" '
-                   f'text-anchor="end">{label}</text>')
-        out.append(f'<line x1="{LEFT}" y1="{base}" x2="{W - RIGHT}" y2="{base}" '
-                   f'stroke="{colour}" stroke-width="1.2" opacity="0.4"/>')
-        for a, b in runs.get(key, []):
-            if b < t0 or a > t1:
-                continue
-            x0 = x(max(a, t0))
-            x1 = max(x(min(b, t1)), x0 + 1.6)
-            out.append(f'<rect x="{x0:.2f}" y="{high}" width="{x1 - x0:.2f}" '
-                       f'height="{base - high}" rx="1" fill="{colour}"/>')
+        svg.label(out, th, LEFT - 10, lt + 10, name, caption, 11.5, 10, 11)
+        out.append(svg.hline(LEFT, W - RIGHT, base, colour, 1.2, 0.4))
+        svg.bars(out, x, runs.get(key, []), t0, t1, high, base, colour)
     return bottom + 40
 
 
 def render(release, window, top_runs, bottom_runs, title, subtitle):
-    out = []
+    th = svg.LIGHT
+    out = [svg.text(LEFT, 26, title, 15, th["ink"], weight="600"),
+           svg.text(LEFT, 43, subtitle, 12, th["muted"])]
     ticks = range(0, window + 1, 50)
     y = panel(out, 76, release, release + window, top_runs,
               "Computed from the task set and the medians of the trace", ticks)
     y = panel(out, y + 24, release, release + window, bottom_runs,
               "Traced on the board", ticks)
-    height = y + 8
-    head = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{height}" '
-        f'viewBox="0 0 {W} {height}" font-family="ui-sans-serif,-apple-system,'
-        'Segoe UI,Helvetica,Arial,sans-serif">',
-        f'<rect width="{W}" height="{height}" fill="#ffffff"/>',
-        f'<text x="{LEFT}" y="26" font-size="15" font-weight="600" fill="{INK}">'
-        f'{title}</text>',
-        f'<text x="{LEFT}" y="43" font-size="12" fill="{MUTED}">{subtitle}</text>',
-    ]
-    return "\n".join(head + out + ["</svg>"])
+    return svg.document(th, W, y + 8, out)
 
 
 def main():

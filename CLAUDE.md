@@ -168,7 +168,8 @@ python3 tools/differential.py        # random task sets run by each build, every
                                      # sets included, and the power-aware speeds against
                                      # tools/speed_reference.py (run by the CI, ~40 s)
 python3 tools/host_figures.py        # the README's figures of how it schedules, from
-                                     # the host's traces; --check and --self-test in the CI
+                                     # the host's traces; --check and --self-test in the CI;
+                                     # tools/figure_svg.py, the style of every figure
 python3 tools/firm_admission.py      # (m,k)-firm sets under EDF simulated whole, the
                                      # kernel's admission test against the demand test
                                      # prototype: optional instances run, deadlines missed

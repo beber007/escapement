@@ -376,6 +376,14 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **The figure scripts share one module (#31), 2026-10-23.** `tools/figure_svg.py` holds
+  what `tools/host_figures.py`, `tools/schedule_figure.py` and `tools/dvfs_figure.py`
+  wrote three times: the font, the light and dark palettes, the page, the time axis, a
+  lane's label and its bars. `tools/differential.py` takes the span of a run as a
+  parameter, `duration`, where the figures set its constant on a copy of the module, and
+  each trace of the figures is read once. The six SVG files, the README's four and the
+  Pico's two, come out byte for byte as before.
+
 - **The boards checked side by side (#32), 2026-10-18.** `tools/board_ci.sh` runs the
   Pico, the Pico 2, the STM32U5 and the STM32U3 at once, each through its own debugger,
   and puts their logs together after: 16 minutes for a check against 28 in turn, the

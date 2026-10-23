@@ -278,20 +278,20 @@ def response_times_hold(tasks):
     return True
 
 
-def instances(tasks, dm):
+def instances(tasks, dm, duration=DURATION):
     """Every instance the run must hold, from the specification of the algorithms rather
     than the kernels: (task, release, deadline, key), the key what decides between waiting
     instances, the absolute deadline under EDF, the relative one under DM. A periodic task
-    is released every period from 0. An event-driven task under DM is released at its
-    signal, or a workload after its previous release if that is later, its deadline a
-    workload after; under EDF the event-driven tasks share a total bandwidth server
+    is released every period from 0 to duration. An event-driven task under DM is released
+    at its signal, or a workload after its previous release if that is later, its deadline
+    a workload after; under EDF the event-driven tasks share a total bandwidth server
     (Spuri and Buttazzo, 1996): an instance released at r gets the deadline
     D = max(D, r) + workload, D the last deadline given to any of them."""
     out = []
     for i, t in enumerate(tasks):
         if t["kind"] in "PF":
             k = 0
-            while k * t["period"] <= DURATION:
+            while k * t["period"] <= duration:
                 r = k * t["period"]
                 optional = t["kind"] == "F" and not mandatory(k, t["m"], t["k"])
                 out.append((i, r, r + t["deadline"], t["deadline"] if dm else r + t["deadline"],
@@ -326,7 +326,7 @@ def instances(tasks, dm):
     return sorted(out, key=lambda x: (x[1], x[0]))
 
 
-def run(build, tasks, phase=0, overruns=False, barriers=False):
+def run(build, tasks, phase=0, overruns=False, barriers=False, duration=DURATION):
     binary = os.path.join(HOST, os.environ.get("BUILD", "build"), "test_scheduler_" + build)
     lines = (["H"] if overruns else []) + (["B"] if barriers else [])
     for t in tasks:
@@ -348,7 +348,7 @@ def run(build, tasks, phase=0, overruns=False, barriers=False):
     env = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
     # A faulty kernel, a mutant among them, may print memory as it is: decoded with
     # replacement, its output fails the checks rather than the script (2026-10-06).
-    done = subprocess.run([binary, "trace", str(DURATION), str(phase)], input="\n".join(lines) + "\n",
+    done = subprocess.run([binary, "trace", str(duration), str(phase)], input="\n".join(lines) + "\n",
                           capture_output=True, text=True, errors="replace", timeout=60,
                           env=env)
     if done.returncode != 0:
@@ -473,7 +473,8 @@ def demand_test(tasks, i, target, t):
     return True, len(jobs)
 
 
-def check(build, tasks, trace, speeds=True, phase=0, decisions=None, overruns=False):
+def check(build, tasks, trace, speeds=True, phase=0, decisions=None, overruns=False,
+          duration=DURATION):
     """Raises Failure at the first point the trace breaks the algorithm, or, speeds
     True, a speed the power-aware policy of build would not pick. A run started at
     phase of the counter, not 0, crosses its 2^30 wraparound, where the timer interrupts
@@ -481,10 +482,11 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None, overruns=Fa
     on: a release of a periodic task that finds an instance of it unfinished is skipped,
     and must be the very one the trace tells ("O"); the late instance keeps its deadline,
     and the rest holds but the deadlines and the speeds, which an overload breaks, and
-    what of the optional instances rests on the WCETs, which the late one has passed."""
+    what of the optional instances rests on the WCETs, which the late one has passed.
+    duration is the run's, in ticks, as given to run()."""
     dm = build in DEADLINE_MONOTONIC
     power_aware = build.startswith("pa_")
-    todo = instances(tasks, dm)                   # not yet released, in release order
+    todo = instances(tasks, dm, duration)         # not yet released, in release order
     # pending: [release, deadline, key, work, optional, started, admissible, takes, first];
     # an optional instance of an (m,k)-firm task may be dropped, and is not waited for until
     # it starts; admissible, the times of the ends where nothing else was due, at which it
@@ -748,7 +750,8 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None, overruns=Fa
         return
     if speeds and power_aware and all(t["kind"] in "PE" for t in tasks):
         try:
-            speed_reference.check_speeds(build, tasks, trace, instances(tasks, dm),
+            speed_reference.check_speeds(build, tasks, trace,
+                                         instances(tasks, dm, duration),
                                          0x40000000 - phase if phase else None)
         except speed_reference.Failure as e:
             raise Failure(str(e))
@@ -767,7 +770,6 @@ def self_test():
     tasks = [periodic(20, 100, 100, 15), periodic(30, 150, 120, 30)]
     good = "S 0 15 0 2\nE 15 0\nS 15 30 1 2\nE 45 1\nS 45 55 -1 0\nI 100\nS 100 15 0 2\n" \
            "E 115 0\nS 115 35 -1 0\nI 150\nS 150 30 1 2\nE 180 1\nS 180 20 -1 0\nT 200\n"
-    global DURATION
     check("pa_edf", tasks, good, speeds=False)
     wrong = {
         "the wrong task first": good.replace("S 0 15 0 2\nE 15 0\nS 15 30 1 2\nE 45 1",
