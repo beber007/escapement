@@ -39,7 +39,10 @@ kilobytes of RAM.**
 - **Power-aware.** A variant lowers the core voltage and frequency, as far as the
   worst-case execution times the tasks declare still meet every deadline.
 
-![The power-aware kernel moving the clock of a Raspberry Pi Pico between 125, 50 and 12 MHz around its tasks](docs/images/pico-dvfs.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/pico-dvfs-dark.svg">
+  <img src="docs/images/pico-dvfs-light.svg" alt="The power-aware kernel moving the clock of a Raspberry Pi Pico between 125, 50 and 12 MHz around its tasks" width="100%">
+</picture>
 
 <sub>A Raspberry Pi Pico under the power-aware kernel, traced on the board
 ([details below](#on-the-silicon)).</sub>
@@ -171,7 +174,10 @@ What it saves was measured on 2026-10-10: up to some 5 % with the idle task in W
 nothing once it sleeps in SLEEP, which alone takes some 73 % off
 ([`docs/power-aware.md`](docs/power-aware.md)).
 
-![TaskLEDPico's schedule, computed from the task set above, traced on a Raspberry Pi Pico below, at a release of all four tasks](docs/images/pico-schedule.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/pico-schedule-dark.svg">
+  <img src="docs/images/pico-schedule-light.svg" alt="TaskLEDPico's schedule, computed from the task set above, traced on a Raspberry Pi Pico below, at a release of all four tasks" width="100%">
+</picture>
 
 The same board under the hard kernel, at an instant when its four tasks are released
 together. Above, the schedule computed from the task set and the kernel's costs the

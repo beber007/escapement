@@ -13,7 +13,10 @@ the alarm to the first task's mark, each task from its start mark to its end mar
 probe, which marks only its start, up to the next task's start when one follows at once,
 for the median of those times otherwise. No dependency but tools/figure_svg.py:
 
-    tools/schedule_figure.py docs/data/pico-response-dm.csv.gz docs/images/pico-schedule.svg
+    tools/schedule_figure.py docs/data/pico-response-dm-long.csv.gz docs/images/pico-schedule
+
+which writes docs/images/pico-schedule-light.svg and pico-schedule-dark.svg, for a light
+and a dark page.
 """
 import gzip
 import os
@@ -25,15 +28,17 @@ import figure_svg as svg   # noqa: E402
 
 ALARM, MARK = 1, 7
 PROBE = 4
-# pin, name, caption, colour, period in us, execution time in us for the computed row
-# (the 60 ms task's is that of the traced instance, so that the rows can be compared)
+# pin, name, caption, hue of tools/figure_svg.py, period in us. The computed row takes
+# the execution times from the trace (main): the probe's median, the shortest instance
+# of the 10 and 20 ms tasks, the traced one of the 60 ms task, so that the rows can be
+# compared
 TASKS = [
-    (PROBE, "GP4", "probe · 1 ms", "#1a7f37", 1000),
-    (25, "GP25", "10 ms", "#1f6feb", 10000),
-    (2, "GP2", "20 ms", "#6f42c1", 20000),
-    (3, "GP3", "60 ms", "#bc4c00", 60000),
+    (PROBE, "GP4", "probe · 1 ms", "green", 1000),
+    (25, "GP25", "10 ms", "blue", 10000),
+    (2, "GP2", "20 ms", "purple", 20000),
+    (3, "GP3", "60 ms", "orange", 60000),
 ]
-KERNEL = "#8c959f"
+KERNEL = "grey"
 
 W, LEFT, RIGHT = 900, 128, 24
 LANE_H, LANE_GAP = 22, 6
@@ -114,8 +119,7 @@ def computed(release, entry, probe, switch, spans):
     return rows
 
 
-def panel(out, top, t0, t1, runs, title, ticks):
-    th = svg.LIGHT
+def panel(out, th, top, t0, t1, runs, title, ticks):
     x = svg.scale(t0, t1, LEFT, W - RIGHT)
     lanes = [("kernel", "kernel", "entry", KERNEL)] + [(p, n, c, col)
                                                        for p, n, c, col, _ in TASKS]
@@ -128,26 +132,25 @@ def panel(out, top, t0, t1, runs, title, ticks):
         lt = top + i * (LANE_H + LANE_GAP)
         base, high = lt + LANE_H - 4, lt + 4
         svg.label(out, th, LEFT - 10, lt + 10, name, caption, 11.5, 10, 11)
-        out.append(svg.hline(LEFT, W - RIGHT, base, colour, 1.2, 0.4))
-        svg.bars(out, x, runs.get(key, []), t0, t1, high, base, colour)
+        out.append(svg.hline(LEFT, W - RIGHT, base, th[colour], 1.2, 0.4))
+        svg.bars(out, x, runs.get(key, []), t0, t1, high, base, th[colour])
     return bottom + 40
 
 
-def render(release, window, top_runs, bottom_runs, title, subtitle):
-    th = svg.LIGHT
+def render(th, release, window, top_runs, bottom_runs, title, subtitle):
     out = [svg.text(LEFT, 26, title, 15, th["ink"], weight="600"),
            svg.text(LEFT, 43, subtitle, 12, th["muted"])]
     ticks = range(0, window + 1, 50)
-    y = panel(out, 76, release, release + window, top_runs,
+    y = panel(out, th, 76, release, release + window, top_runs,
               "Computed from the task set and the medians of the trace", ticks)
-    y = panel(out, y + 24, release, release + window, bottom_runs,
+    y = panel(out, th, y + 24, release, release + window, bottom_runs,
               "Traced on the board", ticks)
     return svg.document(th, W, y + 8, out)
 
 
 def main():
-    src = sys.argv[1] if len(sys.argv) > 1 else "docs/data/pico-response-dm.csv.gz"
-    dst = sys.argv[2] if len(sys.argv) > 2 else "docs/images/pico-schedule.svg"
+    src = sys.argv[1] if len(sys.argv) > 1 else "docs/data/pico-response-dm-long.csv.gz"
+    dst = sys.argv[2] if len(sys.argv) > 2 else "docs/images/pico-schedule"
     origin, rows = read(src)
     runs = runs_in(rows)
     release, span3 = pick(origin, runs)
@@ -157,13 +160,12 @@ def main():
     top = computed(release, entry, probe, switch, spans)
     end = top[3][0][1] - release
     window = max(100, ((int(end) + 40) // 50 + 1) * 50)
-    svg = render(release, window, top, runs,
-                 "TaskLEDPico on a Raspberry Pi Pico: the four tasks released at once",
-                 f"Medians of the trace: kernel's entry {entry:g} µs when all four are "
-                 f"released, probe {probe:g} µs, switch {switch:g} µs; the 60 ms task's "
-                 f"instance ran {span3} µs")
-    with open(dst, "w") as fh:
-        fh.write(svg + "\n")
+    svg.write(dst, lambda th: render(
+        th, release, window, top, runs,
+        "TaskLEDPico on a Raspberry Pi Pico: the four tasks released at once",
+        f"Medians of the trace: kernel's entry {entry:g} µs when all four are "
+        f"released, probe {probe:g} µs, switch {switch:g} µs; the 60 ms task's "
+        f"instance ran {span3} µs"))
     print(f"release at {release}, window {window} µs, entry {entry} µs, probe {probe} µs, "
           f"switch {switch} µs, tasks {spans}")
 

@@ -7,8 +7,15 @@ tools/dvfs_figure.py draw with it, each at its own sizes. No dependency.
 """
 
 FONT = "ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif"
-LIGHT = {"bg": "#ffffff", "ink": "#1f2328", "muted": "#59636e", "grid": "#e7ecf0"}
-DARK = {"bg": "#0d1117", "ink": "#e6edf3", "muted": "#9198a1", "grid": "#21262d"}
+# The page's colours, and hues for the lanes, each in the shade that stands out on its
+# page
+LIGHT = {"bg": "#ffffff", "ink": "#1f2328", "muted": "#59636e", "grid": "#e7ecf0",
+         "green": "#1a7f37", "blue": "#1f6feb", "purple": "#6f42c1", "orange": "#bc4c00",
+         "grey": "#8c959f"}
+DARK = {"bg": "#0d1117", "ink": "#e6edf3", "muted": "#9198a1", "grid": "#21262d",
+        "green": "#3fb950", "blue": "#4493f8", "purple": "#ab7df8", "orange": "#db6d28",
+        "grey": "#6e7681"}
+THEMES = {"light": LIGHT, "dark": DARK}
 
 
 def scale(t0, t1, px0, px1):
@@ -57,6 +64,14 @@ def bars(out, x, spans, t0, t1, high, base, colour):
         x1 = max(x(min(b, t1)), x0 + 1.6)
         out.append(f'<rect x="{x0:.2f}" y="{high}" width="{x1 - x0:.2f}" '
                    f'height="{base - high}" rx="1" fill="{colour}"/>')
+
+
+def write(base, draw):
+    """base-light.svg and base-dark.svg, each what draw(palette) returns, for a page
+    that shows one or the other with <picture>."""
+    for name, th in THEMES.items():
+        with open(f"{base}-{name}.svg", "w") as fh:
+            fh.write(draw(th) + "\n")
 
 
 def document(th, width, height, body, rounded=None):

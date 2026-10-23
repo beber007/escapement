@@ -376,6 +376,12 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **The Pico's two figures for a dark page too (#38), 2026-10-23.**
+  `tools/schedule_figure.py` and `tools/dvfs_figure.py` write a light and a dark
+  version, from the palettes of `tools/figure_svg.py`, and the README and `rp2040.md`
+  show the one the page's theme asks for, as the banner and the figures of how the
+  kernels schedule do. The light versions are the former images byte for byte.
+
 - **No descriptor of the queue used once its operation returned (#26), 2026-10-23.**
   `test/model/fifo.py` checks each read and write of a descriptor, which lives on its
   operation's stack, for an operation still running or preempted by the one touching
