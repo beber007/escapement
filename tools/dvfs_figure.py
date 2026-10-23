@@ -7,13 +7,18 @@
 Reads the CSV that tools/read_trace.py --csv writes for TaskLEDPico built with
 make KERNEL=PA TRACE=1, and writes a standalone SVG: an overview of the whole trace
 and a zoom on two rounds, each with the tasks above and the clock of the core below.
-No dependency, so that the figure can be regenerated from the data alone:
+No dependency but tools/figure_svg.py, so that the figure can be regenerated from the
+data alone:
 
     tools/read_trace.py build/TaskLEDPico.elf --csv > docs/data/pico-pa-trace.csv
     tools/dvfs_figure.py docs/data/pico-pa-trace.csv docs/images/pico-dvfs.svg
 """
 import csv
+import os
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import figure_svg as svg   # noqa: E402
 
 MARK, SPEED = 7, 6
 MHZ = {0: 12, 1: 50, 2: 125}
@@ -32,7 +37,6 @@ PROBE = 4
 W, LEFT, RIGHT = 900, 128, 24
 LANE_H, LANE_GAP = 22, 6
 SPEED_H = 70
-INK, MUTED, GRID = "#1f2328", "#59636e", "#e7ecf0"
 
 
 def read(path):
@@ -59,49 +63,32 @@ def read(path):
 
 def panel(out, top, t0, t1, runs, speeds, title, ticks, unit, scale,
           px0=LEFT, px1=W - RIGHT):
-    x = lambda us: px0 + (px1 - px0) * (us - t0) / (t1 - t0)
+    th = svg.LIGHT
+    x = svg.scale(t0, t1, px0, px1)
     labels = px0 == LEFT
     lanes_h = len(TASKS) * (LANE_H + LANE_GAP)
     bottom = top + lanes_h + 14 + SPEED_H
-    out.append(f'<text x="{px0}" y="{top - 12}" font-size="12.5" font-weight="600" '
-               f'fill="{INK}">{title}</text>')
-    for tick in ticks:
-        gx = x(tick)
-        out.append(f'<line x1="{gx:.1f}" y1="{top - 4}" x2="{gx:.1f}" y2="{bottom}" '
-                   f'stroke="{GRID}" stroke-width="1"/>')
-        out.append(f'<text x="{gx:.1f}" y="{bottom + 15}" font-size="11" fill="{MUTED}" '
-                   f'text-anchor="middle">{tick / scale:g}</text>')
-    out.append(f'<text x="{px1}" y="{bottom + 30}" font-size="11" fill="{MUTED}" '
-               f'text-anchor="end">{unit}</text>')
+    out.append(svg.text(px0, top - 12, title, 12.5, th["ink"], weight="600"))
+    svg.grid(out, th, x, ticks, top - 4, bottom, bottom + 15, 11,
+             lambda tick: f"{tick / scale:g}")
+    out.append(svg.text(px1, bottom + 30, unit, 11, th["muted"], anchor="end"))
 
-    for i, (pin, name, label, colour) in enumerate(TASKS):
+    for i, (pin, name, caption, colour) in enumerate(TASKS):
         lt = top + i * (LANE_H + LANE_GAP)
         base, high = lt + LANE_H - 4, lt + 4
         if labels:
-            out.append(f'<text x="{LEFT - 10}" y="{lt + 10}" font-size="11.5" '
-                       f'font-weight="600" fill="{INK}" text-anchor="end">{name}</text>')
-            out.append(f'<text x="{LEFT - 10}" y="{lt + 21}" font-size="10" fill="{MUTED}" '
-                       f'text-anchor="end">{label}</text>')
-        out.append(f'<line x1="{px0}" y1="{base}" x2="{px1}" y2="{base}" '
-                   f'stroke="{colour}" stroke-width="1.2" opacity="0.4"/>')
-        for a, b in runs[pin]:
-            if b < t0 or a > t1:
-                continue
-            x0 = x(max(a, t0))
-            x1 = max(x(min(b, t1)), x0 + 1.6)
-            out.append(f'<rect x="{x0:.2f}" y="{high}" width="{x1 - x0:.2f}" '
-                       f'height="{base - high}" rx="1" fill="{colour}"/>')
+            svg.label(out, th, LEFT - 10, lt + 10, name, caption, 11.5, 10, 11)
+        out.append(svg.hline(px0, px1, base, colour, 1.2, 0.4))
+        svg.bars(out, x, runs[pin], t0, t1, high, base, colour)
 
     st = top + lanes_h + 14
     y = lambda mhz: st + SPEED_H - SPEED_H * mhz / 125
     for mhz in (12, 50, 125):
-        out.append(f'<line x1="{px0}" y1="{y(mhz):.1f}" x2="{px1}" y2="{y(mhz):.1f}" '
-                   f'stroke="{GRID}" stroke-width="1"/>')
+        out.append(svg.hline(px0, px1, f"{y(mhz):.1f}", th["grid"]))
         if labels:
-            out.append(f'<text x="{LEFT - 10}" y="{y(mhz) + 4:.1f}" font-size="10.5" '
-                       f'fill="{MUTED}" text-anchor="end">{mhz} MHz</text>')
-    out.append(f'<line x1="{px0}" y1="{st + SPEED_H}" x2="{px1}" y2="{st + SPEED_H}" '
-               f'stroke="{MUTED}" stroke-width="1" opacity="0.5"/>')
+            out.append(svg.text(LEFT - 10, f"{y(mhz) + 4:.1f}", f"{mhz} MHz", 10.5,
+                                th["muted"], anchor="end"))
+    out.append(svg.hline(px0, px1, st + SPEED_H, th["muted"], 1, 0.5))
     level = next((m for t, m in reversed(speeds) if t <= t0), speeds[0][1])
     d = [f"M{px0} {y(level):.1f}"]
     for t, mhz in speeds:
@@ -109,17 +96,20 @@ def panel(out, top, t0, t1, runs, speeds, title, ticks, unit, scale,
             d.append(f"H{x(t):.2f} V{y(mhz):.1f}")
             level = mhz
     d.append(f"H{px1}")
-    out.append(f'<path d="{" ".join(d)}" fill="none" stroke="{INK}" stroke-width="1.6" '
-               'stroke-linejoin="miter"/>')
+    out.append(f'<path d="{" ".join(d)}" fill="none" stroke="{th["ink"]}" '
+               'stroke-width="1.6" stroke-linejoin="miter"/>')
     if labels:
-        out.append(f'<text x="{LEFT}" y="{st - 3}" font-size="10.5" fill="{MUTED}">'
-                   'clock of the core</text>')
+        out.append(svg.text(LEFT, st - 3, "clock of the core", 10.5, th["muted"]))
     return bottom + 36
 
 
 def render(runs, speeds, last):
+    th = svg.LIGHT
     span = (last // 1000) * 1000
-    out = []
+    out = [svg.text(LEFT, 26, "The power-aware kernel changing the clock of a real "
+                    "Raspberry Pi Pico", 15, th["ink"], weight="600"),
+           svg.text(LEFT, 43, "Written by the firmware into RAM, read over SWD without "
+                    "stopping a core, timed to the microsecond", 12, th["muted"])]
     y = panel(out, 76, 0, span, runs, speeds, f"The whole trace, {span // 1000} ms",
               range(0, span + 1, 2000), "ms", 1000)
     split = LEFT + (W - RIGHT - LEFT) * 0.64
@@ -128,19 +118,7 @@ def render(runs, speeds, last):
           range(1000, 1301, 50), "ms", 1000, LEFT, split - 14)
     y = panel(out, top, 1995, 2075, runs, speeds, "12 MHz for the probe",
               range(2000, 2071, 20), "ms", 1000, split + 14, W - RIGHT)
-    height = y + 12
-    head = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{height}" '
-        f'viewBox="0 0 {W} {height}" font-family="ui-sans-serif,-apple-system,'
-        'Segoe UI,Helvetica,Arial,sans-serif">',
-        f'<rect width="{W}" height="{height}" fill="#ffffff"/>',
-        f'<text x="{LEFT}" y="26" font-size="15" font-weight="600" fill="{INK}">'
-        'The power-aware kernel changing the clock of a real Raspberry Pi Pico</text>',
-        f'<text x="{LEFT}" y="43" font-size="12" fill="{MUTED}">'
-        'Written by the firmware into RAM, read over SWD without stopping a core, '
-        'timed to the microsecond</text>',
-    ]
-    return "\n".join(head + out + ["</svg>"])
+    return svg.document(th, W, y + 12, out)
 
 
 def main():
