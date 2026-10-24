@@ -614,6 +614,11 @@ The endurance test drops optional instances, never a mandatory one
     ${built}=                 Evaluate  os.path.exists(r"${EXAMPLE}/build/SoakFirmU5.elf")  modules=os
     Skip If                   not ${built}  built for the soft kernel only
     Load Escapement           SoakFirmU5
+    # A seed of its own: the phase of load it draws, 5,227 us of each 10 ms, is long
+    # enough for the kernel to drop optional instances. Drawn from the clock, it came
+    # with the time the image takes to start, low enough at times that it drops none.
+    ${seed}=                  Execute Command  sysbus GetSymbolAddress "SoakSeed"
+    Execute Command           sysbus WriteDoubleWord ${seed.strip()} 0
 
     Execute Command           emulation RunFor "3.5"
 
@@ -761,7 +766,9 @@ Without the HSE, PLL1 takes the MSIS within its input ranges
     Load Escapement           SoakU5  escapement_u5_nohse.repl  ${NUCLEO}
 
     ${usart1}=                Create Terminal Tester  sysbus.usart1  defaultPauseEmulation=true
+    # The second report: the first leaves at the start, before a part may have run (#41).
     Wait For Line On Uart     SOAK  timeout=2.5  testerId=${usart1}
+    Wait For Line On Uart     SOAK  timeout=1.5  testerId=${usart1}
 
     # RCC: CR, ICSCR1, PLL1CFGR, PLL1DIVR, and the wait states the platform saw as the
     # MSIS's range was set.

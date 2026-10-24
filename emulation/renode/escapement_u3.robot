@@ -812,6 +812,11 @@ The endurance test drops optional instances, never a mandatory one
     [Timeout]                 10 minutes
     Skip Unless Built         SoakFirmU3
     Load Escapement           SoakFirmU3
+    # A seed of its own: the phase of load it draws, 5,227 us of each 10 ms, is long
+    # enough for the kernel to drop optional instances. Drawn from the clock, it came
+    # with the time the image takes to start, low enough at times that it drops none.
+    ${seed}=                  Execute Command  sysbus GetSymbolAddress "SoakSeed"
+    Execute Command           sysbus WriteDoubleWord ${seed.strip()} 0
 
     Execute Command           emulation RunFor "3.5"
 

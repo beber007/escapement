@@ -79,6 +79,8 @@
 #define FILL_HIGH   6000               /* the most a phase of load gives it */
 #define EVENT_DELAY 1000               /* of the timer events, without a seed */
 #define STACK_FILL  0x5AC05AC0u        /* what unused stack holds */
+#define STACK_SLICE 128                /* words of core 0's stack scanned a second: the
+                                          512 bytes it must keep free at the bottom */
 #define GUARD       0x6A7D6A7Du
 #define GUARDS      5
 #define EVENT_TIMER_INDEX OS_IO_TIMER_2
@@ -155,6 +157,7 @@ static void Writer(void);
 static UINT32 *NewGuard(void);
 static void PaintStack(void);
 static UINT32 Unused(const UINT32 *bottom, const UINT32 *top);
+static UINT32 UnusedSlice(const UINT32 *bottom, const UINT32 *top, UINT32 free);
 static void CountLate(volatile UINT32 *bins, UINT32 late);
 
 #define VTOR              *((volatile UINT32 *)0xE000ED08)
@@ -233,12 +236,22 @@ int main(void)
   PERIODIC(ReaderTask,400,2000);
   PERIODIC(EventSourceTask,20,5000);
   PERIODIC(FillerTask,7000,10000);
-  PERIODIC(HeartbeatTask,50,1000000);
+  /* 47 us at most on the Pico W under the hard kernel, 65 under the soft one, which
+  ** counts its admission test in the instance that ends (#41). */
+  PERIODIC(HeartbeatTask,80,1000000);
   EVENT_DRIVEN(DrainerTask,100,1000,Drain);
   EVENT_DRIVEN(EventTask,20,2000,Tick);
   #ifdef SOAK_FIRM
      OSCreateTask(FirmTask,FIRM_WCET,0,FIRM_PERIOD,FIRM_PERIOD,FIRM_M,FIRM_K,0,NULL);
   #endif
+  /* The whole of core 0's stack scanned once, before the heartbeat goes on a slice a
+  ** second, and before the timer's interrupt is enabled: on the UNO Q the one taken
+  ** during the scan, before the kernel started, was its last (#41). */
+  {
+     extern UINT32 _OSStackGuardEnd;
+     extern void *_OSStackBasePointer;
+     Results.Stack0Free = Unused(&_OSStackGuardEnd,(UINT32 *)_OSStackBasePointer);
+  }
   AlarmISR.Handler = AlarmHandler;
   OSSetISRDescriptor(ISR_TIMER_INDEX,&AlarmISR);
   NVIC_IPR[ISR_TIMER_INDEX >> 2] |= ISR_PRIORITY << ((ISR_TIMER_INDEX & 3) << 3);
@@ -519,7 +532,8 @@ static void HeartbeatTask(void *argument)
      seenMandatory = Firm.Mandatory;
   #endif
   /* The stack of core 0 runs down from the heap towards the guard above .bss. */
-  Results.Stack0Free = Unused(&_OSStackGuardEnd,(UINT32 *)_OSStackBasePointer);
+  Results.Stack0Free = UnusedSlice(&_OSStackGuardEnd,(UINT32 *)_OSStackBasePointer,
+                                   Results.Stack0Free);
   if (SoakLaunchCore1)
      Results.Stack1Free = Unused(Core1Stack,
                                  &Core1Stack[sizeof Core1Stack / sizeof Core1Stack[0]]);
@@ -576,6 +590,37 @@ static UINT32 Unused(const UINT32 *bottom, const UINT32 *top)
      word += 1;
   return (UINT32)(word - bottom) * sizeof(UINT32);
 } /* end of Unused */
+
+
+/* UnusedSlice: Unused a slice a second, for core 0's stack: scanned whole, some 256 KB on
+** the Pico, it took the heartbeat 4.4 ms against what it declared then (#41). The words
+** at the bottom, where an overflow shows first, are checked each time; above them the
+** scan goes on STACK_SLICE words from where it stopped, and gives the bytes unused once
+** it meets a word the pattern no longer holds, or the top. Until then free, from the scan
+** before, stands. */
+static UINT32 UnusedSlice(const UINT32 *bottom, const UINT32 *top, UINT32 free)
+{
+  static const UINT32 *scan;
+  /* Through an integer: the linker's symbol for the bottom is one word to the
+  ** compiler. */
+  const UINT32 *slice = (const UINT32 *)((UINTPTR)bottom + STACK_SLICE * sizeof(UINT32));
+  const UINT32 *word, *end;
+  UINT32 low = Unused(bottom,slice < top ? slice : top);
+  if (low < STACK_SLICE * sizeof(UINT32)) {
+     scan = NULL;
+     return low;
+  }
+  word = scan != NULL ? scan : slice;
+  end = word + STACK_SLICE < top ? word + STACK_SLICE : top;
+  while (word < end && *word == STACK_FILL)
+     word += 1;
+  if (word < end || word == top) {
+     scan = NULL;
+     return (UINT32)(word - bottom) * sizeof(UINT32);
+  }
+  scan = word;
+  return free;
+} /* end of UnusedSlice */
 
 
 /* CountLate: One lateness in its bin of 10 us, the last for all beyond. */

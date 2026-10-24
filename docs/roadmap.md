@@ -376,16 +376,30 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **The endurance test's heartbeat as short as it declares, on the Picos (#41),
+  2026-10-24.** It scanned the whole of core 0's painted stack each second, 4.4 ms on the
+  Pico W and 6.5 ms on the Pico 2 against the 50 µs it declared. It now scans a slice of
+  128 words a second, from where it stopped, besides the 128 at the bottom, where an
+  overflow shows first, checked each time: the free stack it reports is that of a whole
+  pass, some eight minutes on the Pico W and seventeen on the Pico 2, or two when the
+  stack grew below the scan during one, and at the start one made in `main` before the
+  kernel starts. Measured with `make WCET=1` over three minutes: 47 µs on the Pico W and
+  33 on the Pico 2 under the hard kernel, 65 and 39 under the soft one, which counts its
+  admission test in the instance that ends. Each Soak declares 80 µs. SoakU5 and SoakU3
+  have the same code, not measured: their boards run their endurance tests, which a
+  measure would stop. Their heartbeat's first instance waits for the IWDG to take its
+  settings, most likely past the 80 µs.
+
 - **Each task's execution times measured (#10), 2026-10-23.** Built with `make WCET=1`,
   the hard and soft kernels count the ticks each instance holds the processor, from one
   context switch to the next, the soft timer interrupt left out, and keep each task's
   largest; `tools/wcet.py` reads them over SWD without stopping a core, and a task reads
-  its own with `OSGetTaskMaxTime()`. Each figure is one word, which the probe reads
-  whole: the sequence count the issue planned for 64-bit times is not needed. On the
-  Pico W, SoakFirmPico's (2,5)-firm task, which works 1.5 ms, measured 1499 to 1503 µs, and
-  SoakPico's heartbeat 4.4 ms against the 50 µs it declares. The power-aware kernel
-  refuses the option: its ticks would need scaling by the speed. Without it, every image
-  is the same, byte for byte.
+  its own with `OSGetTaskMaxTime()`. Each figure is one word, which the probe reads whole:
+  the sequence count the issue planned for 64-bit times is not needed. On the Pico W,
+  SoakFirmPico's (2,5)-firm task, which works 1.5 ms, measured 1499 to 1503 µs, and
+  SoakPico's heartbeat 4.4 ms against the 50 µs it then declared (#41). The power-aware
+  kernel refuses the option: its ticks would need scaling by the speed. Without it, every
+  image is the same, byte for byte.
 
 - **The Pico's two figures for a dark page too (#38), 2026-10-23.**
   `tools/schedule_figure.py` and `tools/dvfs_figure.py` write a light and a dark

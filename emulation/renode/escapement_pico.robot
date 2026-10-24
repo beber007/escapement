@@ -304,6 +304,11 @@ The endurance test drops optional instances, never a mandatory one
     ${built}=                 Evaluate  os.path.exists(r"${EXAMPLE}/build/SoakFirmPico.elf")  modules=os
     Skip If                   not ${built}  built for the soft kernel only
     Load Escapement           SoakFirmPico
+    # A seed of its own: the phase of load it draws, 5,227 us of each 10 ms, is long
+    # enough for the kernel to drop optional instances. Drawn from the clock, it came
+    # with the time the image takes to start, low enough at times that it drops none.
+    ${seed}=                  Execute Command  sysbus GetSymbolAddress "SoakSeed"
+    Execute Command           sysbus WriteDoubleWord ${seed.strip()} 0
     ${flag}=                  Execute Command  sysbus GetSymbolAddress "SoakLaunchCore1"
     Execute Command           sysbus WriteDoubleWord ${flag.strip()} 0
 
