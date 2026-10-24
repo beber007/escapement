@@ -70,6 +70,12 @@ endif
 ifdef TRACE
    CFLAGS += -DESCAPEMENT_TRACE
 endif
+# make WCET=1 measures what each task's instances hold the processor, which a debugger
+# reads from _OSTaskTimes (EscapementHard.h, "EXECUTION TIMES"): hard and soft kernels only.
+ifdef WCET
+   CFLAGS += -DESCAPEMENT_MEASURE_WCET
+   AFLAGS += -DESCAPEMENT_MEASURE_WCET
+endif
 ifdef PHASES
    CFLAGS += -DSLEEP_PHASES=$(PHASES)
 endif

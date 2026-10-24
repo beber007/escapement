@@ -324,6 +324,11 @@ jobs:
             make: KERNEL=SOFT
           - variant: soft, deadline-monotonic
             make: KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+          # The execution times measured (make WCET=1): the context switch with its count
+          - variant: hard, EDF, execution times
+            make: WCET=1
+          - variant: soft, EDF, execution times
+            make: KERNEL=SOFT WCET=1
 
     steps:
       - uses: actions/checkout@v7
@@ -552,6 +557,11 @@ jobs:
           - variant: power-aware, idle asleep at 12 MHz
             make: KERNEL=PA SLEEP_SPEED=0
             robot: --variable KERNEL:PA
+          # The execution times measured (make WCET=1): the context switch with its count
+          - variant: hard, EDF, execution times
+            make: WCET=1
+          - variant: soft, EDF, execution times
+            make: KERNEL=SOFT WCET=1
 
     steps:
       - uses: actions/checkout@v7

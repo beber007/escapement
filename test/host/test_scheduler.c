@@ -223,6 +223,33 @@ extern void _OSTimerInterruptHandler(void);
 ** target the next task would not be elected, or a context that ended would be restored. */
 static unsigned EndBreaks = 0, HandlerBreaks = 0;
 extern unsigned HostTimerStarted;
+extern void (*HostTimeReadHook)(void);
+
+/* The execution times (ESCAPEMENT_MEASURE_WCET, the builds *_wcet): the soft timer
+** interrupt pauses the count on entry, and each context switch hands it on, as on the
+** target, where the switch runs masked: the time it reads is no point for a test to
+** take an interrupt at. */
+#ifdef ESCAPEMENT_MEASURE_WCET
+   static void MeasurePause(void)
+   {
+     void (*hook)(void) = HostTimeReadHook;
+     HostTimeReadHook = NULL;
+     _OSMeasurePause();
+     HostTimeReadHook = hook;
+   }
+
+   static void MeasureSwitch(void *task)
+   {
+     void (*hook)(void) = HostTimeReadHook;
+     HostTimeReadHook = NULL;
+     _OSMeasureSwitch(task);
+     HostTimeReadHook = hook;
+   }
+#else
+   #define MeasurePause() ((void)0)
+   #define MeasureSwitch(task) ((void)(task))
+#endif
+
 static void TimerHandler(void)
 {
   unsigned asked = HostContextSwitchesRequested;
@@ -230,13 +257,13 @@ static void TimerHandler(void)
      printf("FAILED: the timer's handler ran before the timer started\n");
      exit(1);
   }
+  MeasurePause();
   _OSTimerInterruptHandler();
   if (HostContextSwitchesRequested == asked)
      HandlerBreaks += 1;
 }
 extern void HostAdvanceBy(INT32 delta);
 extern void (*HostOverflowCheckHook)(void);
-extern void (*HostTimeReadHook)(void);
 extern void HostSetClock(INT32 time);
 extern void HostLoseReservation(void);
 extern INT32 HostTicksToNextEvent(void);
@@ -410,6 +437,8 @@ static void Dispatch(HostTCB *task)
 {
   if (task != NULL && !(task->TaskState & 0x01))      /* STATE_RUNNING */
      task->TaskState |= 0x01;
+  if (task != NULL)
+     MeasureSwitch(task);
 }
 
 static void RunElected(HostTCB *interrupted)
@@ -1532,6 +1561,9 @@ typedef struct TimedTask {
   BOOL Each;                  /* trace: each instance takes what EachTakes says, its work
                               ** drawn when it is first elected (Work 0) */
   BOOL PeriodLowOnly;         /* a period below 2^30, whose LateEnds are counted */
+  INT32 Got, GotBefore;       /* ticks given it in all, and up to its last end */
+  INT32 MaxGot;               /* the most an instance ended was given */
+  unsigned Ends;
 } TimedTask;
 
 #define TIMED_TASKS 8
@@ -1610,9 +1642,20 @@ static INT32 EventEnds[MAX_ENDS];   /* the same for event-driven tasks */
 static unsigned NbEventEnds;
 
 /* TimedTaskCode: Called once the work of the instance is done. */
+/* TimesBreaks: Ends where the kernel's largest time for the task was not the most an
+** instance ended before was given (ESCAPEMENT_MEASURE_WCET), in every timed run. */
+static unsigned TimesBreaks = 0;
 static void TimedTaskCode(void *argument)
 {
   TimedTask *task = (TimedTask *)argument;
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     if (OSGetTaskMaxTime() != (UINT32)task->MaxGot)
+        TimesBreaks += 1;
+  #endif
+  if (task->Got - task->GotBefore > task->MaxGot)
+     task->MaxGot = task->Got - task->GotBefore;
+  task->GotBefore = task->Got;
+  task->Ends += 1;
   if (TraceOut != NULL)
      fprintf(TraceOut, "E %d %d\n", TimedNow(), (int)(task - Timed));
   if (task->Event != NULL) {
@@ -1868,6 +1911,7 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
         if (TraceOut != NULL)
            fprintf(TraceOut, "S %d %d %d %u\n", now, step, (int)(task - Timed), speed);
         task->Work -= step * rate;
+        task->Got += step;
         BusyAt[speed] += step;
         #if defined(ESCAPEMENT_VERSION_HARD_PA)
            if (speed != OS_MAX_SPEED)
@@ -1893,6 +1937,7 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
      else {
         if (TraceOut != NULL)
            fprintf(TraceOut, "S %d %d -1 0\n", now, step);
+        MeasureSwitch(active);
         IdleTime += step;
         HostAdvanceBy(step);
      }
@@ -2754,6 +2799,64 @@ static void TestEventSpacing(void)
      Check(label, ok);
   }
 }
+
+#ifdef ESCAPEMENT_MEASURE_WCET
+/* TestTimes: What each instance holds the processor (ESCAPEMENT_MEASURE_WCET). A task of
+** 100 every 500 preempts one every 1000 whose instances take 600, 800, 300 and so on, up
+** to 800: with the two instances of the first, 1000 ticks, and those of 800 end at the
+** instant their task is released again, which the context switch that follows starts
+** STATE_RUNNING as the one ended. Each instance must be charged what it was given, never
+** the instances that preempt it, and those ended counted once. A task whose figures find
+** no memory is refused, periodic or event-driven, and leaves no figures behind. */
+extern int HostMallocBudget;
+static void TestTimes(void)
+{
+  static const INT32 takes[10] = {600, 800, 300, 700, 800, 100, 500, 800, 200, 400};
+  unsigned i, found = 0;
+  BOOL refused, refusedEvent, idle;
+  void *event = OSCreateEventDescriptor();
+  OSTASKTIME *time;
+  char label[96];
+
+  BOOL before = OSGetTaskMaxTime() == 0;   /* no task holds the processor yet */
+  HostMallocBudget = 1;          /* the task's block, not its figures */
+  refused = !CREATE_TIMED_TASK(TimedTaskCode, 100, 500, 500, NULL);
+  HostMallocBudget = 1;
+  #if defined(ESCAPEMENT_VERSION_SOFT)
+     refusedEvent = !OSCreateSynchronousTask(TimedTaskCode, 10, 300, 0, event, NULL);
+  #else
+     refusedEvent = !OSCreateSynchronousTask(TimedTaskCode, 300, event, NULL);
+  #endif
+  HostMallocBudget = -1;
+  TimedRun = TIMED_BUSY;
+  CreateTimedTask(100, 500, 500, 0, -1);
+  CreateTimedTask(800, 1000, 1000, 0, -1);
+  for (i = 0; i < 10; i += 1)
+     EachTakes[1][i] = takes[i];
+  Timed[1].Each = TRUE;
+  Timed[1].Work = 0;
+  StartKernel(NULL, NULL);
+  idle = _OSActiveTask == IdleTCB && OSGetTaskMaxTime() == 0;   /* the idle task's: none */
+  RunTimed(10000);
+  MeasurePause();          /* a timer interrupt closes the instances ended last */
+
+  printf("\n10000 ticks of simulated time, the execution times measured\n\n");
+  Check("  read before the kernel starts: 0", before);
+  Check("  read from the idle task: 0", idle);
+  Check("  a task whose figures find no memory: refused", refused);
+  Check("  an event-driven one too", refusedEvent);
+  for (time = _OSTaskTimes; time != NULL; time = time->Next) {
+     TimedTask *task = (TimedTask *)time->Argument;
+     found += 1;
+     snprintf(label, sizeof label, "  task %d: the largest %u of %d, %u instances of %u",
+              (int)(task - Timed), time->MaxHeld, task->MaxGot, time->Instances, task->Ends);
+     Check(label, time->MaxHeld == (UINT32)task->MaxGot && time->Instances == task->Ends &&
+                  time->Held == 0 && time->TaskCodePtr == TimedTaskCode);
+  }
+  snprintf(label, sizeof label, "  every task measured: %u of 2", found);
+  Check(label, found == 2 && Timed[1].MaxGot == 800 && Timed[0].MaxGot == 100);
+}
+#endif
 
 /* TestSimStale: Under DRA and DR_OTE a task ending early leaves its entry in the simulation
 ** queue until the simulation, which runs every instance for its WCET, has used it up; and
@@ -3961,9 +4064,19 @@ int main(int argc, char *argv[])
            TestFirmDiscount(1500, 6000);
      #endif
   #endif
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     else if (argc > 1 && strcmp(argv[1], "wcet") == 0)
+        TestTimes();
+  #endif
   else
      TestTaskSet();
 
+  if (TimesBreaks != 0) {
+     char label[96];
+     snprintf(label, sizeof label, "  ends where the task read a largest time other than "
+              "given: %u", TimesBreaks);
+     Check(label, FALSE);
+  }
   if (EndBreaks != 0 || HandlerBreaks != 0) {
      char label[96];
      snprintf(label, sizeof label, "  ends without a switch or a context left unsaved: %u, "

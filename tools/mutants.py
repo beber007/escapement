@@ -57,8 +57,10 @@ HOST = os.path.join(ROOT, "test", "host")
 WORK = os.path.join(HOST, "build-mutants")
 EQUIVALENTS = os.path.join(HOST, "equivalent-mutants.jsonl")
 KERNELS = {
-    "hard": ("EscapementHard.c", "HARD", ["hard_edf", "hard_dm"]),
-    "soft": ("EscapementSoft.c", "SOFT", ["soft_edf", "soft_dm"]),
+    "hard": ("EscapementHard.c", "HARD", ["hard_edf", "hard_dm", "hard_edf_wcet",
+                                          "hard_dm_wcet"]),
+    "soft": ("EscapementSoft.c", "SOFT", ["soft_edf", "soft_dm", "soft_edf_wcet",
+                                          "soft_dm_wcet"]),
     "pa": ("EscapementHardPA.c", "PA", ["pa_edf", "pa_dm", "pa_dra", "pa_drote",
                                         "pa_dmslack"]),
 }
@@ -134,6 +136,9 @@ def compiled_lines(kernel):
     source, _, builds = KERNELS[kernel]
     with open(os.path.join(HOST, "Makefile"), encoding="utf-8") as f:
         flags = dict(re.findall(r"^FLAGS_(\w+)\s*=\s*(.*)$", f.read(), re.M))
+    # A build's flags may name another's, as the *_wcet builds do: make expands them.
+    for name, value in flags.items():
+        flags[name] = re.sub(r"\$\(FLAGS_(\w+)\)", lambda m: flags[m.group(1)], value)
     path = os.path.join(ROOT, "Escapement", source)
     lines = set()
     for build in builds:

@@ -318,6 +318,9 @@ void DebugMonitor(void)
 void SoftTimerInterrupt(void)
 {
   extern void _OSTimerInterruptHandler(void);  /* Defined in the generic kernel */
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     _OSMeasurePause();                 // the scheduler's time is charged to no task
+  #endif
   FinalizeContextSwitchPreparation();   // Correct possible inconsistent queue state
   OSTrace(OS_TRACE_SOFT_ENTER,0,0);
   _OSTimerInterruptHandler(); // Jump to the generic service routine of the timer

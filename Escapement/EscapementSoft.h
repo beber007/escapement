@@ -241,6 +241,44 @@ UINT32 OSGetOverruns(void);
 ** it has ended. */
 UINT32 OSGetTaskOverruns(void);
 
+
+/* EXECUTION TIMES ------------------------------------------------------------------- */
+/* Built with ESCAPEMENT_MEASURE_WCET (make WCET=1), the kernel adds up, for each instance
+** of each task, the ticks it holds the processor, and keeps the largest of its instances
+** ended: the worst case seen, a figure to compare with the wcet declared, not a bound
+** (api.md, "Measuring execution times"). The time is counted from one context switch to
+** the next, the soft timer interrupt's left out: an instance preempted is not charged for
+** the tasks that preempt it, but it is for the peripheral interrupts it meets, the
+** timer's own that raises the soft one among them. Each figure is one word, written by
+** the context switch and the soft timer interrupt alone, which a task or a debugger
+** reads whole at any time; a task's figures read one after the other may straddle the
+** end of an instance. */
+typedef struct OSTASKTIME {
+  struct OSTASKTIME *Next;       // The task created before, NULL for the first
+  void (*TaskCodePtr)(void *);   // The task's code and argument, to tell it apart
+  void *Argument;
+  UINT32 Held;                   // Ticks the instance under way has held the processor
+  UINT32 MaxHeld;                // The largest Held of an instance ended
+  UINT32 Instances;              // Instances ended
+} OSTASKTIME;
+
+#ifdef ESCAPEMENT_MEASURE_WCET
+   /* _OSTaskTimes: Every task's figures, the last created first, the list fixed once
+   ** the kernel runs, for a debugger to walk (tools/wcet.py). */
+   extern OSTASKTIME *_OSTaskTimes;
+
+   /* OSGetTaskMaxTime: Returns the largest number of ticks an instance of the calling
+   ** task held the processor, 0 before its first instance ends, and 0 when called before
+   ** the kernel runs or from the idle task. */
+   UINT32 OSGetTaskMaxTime(void);
+
+   /* For the port: the soft timer interrupt calls _OSMeasurePause on entry, the context
+   ** switch _OSMeasureSwitch at its end, interrupts masked, with the task it gives the
+   ** processor to. */
+   void _OSMeasurePause(void);
+   void _OSMeasureSwitch(void *dispatched);
+#endif
+
 /* OSGetTaskInstance: Returns the instance number of the calling task.
 ** Returned value: (UINT8) This is a number comprised in the interval [0..k-1], where k
 **   is the number of consecutive task instances that was passed as parameter to

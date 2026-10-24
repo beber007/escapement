@@ -20,11 +20,18 @@ yields 0 on arm64. The CI runs the tests a second time at -O2, the level of the
 firmware, under the whole of UndefinedBehaviorSanitizer, because the optimiser takes
 more from undefined behaviour there.
 
-There are nine builds: the hard and the soft kernel under EDF and DM, the power-aware
-kernel under EDF and DM with OTE, and the power-aware kernel under DRA, DR_OTE and
-DM_SLACK. Each build runs `test_scheduler` in every mode below, the `firm` modes with the
-soft kernel only. `test_ipc` runs once per kernel. A 10 s alarm reports a kernel that
-loops.
+There are thirteen builds: the hard and the soft kernel under EDF and DM, the power-aware
+kernel under EDF and DM with OTE, the power-aware kernel under DRA, DR_OTE and DM_SLACK,
+and the hard and soft kernels under EDF and DM again, measuring execution times
+(`*_wcet`, `ESCAPEMENT_MEASURE_WCET`). Each build runs `test_scheduler` in every mode
+below, the `firm` modes with the soft kernel only, `wcet` with the measuring builds only.
+`test_ipc` runs once per kernel. A 10 s alarm reports a kernel that loops.
+
+The measuring builds stand apart because the field they add to an event-driven task's
+block would hide the reads past its end that AddressSanitizer catches in the others
+(`firmeventqueued`). In them, every instance of a timed run reads the kernel's largest
+time for its task (`OSGetTaskMaxTime`), which must be the most an instance of it ended
+before was given, as the test counts the ticks it gives each task.
 
 | Run | What it checks |
 |---|---|
@@ -65,6 +72,7 @@ loops.
 | `minspeed` | a light load with `OSSetMinimalProcessorSpeed`: the power-aware kernel never goes below it, which four of its five builds would otherwise do; two tasks released together with equal deadlines, which EDF* breaks by arrival and address |
 | `endinside`, `endinsidebusy` | `early` and `busy` with the soft timer interrupt taken at one compiler barrier of the kernels in two, at random (`HostCompilerBarrierHook`), where a task ending leaves its stores in the order the handler relies on; the interrupt completes first, as on the target, what `FinalizeContextSwitchPreparation` completes. The time does not move there, so who ran when and how fast must be as in the run without those interrupts, which a child process makes first |
 | `timewrap`, `timewrapbusy`, `timewrapidle` | `early`, `busy`, and two tasks arriving together after an idle time, started at the phase of the counter where one of the first sixteen instances ends at the last tick before the wrap; the interrupt of the wrap is taken at each of the first four time reads and barriers of that end in turn (`HostTimeReadHook`, `HostCompilerBarrierHook`), where the kernel may hold a time from before the shift. Every check of the timed run must hold. Each run is a child process |
+| `wcet` | measuring builds only: a task of 100 every 500 preempting one every 1000 whose instances take 600 to 800, those of 800 ending at the instant their task is released again; each task's largest time and its instances ended as the test gave them, the preemptions not charged, and a task whose figures find no memory refused. The kernel that closed an instance only at the next context switch missed those ends, the task started again and found running, and merged two instances (firmwait, 2026-10-23) |
 | `test_ipc` | Each operation of the FIFO queue and of the queue between the cores, interrupted at each of its LLs by another, which must complete it or move Tail or Head on for it. Every creation of a queue or buffer refused, not crashing, when memory runs out at each of its allocations. The FIFO queue past the wrap of its indices, started below it; refusing a node when full; a dequeue preempted while the operations preempting it bring its index back to the value it read, as 16 bits did after 65,000 of them. Both slot buffers through their states, and a reader coming in the middle of a write, at the writer's first barrier or at its last with the slot before left unread, over blocks filled with 0xA5 as SRAM is rather than zeros. The queue between the cores of the RP2350 (`Escapement_CoreQueue.c`) in order, full, empty and round its array, its SCs, the one that advances Tail or Head among them, made to fail on purpose. |
 
 Under the power-aware kernel every run also checks the speeds asked for. They must
