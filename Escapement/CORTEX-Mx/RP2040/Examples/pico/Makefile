@@ -286,6 +286,19 @@ $(B)/BenchAdmissionUnmaskedPico.elf : $(ADMISSION) $(B)/BenchAdmissionUnmaskedPi
 $(B)/BenchAdmissionPico.elf : $(ADMISSION) $(B)/BenchAdmissionPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(ADMISSION) $(B)/BenchAdmissionPico.o -T$(LINKERFILE) -lgcc
 
+# make bench-slots: issue #40's first step (BenchSlotsPico.c), a slot of 1 or 10 ms
+# released for nothing, empty or running a Forth word, against none.
+SLOT_VARIANTS = None:0: Slot1ms:1000: Slot1msForth:1000:-DSLOT_FORTH Slot10ms:10000: \
+                Slot10msForth:10000:-DSLOT_FORTH
+bench-slots: $(foreach v,$(SLOT_VARIANTS),$(B)/BenchSlots$(word 1,$(subst :, ,$(v)))Pico.elf)
+define SLOT_RULE
+$(B)/BenchSlots$(1)Pico.o : BenchSlotsPico.c
+	$$(CC) $$(CFLAGS) -DSLOT_PERIOD=$(2) $(3) $$(INCLUDE_ESCAPEMENT) -o $$@ $$<
+$(B)/BenchSlots$(1)Pico.elf : $$(COMMON) $(B)/BenchSlots$(1)Pico.o
+	$$(CC) -mcpu=$$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $$@ $$(COMMON) $(B)/BenchSlots$(1)Pico.o -T$$(LINKERFILE) -lgcc
+endef
+$(foreach v,$(SLOT_VARIANTS),$(eval $(call SLOT_RULE,$(word 1,$(subst :, ,$(v))),$(word 2,$(subst :, ,$(v))),$(word 3,$(subst :, ,$(v))))))
+
 # The .d files produced by -MMD list the headers of each object: without them, a change
 # to Escapement_Config.h triggers no rebuild at all and the next test runs against a
 # stale binary.
