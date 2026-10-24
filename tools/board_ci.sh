@@ -191,7 +191,9 @@ ci_images() {
     [ "$1" = completed ] || return 1
     attempt="$3 $4"
     [ "$2" = success ] || return 3
-    json=$(api "actions/runs/$3/artifacts") || return 4
+    # Asked by name: the list comes 30 to a page, and the images fell on the second once
+    # the run made 34 (2026-10-24, the jobs of the execution times).
+    json=$(api "actions/runs/$3/artifacts?name=board-images") || return 4
     url=$(printf '%s' "$json" |
           jq -r '.artifacts[] | select(.name == "board-images") | .archive_download_url') ||
         return 4
