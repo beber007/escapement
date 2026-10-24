@@ -299,6 +299,14 @@ $(B)/BenchSlots$(1)Pico.elf : $$(COMMON) $(B)/BenchSlots$(1)Pico.o
 endef
 $(foreach v,$(SLOT_VARIANTS),$(eval $(call SLOT_RULE,$(word 1,$(subst :, ,$(v))),$(word 2,$(subst :, ,$(v))),$(word 3,$(subst :, ,$(v))))))
 
+# make bench-restart: issue #40's second step (RestartPico.c), core 1 restarting core 0
+# and its kernel when a task loops, through the SIO FIFO or the PSM.
+bench-restart: $(B)/RestartPico.elf
+$(B)/RestartPico.o : RestartPico.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/RestartPico.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/RestartPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(B)/Escapement_Core1.o $(B)/RestartPico.o -T$(LINKERFILE) -lgcc
+
 # The .d files produced by -MMD list the headers of each object: without them, a change
 # to Escapement_Config.h triggers no rebuild at all and the next test runs against a
 # stale binary.
