@@ -376,6 +376,17 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **Each task's execution times measured (#10), 2026-10-23.** Built with `make WCET=1`,
+  the hard and soft kernels count the ticks each instance holds the processor, from one
+  context switch to the next, the soft timer interrupt left out, and keep each task's
+  largest; `tools/wcet.py` reads them over SWD without stopping a core, and a task reads
+  its own with `OSGetTaskMaxTime()`. Each figure is one word, which the probe reads
+  whole: the sequence count the issue planned for 64-bit times is not needed. On the
+  Pico W, SoakFirmPico's (2,5)-firm task, which works 1.5 ms, measured 1499 to 1503 µs, and
+  SoakPico's heartbeat 4.4 ms against the 50 µs it declares. The power-aware kernel
+  refuses the option: its ticks would need scaling by the speed. Without it, every image
+  is the same, byte for byte.
+
 - **The Pico's two figures for a dark page too (#38), 2026-10-23.**
   `tools/schedule_figure.py` and `tools/dvfs_figure.py` write a light and a dark
   version, from the palettes of `tools/figure_svg.py`, and the README and `rp2040.md`

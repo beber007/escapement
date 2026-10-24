@@ -115,6 +115,14 @@
 #ifndef ESCAPEMENT_H
 #define ESCAPEMENT_H
 
+/* The execution times (ESCAPEMENT_MEASURE_WCET) are measured by the hard and soft kernels
+** only: here an instance takes longer at a lower speed, and its ticks would need scaling
+** by the speed of each stretch of it, changed inside the timer handler (api.md,
+** "Measuring execution times"). */
+#ifdef ESCAPEMENT_MEASURE_WCET
+   #error "ESCAPEMENT_MEASURE_WCET is for the hard and soft kernels"
+#endif
+
 /* POWER MANAGEMENT SCHEMES ---------------------------------------------------------- */
 /* On this version of Escapement, there are 4 possible power scheme modes: DRA and DR_OTE
 ** only work with EDF*, DM_SLACK works with deadline monotonic scheduling and OTE is

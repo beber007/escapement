@@ -152,6 +152,9 @@ _OSContextSwapHandler:
   LDR R2,=_OSStackBasePointer              // R2 <- addr(_OSStackBasePointer)
   LDR R1,=_OSActiveTask                    // R1 <- addr(_OSActiveTask)
   LDR R1,[R1]                              // R1 <- _OSActiveTask
+#ifdef ESCAPEMENT_MEASURE_WCET
+  MOV R12,R1                               // R12 <- the task given the processor
+#endif
   /* Is caller with _OSNoSaveContext? */
   LDRB R3,[R0]                             // R3 <- _OSNoSaveContext
   CBNZ R3,_OSContextSwapHandler_ClearStack // Jump if _OSNoSaveContext = TRUE
@@ -212,6 +215,25 @@ _OSContextSwapHandler_RestoreContext:
   STR R0,[R2]                              // _OSStackBasePointer <- R0
 .thumb_func
 _OSContextSwapHandler_End:
+#ifdef ESCAPEMENT_MEASURE_WCET
+  /* The execution times (EscapementHard.h): the task given the processor is the one read
+  ** on entry, kept in R12, which nothing above changes. A soft timer interrupt taken in
+  ** between may have elected another, which this switch hands the processor to none the
+  ** less, for no instruction: the switch it pended follows at once. Masked, the soft
+  ** timer interrupt never finds the figures half updated. The registers saved above
+  ** leave the stack 4 bytes off 8, which the procedure call standard requires at a call
+  ** (Arm, AAPCS, "The stack"): it is aligned for the call, R4 keeping it as it was. */
+  PUSH {R4,LR}                             // LR holds the exception return
+  MOV R4,SP
+  BIC R0,R4,#7
+  MOV SP,R0                                // SP <- aligned to 8 bytes
+  MOV R0,R12                               // R0 <- the task given the processor
+  CPSID I
+  BL _OSMeasureSwitch
+  CPSIE I                                  // PendSV is never taken masked
+  MOV SP,R4
+  POP {R4,LR}
+#endif
   CLREX                                    // Make all pending SC() fail
   BX LR
   NOP
@@ -250,6 +272,9 @@ _OSContextSwapHandler:
   LDR R2,=_OSStackBasePointer              // R2 <- addr(_OSStackBasePointer)
   LDR R1,=_OSActiveTask                    // R1 <- addr(_OSActiveTask)
   LDR R1,[R1]                              // R1 <- _OSActiveTask
+#ifdef ESCAPEMENT_MEASURE_WCET
+  MOV R12,R1                               // R12 <- the task given the processor
+#endif
   /* Is caller with _OSNoSaveContext? */
   LDRB R3,[R0]                             // R3 <- _OSNoSaveContext
   CMP R3,#1                                // is R3 = TRUE?
@@ -328,6 +353,23 @@ _OSContextSwapHandler_RestoreContext:
   STR R0,[R2]                              // _OSStackBasePointer <- R0
 .thumb_func
 _OSContextSwapHandler_End:
+#ifdef ESCAPEMENT_MEASURE_WCET
+  /* As for the Cortex-M3 above; ARMv6-M pops LR only through a low register. */
+  PUSH {R4,LR}                             // LR holds the exception return
+  MOV R4,SP
+  MOV R0,R4
+  MOVS R1,#7
+  BICS R0,R1
+  MOV SP,R0                                // SP <- aligned to 8 bytes
+  MOV R0,R12                               // R0 <- the task given the processor
+  CPSID I
+  BL _OSMeasureSwitch
+  CPSIE I                                  // PendSV is never taken masked
+  MOV SP,R4
+  POP {R0,R1}
+  MOV R4,R0
+  MOV LR,R1
+#endif
   /* Make all pending SC() fail */
   LDR R0,=_OSLLReserveBit                  // R0 <- addr(_OSLLReserveBit)
   MOVS R3,#0                               // R3 <- FALSE

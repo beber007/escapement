@@ -8,10 +8,10 @@
 # from one event to the next: three wraparounds of the kernel clock, an hour of real time
 # on the board, take a fraction of a second.
 #
-# test_scheduler is built nine times: the hard, the soft and the power-aware kernel, each
-# under earliest deadline first (edf) and deadline-monotonic scheduling (dm), and the
-# power-aware kernel with its three other power-management policies; test_ipc three
-# times, once per kernel.
+# test_scheduler is built thirteen times: the hard, the soft and the power-aware kernel,
+# each under earliest deadline first (edf) and deadline-monotonic scheduling (dm), the
+# power-aware kernel with its three other power-management policies, and the hard and soft
+# kernels again measuring execution times (*_wcet); test_ipc three times, once per kernel.
 #
 #   make -C test/host run
 
@@ -41,7 +41,8 @@ COREQUEUE = ../../Escapement/CORTEX-Mx/RP2350/Escapement_CoreQueue.c
 HEADERS = Escapement.h Escapement_Config.h Escapement_Types.h Escapement_Processor.h \
           Escapement_Timer.h Escapement_Interrupts.h
 
-BUILDS = hard_edf hard_dm soft_edf soft_dm pa_edf pa_dm pa_dra pa_drote pa_dmslack
+BUILDS = hard_edf hard_dm soft_edf soft_dm pa_edf pa_dm pa_dra pa_drote pa_dmslack \
+         hard_edf_wcet hard_dm_wcet soft_edf_wcet soft_dm_wcet
 # The kernels test_ipc runs on; BUILDS and IPC narrowed, a run covers one kernel, as
 # tools/mutants.py has it: make run BUILDS="hard_edf hard_dm" IPC=hard
 IPC = hard soft pa
@@ -56,6 +57,17 @@ FLAGS_pa_dm    = -DHOST_SCHEDULER=2 -DHOST_KERNEL_PA
 FLAGS_pa_dra     = -DHOST_KERNEL_PA -DPOWER_MANAGEMENT=DRA
 FLAGS_pa_drote   = -DHOST_KERNEL_PA -DPOWER_MANAGEMENT=DR_OTE
 FLAGS_pa_dmslack = -DHOST_KERNEL_PA -DPOWER_MANAGEMENT=DM_SLACK
+# The execution times (ESCAPEMENT_MEASURE_WCET) in builds of their own: the field they add
+# to an event-driven task's block would hide the reads past its end that AddressSanitizer
+# catches in the others (firmeventqueued).
+FLAGS_hard_edf_wcet = $(FLAGS_hard_edf) -DESCAPEMENT_MEASURE_WCET
+FLAGS_hard_dm_wcet  = $(FLAGS_hard_dm) -DESCAPEMENT_MEASURE_WCET
+FLAGS_soft_edf_wcet = $(FLAGS_soft_edf) -DESCAPEMENT_MEASURE_WCET
+FLAGS_soft_dm_wcet  = $(FLAGS_soft_dm) -DESCAPEMENT_MEASURE_WCET
+KERNEL_hard_edf_wcet = $(HARD)
+KERNEL_hard_dm_wcet  = $(HARD)
+KERNEL_soft_edf_wcet = $(SOFT)
+KERNEL_soft_dm_wcet  = $(SOFT)
 KERNEL_hard_edf = $(HARD)
 KERNEL_hard_dm  = $(HARD)
 KERNEL_soft_edf = $(SOFT)
@@ -122,9 +134,10 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	                      ./$(BUILD)/test_scheduler_$$b firmwrapmandatory && \
 	                      ./$(BUILD)/test_scheduler_$$b firmoverload && \
 	                      ./$(BUILD)/test_scheduler_$$b firmoverloadinstances || exit 1;; esac; \
-	   case $$b in soft_dm) ./$(BUILD)/test_scheduler_$$b firmeventahead || exit 1;; esac; \
+	   case $$b in soft_dm|soft_dm_wcet) ./$(BUILD)/test_scheduler_$$b firmeventahead || exit 1;; esac; \
+	   case $$b in *_wcet) ./$(BUILD)/test_scheduler_$$b wcet || exit 1;; esac; \
 	   case $$b in pa_dmslack) ./$(BUILD)/test_scheduler_$$b slackatwrap || exit 1;; esac; \
-	   case $$b in soft_edf) ./$(BUILD)/test_scheduler_$$b firmoverloadshare && \
+	   case $$b in soft_edf|soft_edf_wcet) ./$(BUILD)/test_scheduler_$$b firmoverloadshare && \
 	                         ./$(BUILD)/test_scheduler_$$b firmwrapend && \
 	                         ./$(BUILD)/test_scheduler_$$b firmoverloadsum && \
 	                         ./$(BUILD)/test_scheduler_$$b firmdiscount && \

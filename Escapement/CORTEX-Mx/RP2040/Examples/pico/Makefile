@@ -95,6 +95,12 @@ endif
 ifdef TRACE
    CFLAGS += -DESCAPEMENT_TRACE
 endif
+# make WCET=1 measures what each task's instances hold the processor, read over SWD
+# (EscapementHard.h, "EXECUTION TIMES"; tools/wcet.py): hard and soft kernels only.
+ifdef WCET
+   CFLAGS += -DESCAPEMENT_MEASURE_WCET
+   AFLAGS += -DESCAPEMENT_MEASURE_WCET
+endif
 ifdef RUN
    CFLAGS += -DSLEEP_RUN
 endif

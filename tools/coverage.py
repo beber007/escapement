@@ -5,7 +5,7 @@
 """Line and branch coverage of the kernels by the host test, as a check that can fail.
 
 Builds test/host with clang's source-based coverage, runs it, and reads each test binary
-on its own. The nine builds compile the kernels under different #if: a line exists in
+on its own. The builds compile the kernels under different #if: a line exists in
 some builds only, and a view merged over all the binaries left out lines of the
 deadline-monotonic slack build, uncovered ones among them (2026-10-04). A line is
 covered when a build that compiles it runs it; a branch, when a build takes it.

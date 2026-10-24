@@ -72,6 +72,8 @@ make FLASH=1                                  # the same, into the flash (build-
                                               # OPENOCD=<Raspberry Pi's> tools/pico_flash.sh ELF writes
 make SLEEP_GATE=1                             # idle task in SLEEP, clocks gated (bench only)
 make TRACE=1                                  # scheduling trace in RAM (tools/read_trace.py)
+make WCET=1                                   # each task's largest execution time, hard and
+                                              # soft kernels: tools/wcet.py ELF [--margin 20]
 make KERNEL=PA bench                          # BenchDVFSPico, BenchVregPico: board timings
 make KERNEL=PA sleep [RUN=1] [UNDERVOLT=1]    # SleepPico: the sleeps or the operating points
                                               # for the PPK2 (docs/rp2040.md); loaded with

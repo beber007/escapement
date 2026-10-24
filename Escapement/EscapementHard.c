@@ -78,6 +78,9 @@ typedef struct TCB {
   UINT16 PeriodHigh;             // Number of full 2^30 cycles of the interarrival period
   UINT16 NextArrivalTimeHigh;    // Number of full 2^30 cycles of the next arrival time
   UINT32 Overruns;               // Releases that found an instance unfinished
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     OSTASKTIME *Time;           // What its instances held the processor
+  #endif
 } TCB;
 
 OSCheckTCBLayout();
@@ -105,6 +108,9 @@ typedef struct ETCB {
   #endif
   struct FIFOQUEUE *EventQueue;  // Pointer to the event queue of this task
   struct ETCB *NextETCB;         // Link to the next created ETCB
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     OSTASKTIME *Time;           // What its instances held the processor
+  #endif
 } ETCB;
 
 
@@ -229,6 +235,9 @@ static void EnqueueRescheduleQueueBeforeBoot(ETCB *etcb);
 static void EnqueueRescheduleQueueAfterBoot(ETCB *etcb);
 static void (*EnqueueRescheduleQueue)(ETCB *etcb) = EnqueueRescheduleQueueBeforeBoot;
 static void EmptyRescheduleSynchronousTaskList(INT32 currentTime);
+#ifdef ESCAPEMENT_MEASURE_WCET
+   static OSTASKTIME *NewTaskTime(void (*task)(void *), void *argument);
+#endif
 #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
   static INT32 GetSuspendedSchedulingDeadline(ETCB *, INT32 currentTime);
 #endif
@@ -317,6 +326,10 @@ BOOL OSCreateTask(void task(void *), UINT16 periodCycles, INT32 periodOffset,
   ptcb->PeriodHigh = periodCycles;
   ptcb->NextArrivalTimeHigh = 0;
   ptcb->Argument = argument;
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     if ((ptcb->Time = NewTaskTime(task,argument)) == NULL)
+        return FALSE;
+  #endif
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      /* Temporarily save the deadline until the user calls OSStartMultitasking(). */
      ptcb->NextArrivalTimeLow = deadline;
@@ -444,6 +457,97 @@ static void Overrun(TCB *task)
      while (TRUE);  // the stop, which the host test meets in a child process
   }
 } /* end of Overrun */
+
+
+#ifdef ESCAPEMENT_MEASURE_WCET
+/* EXECUTION TIMES (EscapementHard.h): the figures of the task the last context switch
+** gave the processor to, NULL for the idle task, and since when it holds it, unless the
+** soft timer interrupt has come in since. The context switch runs at the lowest priority,
+** below the soft timer interrupt, and these are touched by the two alone: the soft timer
+** interrupt never finds the switch half way through them, its interrupts masked. */
+OSTASKTIME *_OSTaskTimes = NULL;
+static TCB *RunningTask = NULL;
+static OSTASKTIME *RunningTime = NULL;
+static INT32 RunningSince;
+static BOOL RunningPaused = FALSE;
+
+/* NewTaskTime: The figures of a task being created, added to _OSTaskTimes. */
+OSTASKTIME *NewTaskTime(void (*task)(void *), void *argument)
+{
+  OSTASKTIME *time;
+  if ((time = (OSTASKTIME *)OSMalloc(sizeof(OSTASKTIME))) == NULL)
+     return NULL;
+  time->TaskCodePtr = task;
+  time->Argument = argument;
+  time->Held = 0;
+  time->MaxHeld = 0;
+  time->Instances = 0;
+  time->Next = _OSTaskTimes;
+  _OSTaskTimes = time;
+  return time;
+} /* end of NewTaskTime */
+
+/* TaskTime: The figures of a task, NULL for the idle task. */
+static OSTASKTIME *TaskTime(TCB *task)
+{
+  if (task == OSQueueTail)
+     return NULL;
+  if (task->TaskState & TASKTYPE_BLOCKING)
+     return ((ETCB *)task)->Time;
+  return task->Time;
+} /* end of TaskTime */
+
+/* ChargeRunning: Adds to the instance holding the processor the ticks since it took it
+** or since the last soft timer interrupt left; the time counts modulo 2^30. */
+static void ChargeRunning(void)
+{
+  if (RunningTime != NULL && !RunningPaused)
+     RunningTime->Held += (UINT32)((_OSGetActualTime() - RunningSince) & 0x3FFFFFFF);
+} /* end of ChargeRunning */
+
+/* EndRunning: Closes the instance that held the processor if it has ended: its task is a
+** zombie. Only the timer handler releases a task again, once it is one, so the soft timer
+** interrupt looks first, on entry: a task released at the instant it ended is started
+** again by the context switch that follows, which finds it STATE_RUNNING as before
+** (firmwait, 2026-10-23). */
+static void EndRunning(void)
+{
+  if (RunningTime != NULL && (RunningTask->TaskState & STATE_ZOMBIE)) {
+     if (RunningTime->Held > RunningTime->MaxHeld)
+        RunningTime->MaxHeld = RunningTime->Held;
+     RunningTime->Instances += 1;
+     RunningTime->Held = 0;
+     RunningTime = NULL;
+  }
+} /* end of EndRunning */
+
+void _OSMeasurePause(void)
+{
+  ChargeRunning();
+  EndRunning();
+  RunningPaused = TRUE;
+} /* end of _OSMeasurePause */
+
+void _OSMeasureSwitch(void *dispatched)
+{
+  ChargeRunning();
+  EndRunning();
+  RunningTask = (TCB *)dispatched;
+  RunningTime = TaskTime(RunningTask);
+  RunningSince = _OSGetActualTime();
+  RunningPaused = FALSE;
+} /* end of _OSMeasureSwitch */
+
+/* OSGetTaskMaxTime: 0 before the kernel runs, and for the idle task, which has no
+** figures: main, and the function OSStartMultitasking runs, are called from it. */
+UINT32 OSGetTaskMaxTime(void)
+{
+  OSTASKTIME *time;
+  if (_OSActiveTask == NULL || (time = TaskTime(_OSActiveTask)) == NULL)
+     return 0;
+  return time->MaxHeld;
+} /* end of OSGetTaskMaxTime */
+#endif /* ESCAPEMENT_MEASURE_WCET */
 
 
 /* _OSTimerInterruptHandler: Software interrupt handler for the timer that manages task
@@ -720,6 +824,10 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 workLoad, void *event, voi
   etcb->TaskState = STATE_ZOMBIE | TASKTYPE_BLOCKING;
   etcb->TaskCodePtr = task;
   etcb->Argument = arg;
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     if ((etcb->Time = NewTaskTime(task,arg)) == NULL)
+        return FALSE;
+  #endif
   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
      etcb->NextArrivalTimeLow = 0;
      etcb->Priority = GetTaskPriority(workLoad);

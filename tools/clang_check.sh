@@ -20,16 +20,17 @@ M=$K/CORTEX-Mx
 LOG=$(mktemp)
 trap 'rm -f "$LOG"' EXIT
 
+options=   # added to each compilation: the measuring builds below
 check() {   # check TARGET CPU PORT_DIR EXAMPLE_DIR [KERNELS]
     target=$1 cpu=$2 port=$3 example=$4 kernels=${5:-"HARD SOFT HARD_PA"}
     for kernel in $kernels; do
         version=; [ "$kernel" = HARD ] || version=-DESCAPEMENT_VERSION_$kernel
         for scheduler in EARLIEST_DEADLINE_FIRST DEADLINE_MONOTONIC_SCHEDULING; do
-            echo "== $cpu, $kernel, $scheduler"
+            echo "== $cpu, $kernel, $scheduler${options:+, $options}"
             for f in "$K/EscapementHard.c" "$K/EscapementSoft.c" "$K/EscapementHardPA.c" \
                      "$M"/*.c "$port"/*.c; do
                 $CLANG --target="$target" -mcpu="$cpu" -mthumb -ffreestanding -fno-builtin \
-                    -Wall -O2 -fno-strict-aliasing $version -DSCHEDULER_REAL_TIME_MODE=$scheduler \
+                    -Wall -O2 -fno-strict-aliasing $version $options -DSCHEDULER_REAL_TIME_MODE=$scheduler \
                     -I"$example" -I"$port" -I"$M" -I"$K" -c "$f" -o /dev/null 2>>"$LOG"
             done
         done
@@ -39,6 +40,10 @@ check thumbv6m-none-eabi cortex-m0plus "$M/RP2040" "$M/RP2040/Examples/pico"
 check thumbv8m.main-none-eabi cortex-m33 "$M/RP2350" "$M/RP2350/Examples/pico2" "HARD SOFT"
 check thumbv8m.main-none-eabi cortex-m33 "$M/STM32U5" "$M/STM32U5/Examples/uno-q" "HARD SOFT"
 check thumbv8m.main-none-eabi cortex-m33 "$M/STM32U3" "$M/STM32U3/Examples/nucleo-u385"
+# The execution times (make WCET=1), on each processor, under the kernels that have them.
+options=-DESCAPEMENT_MEASURE_WCET
+check thumbv6m-none-eabi cortex-m0plus "$M/RP2040" "$M/RP2040/Examples/pico" "HARD SOFT"
+check thumbv8m.main-none-eabi cortex-m33 "$M/RP2350" "$M/RP2350/Examples/pico2" "HARD SOFT"
 if grep -q -E "warning:|error:" "$LOG"; then
     cat "$LOG"
     exit 1

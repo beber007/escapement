@@ -19,17 +19,18 @@ M=$K/CORTEX-Mx
 LOG=$(mktemp)
 trap 'rm -f "$LOG"' EXIT
 
+options=   # added to each compilation: the measuring builds below
 analyze() {   # analyze CPU PORT_DIR EXAMPLE_DIR [KERNELS]
     cpu=$1 port=$2 example=$3 kernels=${4:-"HARD SOFT HARD_PA"}
     for kernel in $kernels; do
         # Escapement_Config.h picks the hard kernel when no other is asked for.
         version=; [ "$kernel" = HARD ] || version=-DESCAPEMENT_VERSION_$kernel
         for scheduler in EARLIEST_DEADLINE_FIRST DEADLINE_MONOTONIC_SCHEDULING; do
-            echo "== $cpu, $kernel, $scheduler"
+            echo "== $cpu, $kernel, $scheduler${options:+, $options}"
             for f in "$K/EscapementHard.c" "$K/EscapementSoft.c" "$K/EscapementHardPA.c" \
                      "$M"/*.c "$port"/*.c; do
                 $CC -mcpu="$cpu" -mthumb -mfloat-abi=soft -ffreestanding -O2 -fno-strict-aliasing -fanalyzer \
-                    $version -DSCHEDULER_REAL_TIME_MODE=$scheduler \
+                    $version $options -DSCHEDULER_REAL_TIME_MODE=$scheduler \
                     -I"$example" -I"$port" -I"$M" -I"$K" -c "$f" -o /dev/null 2>>"$LOG"
             done
         done
@@ -39,6 +40,10 @@ analyze cortex-m0plus "$M/RP2040" "$M/RP2040/Examples/pico"
 analyze cortex-m33+nofp "$M/RP2350" "$M/RP2350/Examples/pico2" "HARD SOFT"
 analyze cortex-m33+nofp "$M/STM32U5" "$M/STM32U5/Examples/uno-q" "HARD SOFT"
 analyze cortex-m33+nofp "$M/STM32U3" "$M/STM32U3/Examples/nucleo-u385"
+# The execution times (make WCET=1), on each processor, under the kernels that have them.
+options=-DESCAPEMENT_MEASURE_WCET
+analyze cortex-m0plus "$M/RP2040" "$M/RP2040/Examples/pico" "HARD SOFT"
+analyze cortex-m33+nofp "$M/RP2350" "$M/RP2350/Examples/pico2" "HARD SOFT"
 if grep -q "warning:" "$LOG"; then
     cat "$LOG"
     exit 1

@@ -73,6 +73,12 @@ endif
 ifdef TRACE
    CFLAGS += -DESCAPEMENT_TRACE
 endif
+# make WCET=1 measures what each task's instances hold the processor, read over SWD
+# (EscapementHard.h, "EXECUTION TIMES"; tools/wcet.py --target rp2350): hard and soft kernels.
+ifdef WCET
+   CFLAGS += -DESCAPEMENT_MEASURE_WCET
+   AFLAGS += -DESCAPEMENT_MEASURE_WCET
+endif
 
 # make SLEEP_GATE=1 has IdlePico2's idle task sleep in SLEEP, PLL_SYS stopped
 # (Escapement_SleepGate.c); without it, the same image's plain WFI.

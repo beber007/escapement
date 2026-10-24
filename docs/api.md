@@ -177,6 +177,53 @@ the period, an instance that misses its deadline but ends before its next releas
 late, and nothing reports it. Noticing an instance as it passes its `wcet` would take a
 budget timer for each instance (issue #17).
 
+### Measuring execution times
+
+Nothing above checks a declared `wcet`. Built with `make WCET=1`
+(`ESCAPEMENT_MEASURE_WCET`), the hard and soft kernels add up, for each instance of each
+task, the ticks it holds the processor, and keep the largest of the instances ended:
+
+```sh
+make WCET=1                                  # then load the image and let it run
+tools/wcet.py build/SoakPico.elf --margin 20 # read over SWD, the cores left running
+```
+
+`tools/wcet.py` prints, for each task by the name of its code and its argument, the
+instances ended, the largest time seen and, with `--margin`, that time plus the margin.
+A task reads its own with `OSGetTaskMaxTime()`; another program, a debugger or the other
+core, walks the list `_OSTaskTimes`, one `OSTASKTIME` a task, fixed once the kernel
+runs. Each figure is one word, written by the context switch and the soft timer
+interrupt alone, read whole at any time; a task's figures read one after the other may
+straddle the end of an instance.
+
+What is counted: the time from the context switch that gives an instance the processor
+to the next one, the soft timer interrupt left out. An instance preempted is not charged
+for the tasks that preempt it, nor for the soft timer interrupt electing them; it is for
+the peripheral interrupts it meets, the timer's own that raises the soft one among them,
+and for the few instructions of the switch around it. Under the soft kernel an instance
+that ends is charged too for what `OSEndTask` and `OSSuspendSynchronousTask` do before
+they switch: they choose the next instance, and when that is an optional one, run the
+admission test on each in line until one is admitted, 13.9 µs in the mean and 31.7 at
+most a test, interrupts unmasked as there, on the Pico's bench (`docs/method.md`).
+The figure is an upper estimate of what the instance itself took, on the run that was
+made.
+
+On the Pico W (2026-10-23), two runs of SoakFirmPico, of three and two minutes: its
+(2,5)-firm task, a busy wait of 1500 µs on the clock, 1503 and 1499 µs at most, over the
+27,304 and 19,570 instances that ran, the optional ones dropped not counted;
+SoakPico's heartbeat, which scans both stacks, 4.4 ms against the 50 µs it declares. The switch does some 70 instructions more on its longest path,
+interrupts masked: under a microsecond at 125 MHz, counted from the disassembly.
+
+It is the worst case seen, not a bound: valid only for a load that took the instance's
+worst path. A bound needs static analysis. aiT lists the Cortex-M0, M3 and M4 but not the
+M0+ or the M33; OTAWA (LGPL) runs on 32-bit ARM; Bound-T's Cortex-M port is unfinished.
+The RP2040 running from SRAM, without a cache, is the likeliest case for one.
+
+The power-aware kernel refuses the option: an instance there takes longer at a lower
+speed, and its ticks would need scaling by the speed of each stretch of it, the speed
+changed inside the timer handler. Without the option, every image is the same, byte for
+byte, as before it existed.
+
 ## Event-driven tasks
 
 A task that runs when something happens, rather than at fixed times, waits on an event
