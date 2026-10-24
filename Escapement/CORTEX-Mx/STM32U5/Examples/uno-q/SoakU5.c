@@ -126,6 +126,8 @@
 #define BURST_TIME  5                  /* us between two bytes of one call of the interrupt */
 #define EVENT_DELAY 1000               /* of the timer events, without a seed */
 #define STACK_FILL  0x5AC05AC0u        /* what unused stack holds */
+#define STACK_SLICE 128                /* words of the stack scanned a second: the
+                                          512 bytes it must keep free at the bottom */
 #define GUARD       0x6A7D6A7Du
 #define GUARDS      5
 #define RCC_CSR     *((volatile UINT32 *)0x46020CF4)
@@ -210,6 +212,7 @@ static void AlarmHandler(void *descriptor);
 static UINT32 *NewGuard(void);
 static void PaintStack(void);
 static UINT32 Unused(const UINT32 *bottom, const UINT32 *top);
+static UINT32 UnusedSlice(const UINT32 *bottom, const UINT32 *top, UINT32 free);
 static void CountLate(volatile UINT32 *bins, UINT32 late);
 
 /* The raw clock, in microseconds: the counter of TIM5, free on 32 bits once the event
@@ -284,12 +287,23 @@ int main(void)
   PERIODIC(ReaderTask,400,2000);
   PERIODIC(EventSourceTask,20,5000);
   PERIODIC(FillerTask,7000,10000);
-  PERIODIC(HeartbeatTask,50,1000000);
+  /* As on the Pico (#41), not measured here: this heartbeat also formats the report of
+  ** the second, and its first instance waits for the IWDG to take its settings, a few
+  ** cycles of the LSI at 32 kHz: that one most likely past the 80 us. */
+  PERIODIC(HeartbeatTask,80,1000000);
   EVENT_DRIVEN(DrainerTask,100,1000,Drain);
   EVENT_DRIVEN(EventTask,20,2000,Tick);
   #ifdef SOAK_FIRM
      OSCreateTask(FirmTask,FIRM_WCET,0,FIRM_PERIOD,FIRM_PERIOD,FIRM_M,FIRM_K,0,NULL);
   #endif
+  /* The whole stack scanned once, before the heartbeat goes on a slice a second,
+  ** and before the timer's interrupt is enabled: on the UNO Q the one taken during
+  ** the scan, before the kernel started, was its last (#41). */
+  {
+     extern UINT32 _ebss;
+     extern void *_OSStackBasePointer;
+     Results.Stack0Free = Unused(&_ebss,(UINT32 *)_OSStackBasePointer);
+  }
   /* TIM3 counts microseconds and interrupts at each update, 1 ms after the start and
   ** then at the interval its handler sets. */
   AlarmISR.Handler = AlarmHandler;
@@ -568,7 +582,8 @@ static void HeartbeatTask(void *argument)
      seenMandatory = Firm.Mandatory;
   #endif
   /* The stack runs down from the heap towards the end of .bss. */
-  Results.Stack0Free = Unused(&_ebss,(UINT32 *)_OSStackBasePointer);
+  Results.Stack0Free = UnusedSlice(&_ebss,(UINT32 *)_OSStackBasePointer,
+                                   Results.Stack0Free);
   if (Results.Stack0Free < 512)
      Results.Errors[MEMORY] += 1;
   for (i = 0; i < GUARDS; i += 1)
@@ -707,6 +722,37 @@ static UINT32 Unused(const UINT32 *bottom, const UINT32 *top)
      word += 1;
   return (UINT32)(word - bottom) * sizeof(UINT32);
 } /* end of Unused */
+
+
+/* UnusedSlice: Unused a slice a second, for the stack: scanned whole, as on the Picos,
+** where it took the heartbeat 4.4 and 6.5 ms against what it declared then (#41). The
+** words at the bottom, where an overflow shows first, are checked each time; above them
+** the scan goes on STACK_SLICE words from where it stopped, and gives the bytes unused
+** once it meets a word the pattern no longer holds, or the top. Until then free, from the
+** scan before, stands. */
+static UINT32 UnusedSlice(const UINT32 *bottom, const UINT32 *top, UINT32 free)
+{
+  static const UINT32 *scan;
+  /* Through an integer: the linker's symbol for the bottom is one word to the
+  ** compiler. */
+  const UINT32 *slice = (const UINT32 *)((UINTPTR)bottom + STACK_SLICE * sizeof(UINT32));
+  const UINT32 *word, *end;
+  UINT32 low = Unused(bottom,slice < top ? slice : top);
+  if (low < STACK_SLICE * sizeof(UINT32)) {
+     scan = NULL;
+     return low;
+  }
+  word = scan != NULL ? scan : slice;
+  end = word + STACK_SLICE < top ? word + STACK_SLICE : top;
+  while (word < end && *word == STACK_FILL)
+     word += 1;
+  if (word < end || word == top) {
+     scan = NULL;
+     return (UINT32)(word - bottom) * sizeof(UINT32);
+  }
+  scan = word;
+  return free;
+} /* end of UnusedSlice */
 
 
 /* CountLate: One lateness in its bin of 10 us, the last for all beyond. */

@@ -211,8 +211,10 @@ made.
 On the Pico W (2026-10-23), two runs of SoakFirmPico, of three and two minutes: its
 (2,5)-firm task, a busy wait of 1500 µs on the clock, 1503 and 1499 µs at most, over the
 27,304 and 19,570 instances that ran, the optional ones dropped not counted;
-SoakPico's heartbeat, which scans both stacks, 4.4 ms against the 50 µs it declares. The switch does some 70 instructions more on its longest path,
-interrupts masked: under a microsecond at 125 MHz, counted from the disassembly.
+SoakPico's heartbeat, which then scanned core 0's stack whole, 4.4 ms against the 50 µs
+it declared (it scans a slice of it a second since, #41). The switch does some 70
+instructions more on its longest path, interrupts masked: under a microsecond at 125 MHz,
+counted from the disassembly.
 
 It is the worst case seen, not a bound: valid only for a load that took the instance's
 worst path. A bound needs static analysis. aiT lists the Cortex-M0, M3 and M4 but not the
