@@ -126,6 +126,12 @@
 #ifndef ESCAPEMENT_H
 #define ESCAPEMENT_H
 
+/* Tasks created and deleted while the kernel runs (ESCAPEMENT_LIVE_TASKS) are the hard
+** kernel's, under EDF only (EscapementHard.h, "LIVE TASKS"). */
+#ifdef ESCAPEMENT_LIVE_TASKS
+   #error "ESCAPEMENT_LIVE_TASKS is for the hard kernel under EDF"
+#endif
+
 /* REAL-TIME SCHEDULING MODE --------------------------------------------------------- */
 /* Escapement can operate under 2 possible scheduling algorithms. Under EDF, tasks are sche-
 ** duled according to their deadlines, the earliest one being placed in the ready queue

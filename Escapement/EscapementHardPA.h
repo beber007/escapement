@@ -115,6 +115,12 @@
 #ifndef ESCAPEMENT_H
 #define ESCAPEMENT_H
 
+/* Tasks created and deleted while the kernel runs (ESCAPEMENT_LIVE_TASKS) are the hard
+** kernel's, under EDF only (EscapementHard.h, "LIVE TASKS"). */
+#ifdef ESCAPEMENT_LIVE_TASKS
+   #error "ESCAPEMENT_LIVE_TASKS is for the hard kernel under EDF"
+#endif
+
 /* The execution times (ESCAPEMENT_MEASURE_WCET) are measured by the hard and soft kernels
 ** only: here an instance takes longer at a lower speed, and its ticks would need scaling
 ** by the speed of each stretch of it, changed inside the timer handler (api.md,

@@ -406,3 +406,51 @@ The MPU stops a stack run past its end
     ${hardfault}=             Execute Command  sysbus GetSymbolAddress "HardFaultException"
     ${memmanage}=             Execute Command  sysbus GetSymbolAddress "MemManageException"
     Should Be True            ${pc.strip()} in (${hardfault.strip()}, ${memmanage.strip()})
+
+Tasks are created and deleted while the kernel runs
+    [Documentation]           LiveTasksPico, built by make LIVE=4 only: a manager of 2 ms
+    ...                       creates and deletes four workers of the pool in turn, one of them
+    ...                       deleting itself, for 2 s. Every instance of a worker must start
+    ...                       within 200 us of its due time, none be due after its deletion,
+    ...                       the kernel answer each call as expected, a fifth worker be
+    ...                       refused with the four slots full, and the four blocks of the
+    ...                       pool be the only ones handed out.
+    ${built}=                 Evaluate  os.path.exists(r"${EXAMPLE}/build/LiveTasksPico.elf")  modules=os
+    Skip If                   not ${built}  built by make LIVE=4 only
+    Load Escapement           LiveTasksPico
+
+    Execute Command           emulation RunFor "2"
+
+    ${results}=               Execute Command  sysbus GetSymbolAddress "Results"
+    ${results}=               Convert To Integer  ${results.strip()}
+    ${cycles}=                Execute Command  sysbus ReadDoubleWord ${results}
+    ${cycles}=                Convert To Integer  ${cycles.strip()}
+    ${created}=               Execute Command  sysbus ReadDoubleWord ${results + 4}
+    ${created}=               Convert To Integer  ${created.strip()}
+    ${deleted}=               Execute Command  sysbus ReadDoubleWord ${results + 8}
+    ${deleted}=               Convert To Integer  ${deleted.strip()}
+    ${releases}=              Execute Command  sysbus ReadDoubleWord ${results + 12}
+    ${releases}=              Convert To Integer  ${releases.strip()}
+    ${refused}=               Execute Command  sysbus ReadDoubleWord ${results + 16}
+    ${refused}=               Convert To Integer  ${refused.strip()}
+    ${late}=                  Execute Command  sysbus ReadDoubleWord ${results + 20}
+    ${late}=                  Convert To Integer  ${late.strip()}
+    ${ghosts}=                Execute Command  sysbus ReadDoubleWord ${results + 24}
+    ${ghosts}=                Convert To Integer  ${ghosts.strip()}
+    ${errors}=                Execute Command  sysbus ReadDoubleWord ${results + 28}
+    ${errors}=                Convert To Integer  ${errors.strip()}
+    ${blocks}=                Execute Command  sysbus ReadDoubleWord ${results + 32}
+    ${blocks}=                Convert To Integer  ${blocks.strip()}
+    ${fifths}=                Execute Command  sysbus ReadDoubleWord ${results + 36}
+    ${fifths}=                Convert To Integer  ${fifths.strip()}
+    Log To Console            ${cycles} cycles, created ${created}, deleted ${deleted}, ${releases} releases, refused ${refused}, late ${late}, ghosts ${ghosts}, errors ${errors}, ${blocks} blocks, ${fifths} fifths
+    # 2 s of the manager's 2 ms; a slot visited every 8 ms, deleted or created in turn.
+    Should Be True            ${cycles} >= 990
+    Should Be True            ${created} >= 300 and ${deleted} >= 300
+    Should Be True            ${releases} >= 2000
+    Should Be True            ${fifths} > 0
+    Should Be Equal As Integers  ${refused}  0
+    Should Be Equal As Integers  ${late}  0
+    Should Be Equal As Integers  ${ghosts}  0
+    Should Be Equal As Integers  ${errors}  0
+    Should Be Equal As Integers  ${blocks}  4

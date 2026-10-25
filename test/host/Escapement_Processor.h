@@ -38,7 +38,8 @@ extern int HostMallocFill;           /* byte OSMalloc fills blocks with, -1 for 
 ** task that raised it, as the target does. */
 extern void (*HostSoftTimerHook)(void);
 /* Interrupts masked (HostMasked) hold it until they are unmasked, as on the target. */
-extern unsigned HostMasked, HostSoftTimerHeld;
+extern volatile unsigned HostMasked;
+extern unsigned HostSoftTimerHeld;
 extern void (*HostUnmaskHook)(void);  /* takes an interrupt held while masked */
 void HostUnmask(void);
 #define _OSGenerateSoftTimerInterrupt() do { HostSoftTimerRequests += 1; \
@@ -53,6 +54,9 @@ void HostClearSoftTimer(void);
 #define _OSClearSoftTimerInterrupt()    HostClearSoftTimer()
 #define _OSEnableInterrupts()           HostUnmask()
 #define _OSDisableInterrupts()          (HostMasked = 1)
+unsigned HostMask(void);             /* masks, returns HostMasked as it was */
+#define _OSMaskInterrupts()             HostMask()
+#define _OSRestoreInterrupts(masked)    ((masked) ? (void)(HostMasked = 1) : HostUnmask())
 extern int HostMallocFill;           /* the byte OSMalloc fills with, or one of: */
 #define HOST_FILL_COUNT (-2)         /* each word a count of its own (host_port.c) */
 extern unsigned HostSlept;           /* the idle task's sleeps, which the target needs */

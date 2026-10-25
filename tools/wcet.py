@@ -16,6 +16,8 @@ deadlines.
 
 For each task, by the name of its code and its argument: the instances ended, the largest
 time seen and, with --margin, that time plus the margin in percent, a figure to declare.
+Built with make LIVE=N, each block of the pool is listed too, with the figures of the
+last task that took it, or as code 0x0 with no instance if none has.
 It is the worst case seen, for the load the run gave it, not a bound (docs/api.md,
 "Measuring execution times").
 

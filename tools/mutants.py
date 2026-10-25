@@ -58,7 +58,8 @@ WORK = os.path.join(HOST, "build-mutants")
 EQUIVALENTS = os.path.join(HOST, "equivalent-mutants.jsonl")
 KERNELS = {
     "hard": ("EscapementHard.c", "HARD", ["hard_edf", "hard_dm", "hard_edf_wcet",
-                                          "hard_dm_wcet"]),
+                                          "hard_dm_wcet", "hard_edf_live",
+                                          "hard_edf_live_wcet"]),
     "soft": ("EscapementSoft.c", "SOFT", ["soft_edf", "soft_dm", "soft_edf_wcet",
                                           "soft_dm_wcet"]),
     "pa": ("EscapementHardPA.c", "PA", ["pa_edf", "pa_dm", "pa_dra", "pa_drote",

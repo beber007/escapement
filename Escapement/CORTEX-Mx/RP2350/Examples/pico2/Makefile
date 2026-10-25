@@ -79,6 +79,11 @@ ifdef WCET
    CFLAGS += -DESCAPEMENT_MEASURE_WCET
    AFLAGS += -DESCAPEMENT_MEASURE_WCET
 endif
+# make LIVE=N gives the hard kernel, under EDF, a pool of N tasks created and deleted
+# while it runs (EscapementHard.h, "LIVE TASKS"); LIVE=4 builds LiveTasksPico2, which uses it.
+ifdef LIVE
+   CFLAGS += -DESCAPEMENT_LIVE_TASKS=$(LIVE)
+endif
 
 # make SLEEP_GATE=1 has IdlePico2's idle task sleep in SLEEP, PLL_SYS stopped
 # (Escapement_SleepGate.c); without it, the same image's plain WFI.
@@ -130,6 +135,9 @@ all: $(B)/TaskLEDPico2.elf $(B)/UARTEchoPico2.elf $(B)/TestTimerEventPico2.elf \
 # instances the kernel drops under load (SoakPico2.c).
 ifeq ($(KERNEL),SOFT)
 all: $(B)/SoakFirmPico2.elf
+endif
+ifeq ($(LIVE),4)
+all: $(B)/LiveTasksPico2.elf
 endif
 
 clean:
@@ -191,6 +199,8 @@ $(B)/TaskLEDPico2.o : TaskLEDPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/StackGuardPico2.o : StackGuardPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/LiveTasksPico2.o : LiveTasksPico2.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/LposcPico2.o : LposcPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/DormantPico2.o : DormantPico2.c
@@ -234,6 +244,8 @@ $(B)/TaskLEDPico2.elf : $(COMMON) $(B)/TaskLEDPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/TaskLEDPico2.o -T$(LINKERFILE) -lgcc
 $(B)/StackGuardPico2.elf : $(COMMON) $(B)/StackGuardPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/StackGuardPico2.o -T$(LINKERFILE) -lgcc
+$(B)/LiveTasksPico2.elf : $(COMMON) $(B)/LiveTasksPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/LiveTasksPico2.o -T$(LINKERFILE) -lgcc
 $(B)/LposcPico2.elf : $(COMMON) $(B)/LposcPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/LposcPico2.o -T$(LINKERFILE) -lgcc
 $(B)/DormantPico2.elf : $(COMMON) $(B)/DormantPico2.o

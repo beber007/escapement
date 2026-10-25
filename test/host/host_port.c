@@ -115,6 +115,15 @@ INT32 HostTicksToNextEvent(void)
   return TIME_LIMIT - Clock;
 }
 
+/* HostRaiseOverflow: The overflow interrupt, taken. A test may hold it past the wrap
+** (HostOverflowHeld), as its latency does on a target, then take it here. */
+BOOL HostOverflowHeld = FALSE;
+void HostRaiseOverflow(void)
+{
+  OverflowPending = TRUE;
+  _OSOverflowInterruptFlag = TRUE;   /* as the overflow interrupt of a target does */
+}
+
 /* HostAdvanceBy: Moves the clock forward, wrapping at 2^30 like the counter does. */
 void HostAdvanceBy(INT32 delta)
 {
@@ -125,8 +134,8 @@ void HostAdvanceBy(INT32 delta)
      _OSComparatorInterruptFlag = TRUE;
   if (Clock >= TIME_LIMIT) {
      Clock -= TIME_LIMIT;
-     OverflowPending = TRUE;
-     _OSOverflowInterruptFlag = TRUE;   /* as the overflow interrupt of a target does */
+     if (!HostOverflowHeld)
+        HostRaiseOverflow();
      ArmedDeadline = -1;   /* armed before the shift, so it no longer means anything */
      HostClockWraps += 1;
   }
@@ -204,7 +213,18 @@ void HostCompilerBarrier(void)
   if (HostCompilerBarrierHook)
      HostCompilerBarrierHook();
 }
-unsigned HostMasked = 0, HostSoftTimerHeld = 0;
+/* HostMasked stands for PRIMASK, which CPSID sets whatever follows: volatile, or GCC 14
+** drops the store of the stop's _OSDisableInterrupts before its endless loop, as it did
+** in the build with ESCAPEMENT_LIVE_TASKS, and the signal that ends the child reads 0. */
+volatile unsigned HostMasked = 0;
+unsigned HostSoftTimerHeld = 0;
+
+unsigned HostMask(void)
+{
+  unsigned masked = HostMasked;
+  HostMasked = 1;
+  return masked;
+}
 
 /* HostUnmask: Interrupts unmasked; an interrupt held meanwhile is taken now, then the
 ** soft timer interrupt it or the code masked may have raised. */

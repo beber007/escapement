@@ -329,6 +329,12 @@ jobs:
             make: WCET=1
           - variant: soft, EDF, execution times
             make: KERNEL=SOFT WCET=1
+          # A pool of tasks created and deleted as the kernel runs (make LIVE=4), and
+          # LiveTasks, which uses it
+          - variant: hard, EDF, live tasks
+            make: LIVE=4
+          - variant: hard, EDF, live tasks, execution times
+            make: LIVE=4 WCET=1
 
     steps:
       - uses: actions/checkout@v7
@@ -562,6 +568,12 @@ jobs:
             make: WCET=1
           - variant: soft, EDF, execution times
             make: KERNEL=SOFT WCET=1
+          # A pool of tasks created and deleted as the kernel runs (make LIVE=4), and
+          # LiveTasks, which uses it
+          - variant: hard, EDF, live tasks
+            make: LIVE=4
+          - variant: hard, EDF, live tasks, execution times
+            make: LIVE=4 WCET=1
 
     steps:
       - uses: actions/checkout@v7

@@ -376,6 +376,22 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **Tasks created and deleted while the hard kernel runs (#45), 2026-10-24.** Built with
+  `make LIVE=N`, the hard kernel under EDF keeps a pool of N periodic tasks:
+  `OSCreateTaskLive` releases one at once, `OSDeleteTaskLive` stops its releases, at once
+  between two instances, after the one under way otherwise. A task asks; the timer's
+  handler serves the request at the time it reads, once it has shifted the others at the
+  wraparound. The kernel tests no schedulability, the caller's to decide; DM, the soft and
+  the power-aware kernels refuse the option. Wanted by the Forth console of #40, whose
+  slots it lets come and go. The host test's eight modes caught each of twenty-one faults
+  made by hand in the kernel's new lines; the reviews found three defects they had let
+  pass, each now caught by a mode of its own: a block given back while still asked for
+  (a deletion from the overrun hook), a creation served between the counter's wrap and the
+  shift, the caller's masked interrupts unmasked; and a check of the example that never
+  ran, which the robots now require to have. On the Pico W, LiveTasksPico created and deleted 37,564 workers in two minutes,
+  none late nor released after its deletion; under Renode, LiveTasksPico2 626 in 2 s.
+  Without the option, every image is the same, byte for byte.
+
 - **The endurance test's heartbeat as short as it declares, on the Picos (#41),
   2026-10-24.** It scanned the whole of core 0's painted stack each second, 4.4 ms on the
   Pico W and 6.5 ms on the Pico 2 against the 50 µs it declared. It now scans a slice of
