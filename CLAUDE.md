@@ -72,6 +72,8 @@ make FLASH=1                                  # the same, into the flash (build-
                                               # OPENOCD=<Raspberry Pi's> tools/pico_flash.sh ELF writes
 make SLEEP_GATE=1                             # idle task in SLEEP, clocks gated (bench only)
 make TRACE=1                                  # scheduling trace in RAM (tools/read_trace.py)
+make LIVE=4                                   # a pool of 4 tasks created and deleted as the
+                                              # hard kernel runs, EDF only; LiveTasksPico
 make WCET=1                                   # each task's largest execution time, hard and
                                               # soft kernels: tools/wcet.py ELF [--margin 20]
 make KERNEL=PA bench                          # BenchDVFSPico, BenchVregPico: board timings

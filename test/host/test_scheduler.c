@@ -48,6 +48,16 @@
 **                            soft kernel under EDF only
 **   test_scheduler firmlong  an optional instance of 2^23 ticks, soft kernel only
 **   test_scheduler firmevents (m,k)-firm tasks beside an event-driven one, soft kernel only
+**   test_scheduler live      tasks of the pool created and deleted as the kernel runs,
+**                            the builds *_live* only (ESCAPEMENT_LIVE_TASKS)
+**   test_scheduler livewrap  the same, one created just before the wraparound, one from
+**                            inside the timer's handler
+**   test_scheduler liveonly  the same, no other task
+**   test_scheduler liveoverrun the same, one deleting itself in an instance that overruns
+**   test_scheduler livehook  the same, one deleted by the overrun hook as it is due
+**   test_scheduler livewraprace the same, one created as the counter wraps inside the
+**                            handler; livewraplate, its overflow interrupt taken late
+**   test_scheduler livewrapfirst the same at the first wraparound, no other task
 **
 ** Under the power-aware kernel every run also checks the speeds it asks for: always one
 ** of its operating points; below the fastest as well as at it where slowing down is
@@ -271,6 +281,8 @@ extern unsigned HostClockWraps;
 extern unsigned HostSoftTimerRequests, HostSoftTimerCleared;
 extern void *_OSStackBasePointer;
 extern void (*HostSoftTimerClearHook)(void);
+extern BOOL HostOverflowHeld;
+extern void HostRaiseOverflow(void);
 
 #define MAX_TASKS 40
 static unsigned Activations[MAX_TASKS];
@@ -2073,7 +2085,7 @@ static void TestOverrunSkip(void)
 ** alarm ends it, its coverage written, with a code that tells whether the hook ran. */
 #define STOPPED_AT_OVERRUN 42
 static volatile BOOL StopHookRan;
-extern unsigned HostMasked;
+extern volatile unsigned HostMasked;
 static void StoppedAtOverrun(int signal)
 {
   (void)signal;
@@ -2847,6 +2859,8 @@ static void TestTimes(void)
   Check("  an event-driven one too", refusedEvent);
   for (time = _OSTaskTimes; time != NULL; time = time->Next) {
      TimedTask *task = (TimedTask *)time->Argument;
+     if (time->TaskCodePtr == NULL)   /* a block of the pool (ESCAPEMENT_LIVE_TASKS) */
+        continue;
      found += 1;
      snprintf(label, sizeof label, "  task %d: the largest %u of %d, %u instances of %u",
               (int)(task - Timed), time->MaxHeld, task->MaxGot, time->Instances, task->Ends);
@@ -3898,6 +3912,481 @@ static void Timeout(int signal)
   _exit(1);
 }
 
+#ifdef ESCAPEMENT_LIVE_TASKS
+/* TASKS CREATED AND DELETED WHILE THE KERNEL RUNS (ESCAPEMENT_LIVE_TASKS=4, the builds
+** *_live). A task of the pool records its releases; the controller, a task of 1000 made
+** by OSCreateTask, creates and deletes them at chosen instances. */
+enum { LIVE_A, LIVE_B, LIVE_C, LIVE_D, LIVE_E, LIVE_F, LIVE_G, LIVE_W, LIVE_X, LIVE_Y, LIVE_Z, LIVE_K, LIVE_L,
+       LIVE_COUNT };
+static void *LiveHandle[LIVE_COUNT];
+static unsigned LiveRuns[LIVE_COUNT];
+static INT32 LiveFirst[LIVE_COUNT];
+static UINT32 LiveFirstOverruns[LIVE_COUNT];   /* its own, as its first instance reads them */
+static unsigned LiveFirstOutOfReach = 0;
+static unsigned ControllerRuns = 0;
+static unsigned LiveChecks = 0, LiveFailures = 0;
+static void *LiveKept = NULL;
+
+static void LiveCheck(int ok)
+{
+  LiveChecks += 1;
+  if (!ok)
+     LiveFailures += 1;
+}
+
+static BOOL DeleteLive(void *task);
+static void LiveTask(void *argument);
+
+#ifdef ESCAPEMENT_MEASURE_WCET
+   typedef OSTASKTIME TCB_TIME;
+   /* LiveTime: The figures of the task of the pool whose argument is k, NULL if none. */
+   static OSTASKTIME *LiveTime(unsigned k)
+   {
+     OSTASKTIME *time;
+     for (time = _OSTaskTimes; time != NULL; time = time->Next)
+        if (time->TaskCodePtr == LiveTask && time->Argument == (void *)(UINTPTR)k)
+           return time;
+     return NULL;
+   }
+#endif
+
+static void LiveTask(void *argument)
+{
+  unsigned k = (unsigned)(UINTPTR)argument;
+  if (LiveRuns[k]++ == 0) {
+     LiveFirst[k] = HostClockNow();
+     LiveFirstOverruns[k] = OSGetTaskOverruns();
+     if (_OSActiveTask->NextDeadline - HostClockNow() != _OSActiveTask->Deadline)
+        LiveFirstOutOfReach += 1;
+  }
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     /* A's figures as if its instances had taken time: E, which takes its block, must
+     ** start from none. */
+     if (k == LIVE_A)
+        ((TCB_TIME *)LiveTime(k))->MaxHeld = 12345;
+  #endif
+  /* Y deletes itself in its first instance, which then runs past its next release, at
+  ** 100: an overrun, the block kept until the instance has ended and the release after,
+  ** at 200, is due. */
+  if (k == LIVE_Y) {
+     LiveCheck(DeleteLive(LiveHandle[LIVE_Y]));
+     HostAdvanceBy(150);
+     HookedTicks += 150;
+     HostSoftTimerRequests += 1;     /* the timer's interrupt at 100, taken late */
+     SoftTimerNow();
+     LiveCheck(OSGetOverruns() == 1);
+     LiveKept = OSCreateTaskLive(LiveTask, 0, 1000, 1000, (void *)(UINTPTR)LIVE_A);
+  }
+  /* B deletes itself at its fifth release, inside its instance. */
+  if (k == LIVE_B && LiveRuns[k] == 5)
+     LiveCheck(DeleteLive(LiveHandle[LIVE_B]));
+  OSEndTask();
+}
+
+/* Each call takes the soft timer interrupt it raises at once, inside the caller, as the
+** target does: a task created with an earlier deadline runs on top of it, and a block
+** given back is in the pool when the call returns. */
+static void *CreateLive(unsigned k, INT32 period)
+{
+  HostSoftTimerHook = SoftTimerNow;
+  return OSCreateTaskLive(LiveTask, 0, period, period, (void *)(UINTPTR)k);
+}
+
+static BOOL DeleteLive(void *task)
+{
+  BOOL asked;
+  HostSoftTimerHook = SoftTimerNow;
+  asked = OSDeleteTaskLive(task);
+  HostSoftTimerHook = NULL;     /* a call refused raises none */
+  return asked;
+}
+#define CREATE_LIVE(k, period) CreateLive(k, period)
+
+/* The controller at 0, 1000, ...: at 2000 it fills the pool, which then refuses a fifth;
+** at 3000 it deletes A, which ran before it, a zombie: the block comes back at once, and
+** E takes it; at 4000 it deletes D, released with it but due later, not yet started: D
+** runs that instance, its block comes back at its next release, 6000, where G takes it.
+** B, deleting itself at 3200, gives its block back at 3500, which F takes at 4000. */
+static void LiveController(void *argument)
+{
+  INT32 now = HostClockNow();
+  (void)argument;
+  ControllerRuns += 1;
+  if (now == 2000) {
+     LiveHandle[LIVE_B] = CREATE_LIVE(LIVE_B, 300);
+     LiveHandle[LIVE_C] = CREATE_LIVE(LIVE_C, 700);
+     LiveHandle[LIVE_D] = CREATE_LIVE(LIVE_D, 2000);
+     LiveCheck(LiveHandle[LIVE_B] && LiveHandle[LIVE_C] && LiveHandle[LIVE_D]);
+     LiveCheck(CREATE_LIVE(LIVE_E, 400) == NULL);           /* the pool is empty */
+  }
+  else if (now == 3000) {
+     LiveCheck(DeleteLive(LiveHandle[LIVE_A]));
+     LiveHandle[LIVE_E] = CREATE_LIVE(LIVE_E, 400);
+     LiveCheck(LiveHandle[LIVE_E] == LiveHandle[LIVE_A]);   /* A's block, back at once */
+  }
+  else if (now == 4000) {
+     LiveCheck(DeleteLive(LiveHandle[LIVE_D]));
+     LiveCheck(!DeleteLive(LiveHandle[LIVE_D]));            /* asked for already */
+     LiveCheck(!DeleteLive(NULL) && !DeleteLive(&ControllerRuns) &&
+               !DeleteLive(_OSActiveTask));                 /* not from the pool */
+     LiveCheck(!DeleteLive(LiveHandle[LIVE_B]));            /* back in the pool */
+     LiveHandle[LIVE_F] = CREATE_LIVE(LIVE_F, 600);
+     LiveCheck(LiveHandle[LIVE_F] == LiveHandle[LIVE_B]);   /* B's, back at 3500 */
+     LiveCheck(CREATE_LIVE(LIVE_G, 800) == NULL);           /* D's not yet */
+  }
+  else if (now == 6000) {
+     LiveHandle[LIVE_G] = CREATE_LIVE(LIVE_G, 800);
+     LiveCheck(LiveHandle[LIVE_G] == LiveHandle[LIVE_D]);
+  }
+  OSEndTask();
+}
+
+/* ArrivalQueueLength: The tasks between the head of the arrival queue and its tail, the
+** idle task, or MAX_TASKS + 1 if it does not lead there. */
+static unsigned ArrivalQueueLength(void)
+{
+  HostTCB *task = _OSQueueHead;
+  unsigned n = 0;
+  while ((task = task->Next[1]) != IdleTCB && n <= MAX_TASKS)
+     n += 1;
+  return n;
+}
+
+static void TestLive(void)
+{
+  static const unsigned expected[LIVE_G + 1] = {7, 5, 9, 2, 13, 7, 3};
+  static const INT32 first[LIVE_G + 1] = {0, 2000, 2000, 2000, 3000, 4000, 6000};
+  unsigned k;
+  char label[96];
+  BOOL refused, early;
+
+  refused = OSCreateTaskLive(LiveTask, 0, 0, 0, NULL) == NULL;  /* OSCreateTask's checks */
+  /* The controller's block filled as if marked for deletion: OSCreateTask clears it. */
+  HostMallocFill = 2;                                    /* LIVE_DELETE */
+  CREATE_TASK(LiveController, 1000, NULL);
+  HostMallocFill = 0xA5;
+  /* Before the start: released at 0, by the handler's first pass, and not deleted before. */
+  LiveHandle[LIVE_A] = OSCreateTaskLive(LiveTask, 0, 500, 500, (void *)(UINTPTR)LIVE_A);
+  early = !OSDeleteTaskLive(LiveHandle[LIVE_A]) && HostSoftTimerRequests == 0 && !HostMasked;
+  StartKernel(NULL, NULL);
+  RunAcross(8000);
+
+  printf("\n8000 ticks of simulated time, tasks created and deleted as the kernel runs\n\n");
+  Check("  a timing OSCreateTask refuses: refused", refused);
+  Check("  before the start, no interrupt raised nor masked, no deletion yet", early);
+  snprintf(label, sizeof label, "  the controller's checks: %u of %u", LiveChecks - LiveFailures,
+           LiveChecks);
+  Check(label, LiveFailures == 0 && LiveChecks == 12);
+  Check("  the controller ran at each of its releases", ControllerRuns == 9);
+  for (k = LIVE_A; k <= LIVE_G; k += 1) {
+     snprintf(label, sizeof label, "  task %c: %u releases from %d (expected %u from %d)",
+              'A' + k, LiveRuns[k], LiveFirst[k], expected[k], first[k]);
+     Check(label, LiveRuns[k] == expected[k] && LiveFirst[k] == first[k]);
+  }
+  Check("  each first instance due a deadline after its release", LiveFirstOutOfReach == 0);
+  Check("  no deadline missed", LateArrivals == 0 && DeadlinesOutOfReach == 0);
+  Check("  the ready queue whole", QueueBreaks == 0);
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     MeasurePause();          /* a timer interrupt closes the instances ended last */
+     for (k = LIVE_C; k <= LIVE_G; k += 1) {
+        OSTASKTIME *time = LiveTime(k);
+        if (k == LIVE_D)
+           continue;          /* its block is G's */
+        snprintf(label, sizeof label, "  task %c's figures: %u instances, the largest %u",
+                 'A' + k, time ? time->Instances : 0, time ? time->MaxHeld : 0);
+        Check(label, time != NULL && time->Instances == LiveRuns[k] && time->MaxHeld < 12345);
+     }
+  #endif
+  snprintf(label, sizeof label, "  the arrival queue: the controller, C, E, F, G: %u",
+           ArrivalQueueLength());
+  Check(label, ArrivalQueueLength() == 5);
+}
+
+/* The controller of livewrap, every 100,000: at its last release before the wraparound it
+** creates W, then runs on past the wrap. The handler serves the request after it has
+** shifted the times: W is released then, its deadline a period ahead, not at the time the
+** caller read before the wrap, which the shift would not have brought back. */
+/* LiveClearHook: Asks for X inside the handler, as an interrupt handler would, just before
+** the handler drops the soft timer interrupts raised so far: it must serve the request in
+** the same pass, at the same instant. */
+static INT32 LiveAskedAt = -1;
+static void LiveClearHook(void)
+{
+  HostSoftTimerClearHook = NULL;
+  LiveAskedAt = HostClockNow();
+  LiveHandle[LIVE_X] = OSCreateTaskLive(LiveTask, 0, 50000, 50000, (void *)(UINTPTR)LIVE_X);
+}
+
+static void LiveWrapController(void *argument)
+{
+  INT32 now = HostClockNow();
+  (void)argument;
+  ControllerRuns += 1;
+  if (LiveRuns[LIVE_W] > 0 && LiveAskedAt < 0 && HostSoftTimerClearHook == NULL)
+     HostSoftTimerClearHook = LiveClearHook;     /* at the next pass of the handler */
+  if (now + 100000 > 0x40000000) {
+     /* Served once the controller returns, after the wrap. */
+     LiveHandle[LIVE_W] = OSCreateTaskLive(LiveTask, 0, 30000, 30000, (void *)(UINTPTR)LIVE_W);
+     LiveCheck(LiveHandle[LIVE_W] != NULL);
+     HookedTicks += 0x40000000 + 5 - now;
+     HostAdvanceBy(0x40000000 + 5 - now);
+  }
+  OSEndTask();
+}
+
+static void TestLiveWrap(void)
+{
+  long long duration = 0x40000000LL + 100000;
+  char label[96];
+  /* Due 1000 after its release, which RunAcross does not hold over the wrap. */
+  OSCreateTask(LiveWrapController, 0, 100000, 1000, NULL);
+  StartKernel(NULL, NULL);
+  RunAcross(duration);
+
+  printf("\n%lld ticks of simulated time, a task created just before the wraparound\n\n",
+         duration);
+  Check("  the kernel clock wrapped once", HostClockWraps == 1);
+  Check("  the creation accepted", LiveFailures == 0 && LiveChecks == 1);
+  snprintf(label, sizeof label, "  W: %u releases from %d (expected 4 from 5)",
+           LiveRuns[LIVE_W], LiveFirst[LIVE_W]);
+  Check(label, LiveRuns[LIVE_W] == 4 && LiveFirst[LIVE_W] == 5);
+  snprintf(label, sizeof label, "  X, asked inside the handler at %d: released at %d",
+           LiveAskedAt, LiveFirst[LIVE_X]);
+  Check(label, LiveHandle[LIVE_X] != NULL && LiveRuns[LIVE_X] > 0 && LiveAskedAt > 0 &&
+               LiveFirst[LIVE_X] == LiveAskedAt);
+  Check("  its first instance due a deadline after its release", LiveFirstOutOfReach == 0);
+  Check("  no deadline missed", LateArrivals == 0 && DeadlinesOutOfReach == 0);
+}
+
+/* TestLiveOverrun: Y, deleted inside its first instance, which overruns (LiveTask): the
+** hook goes on, Y is not released again, and its block comes back at 200, not before. */
+static UINT8 LiveContinue(void *argument)
+{
+  (void)argument;
+  return OS_OVERRUN_CONTINUE;
+}
+
+static void TestLiveOverrun(void)
+{
+  void *again;
+  char label[96];
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     BOOL cleared;
+  #endif
+  OSSetOverrunHook(LiveContinue);
+  LiveHandle[LIVE_Y] = OSCreateTaskLive(LiveTask, 0, 100, 100, (void *)(UINTPTR)LIVE_Y);
+  StartKernel(NULL, NULL);
+  RunAcross(250);
+  again = OSCreateTaskLive(LiveTask, 0, 1000, 1000, (void *)(UINTPTR)LIVE_B);
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     /* Y held its instance 150 ticks: B, in its block, starts from no figure. */
+     cleared = LiveTime(LIVE_B) != NULL && LiveTime(LIVE_B)->Held == 0 &&
+               LiveTime(LIVE_B)->MaxHeld == 0 && LiveTime(LIVE_B)->Instances == 0;
+  #endif
+  RunAcross(0);
+
+  printf("\n250 ticks of simulated time, a task deleted inside an instance that overruns\n\n");
+  snprintf(label, sizeof label, "  Y's checks: %u of 2, released %u times (expected 1)",
+           LiveChecks - LiveFailures, LiveRuns[LIVE_Y]);
+  Check(label, LiveChecks == 2 && LiveFailures == 0 && LiveRuns[LIVE_Y] == 1);
+  Check("  its block kept past the overrun", LiveKept != NULL && LiveKept != LiveHandle[LIVE_Y]);
+  Check("  and given back at 200", again == LiveHandle[LIVE_Y]);
+  snprintf(label, sizeof label, "  B, in Y's block: %u releases, its first counting %u "
+           "overruns", LiveRuns[LIVE_B], (unsigned)LiveFirstOverruns[LIVE_B]);
+  Check(label, LiveRuns[LIVE_B] == 1 && LiveFirstOverruns[LIVE_B] == 0);
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     Check("  and no figure of Y's", cleared);
+  #endif
+}
+
+/* TestLiveHook: The overrun hook, run by the handler as it releases the tasks due, asks
+** for the deletion of Z, a zombie due in the same pass: Z must be released as any task
+** there, its block coming back at its next release, once that instance has ended. V, of
+** the same period but a later deadline, runs its first instance past its release at 100
+** and overruns. */
+static UINT8 LiveHookDeletes(void *argument)
+{
+  (void)argument;
+  LiveCheck(OSDeleteTaskLive(LiveHandle[LIVE_Z]));
+  return OS_OVERRUN_CONTINUE;
+}
+
+static void LiveOverrunning(void *argument)
+{
+  (void)argument;
+  if (HostClockNow() < 100) {
+     HostAdvanceBy(150);
+     HookedTicks += 150;
+     HostSoftTimerRequests += 1;     /* the timer's interrupt at 100, taken late */
+     SoftTimerNow();
+  }
+  OSEndTask();
+}
+
+static void TestLiveHook(void)
+{
+  void *again;
+  char label[96];
+  OSSetOverrunHook(LiveHookDeletes);
+  LiveHandle[LIVE_Z] = OSCreateTaskLive(LiveTask, 0, 100, 50, (void *)(UINTPTR)LIVE_Z);
+  (void)OSCreateTaskLive(LiveOverrunning, 0, 100, 100, NULL);
+  StartKernel(NULL, NULL);
+  RunAcross(400);
+  again = OSCreateTaskLive(LiveTask, 0, 1000, 1000, (void *)(UINTPTR)LIVE_A);
+
+  printf("\n400 ticks of simulated time, a task deleted by the overrun hook\n\n");
+  Check("  the deletion asked for, one overrun", LiveChecks == 1 && LiveFailures == 0 &&
+                                                OSGetOverruns() == 1);
+  snprintf(label, sizeof label, "  Z: %u releases (expected 2)", LiveRuns[LIVE_Z]);
+  Check(label, LiveRuns[LIVE_Z] == 2);
+  Check("  its block given back", again == LiveHandle[LIVE_Z]);
+  Check("  the arrival queue: V alone", ArrivalQueueLength() == 1);
+}
+
+/* TestLiveWrapRace: The counter wraps once the handler has found no overflow and before
+** it reads the time, as in wrapinside, while a creation waits: the handler must serve it
+** only once it has shifted the times, or the task, released at the time read, would be
+** shifted again. With late, the overflow interrupt is taken later still, after the handler
+** has read the time: the time read, below the one read before, tells the wrap. */
+static BOOL LiveWrapLate;
+static INT32 LiveWrapPast = 3;   /* how far past 2^30 the handler reads the time */
+static void LiveWrapRaise(void)
+{
+  HostOverflowCheckHook = NULL;
+  HostOverflowHeld = FALSE;
+  HostRaiseOverflow();
+}
+
+static void LiveWrapOnce(void)
+{
+  INT32 now = HostClockNow();
+  HostOverflowCheckHook = LiveWrapLate ? LiveWrapRaise : NULL;
+  HostOverflowHeld = LiveWrapLate;
+  HookedTicks += 0x40000000 + LiveWrapPast - now;
+  HostAdvanceBy(0x40000000 + LiveWrapPast - now);
+}
+
+static void LiveWrapRaceController(void *argument)
+{
+  INT32 now = HostClockNow();
+  (void)argument;
+  if (now + 100000 > 0x40000000) {
+     HostOverflowCheckHook = LiveWrapOnce;
+     LiveHandle[LIVE_W] = CREATE_LIVE(LIVE_W, 30000);
+     LiveCheck(LiveHandle[LIVE_W] != NULL);
+  }
+  OSEndTask();
+}
+
+static void TestLiveWrapRace(BOOL late)
+{
+  long long duration = 0x40000000LL + 100000;
+  char label[96];
+  LiveWrapLate = late;
+  OSSetOverrunHook(LiveContinue);
+  OSCreateTask(LiveWrapRaceController, 0, 100000, 1000, NULL);
+  StartKernel(NULL, NULL);
+  RunAcross(duration);
+
+  printf("\n%lld ticks of simulated time, a creation waiting as the counter wraps inside the "
+         "handler%s\n\n", duration, late ? ", its interrupt late" : "");
+  Check("  the kernel clock wrapped once", HostClockWraps == 1 && HostOverflowCheckHook == NULL);
+  Check("  the creation accepted", LiveFailures == 0 && LiveChecks == 1);
+  snprintf(label, sizeof label, "  W: %u releases from %d (expected 4 from 3), %u overruns",
+           LiveRuns[LIVE_W], LiveFirst[LIVE_W], (unsigned)OSGetOverruns());
+  Check(label, LiveRuns[LIVE_W] == 4 && LiveFirst[LIVE_W] == 3 && OSGetOverruns() == 0);
+  Check("  its first instance due a deadline after its release", LiveFirstOutOfReach == 0);
+  Check("  no deadline missed", LateArrivals == 0 && DeadlinesOutOfReach == 0);
+}
+
+/* TestLiveWrapFirst: The same race at the first wraparound, W asked for as an interrupt
+** handler would, with no other task: the handler last read the time at 0, and the time it
+** reads after the wrap, 0 again, is not below it. The overflow's flag, raised already,
+** tells the wrap; once the times are shifted, W is released at that 0. */
+static void TestLiveWrapFirst(void)
+{
+  char label[96];
+  OSSetOverrunHook(LiveContinue);
+  LiveWrapPast = 0;
+  StartKernel(NULL, NULL);
+  RunAcross(0);
+  HostSetClock(0x40000000 - 10);
+  HostOverflowCheckHook = LiveWrapOnce;
+  LiveHandle[LIVE_W] = OSCreateTaskLive(LiveTask, 0, 30000, 30000, (void *)(UINTPTR)LIVE_W);
+  RunAcross(100000);
+
+  printf("\n100000 ticks of simulated time, a creation waiting as the counter wraps inside the "
+         "handler for the first time\n\n");
+  Check("  the kernel clock wrapped once", HostClockWraps == 1 && HostOverflowCheckHook == NULL);
+  snprintf(label, sizeof label, "  W: %u releases from %d (expected 4 from 0), %u overruns",
+           LiveRuns[LIVE_W], LiveFirst[LIVE_W], (unsigned)OSGetOverruns());
+  Check(label, LiveHandle[LIVE_W] != NULL && LiveRuns[LIVE_W] == 4 && LiveFirst[LIVE_W] == 0 &&
+               OSGetOverruns() == 0);
+  Check("  no deadline missed", LateArrivals == 0 && DeadlinesOutOfReach == 0);
+}
+
+/* TestLiveOnly: No task made by OSCreateTask, none in the pool at the start: the timer
+** must run all the same, for tasks created later, here as an interrupt handler would
+** create them while the processor idles, its interrupts masked. A, of 300, and K, of
+** 2^30 + 300, at 1000; at 1900 K deleted, its request alone on the list, A going on; at
+** 2800 L takes K's block, released though K left its next arrival a whole period ahead;
+** at 3700 A and L deleted, after which the pool holds four again. */
+static void TestLiveOnly(void)
+{
+  char label[96];
+  void *block[ESCAPEMENT_LIVE_TASKS];
+  unsigned firstA, secondA, k, j, made = 0;
+  BOOL masked, distinct = TRUE;
+  StartKernel(NULL, NULL);
+  RunAcross(1000);
+  HostSetClock(1000);
+  HostMasked = 1;     /* inside a section of its own, which the calls must not end */
+  LiveHandle[LIVE_A] = OSCreateTaskLive(LiveTask, 0, 300, 300, (void *)(UINTPTR)LIVE_A);
+  LiveHandle[LIVE_K] = OSCreateTaskLive(LiveTask, 1, 300, 300, (void *)(UINTPTR)LIVE_K);
+  masked = HostMasked;
+  HostUnmask();
+  RunAcross(1000);
+  firstA = LiveRuns[LIVE_A];
+  HostMasked = 1;
+  masked = masked && OSDeleteTaskLive(LiveHandle[LIVE_K]) &&
+           !OSDeleteTaskLive(LiveHandle[LIVE_K]) && HostMasked;   /* asked for already */
+  HostUnmask();
+  RunAcross(1000);
+  secondA = LiveRuns[LIVE_A] - firstA;
+  LiveHandle[LIVE_L] = OSCreateTaskLive(LiveTask, 0, 400, 400, (void *)(UINTPTR)LIVE_L);
+  RunAcross(1000);
+  HostMasked = 1;
+  masked = masked && OSDeleteTaskLive(LiveHandle[LIVE_A]) &&
+           OSDeleteTaskLive(LiveHandle[LIVE_L]) && HostMasked;
+  HostUnmask();
+  RunAcross(0);       /* the handler serves both */
+  for (k = 0; k < ESCAPEMENT_LIVE_TASKS; k += 1) {
+     block[k] = OSCreateTaskLive(LiveTask, 0, 1000, 1000, (void *)(UINTPTR)LIVE_Z);
+     made += block[k] != NULL;
+     for (j = 0; j < k; j += 1)
+        distinct = distinct && block[k] != block[j];
+  }
+
+  printf("\nFrom 1000 to 3700 in simulated time, tasks created with no other\n\n");
+  snprintf(label, sizeof label, "  A: %u, %u, then %u releases from %d (expected 4, 3, 3 "
+           "from 1000)", firstA, secondA, LiveRuns[LIVE_A] - firstA - secondA, LiveFirst[LIVE_A]);
+  Check(label, LiveHandle[LIVE_A] != NULL && firstA == 4 && secondA == 3 &&
+               LiveRuns[LIVE_A] == 10 && LiveFirst[LIVE_A] == 1000);
+  snprintf(label, sizeof label, "  K, of 2^30 + 300: %u releases from %d (expected 1 from 1000)",
+           LiveRuns[LIVE_K], LiveFirst[LIVE_K]);
+  Check(label, LiveHandle[LIVE_K] != NULL && LiveRuns[LIVE_K] == 1 && LiveFirst[LIVE_K] == 1000);
+  snprintf(label, sizeof label, "  L, in K's block: %u releases from %d (expected 3 from 2800)",
+           LiveRuns[LIVE_L], LiveFirst[LIVE_L]);
+  Check(label, LiveHandle[LIVE_L] == LiveHandle[LIVE_K] && LiveRuns[LIVE_L] == 3 &&
+               LiveFirst[LIVE_L] == 2800);
+  Check("  created and deleted with interrupts masked, left so", masked);
+  snprintf(label, sizeof label, "  then four blocks, distinct, and no fifth: %u", made);
+  Check(label, made == 4 && distinct &&
+               OSCreateTaskLive(LiveTask, 0, 1000, 1000, (void *)(UINTPTR)LIVE_Z) == NULL);
+  Check("  no deadline missed", LateArrivals == 0 && DeadlinesOutOfReach == 0);
+}
+#endif
+
 int main(int argc, char *argv[])
 {
   setvbuf(stdout, NULL, _IOLBF, 0);   /* keep what was printed if the kernel crashes */
@@ -4067,6 +4556,24 @@ int main(int argc, char *argv[])
   #ifdef ESCAPEMENT_MEASURE_WCET
      else if (argc > 1 && strcmp(argv[1], "wcet") == 0)
         TestTimes();
+  #endif
+  #ifdef ESCAPEMENT_LIVE_TASKS
+     else if (argc > 1 && strcmp(argv[1], "live") == 0)
+        TestLive();
+     else if (argc > 1 && strcmp(argv[1], "livewrap") == 0)
+        TestLiveWrap();
+     else if (argc > 1 && strcmp(argv[1], "liveonly") == 0)
+        TestLiveOnly();
+     else if (argc > 1 && strcmp(argv[1], "liveoverrun") == 0)
+        TestLiveOverrun();
+     else if (argc > 1 && strcmp(argv[1], "livehook") == 0)
+        TestLiveHook();
+     else if (argc > 1 && strcmp(argv[1], "livewraprace") == 0)
+        TestLiveWrapRace(FALSE);
+     else if (argc > 1 && strcmp(argv[1], "livewraplate") == 0)
+        TestLiveWrapRace(TRUE);
+     else if (argc > 1 && strcmp(argv[1], "livewrapfirst") == 0)
+        TestLiveWrapFirst();
   #endif
   else
      TestTaskSet();

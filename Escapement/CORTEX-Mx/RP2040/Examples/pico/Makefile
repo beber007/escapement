@@ -101,6 +101,11 @@ ifdef WCET
    CFLAGS += -DESCAPEMENT_MEASURE_WCET
    AFLAGS += -DESCAPEMENT_MEASURE_WCET
 endif
+# make LIVE=N gives the hard kernel, under EDF, a pool of N tasks created and deleted
+# while it runs (EscapementHard.h, "LIVE TASKS"); LIVE=4 builds LiveTasksPico, which uses it.
+ifdef LIVE
+   CFLAGS += -DESCAPEMENT_LIVE_TASKS=$(LIVE)
+endif
 ifdef RUN
    CFLAGS += -DSLEEP_RUN
 endif
@@ -136,6 +141,9 @@ endif
 # instances the kernel drops under load (SoakPico.c).
 ifeq ($(KERNEL),SOFT)
 all: $(B)/SoakFirmPico.elf
+endif
+ifeq ($(LIVE),4)
+all: $(B)/LiveTasksPico.elf
 endif
 
 clean:
@@ -222,6 +230,8 @@ $(B)/SoakFirmPico.o : SoakPico.c
 	$(CC) $(CFLAGS) -DSOAK_FIRM $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/StackGuardPico.o : StackGuardPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/LiveTasksPico.o : LiveTasksPico.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/TestTimerEventPico.o : TestTimerEventPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/FourSlotCoresPico.o : FourSlotCoresPico.c
@@ -247,6 +257,8 @@ $(B)/SoakFirmPico.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/Escapement_TimerE
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $^ -T$(LINKERFILE) -lgcc
 $(B)/StackGuardPico.elf : $(COMMON) $(B)/StackGuardPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(B)/StackGuardPico.o -T$(LINKERFILE) -lgcc
+$(B)/LiveTasksPico.elf : $(COMMON) $(B)/LiveTasksPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(B)/LiveTasksPico.o -T$(LINKERFILE) -lgcc
 $(B)/TestTimerEventPico.elf : $(COMMON) $(SLEEPGATE) $(B)/Escapement_TimerEvent.o $(B)/TestTimerEventPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(SLEEPGATE) $(B)/Escapement_TimerEvent.o $(B)/TestTimerEventPico.o -T$(LINKERFILE) -lgcc
 $(B)/FourSlotCoresPico.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/FourSlotCoresPico.o

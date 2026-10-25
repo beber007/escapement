@@ -186,6 +186,42 @@ BOOL OSCreateTask(void task(void *), UINT16 periodCycles, INT32 periodOffset,
 void OSEndTask(void);
 
 
+/* LIVE TASKS ------------------------------------------------------------------------ */
+/* Built with ESCAPEMENT_LIVE_TASKS defined to a number of blocks (make LIVE=N), the
+** kernel keeps a pool of that many periodic tasks, which tasks create and delete while it
+** runs, under EDF only: a task of the pool can neither take a priority nor change those
+** of the others, which deadline-monotonic scheduling fixes before the start. The kernel
+** tests no schedulability: the caller decides whether the processor holds one more task
+** (api.md, "Tasks created while the kernel runs"). The timer runs from the start, a task
+** of the pool may be the first.
+** Both functions are called by a task, an interrupt handler or the overrun hook, or
+** before OSStartMultitasking. Each masks the interrupts briefly, leaving them as it found
+** them, and, unless it refuses, raises the soft timer interrupt, whose handler does the
+** work; before the start, it waits for the handler's first pass. */
+#ifdef ESCAPEMENT_LIVE_TASKS
+   #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
+      #error "ESCAPEMENT_LIVE_TASKS is for EDF"
+   #endif
+   /* OSCreateTaskLive: Creates a periodic task as OSCreateTask does, its first instance
+   ** released at once: when the timer's handler next runs, before the caller goes on if
+   ** the new task's deadline is earlier than its own, or the same.
+   ** Returned value: (void *) the task, for OSDeleteTaskLive, or NULL when the pool is
+   **   empty or the timing is refused. */
+   void *OSCreateTaskLive(void task(void *), UINT16 periodCycles, INT32 periodOffset,
+                          INT32 deadline, void *argument);
+
+   /* OSDeleteTaskLive: Deletes a task OSCreateTaskLive made: it is not released again,
+   ** and its block goes back to the pool, at once if no instance of it is under way,
+   ** otherwise once the instance, which runs to its end, has ended and its next release
+   ** is due; a task may delete itself. An instance that overruns is counted as any.
+   ** Once the block is back, the handle may name the task that takes it next: a task is
+   ** deleted once.
+   ** Returned value: TRUE, or FALSE for a task not from the pool, one not yet released,
+   **   or one whose deletion is already asked for. */
+   BOOL OSDeleteTaskLive(void *task);
+#endif
+
+
 /* OVERRUNS -------------------------------------------------------------------------- */
 /* A periodic task overruns when its instance is still unfinished as its next one is due.
 ** The kernel then counts it and calls the hook the application gave, if any. Without one,
@@ -227,8 +263,9 @@ UINT32 OSGetTaskOverruns(void);
 ** the next, the soft timer interrupt's left out: an instance preempted is not charged for
 ** the tasks that preempt it, but it is for the peripheral interrupts it meets, the
 ** timer's own that raises the soft one among them. Each figure is one word, written by
-** the context switch and the soft timer interrupt alone, which a task or a debugger
-** reads whole at any time; a task's figures read one after the other may straddle the
+** the context switch and the soft timer interrupt alone, and by OSCreateTaskLive, which
+** clears those of a block of the pool no task holds (LIVE TASKS); a task or a debugger
+** reads it whole at any time; a task's figures read one after the other may straddle the
 ** end of an instance. */
 typedef struct OSTASKTIME {
   struct OSTASKTIME *Next;       // The task created before, NULL for the first

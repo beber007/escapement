@@ -25,7 +25,7 @@ check() {   # check TARGET CPU PORT_DIR EXAMPLE_DIR [KERNELS]
     target=$1 cpu=$2 port=$3 example=$4 kernels=${5:-"HARD SOFT HARD_PA"}
     for kernel in $kernels; do
         version=; [ "$kernel" = HARD ] || version=-DESCAPEMENT_VERSION_$kernel
-        for scheduler in EARLIEST_DEADLINE_FIRST DEADLINE_MONOTONIC_SCHEDULING; do
+        for scheduler in ${SCHEDULERS:-EARLIEST_DEADLINE_FIRST DEADLINE_MONOTONIC_SCHEDULING}; do
             echo "== $cpu, $kernel, $scheduler${options:+, $options}"
             for f in "$K/EscapementHard.c" "$K/EscapementSoft.c" "$K/EscapementHardPA.c" \
                      "$M"/*.c "$port"/*.c; do
@@ -44,6 +44,12 @@ check thumbv8m.main-none-eabi cortex-m33 "$M/STM32U3" "$M/STM32U3/Examples/nucle
 options=-DESCAPEMENT_MEASURE_WCET
 check thumbv6m-none-eabi cortex-m0plus "$M/RP2040" "$M/RP2040/Examples/pico" "HARD SOFT"
 check thumbv8m.main-none-eabi cortex-m33 "$M/RP2350" "$M/RP2350/Examples/pico2" "HARD SOFT"
+# The pool of tasks created as the kernel runs (make LIVE=4): the hard kernel under EDF,
+# with the execution times and without.
+for options in -DESCAPEMENT_LIVE_TASKS=4 "-DESCAPEMENT_LIVE_TASKS=4 -DESCAPEMENT_MEASURE_WCET"; do
+    SCHEDULERS=EARLIEST_DEADLINE_FIRST check thumbv6m-none-eabi cortex-m0plus "$M/RP2040" "$M/RP2040/Examples/pico" HARD
+    SCHEDULERS=EARLIEST_DEADLINE_FIRST check thumbv8m.main-none-eabi cortex-m33 "$M/RP2350" "$M/RP2350/Examples/pico2" HARD
+done
 if grep -q -E "warning:|error:" "$LOG"; then
     cat "$LOG"
     exit 1

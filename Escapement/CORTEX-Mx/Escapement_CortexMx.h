@@ -81,6 +81,12 @@ void _OSIOHandler(void);
 ** section. */
 #define _OSEnableInterrupts()  __asm volatile ("CPSIE i" ::: "memory")
 #define _OSDisableInterrupts() __asm volatile ("CPSID i" ::: "memory")
+/* _OSMaskInterrupts and _OSRestoreInterrupts: The same for code that may be entered with
+** them masked already, in an interrupt handler's section or before the start: the first
+** masks them and returns PRIMASK as it was, which the second puts back. */
+#define _OSMaskInterrupts() __extension__ ({ UINT32 primask; \
+           __asm volatile ("MRS %0,PRIMASK\n\tCPSID i" : "=r"(primask) :: "memory"); primask; })
+#define _OSRestoreInterrupts(primask) __asm volatile ("MSR PRIMASK,%0" :: "r"(primask) : "memory")
 
 /* _OSSleep: Sets the processor to its lowest possible sleep mode. */
 #ifdef ESCAPEMENT_VERSION_HARD_PA

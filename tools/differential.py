@@ -77,10 +77,12 @@ _spec.loader.exec_module(speed_reference)
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 HOST = os.path.join(ROOT, "test", "host")
 # The *_wcet builds measure execution times (ESCAPEMENT_MEASURE_WCET), and fail a run in
-# which a task reads a largest time other than the test gave it.
+# which a task reads a largest time other than the test gave it. hard_edf_live has a pool
+# of tasks created as it runs (ESCAPEMENT_LIVE_TASKS), which must leave the others' schedule
+# as it was.
 BUILDS = ["hard_edf", "hard_dm", "soft_edf", "soft_dm", "pa_edf", "pa_dm", "pa_dra",
           "pa_drote", "pa_dmslack", "hard_edf_wcet", "hard_dm_wcet", "soft_edf_wcet",
-          "soft_dm_wcet"]
+          "soft_dm_wcet", "hard_edf_live"]
 DEADLINE_MONOTONIC = {"hard_dm", "soft_dm", "pa_dm", "pa_dmslack", "hard_dm_wcet",
                       "soft_dm_wcet"}
 # Work done per tick at each operating point of the host's power-aware build, in 256ths,
@@ -759,7 +761,7 @@ def check(build, tasks, trace, speeds=True, phase=0, decisions=None, overruns=Fa
                                          0x40000000 - phase if phase else None)
         except speed_reference.Failure as e:
             raise Failure(str(e))
-    if build in ("hard_edf", "soft_edf", "hard_edf_wcet", "soft_edf_wcet") and \
+    if build in ("hard_edf", "soft_edf", "hard_edf_wcet", "soft_edf_wcet", "hard_edf_live") and \
             all(t["kind"] == "P" for t in tasks):
         analysed = [{"period": t["period"], "deadline": t["deadline"], "wcet": t["wcet"]}
                     for t in tasks]

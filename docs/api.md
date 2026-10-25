@@ -226,6 +226,61 @@ speed, and its ticks would need scaling by the speed of each stretch of it, the 
 changed inside the timer handler. Without the option, every image is the same, byte for
 byte, as before it existed.
 
+### Tasks created while the kernel runs
+
+`OSCreateTask` works before `OSStartMultitasking` only, its blocks taken by `OSMalloc`.
+Built with `make LIVE=N` (`ESCAPEMENT_LIVE_TASKS`), the hard kernel under EDF keeps a pool
+of N periodic tasks, which a task, an interrupt handler or the overrun hook creates and
+deletes while the kernel runs (#45):
+
+```c
+void *task = OSCreateTaskLive(Worker, 0, 1000, 1000, argument);   /* NULL: pool empty */
+...
+OSDeleteTaskLive(task);
+```
+
+`OSCreateTaskLive` takes the timing `OSCreateTask` takes, and checks it the same way. Its
+first instance is released at once: the call masks the interrupts for a few instructions,
+leaving them as it found them, puts its request on a list and raises the soft timer
+interrupt, whose handler serves it at the time it reads once it has shifted the others at
+the 2^30 wraparound: before a task goes on, after an interrupt handler or the overrun hook
+has returned, or code with interrupts masked has unmasked them. Should the counter pass
+2^30 between the handler's test of the overflow and its reading of the time, the request
+waits for the shift; the one case the handler cannot tell is a read at the very tick of
+the wrap when every read since the wrap before (since the start, for the first) was at
+that one's tick, and the overflow's flag tested before its interrupt has had time to raise
+it. A task whose deadline is earlier than a calling task's, or the same, preempts it as
+soon as the request is served. Called before `OSStartMultitasking`, the request waits for
+the handler's first pass, and the task is released at the time that pass reads, a few µs
+after the tasks of `OSCreateTask`.
+
+`OSDeleteTaskLive` stops the releases. A task between two instances goes back to the pool
+at once. An instance under way, started or only released, runs to its end, since on the
+one stack an instance that has started can only end: the block goes back at the next
+release, which is not made. Until then the pool is one block short, a period, or longer
+if that instance overruns. A task may delete itself. An instance that overruns is counted
+and goes through the hook as any other. The call refuses a task not from the pool, one
+whose first release is still to come, and one already deleted; once the block is back,
+though, the handle may name the task that took it next, which a second call would delete:
+a task is deleted once.
+
+The kernel tests no schedulability: whether the processor holds one more task is the
+caller's to decide. Deadline-monotonic scheduling fixes the priorities before the start,
+and the soft and power-aware kernels compute on the whole set at the start too: the
+three refuse the option. With it, the timer runs from the start even with no task, a task
+of the pool may be the first. Under `make WCET=1` each block of the pool comes with its
+figures, in `_OSTaskTimes` from the start, a block never handed out with no code;
+`OSCreateTaskLive` clears them for the task it starts.
+
+`LiveTasksPico` and `LiveTasksPico2` turn a manager of 2 ms round four slots, creating and
+deleting workers of 500 to 1300 µs, one of them deleting itself, ask for a fifth whenever
+the four slots are full, and count every instance started late or due after its deletion.
+On the Pico W (2026-10-24), two minutes of it: 37,564 creations, 37,561 deletions, 345,582
+instances, 7,513 fifths refused, none started late, none due after its deletion, every
+call answered as expected, four blocks; under Renode, on the Pico 2, 2 s: 626 creations,
+624 deletions, 5,874 instances, 125 fifths refused, the same zeros.
+Without the option, every image is the same, byte for byte, as before it existed.
+
 ## Event-driven tasks
 
 A task that runs when something happens, rather than at fixed times, waits on an event

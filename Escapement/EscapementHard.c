@@ -81,6 +81,10 @@ typedef struct TCB {
   #ifdef ESCAPEMENT_MEASURE_WCET
      OSTASKTIME *Time;           // What its instances held the processor
   #endif
+  #ifdef ESCAPEMENT_LIVE_TASKS
+     struct TCB *NextLive;       // Next in the pool, or in the requests to the timer's handler
+     UINT8 Live;                 // LIVE_NONE, LIVE_CREATE, LIVE_ASKED, LIVE_DELETE, LIVE_FREE
+  #endif
 } TCB;
 
 OSCheckTCBLayout();
@@ -243,6 +247,36 @@ static void EmptyRescheduleSynchronousTaskList(INT32 currentTime);
 #endif
 
 
+/* TASKS CREATED AND DELETED WHILE THE KERNEL RUNS (EscapementHard.h, "LIVE TASKS")
+** Their blocks come from a pool fixed at build time. A task asks; the timer's handler
+** does the work, as for the event-driven tasks it reschedules: the queues are its own,
+** and the time it reads, once it has shifted the others at the wraparound, is the one a
+** new task arrives at. LiveRequests and LiveFree are changed with interrupts masked, by
+** a task, an interrupt handler, or the timer's handler. */
+#ifdef ESCAPEMENT_LIVE_TASKS
+  #define LIVE_NONE    0   // Not in the pool's hands: running, or made by OSCreateTask
+  #define LIVE_CREATE  1   // Asked for, not yet released
+  #define LIVE_DELETE  2   // To go back to the pool once its instance has ended
+  #define LIVE_FREE    3   // In the pool
+  #define LIVE_ASKED   4   // Its deletion asked for, not yet served
+  static TCB LivePool[ESCAPEMENT_LIVE_TASKS];
+  static TCB *LiveFree = NULL;
+  static TCB *volatile LiveRequests = NULL;
+  static INT32 LiveLastTime = 0;   // the time the handler last read, once shifted
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     static OSTASKTIME LiveTimes[ESCAPEMENT_LIVE_TASKS];
+  #endif
+  static void InitializeLive(void);
+  static void ServeLiveRequests(INT32 currentTime);
+  static void FreeLive(TCB *task);
+  /* The timer runs from the start, a task may be created at any time. */
+  #define TimerNeeded() TRUE
+#else
+  #define TimerNeeded() \
+          (_OSQueueHead->Next[ARRIVALQ] != OSQueueTail || SynchronousTaskList != NULL)
+#endif
+
+
 /* Initialize: Initializes the internals of the OS. This function is called prior to
 ** creating the first task and sets up the needed queues. It allocates nothing, the
 ** sentinels being static, and cannot fail. */
@@ -263,6 +297,9 @@ void Initialize(void)
   OSQueueTail->Next[ARRIVALQ] = NULL;
   OSQueueTail->TaskState = STATE_INIT | TASKTYPE_BLOCKING;
   OSQueueTail->NextArrivalTimeLow = INT32_MAX;
+  #ifdef ESCAPEMENT_LIVE_TASKS
+     InitializeLive();
+  #endif
 } /* end of Initialize */
 
 
@@ -271,7 +308,7 @@ void Initialize(void)
 ** once running, it is resumed, never restarted. The argument is undefined. */
 void IdleTask(void *argument)
 {
-  if (_OSQueueHead->Next[ARRIVALQ] != OSQueueTail || SynchronousTaskList != NULL) {
+  if (TimerNeeded()) {
      /* No interrupt in between: a task signaled once the switch below is made runs the
      ** timer handler, which must find the timer started and its origin set. */
      _OSDisableInterrupts();
@@ -321,6 +358,9 @@ BOOL OSCreateTask(void task(void *), UINT16 periodCycles, INT32 periodOffset,
   ptcb->Next[READYQ] = NULL;
   ptcb->TaskState = STATE_ZOMBIE;
   ptcb->Overruns = 0;
+  #ifdef ESCAPEMENT_LIVE_TASKS
+     ptcb->Live = LIVE_NONE;   // the handler reads it at each release
+  #endif
   ptcb->TaskCodePtr = task;
   ptcb->PeriodLow = periodOffset;
   ptcb->PeriodHigh = periodCycles;
@@ -341,6 +381,146 @@ BOOL OSCreateTask(void task(void *), UINT16 periodCycles, INT32 periodOffset,
   ArrivalQueueInsert(ptcb);
   return TRUE;
 } /* end of OSCreateTask */
+
+
+#ifdef ESCAPEMENT_LIVE_TASKS
+/* InitializeLive: Puts every block of the pool in it; under ESCAPEMENT_MEASURE_WCET each
+** comes with its figures, in _OSTaskTimes from the start, whose list never changes. A
+** block never handed out keeps the LIVE_NONE of .bss: no handle leads to it. */
+void InitializeLive(void)
+{
+  UINT16 i;
+  for (i = 0; i < ESCAPEMENT_LIVE_TASKS; i += 1) {
+     LivePool[i].NextLive = LiveFree;
+     LiveFree = &LivePool[i];
+     #ifdef ESCAPEMENT_MEASURE_WCET
+        LivePool[i].Time = &LiveTimes[i];
+        LiveTimes[i].Next = _OSTaskTimes;
+        _OSTaskTimes = &LiveTimes[i];
+     #endif
+  }
+} /* end of InitializeLive */
+
+
+/* Booted: Whether the idle task has started the timer. Before, the requests wait for the
+** first pass of the handler, which _OSStartTimer forces. */
+#define Booted() (EnqueueRescheduleQueue == EnqueueRescheduleQueueAfterBoot)
+
+
+/* OSCreateTaskLive: Takes a block from the pool and asks the timer's handler to release
+** the task, at the time it reads; OSCreateTask's checks of the timing apply. */
+void *OSCreateTaskLive(void task(void *), UINT16 periodCycles, INT32 periodOffset,
+                       INT32 deadline, void *argument)
+{
+  TCB *ptcb;
+  UINT32 primask;
+  if (!ValidTiming(periodCycles,periodOffset,deadline))
+     return NULL;
+  if (_OSQueueHead == NULL)
+     Initialize();
+  /* Interrupts as the caller had them: masked in an interrupt handler's section, or by
+  ** OSStartMultitasking before the start. */
+  primask = _OSMaskInterrupts();
+  if ((ptcb = LiveFree) != NULL) {
+     LiveFree = ptcb->NextLive;
+     ptcb->Next[READYQ] = NULL;
+     ptcb->TaskState = STATE_ZOMBIE;
+     ptcb->Overruns = 0;
+     ptcb->TaskCodePtr = task;
+     ptcb->PeriodLow = periodOffset;
+     ptcb->PeriodHigh = periodCycles;
+     ptcb->NextArrivalTimeHigh = 0;
+     ptcb->Argument = argument;
+     ptcb->Deadline = deadline;
+     #ifdef ESCAPEMENT_MEASURE_WCET
+        /* The task that had the block ended its last instance before it came back:
+        ** the soft timer interrupt closed it on entry (EndRunning). */
+        ptcb->Time->TaskCodePtr = task;
+        ptcb->Time->Argument = argument;
+        ptcb->Time->Held = 0;
+        ptcb->Time->MaxHeld = 0;
+        ptcb->Time->Instances = 0;
+     #endif
+     ptcb->Live = LIVE_CREATE;
+     ptcb->NextLive = LiveRequests;
+     LiveRequests = ptcb;
+  }
+  _OSRestoreInterrupts(primask);
+  if (ptcb != NULL && Booted())
+     _OSGenerateSoftTimerInterrupt();
+  return ptcb;
+} /* end of OSCreateTaskLive */
+
+
+/* OSDeleteTaskLive: Asks the timer's handler to give a task released from the pool back
+** to it. */
+BOOL OSDeleteTaskLive(void *task)
+{
+  TCB *ptcb = (TCB *)task;
+  BOOL asked = FALSE;
+  UINT32 primask;
+  UINT16 i;
+  for (i = 0; i < ESCAPEMENT_LIVE_TASKS && ptcb != &LivePool[i]; i += 1);
+  if (i == ESCAPEMENT_LIVE_TASKS)
+     return FALSE;
+  primask = _OSMaskInterrupts();
+  if (ptcb->Live == LIVE_NONE) {
+     ptcb->Live = LIVE_ASKED;
+     ptcb->NextLive = LiveRequests;
+     LiveRequests = ptcb;
+     asked = TRUE;
+  }
+  _OSRestoreInterrupts(primask);
+  if (asked)   // after the start: the task has been released
+     _OSGenerateSoftTimerInterrupt();
+  return asked;
+} /* end of OSDeleteTaskLive */
+
+
+/* ServeLiveRequests: From the timer's handler, at the time it has just read: a task
+** created arrives now; a task deleted between two instances, a zombie, which is in no
+** ready queue at the handler's entry (FinalizeContextSwitchPreparation), leaves the
+** arrival queue for the pool at once. One deleted while an instance of it is under way,
+** started or not, keeps it: on the single stack an instance that has started can only
+** end, and the handler gives the block back at the task's next release (see
+** _OSTimerInterruptHandler). Until served here, a deletion is only asked for: one asked
+** by the overrun hook or an interrupt handler as the handler releases the tasks due
+** leaves the task to be released as any, the block still in LiveRequests. */
+void ServeLiveRequests(INT32 currentTime)
+{
+  TCB *task, *next, *left;
+  _OSDisableInterrupts();
+  task = LiveRequests;
+  LiveRequests = NULL;
+  _OSEnableInterrupts();
+  for (; task != NULL; task = next) {
+     next = task->NextLive;
+     if (task->Live == LIVE_CREATE) {
+        task->Live = LIVE_NONE;
+        task->NextArrivalTimeLow = currentTime;
+        ArrivalQueueInsert(task);
+     }
+     else if (task->TaskState & STATE_ZOMBIE) {
+        for (left = _OSQueueHead; left->Next[ARRIVALQ] != task; left = left->Next[ARRIVALQ]);
+        left->Next[ARRIVALQ] = task->Next[ARRIVALQ];
+        FreeLive(task);
+     }
+     else
+        task->Live = LIVE_DELETE;
+  }
+} /* end of ServeLiveRequests */
+
+
+/* FreeLive: Gives a block back to the pool. */
+void FreeLive(TCB *task)
+{
+  _OSDisableInterrupts();
+  task->Live = LIVE_FREE;
+  task->NextLive = LiveFree;
+  LiveFree = task;
+  _OSEnableInterrupts();
+} /* end of FreeLive */
+#endif /* ESCAPEMENT_LIVE_TASKS */
 
 
 #if SCHEDULER_REAL_TIME_MODE == DEADLINE_MONOTONIC_SCHEDULING
@@ -596,15 +776,47 @@ void _OSTimerInterruptHandler(void)
         #if SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
            SubOrZeroIfNeg(SynchronousTaskDeadlines,ShiftTimeLimit);
         #endif
+        #ifdef ESCAPEMENT_LIVE_TASKS
+           LiveLastTime = 0;
+        #endif
      }
      while (TRUE) {
         _OSComparatorInterruptFlag = FALSE;
         /* Transfer all new arrivals to the ready queue. */
         currentTime = _OSGetActualTime();
+        #ifdef ESCAPEMENT_LIVE_TASKS
+           /* The counter may have passed 2^30 since the test above, the times not shifted
+           ** yet: the overflow's flag, or a time below the last one read if its interrupt
+           ** is still to come, tells it. A task released at such a time would be shifted
+           ** with the others, 2^30 early: its requests wait, the loop below coming back
+           ** until they are served. A time read past the wrap and not below the last one
+           ** comes at least as long after it as that one came after the wrap before
+           ** (after the start, for the first), which the overflow's interrupt, above this
+           ** one, has had to raise the flag in; but for a read at the very tick of the
+           ** wrap when every read since the wrap before (since the start, for the first)
+           ** was at that one's tick, and the flag tested before the interrupt has had
+           ** time to raise it. */
+           if (!_OSOverflowInterruptFlag && currentTime >= LiveLastTime) {
+              LiveLastTime = currentTime;
+              if (LiveRequests != NULL)
+                 ServeLiveRequests(currentTime);
+           }
+        #endif
         arrival = _OSQueueHead->Next[ARRIVALQ];
         while (arrival->NextArrivalTimeLow <= currentTime &&
              ((arrival->TaskState & TASKTYPE_BLOCKING) || arrival->NextArrivalTimeHigh == 0)) {
            _OSQueueHead->Next[ARRIVALQ] = arrival->Next[ARRIVALQ];
+           #ifdef ESCAPEMENT_LIVE_TASKS
+              /* A periodic task whose deletion was asked for while an instance of it was
+              ** under way: that instance has ended, and the block goes back to the pool
+              ** instead of the task being released. Unfinished, it overruns as any task. */
+              if ((arrival->TaskState & (TASKTYPE_BLOCKING | STATE_ZOMBIE)) == STATE_ZOMBIE &&
+                  arrival->Live == LIVE_DELETE) {
+                 FreeLive(arrival);
+                 arrival = _OSQueueHead->Next[ARRIVALQ];
+                 continue;
+              }
+           #endif
            /* At this point an arriving periodic task should be state STATE_ZOMBIE, but event-
            ** driven tasks should be in state STATE_ZOMBIE | TASKTYPE_BLOCKING. */
            if (!(arrival->TaskState & STATE_ZOMBIE)) { // Is task still in the ready queue?
@@ -654,7 +866,14 @@ void _OSTimerInterruptHandler(void)
            break;
      }
      _OSClearSoftTimerInterrupt();
+  #ifndef ESCAPEMENT_LIVE_TASKS
   } while (_OSOverflowInterruptFlag || _OSComparatorInterruptFlag || RescheduleSynchronousTaskList != NULL);
+  #else
+  /* A request an interrupt handler made since the requests were served, the soft timer
+  ** interrupt it raised dropped just above. */
+  } while (_OSOverflowInterruptFlag || _OSComparatorInterruptFlag ||
+           RescheduleSynchronousTaskList != NULL || LiveRequests != NULL);
+  #endif
   /* Return to the task with highest priority or start a new instance. */
   _OSActiveTask = _OSQueueHead->Next[READYQ];
   _OSScheduleTask();
@@ -1031,7 +1250,7 @@ BOOL OSStartMultitasking(void (*f)(void *), void *arg)
   #endif
   /* There are periodic tasks in the system when the arrival queue is not empty. Note
   ** that periodic tasks are initially inserted in this queue before starting Escapement. */
-  if (_OSQueueHead->Next[ARRIVALQ] != OSQueueTail || SynchronousTaskList != NULL)
+  if (TimerNeeded())
      /* Prepare the timer; it begins scheduling arrivals when the idle task first runs
      ** (_OSStartTimer). */
      _OSInitializeTimer();
