@@ -27,14 +27,16 @@ make
 ```
 
 The CI builds the four example directories (with `STM32U3/Examples/nucleo-u385`) on
-each push to `main` and each pull request; `STM32U5/Examples/nucleo-u575` is built by its job for the board's images
-(`tools/board_images.sh`). Sizes with GCC 16.2 at commit bf447b8, on 2026-09-27:
+each push to `main` and each pull request; `STM32U5/Examples/nucleo-u575` is built by
+its job for the board's images (`tools/board_images.sh`). Sizes with GCC 16.2 at commit
+2ade62a, on 2026-10-26:
 
 | Example | Core | MCU | Tasks | `text` / `data` / `bss` |
 |---|---|---|---|---|
-| `RP2040/Examples/pico` | Cortex-M0+ | RP2040 | 4 | 4,716 / 8 / 240 |
-| `RP2350/Examples/pico2` | Cortex-M33 | RP2350 | 4 | 4,324 / 8 / 344 |
-| `STM32U5/Examples/uno-q` | Cortex-M33 | STM32U585 | 4 | 5,656 / 8 / 648 |
+| `RP2040/Examples/pico` | Cortex-M0+ | RP2040 | 4 | 5,248 / 8 / 1,912 |
+| `RP2350/Examples/pico2` | Cortex-M33 | RP2350 | 4 | 4,824 / 8 / 380 |
+| `STM32U5/Examples/uno-q` | Cortex-M33 | STM32U585 | 4 | 6,304 / 8 / 668 |
+| `STM32U3/Examples/nucleo-u385` | Cortex-M33 | STM32U385 | 4 | 5,916 / 8 / 660 |
 
 The figures are the bytes of the `TaskLED` target with the hard kernel, that is the
 whole kernel plus the periodic tasks of the example. Rebuilt on 2026-09-27 with GCC 16.2,
@@ -46,6 +48,11 @@ each at the commit that published it, the earlier figures come out byte for byte
 | 2026-09-25 | 6f90fa2 | 5,164 / 8 / 240 | 4,288 / 8 / 344 | |
 | 2026-09-26 | ff4fd7b | | | 5,596 / 8 / 640 |
 | 2026-09-27 | bf447b8 | 4,716 / 8 / 240 | 4,324 / 8 / 344 | 5,656 / 8 / 648 |
+
+Rebuilt on 2026-10-26, bf447b8 gives the same figures on the three boards. Since
+bf447b8, the Pico's `bss` grew from 240 to 1,912 bytes. Of that growth, 1,628 bytes are
+the `.stack_guard` section, added on 2026-10-05: the 1 KB that the MPU guards below the
+stack (`api.md`, "Memory"), aligned on its size (`RP2040_SRAM.ld`).
 
 ## Build options
 
