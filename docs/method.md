@@ -748,10 +748,13 @@ The eleven accesses are now volatile, as those of the 16-bit path already were.
 
 ### 2026-10-04 and 05: the first run
 
-The first run, on 2026-10-04, killed 355 of the hard kernel's 484 mutants that compiled,
-73.3 %; 487 of the soft one's 718, 67.8 %; and 536 of the power-aware one's 798, 67.2 %.
-Read one by one, the survivors of
-the hard kernel fell in five kinds:
+The first run, on 2026-10-04, killed these shares of the mutants that compiled:
+
+- hard kernel: 355 of 484, 73.3 %;
+- soft kernel: 487 of 718, 67.8 %;
+- power-aware kernel: 536 of 798, 67.2 %.
+
+The survivors of the hard kernel were read one by one. They fell in five kinds:
 
 | Kind | Hard | What they were |
 |---|---:|---|
@@ -761,87 +764,123 @@ the hard kernel fell in five kinds:
 | The helpers of the wait-free queue | 7 | an operation finding its work done, which two nested interrupts reach: `test/model/fifo.py` explores them |
 | Behaviour no test read | ~30 | below |
 
-The last kind was the work, and it found three things beyond tests to write:
+The last kind was the work. Beyond tests to write, it found three things:
 
-- the host test's blocks are now filled with 0xA5, as SRAM is not zeros: no field the
-  kernels set turned out forgotten, but leaving one out now fails;
-- `RunAcross`, the loop that jumps the host's clock from event to event, ran a task of
-  a period past 2^30 a whole turn late, which no test had; fixed, and `longperiod` tests
-  it (`test/host/README.md`);
-- the variant of `EnqueueRescheduleQueue` for a port without `NonMaskableSoftwareTimer`
-  was compiled by no build: the three ports and the host defined it. It was ZottaOS's,
-  and went on 2026-10-05, the 97 images of the examples the same byte for byte.
+- The host test's blocks are now filled with 0xA5, since SRAM is not zeros. No field
+  that the kernels set turned out forgotten, but leaving one out now fails.
+- `RunAcross` is the loop that jumps the host's clock from event to event. It ran a task
+  whose period is past 2^30 a whole turn late, and no test had such a task. It is fixed,
+  and `longperiod` tests it (`test/host/README.md`).
+- No build compiled the variant of `EnqueueRescheduleQueue` for a port without
+  `NonMaskableSoftwareTimer`: the three ports and the host defined it. The variant was
+  ZottaOS's. It was removed on 2026-10-05, and the 97 images of the examples stayed the
+  same byte for byte.
 
-The tests added for the rest: the edges of what a creation accepts (`createbounds`), a
-period past 2^30 run over three wraps (`longperiod`), two events signalled at once
-(`twosignals`), an event-driven task started at its signal and spaced by its workload
-from the arrival queue (`eventspacing`), the edges of the slot buffers, and the harness
-checking that a task ending leaves its context unsaved and asks for a switch, as the
-timer handler must, which the host's port only counts.
+Tests were added for the rest:
 
-`tools/differential.py` now also draws event-driven tasks, a workload apart under DM and
-a total bandwidth server under EDF, and (m,k)-firm sets that overload unless optional
-instances are dropped. Each task takes its WCET, so an optional instance wrongly admitted
-misses its deadline.
+- the edges of what a creation accepts (`createbounds`);
+- a period past 2^30, run over three wraps (`longperiod`);
+- two events signalled at once (`twosignals`);
+- an event-driven task started at its signal, and spaced by its workload from the
+  arrival queue (`eventspacing`);
+- the edges of the slot buffers;
+- the harness, which checks that a task that ends leaves its context unsaved and asks
+  for a switch, as the timer handler must; the host's port only counts these requests.
 
-Run again on the survivors, the hard kernel's score rose to 79.5 % (385 of 484), the soft
-one's to 74.2 % (533 of 718), and the power-aware one's to 71.8 % (573 of 798).
+`tools/differential.py` now also draws event-driven tasks: a workload apart under DM,
+and a total bandwidth server under EDF. It also draws (m,k)-firm sets that overload
+unless optional instances are dropped. Each task takes its WCET, so an optional instance
+wrongly admitted misses its deadline.
+
+Run again on the survivors, the scores rose:
+
+- hard kernel: 79.5 % (385 of 484);
+- soft kernel: 74.2 % (533 of 718);
+- power-aware kernel: 71.8 % (573 of 798).
 
 ### 2026-10-05 and 06: the speeds held to a reference
 
-A quarter of the power-aware kernel's survivors were in
-the choice of speed (`GetProcessorSpeed`, DRA's simulation, DM_SLACK's slack): a mutant
-that picks a faster speed than it needs keeps every deadline, and nothing held the
-policies to the speeds their specification gives.
+A quarter of the power-aware kernel's survivors were in the choice of speed
+(`GetProcessorSpeed`, DRA's simulation, DM_SLACK's slack). A mutant that picks a faster
+speed than it needs keeps every deadline. Nothing held the policies to the speeds that
+their specification gives.
 
-Since 2026-10-05 `tools/speed_reference.py` does. It computes the speed of each dispatch
-from the ZottaOS manual's chapter 6, written before the kernel's code was read, and
-`tools/differential.py` fails a speed other than its own. Run against the kernel, it
-first disagreed on most builds, and each disagreement was read in the kernel before
-anything was changed: three were the reference's own mistakes (the releases past the end
-of the run, which the kernel knows; the work received, which the kernel keeps in whole
-ticks as the manual's figure does in integers; and when an end decides, before the
-release at the same instant); the rest were the kernel departing from the manual, each
-towards a faster speed, none towards a missed deadline. The kernel set the speed only
-when the task to run changed, where the manual does at every timer interrupt, so that a
-release that did not preempt reclaimed nothing; and DM_SLACK took its slack only for an
-instance not alone, where DR_OTE takes the slower of its two. Both were ZottaOS's, and
-both were corrected the same day, the reference agreeing again. Two departures stay,
-written in the reference: its EDF* breaks ties the other way from the paper, as its
-header says, and DM_SLACK keeps one slack, the last left, where the manual keeps one per
-task. The reference agreed with the kernel on 1,000 task sets of each of the five
-builds, before and after the corrections, on the Mac and in the CI's image before. Of
-the 171 mutants of the code that chose a speed before the corrections, 100 were killed
-without the reference, 109 with it, and 112 at the 300 task sets a build the CI runs
-(`tools/mutants.py --sets`); after them, 104 of the 164 of the same code. The survivors
-left were mostly code of the event-driven tasks under DRA, which the reference then
-left out, the manual not saying where they stand in its simulation, and comparisons
-whose edge gives the same speed. Under OTE and DM_SLACK the reference takes event-driven tasks
-in too since the same evening, their next release bounding the stretch, and under
-DM_SLACK the slack an event-driven instance leaves: of the 17 mutants of the code that
-bounds the stretch, the 6 left are such comparisons. Two of DM_SLACK's survivors were
-first written as behaviours no test reads; read again on 2026-10-06, neither is. Leaving out the
-`CompilerBarrier()` before the SC that hands a slack over changes nothing GCC emits for
-the RP2040, the only target that builds DM_SLACK: `DMSlackCalculateSlack` disassembles
-the same with and without it, which keeps it as a guard against a compiler that would
-sink the three stores past the call. And a task given its own slack back, `>=` for `>`
-on the priorities, never meets one: a task keeps every deadline running its remaining
-WCET at the fastest speed from any point, so that its end plus the slack it leaves is
-at most its deadline, and the slack, run out with the time elapsed, is gone by its next
-release, at least a deadline after the one before.
+Since 2026-10-05, `tools/speed_reference.py` does. It computes the speed of each
+dispatch from chapter 6 of the ZottaOS manual. It was written before the kernel's code
+was read. `tools/differential.py` fails a speed other than the reference's.
 
-On 2026-10-06 the reference took in the event-driven tasks under DRA and DR_OTE, where
-the manual is silent, as the kernel has them: an instance in the simulation by the
-server's deadline, and the server's share of the time it has nothing pending taken as
-excess, counted and rounded at each update of the simulation, at the instants the
-kernel makes them. With its instances alone in the simulation, the reference disagreed,
-the kernel always slower; 10,000 task sets under the two builds, checked for deadlines
-only, missed none, before the excess was written in. With it, DRA agreed on 3,300 sets.
-DR_OTE disagreed once more, the kernel faster: an event-driven task that might be
-released at once sent it to the fastest speed, DRA's time left out, where OTE alone
-should have lost its time, as DM_SLACK has it since 80cc6dc. Corrected with the user's
-agreement, it agreed on 3,000 sets. A kernel made to count no excess fails its
-first task sets under both builds.
+Run against the kernel, the reference first disagreed on most builds. Each disagreement
+was read in the kernel before anything was changed. Three were the reference's own
+mistakes:
+
+- the releases past the end of the run, which the kernel knows;
+- the work received, which the kernel keeps in whole ticks, as the manual's figure does
+  in integers;
+- when an end decides, before the release at the same instant.
+
+The rest were the kernel departing from the manual. Each went towards a faster speed,
+and none towards a missed deadline:
+
+- The kernel set the speed only when the task to run changed, where the manual does it
+  at every timer interrupt. A release that did not preempt thus reclaimed nothing.
+- DM_SLACK took its slack only for an instance that was not alone, where DR_OTE takes
+  the slower of its two speeds.
+
+Both were ZottaOS's. Both were corrected the same day, and the reference agreed again.
+Two departures stay, written in the reference. Its EDF* breaks ties the other way from
+the paper, as its header says. DM_SLACK keeps one slack, the last left, where the manual
+keeps one per task.
+
+The reference agreed with the kernel on 1,000 task sets of each of the five builds,
+before and after the corrections, on the Mac and in the CI's image before. Of the 171
+mutants of the code that chose a speed before the corrections:
+
+- 100 were killed without the reference;
+- 109 with it;
+- 112 at the CI's 300 task sets a build (`tools/mutants.py --sets`).
+
+After the corrections, 104 of the 164 mutants of the same code were killed. The
+survivors left were mostly of two kinds. Some were code of the event-driven tasks under
+DRA, which the reference then left out, since the manual does not say where they stand
+in its simulation. The others were comparisons whose edge gives the same speed.
+
+Since the same evening, the reference also takes in event-driven tasks under OTE and
+DM_SLACK: their next release bounds the stretch. Under DM_SLACK, it takes in the slack
+that an event-driven instance leaves too. Of the 17 mutants of the code that bounds the
+stretch, the 6 left are such comparisons.
+
+Two of DM_SLACK's survivors were first written as behaviours no test reads. Read again
+on 2026-10-06, neither is:
+
+- Leaving out the `CompilerBarrier()` before the SC that hands a slack over changes
+  nothing that GCC emits for the RP2040, the only target that builds DM_SLACK.
+  `DMSlackCalculateSlack` disassembles the same with and without it. The barrier stays
+  as a guard against a compiler that would sink the three stores past the call.
+- A task given its own slack back (`>=` for `>` on the priorities) never meets one. A
+  task keeps every deadline when it runs its remaining WCET at the fastest speed from
+  any point. Its end, plus the slack it leaves, is then at most its deadline. The slack
+  runs out with the time elapsed, and is gone by the task's next release, at least a
+  deadline after the one before.
+
+On 2026-10-06, the reference took in the event-driven tasks under DRA and DR_OTE, where
+the manual is silent. It took them as the kernel has them:
+
+- an instance in the simulation, by the server's deadline;
+- the server's share of the time it has nothing pending, taken as excess.
+
+The excess is counted and rounded at each update of the simulation, at the instants the
+kernel makes them.
+
+With the instances in the simulation but no excess yet, the reference disagreed, the
+kernel always slower. Before the excess was written in, 10,000 task sets under the two
+builds, checked for deadlines only, missed none. With the excess, DRA agreed on 3,300
+sets.
+
+DR_OTE disagreed once more, the kernel faster. An event-driven task that might be
+released at once sent it to the fastest speed, with DRA's time left out. Only OTE should
+have lost its time, as DM_SLACK has it since 80cc6dc. Corrected with the user's
+agreement, DR_OTE agreed on 3,000 sets. A kernel made to count no excess fails its first
+task sets under both builds.
 
 ### 2026-10-06: the survivors read, and the wraparound
 
