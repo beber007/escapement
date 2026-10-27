@@ -120,11 +120,13 @@ task where in its pattern it stands. `wcet` may be 0 when every task has `m = k`
 the processor so that the work left fits before the deadline, and it trusts that
 figure. An understated `wcet` lets the kernel pick a speed too low for the task, which
 then misses its deadline. `FourSlotCoresPico` declares 400 µs for a reader measured at
-314 µs at most (`rp2040.md`): measure first, then add a margin. Whether slowing down
-saves energy depends on the chip: on the STM32U5 it does not, racing to Stop 2 winning at
-every load, on the RP2350 some 10 % at best, on the RP2040 up to some 5 % with the
-idle task in WFI and nothing once it sleeps in SLEEP, and on the STM32U3 a cycle costs 14 %
-less at 48 MHz than at 96 (`power-aware.md`).
+314 µs at most (`rp2040.md`): measure first, then add a margin.
+
+Whether slowing down saves energy depends on the chip (`power-aware.md`). On the
+STM32U5 it does not: racing to Stop 2 wins at every load. On the RP2350 it saves some
+10 % at best. On the RP2040 it saves up to some 5 % with the idle task in WFI, and
+nothing once the idle task sleeps in SLEEP. On the STM32U3, a cycle costs 14 % less at
+48 MHz than at 96.
 
 `OSSetMinimalProcessorSpeed(speed)`, called before `OSStartMultitasking`, keeps the
 processor at or above an operating point (`OS_12MHZ_SPEED`, `OS_50MHZ_SPEED`,
@@ -132,15 +134,18 @@ processor at or above an operating point (`OS_12MHZ_SPEED`, `OS_50MHZ_SPEED`,
 
 ### When an instance overruns
 
-Every kernel assumes that each mandatory instance ends before its task's next release:
-a task set its algorithm schedules (under EDF, deadlines equal to periods, a load of
-100 % at most; under DM, in general less), each task within its declared `wcet` (the
-soft and power-aware kernels) or within the time the designer's analysis gave it (the
-hard kernel). A periodic instance still unfinished when its task is released again
-overruns: one that started, under every kernel, and under the soft kernel a mandatory one
-that never did. An optional one that never started is dropped instead, which is what it
-is for. An event-driven task cannot overrun: it is released again only once it has
-ended.
+Every kernel assumes that each mandatory instance ends before its task's next release.
+Two things make that true. First, the algorithm can schedule the task set: under EDF,
+with deadlines equal to periods, a load of 100 % at most; under DM, in general less.
+Second, each task stays within its time. Under the soft and power-aware kernels, that
+is its declared `wcet`. Under the hard kernel, it is the time the designer's analysis
+gave it.
+
+A periodic instance overruns when it is still unfinished at its task's next release.
+Under every kernel, that is an instance that started. Under the soft kernel, it is also
+a mandatory instance that never started. An optional instance that never started is
+dropped instead: that is what it is for. An event-driven task cannot overrun. It is
+released again only once it has ended.
 
 At an overrun the kernel counts it and calls the hook the application gave:
 
@@ -155,83 +160,92 @@ static UINT8 OnOverrun(void *argument)   /* the argument the task was created wi
 OSSetOverrunHook(OnOverrun);
 ```
 
-Without a hook, or when it returns `OS_OVERRUN_STOP`, the kernel stops: interrupts
-disabled, a loop for ever, the whole system halted, as ZottaOS did. That is the default:
-the contract is broken, and a hard real-time system holds no guarantee past it. The hook
-can set the outputs safe first, or arm a watchdog that resets the chip.
+Without a hook, the kernel stops. It does the same when the hook returns
+`OS_OVERRUN_STOP`. It disables interrupts and loops for ever, and the whole system
+halts, as in ZottaOS. That is the default. The contract is broken, and a hard real-time
+system holds no guarantee past it. The hook can first set the outputs safe, or arm a
+watchdog that resets the chip.
 
-With `OS_OVERRUN_CONTINUE`, the instance under way goes on, with its deadline as it is,
-and the release that found it is skipped: the task is next released one period later.
-Under the soft kernel the release skipped still counts in the task's (m,k) pattern, a
-mandatory instance missed. `OSGetOverruns()` gives the overruns of all tasks, and a task
-calling `OSGetTaskOverruns()` its own. What going on cannot do, because all tasks share
-one stack: drop an instance that started, or give it a later deadline, since its frames
-lie above those of the instances it preempted, which cannot run before it ends. Under
-EDF the late instance keeps the earliest deadline until it ends, and the others wait for
-it: one overrun makes others, EDF's domino. A bounded overrun, a burst of interrupts, is
-then lived through; an instance that loops for ever still holds the processor, the
-interrupts running. Under DM, only the tasks of lower priority wait.
+With `OS_OVERRUN_CONTINUE`, the instance under way goes on, and its deadline does not
+change. The release that found it is skipped: the task is next released one period
+later. Under the soft kernel, the skipped release still counts in the task's (m,k)
+pattern, as a mandatory instance missed. `OSGetOverruns()` gives the overruns of all
+tasks. A task that calls `OSGetTaskOverruns()` gets its own.
 
-The kernel notices an overrun only at that next release. With a deadline shorter than
-the period, an instance that misses its deadline but ends before its next release is
-late, and nothing reports it. Noticing an instance as it passes its `wcet` would take a
-budget timer for each instance (issue #17).
+Going on has limits, because all tasks share one stack. The kernel cannot drop an
+instance that started, nor give it a later deadline. Its frames lie above those of the
+instances it preempted, and those cannot run before it ends. Under EDF, the late
+instance keeps the earliest deadline until it ends, and the others wait for it. So one
+overrun makes others: EDF's domino effect. Under DM, only the tasks of lower priority
+wait. The system lives through a bounded overrun, such as a burst of interrupts. An
+instance that loops for ever still holds the processor, with interrupts running.
+
+The kernel notices an overrun only at the next release. Take a deadline shorter than
+the period. An instance that misses its deadline but ends before its next release is
+late, and nothing reports it. To notice an instance as it passes its `wcet`, the kernel
+would need a budget timer for each instance (issue #17).
 
 ### Measuring execution times
 
-Nothing above checks a declared `wcet`. Built with `make WCET=1`
-(`ESCAPEMENT_MEASURE_WCET`), the hard and soft kernels add up, for each instance of each
-task, the ticks it holds the processor, and keep the largest of the instances ended:
+Nothing above checks a declared `wcet`. Under the hard and soft kernels, a build with
+`make WCET=1` (`ESCAPEMENT_MEASURE_WCET`) measures the execution times. For each
+instance of each task, the kernel adds up the ticks the instance holds the processor. It
+keeps the largest total among the instances that ended:
 
 ```sh
 make WCET=1                                  # then load the image and let it run
 tools/wcet.py build/SoakPico.elf --margin 20 # read over SWD, the cores left running
 ```
 
-`tools/wcet.py` prints, for each task by the name of its code and its argument, the
-instances ended, the largest time seen and, with `--margin`, that time plus the margin.
-A task reads its own with `OSGetTaskMaxTime()`; another program, a debugger or the other
-core, walks the list `_OSTaskTimes`, one `OSTASKTIME` a task, fixed once the kernel
-runs. Each figure is one word, written by the context switch and the soft timer
-interrupt alone, read whole at any time; a task's figures read one after the other may
-straddle the end of an instance.
+For each task, `tools/wcet.py` prints the name of its code and its argument, the
+instances ended and the largest time seen. With `--margin`, it also prints that time
+plus the margin, in percent. A task reads its own figure with `OSGetTaskMaxTime()`.
+Another program, a debugger or the other core, walks the list `_OSTaskTimes`. The list
+holds one `OSTASKTIME` per task, and does not change once the kernel runs. Each figure
+is one word. Only the context switch and the soft timer interrupt write it, and it can
+be read whole at any time. A task's figures read one after the other may straddle the
+end of an instance.
 
-What is counted: the time from the context switch that gives an instance the processor
-to the next one, the soft timer interrupt left out. An instance preempted is not charged
-for the tasks that preempt it, nor for the soft timer interrupt electing them; it is for
-the peripheral interrupts it meets, the timer's own that raises the soft one among them,
-and for the few instructions of the switch around it. Under the soft kernel an instance
-that ends is charged too for what `OSEndTask` and `OSSuspendSynchronousTask` do before
-they switch: they choose the next instance, and when that is an optional one, run the
-admission test on each in line until one is admitted, 13.9 µs in the mean and 31.7 at
-most a test, interrupts unmasked as there, on the Pico's bench (`docs/method.md`).
+The count runs from the context switch that gives an instance the processor to the next
+switch. The soft timer interrupt is left out. A preempted instance is not charged for
+the tasks that preempt it, nor for the soft timer interrupt that elects them. It is
+charged for the peripheral interrupts it meets, among them the timer's own, which raises
+the soft one. It is also charged for the few instructions of the switch around it.
+
+Under the soft kernel, an instance that ends is also charged for what `OSEndTask` and
+`OSSuspendSynchronousTask` do before they switch. They choose the next instance. When
+that one is optional, they run the admission test on each optional instance in line,
+until one is admitted. On the Pico's bench, a test took 13.9 µs in the mean and 31.7 µs
+at most, with interrupts unmasked as in those calls (`docs/method.md`).
+
 The figure is an upper estimate of what the instance itself took, on the run that was
 made.
 
-On the Pico W (2026-10-23), two runs of SoakFirmPico, of three and two minutes: its
-(2,5)-firm task, a busy wait of 1500 µs on the clock, 1503 and 1499 µs at most, over the
-27,304 and 19,570 instances that ran, the optional ones dropped not counted;
-SoakPico's heartbeat, which then scanned core 0's stack whole, 4.4 ms against the 50 µs
-it declared (it scans a slice of it a second since, #41). The switch does some 70
-instructions more on its longest path, interrupts masked: under a microsecond at 125 MHz,
-counted from the disassembly.
+On the Pico W, on 2026-10-23, SoakFirmPico ran twice, for three and two minutes. Its
+(2,5)-firm task is a busy wait of 1500 µs on the clock. It took 1503 and 1499 µs at
+most, over the 27,304 and 19,570 instances that ran. Dropped optional instances are not
+counted. At the time, SoakPico's heartbeat scanned core 0's stack whole. It took 4.4 ms,
+against the 50 µs it declared. Since #41, it scans a slice of the stack each second.
+With the option, the switch runs some 70 more instructions on its longest path, with
+interrupts masked. That is under a microsecond at 125 MHz, counted from the disassembly.
 
-It is the worst case seen, not a bound: valid only for a load that took the instance's
-worst path. A bound needs static analysis. aiT lists the Cortex-M0, M3 and M4 but not the
-M0+ or the M33; OTAWA (LGPL) runs on 32-bit ARM; Bound-T's Cortex-M port is unfinished.
-The RP2040 running from SRAM, without a cache, is the likeliest case for one.
+The figure is the worst case seen, not a bound. It holds only for a load that took the
+instance's worst path. A bound needs static analysis. aiT lists the Cortex-M0, M3 and
+M4, but not the M0+ or the M33. OTAWA (LGPL) runs on 32-bit ARM. Bound-T's Cortex-M port
+is unfinished. The RP2040, running from SRAM without a cache, is the likeliest case for
+a bound.
 
-The power-aware kernel refuses the option: an instance there takes longer at a lower
-speed, and its ticks would need scaling by the speed of each stretch of it, the speed
-changed inside the timer handler. Without the option, every image is the same, byte for
-byte, as before it existed.
+The power-aware kernel refuses the option. There, an instance takes longer at a lower
+speed. Its ticks would need scaling by the speed of each stretch, and the speed changes
+inside the timer handler. Without the option, every image is the same, byte for byte,
+as before the option existed.
 
 ### Tasks created while the kernel runs
 
-`OSCreateTask` works before `OSStartMultitasking` only, its blocks taken by `OSMalloc`.
-Built with `make LIVE=N` (`ESCAPEMENT_LIVE_TASKS`), the hard kernel under EDF keeps a pool
-of N periodic tasks, which a task, an interrupt handler or the overrun hook creates and
-deletes while the kernel runs (#45):
+`OSCreateTask` works only before `OSStartMultitasking`, and takes its blocks from
+`OSMalloc`. Under the hard kernel and EDF, a build with `make LIVE=N`
+(`ESCAPEMENT_LIVE_TASKS`) keeps a pool of N periodic tasks. A task, an interrupt handler
+or the overrun hook can create and delete them while the kernel runs (#45):
 
 ```c
 void *task = OSCreateTaskLive(Worker, 0, 1000, 1000, argument);   /* NULL: pool empty */
@@ -239,47 +253,56 @@ void *task = OSCreateTaskLive(Worker, 0, 1000, 1000, argument);   /* NULL: pool 
 OSDeleteTaskLive(task);
 ```
 
-`OSCreateTaskLive` takes the timing `OSCreateTask` takes, and checks it the same way. Its
-first instance is released at once: the call masks the interrupts for a few instructions,
-leaving them as it found them, puts its request on a list and raises the soft timer
-interrupt, whose handler serves it at the time it reads once it has shifted the others at
-the 2^30 wraparound: before a task goes on, after an interrupt handler or the overrun hook
-has returned, or code with interrupts masked has unmasked them. Should the counter pass
-2^30 between the handler's test of the overflow and its reading of the time, the request
-waits for the shift; the one case the handler cannot tell is a read at the very tick of
-the wrap when every read since the wrap before (since the start, for the first) was at
-that one's tick, and the overflow's flag tested before its interrupt has had time to raise
-it. A task whose deadline is earlier than a calling task's, or the same, preempts it as
-soon as the request is served. Called before `OSStartMultitasking`, the request waits for
-the handler's first pass, and the task is released at the time that pass reads, a few µs
-after the tasks of `OSCreateTask`.
+`OSCreateTaskLive` takes the same timing as `OSCreateTask`, and checks it the same way.
+Its first instance is released at once. The call masks interrupts for a few
+instructions, and leaves them as it found them. It puts its request on a list and raises
+the soft timer interrupt. The handler first shifts the other tasks at the 2^30
+wraparound, then serves the request at the time it reads. That happens before a task
+goes on, once an interrupt handler or the overrun hook has returned, or once code that
+masked interrupts unmasks them. If the new task's deadline is earlier than the calling
+task's, or the same, it preempts the calling task as soon as the request is served.
 
-`OSDeleteTaskLive` stops the releases. A task between two instances goes back to the pool
-at once. An instance under way, started or only released, runs to its end, since on the
-one stack an instance that has started can only end: the block goes back at the next
-release, which is not made. Until then the pool is one block short, a period, or longer
-if that instance overruns. A task may delete itself. An instance that overruns is counted
-and goes through the hook as any other. The call refuses a task not from the pool, one
-whose first release is still to come, and one already deleted; once the block is back,
-though, the handle may name the task that took it next, which a second call would delete:
-a task is deleted once.
+The counter may pass 2^30 between the handler's test of the overflow and its reading of
+the time. The request then waits for the shift. The handler cannot tell one case, where
+three things meet. It reads at the very tick of the wrap. Every read since the wrap
+before was at the tick of the wrap before (since the start, for the first wrap). And it
+tested the overflow flag before the overflow interrupt had time to raise it.
 
-The kernel tests no schedulability: whether the processor holds one more task is the
-caller's to decide. Deadline-monotonic scheduling fixes the priorities before the start,
-and the soft and power-aware kernels compute on the whole set at the start too: the
-three refuse the option. With it, the timer runs from the start even with no task, a task
-of the pool may be the first. Under `make WCET=1` each block of the pool comes with its
-figures, in `_OSTaskTimes` from the start, a block never handed out with no code;
-`OSCreateTaskLive` clears them for the task it starts.
+Called before `OSStartMultitasking`, the request waits for the handler's first pass. The
+task is then released at the time that pass reads, a few µs after the tasks of
+`OSCreateTask`.
 
-`LiveTasksPico` and `LiveTasksPico2` turn a manager of 2 ms round four slots, creating and
-deleting workers of 500 to 1300 µs, one of them deleting itself, ask for a fifth whenever
-the four slots are full, and count every instance started late or due after its deletion.
-On the Pico W (2026-10-24), two minutes of it: 37,564 creations, 37,561 deletions, 345,582
-instances, 7,513 fifths refused, none started late, none due after its deletion, every
-call answered as expected, four blocks; under Renode, on the Pico 2, 2 s: 626 creations,
-624 deletions, 5,874 instances, 125 fifths refused, the same zeros.
-Without the option, every image is the same, byte for byte, as before it existed.
+`OSDeleteTaskLive` stops the releases. A task between two instances goes back to the
+pool at once. An instance under way runs to its end, whether it started or was only
+released: on the one stack, an instance that started can only end. Its block goes back
+at the next release, which is not made. Until then, the pool is one block short for a
+period, or longer if that instance overruns. A task may delete itself. An instance that
+overruns is counted, and goes through the hook as any other.
+
+The call refuses a task not from the pool, a task whose first release is still to come,
+and a task already deleted. Once the block is back, though, the handle may name the task
+that took the block next. A second call would delete that task. So delete a task once
+only.
+
+The kernel tests no schedulability. The caller decides whether the processor can take
+one more task. Deadline-monotonic scheduling fixes the priorities before the start. The
+soft and power-aware kernels also compute on the whole set at the start. So the hard
+kernel under DM and these two kernels refuse the option. With the option, the timer runs
+from the start even with no task, so a task of the pool can be the first. Under
+`make WCET=1`, each block of the pool has its figures in `_OSTaskTimes` from the start.
+The entry of a block never handed out shows no code. `OSCreateTaskLive` clears the
+figures for the task it starts.
+
+In `LiveTasksPico` and `LiveTasksPico2`, a manager of 2 ms goes round four slots. It
+creates and deletes workers of 500 to 1300 µs, and one worker deletes itself. Whenever
+the four slots are full, the manager asks for a fifth worker. Each worker counts its
+instances that started late, and those due after its deletion. On the Pico W, on
+2026-10-24, the example ran for two minutes. It made 37,564 creations, 37,561 deletions
+and 345,582 instances, and 7,513 fifth workers were refused. No instance started late,
+none was due after its deletion, every call answered as expected, and four blocks were
+handed out. Under Renode, on the Pico 2, it ran for 2 s: 626 creations, 624 deletions,
+5,874 instances, 125 fifth workers refused, and the same zeros. Without the option,
+every image is the same, byte for byte, as before the option existed.
 
 ## Event-driven tasks
 
@@ -515,11 +538,12 @@ steps over. There is no `free` and no C library: the code is built freestanding.
 ## On the Pico 2
 
 The Pico 2 takes the same calls, under `RP2350/Examples/pico2`, with its core at
-150 MHz. The power-aware kernel is not ported to it. A Pico 2 on the bench has run the
-six examples that count in memory at each commit since 2026-09-28, and the periods of
-the two that toggle outputs were read on a frequency counter on 2026-09-29. The UART
-echo and two tasks sending at once have been checked there too since 2026-09-30
-(`tools/board_ci.md`).
+150 MHz. The power-aware kernel is not ported to it. A Pico 2 on the bench runs the six
+examples that count in memory. It has run them on each new head of `main` since
+2026-09-28, and on each pull request from a branch of this repository since 2026-10-13.
+The periods of the two that toggle outputs were read on a frequency counter on
+2026-09-29. The UART echo and two tasks sending at once have been checked there too
+since 2026-09-30 (`tools/board_ci.md`).
 
 ## On the Arduino UNO Q
 
