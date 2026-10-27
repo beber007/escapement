@@ -40,6 +40,80 @@ exists because the fifth still runs through a debugger, and that turned out to m
   step too low or always the slowest — fail it within the first few task sets of each
   build.
 
+## What this changes in the repository
+
+The CI runs the kernel, under Renode and on the host, besides building it. That is how
+the `-O2` defect and the scheduling one below were found. A measurement is written with
+its date and its deviation (the +28 ppm of the frequency counter, `rp2040.md`). A result
+that did not reproduce is said so. A commit message gives its reasoning, wrong turns
+included.
+
+## Mutants: how strong the tests are
+
+Coverage says a line runs; it does not say a test would notice the line being wrong.
+`tools/mutants.py` makes one small fault at a time in a kernel's source, a comparison
+turned round, `+` for `-`, `&&` for `||`, 0 for 1, a statement of one line left out, and
+runs the host test and `tools/differential.py` on the builds of that kernel. A mutant is
+killed when a test fails, survives when none does. Lines no build of the host compiles,
+code of a variant the host does not build, are left out: a mutant there changes nothing
+the host runs.
+
+The last whole run was on c0ff963, the candidate of release 0.1, on 2026-10-11, at 300
+task sets a build:
+
+| Kernel | Mutants killed | Of those not declared equivalent |
+|---|---:|---:|
+| Hard | 87.6 % (424 of 484) | 97.0 % of 437 |
+| Soft | 84.0 % (609 of 725) | 96.7 % of 630 |
+| Power-aware | 83.0 % (664 of 800) | 96.2 % of 690 |
+
+Every survivor was read. Each one was then killed by a test, declared equivalent with
+its reason in `test/host/equivalent-mutants.jsonl`, caught on the ARM builds by
+`tools/check_order.py`, or written as a behaviour no test reads. Since then, the mutants
+of the kernel lines a pull request changes are run before it is merged
+(`tools/mutants.py --only`), as `CLAUDE.md` asks. How the scores got there is told by
+date in "The mutant campaigns, by date", at the end of this page.
+
+## What the README claims, and what checks it
+
+The lesson of the mutants, a claim no test reads is not checked, was applied to the
+README on 2026-10-04: each claim it makes about behaviour, set against what reads it in
+the behaviour, a test, a model, the board or an instrument.
+
+| Claim | What reads it | Found |
+|---|---|---|
+| Scheduling by EDF or DM | the host test's view of the task control block; `tools/differential.py`, each trace checked against the algorithm of its build | holds |
+| No periodic tick: the timer interrupts at a release only | nothing on the host; on the U5, the idle task's 454,487 Stop 2 in three hours, which a tick would have cut short | to add: the trace's timer interrupts set against the releases. Done on 2026-10-05: `tools/differential.py` reads every interrupt of the comparator, and a host port made to interrupt every 500 ticks fails its first task set |
+| The power-aware kernel slows down only as far as every deadline holds | `tools/differential.py` under its five builds, with kernels made to run too slow; the host test's speeds | holds |
+| It slows down as far as DRA, OTE and DM_SLACK compute | nothing until 2026-10-05: a kernel faster than its policy kept every deadline. Since, `tools/speed_reference.py`, from the ZottaOS manual, each speed of `tools/differential.py`'s traces, and since 2026-10-06 DRA's and DR_OTE's with event-driven tasks | **did not quite**: a release that did not preempt reclaimed nothing, and DM_SLACK left its slack out of a task alone. Both corrected the same day (80cc6dc). DR_OTE left DRA out when an event-driven task could be released at once, corrected on 2026-10-06 |
+| Overload drops chosen (m,k)-firm instances, not deadlines at random | the host test's `firm` runs, `firmoverload*` | holds |
+| The queues take no lock | `docs/architecture.md` | **false since 2026-09-25**: `OSSuspendSynchronousTask` masks interrupts around the enqueue of a task on its event. The README now says so |
+| The queue between the cores went from fifteen barriers to six | the model `fifo_mp.py` | **stale**: seven since 2026-09-29 |
+| The models found four bugs | `docs/method.md`, "Hypotheses that were wrong" | **stale**: six, two of them in the queue between the cores |
+| Two boards checked at each commit | `tools/board_ci.md` | **stale**: three, the Pico 2 since 2026-09-28 |
+| 87 to 90 % of each kernel's lines run | `tools/coverage.py` | **stale**: every line runs or is excluded with its reason, 90.5 % of the branches |
+| How much current Stop 2 saves is not measured | `docs/stm32u5.md` | **stale**: measured on 2026-10-03 with a PPK2 |
+| Whether DVFS saves energy is not settled | issues #23 and #5 | **stale**: settled against it on the U5, some 10 % at best on the RP2350; open on the RP2040, settled on 2026-10-10: up to some 5 % in WFI, nothing in SLEEP |
+| The program shown is a whole program for the Pico | since 2026-10-04 the Pico's Makefile builds it from the page, and the Renode suite checks that its LED blinks at 1 Hz | **false**: it never routed GPIO 25 to the SIO nor made it an output, and on the chip the LED would not have lit. The page now shows the whole program |
+| Responses stay under the bound of the analysis | `tools/response_times.py` on the traces in `docs/data` | holds, and since 2026-10-04 under EDF too |
+| How it schedules: EDF keeps (50, 25) and (80, 35), DM leaves the second unfinished at 80; the (m,k)-firm set at 110 % keeps every deadline, optional instances dropped | since 2026-10-18 `tools/host_figures.py --check` in the CI: the host runs, each statement checked on its trace, and the figures compared with what the run draws | holds |
+| The figures: 4,716 bytes, 3.2 µs, +28 ppm, 108,000 activations | each dated, with its source | measurements of a day, not claims about every build |
+
+Six claims had gone stale as the work moved on, two were false, and two were read by
+nothing. The README was corrected the same day, and its program is built and run from
+the page since. The check of the tick was added on 2026-10-05.
+
+Set again on 2026-10-10, before the first release (roadmap, task 8). Every claim of
+behaviour holds on that code: the speeds against the policies at 20,000 task sets under
+DRA and DR_OTE once the reference served each signal in a pass of its own (task 7), the
+round of 3.5 µs and 12 µs at worst read by the bench on 2e30970. Stale: the STM32U3's
+row, "Renode only" while the board has been on the bench since 2026-10-09, and the
+NUCLEO-U575ZI-Q's, which runs the soft kernel's endurance test and from its flash; three
+ports where there are four; 91.15 % of the branches where there are 91.78 %; the
+STM32U3's page missing from the table. Corrected the same day (6a4f138), with the
+optional instance's single test and its count written where the README meets them, and
+`api.md` saying that the API is not yet stable.
+
 ## Hypotheses that were wrong
 
 The wrong hypotheses are kept here, each with what tested it. The assistant can be
@@ -139,590 +213,6 @@ The algorithm is now chosen in `Escapement_Config.h`, the header only supplies t
 fallback, and every example selects EDF. All three emulation suites still pass. The host
 test also checks that no deadline is missed, a check that could not be written while
 the field it reads did not exist.
-
-## Mutants: how strong the tests are
-
-Coverage says a line runs; it does not say a test would notice the line being wrong.
-`tools/mutants.py` makes one small fault at a time in a kernel's source, a comparison
-turned round, `+` for `-`, `&&` for `||`, 0 for 1, a statement of one line left out, and
-runs the host test and `tools/differential.py` on the builds of that kernel. A mutant is
-killed when a test fails, survives when none does. Lines no build of the host compiles,
-code of a variant the host does not build, are left out: a mutant there changes nothing
-the host runs.
-
-The first run, on 2026-10-04, killed 355 of the hard kernel's 484 mutants that compiled,
-73.3 %; 487 of the soft one's 718, 67.8 %; and 536 of the power-aware one's 798, 67.2 %.
-Read one by one, the survivors of
-the hard kernel fell in five kinds:
-
-| Kind | Hard | What they were |
-|---|---:|---|
-| Equivalent: nothing a run can see changes | ~20 | ties broken the other way, a field set to the 0 it already held, a bound moved where no value reaches it |
-| The target's only | ~30 | interrupts masked, compiler and memory barriers, the timer started, PendSV pended: the host's port does nothing there, and `check_order.py`, Renode and the boards are what read them |
-| Hidden by the host | ~30 | every field a creation sets: the host's `OSMalloc` handed out zeroed blocks, where the target's SRAM holds what the last image left, so a field left unset read 0 and passed |
-| The helpers of the wait-free queue | 7 | an operation finding its work done, which two nested interrupts reach: `test/model/fifo.py` explores them |
-| Behaviour no test read | ~30 | below |
-
-The last kind was the work, and it found three things beyond tests to write:
-
-- the host test's blocks are now filled with 0xA5, as SRAM is not zeros: no field the
-  kernels set turned out forgotten, but leaving one out now fails;
-- `RunAcross`, the loop that jumps the host's clock from event to event, ran a task of
-  a period past 2^30 a whole turn late, which no test had; fixed, and `longperiod` tests
-  it (`test/host/README.md`);
-- the variant of `EnqueueRescheduleQueue` for a port without `NonMaskableSoftwareTimer`
-  was compiled by no build: the three ports and the host defined it. It was ZottaOS's,
-  and went on 2026-10-05, the 97 images of the examples the same byte for byte.
-
-The tests added for the rest: the edges of what a creation accepts (`createbounds`), a
-period past 2^30 run over three wraps (`longperiod`), two events signalled at once
-(`twosignals`), an event-driven task started at its signal and spaced by its workload
-from the arrival queue (`eventspacing`), the edges of the slot buffers, and the harness
-checking that a task ending leaves its context unsaved and asks for a switch, as the
-timer handler must, which the host's port only counts.
-
-`tools/differential.py` now also draws event-driven tasks, a workload apart under DM and
-a total bandwidth server under EDF, and (m,k)-firm sets that overload unless optional
-instances are dropped. Each task takes its WCET, so an optional instance wrongly admitted
-misses its deadline.
-
-Run again on the survivors, the hard kernel's score rose to 79.5 % (385 of 484), the soft
-one's to 74.2 % (533 of 718), and the power-aware one's to 71.8 % (573 of 798). Run whole
-on 2026-10-06 at the 300 task sets a build the CI runs, rather than 100: the soft kernel
-74.2 % again (533 of 718), the hard one 79.5 % (385 of 484). The hard kernel's score was
-first written 80.4 % (389 of 484), and the run of 2026-10-06 seemed to lose four mutants.
-Its survivors run again at f7622b7, the source of that day, gave 30 killed, not 34, and
-left the same 99 survivors as the run of 2026-10-06: the 389 was miscounted, and nothing
-was lost. Under the hard kernel's builds, 300 task sets cannot kill fewer mutants than
-100, the first 100 being the same sets drawn from the same seed. The power-aware kernel, run whole the same
-evening at 300 task sets: 76.9 % (610 of 793), from 71.8 %. Of the mutants both runs
-hold, 85 survived on 2026-10-04 and are killed now, by the tests and the speed reference
-added since and by the larger runs together, the runs not telling which: 12 of them in
-`DRASimUpdateElapseTime`, the excess of the event-driven tasks that the reference took
-in that day. The 183 left are mostly in the timer's handler (28), the choice of speed
-(21) and the initialisation of the slot buffers (15).
-
-The 21 of the choice of speed, `GetProcessorSpeed`, were read one by one that evening,
-and none is a behaviour left unchecked. One is the task given its own slack back, read
-above. Fourteen move the edge of a comparison where both
-sides give the same speed: a bound set to the value it is compared with, or a time left
-equal to the work, which the fastest speed alone does at the operating points of the
-RP2040 and the host, 24 and 102 in 256ths. Two read DRA's excess with the opposite sign:
-`DRASimUpdateElapseTime`, called before each choice, has already spent it, and a build
-made to trap on a non-zero excess there ran 4,000 task sets under DRA and DR_OTE and the
-host test without trapping. Two give DM_SLACK a slack of 0 or 1 tick, which the fastest
-speed absorbs at those points. One starts the slack's bound at 1 rather than 0, the same
-again; and the last runs at the slowest speed a task with no work left on record, which
-the task ends at the instant it is dispatched, no trace showing it run.
-
-The same evening the random task sets were taken across the wraparound: the host test's
-trace starts at any phase of the counter, and half the sets of `tools/differential.py`
-now start just short of 2^30, the trace still counting time from the start, so that
-every check and the speed reference read them unchanged. Every set had run within its
-first 6,000 ticks, far from the wraparound, which only the hand-written tests `timewrap`,
-`firmwrap` and `longperiod` reached. The hard kernels held. The others did not, three
-ways:
-
-- **OTE lost its time before each wraparound.** The power-aware kernel read the next
-  arrival from its low part alone: an arrival past 2^30 seemed past, and the last
-  instance before each wraparound ran at the fastest speed. Faster than needed, no
-  deadline at risk. `GetNextArrival` counts the wraparound in.
-- **A task ending at the very tick of the wraparound read a time 2^30 short.** The
-  counter had wrapped, the timer's handler not yet shifted the kernel's times. DM_SLACK
-  credited the slack that task left with 2^30, which the handler then took from the work
-  of the next task; the soft kernel saw every deadline 2^30 ahead, admitted an optional
-  instance that could not end in time, and the host test's scheduler never returned.
-  Slowed down on 2^30 of slack, tasks of lower priority could miss their deadlines: the
-  window is the few cycles between the counter's wrap and the handler, every eighteen
-  minutes on the RP2040. A time read by a task is now taken past 2^30 when it lies half
-  the range of the counter before the last time the kernel set (`GetTaskTime` in both
-  kernels); `timewrap` and `firmwrapend` end a task at that tick, and the second fails
-  without the correction.
-- **The reference was wrong twice**, the kernel right: the handler zeroes the server's
-  deadline and the time the excess was counted to when it shifts them below 0, losing the
-  excess counted before the wraparound, as the kernel's comment says; and a task whose
-  WCET the simulation has used up, dispatched again at the wraparound, gets no time from
-  DRA, as `GetDRASlackTime`'s comment says. The reference takes both now.
-
-Both corrections of the kernels were made with the user's agreement.
-
-Run again across the wraparound, the power-aware kernel's mutants scored 77.5 % (621 of
-801), the hard kernel's survivors lost 3 more, the code that shifts its times (388 of 484,
-80.2 %), and the soft kernel's 4 of the 179 found again, all in the code that carries the
-arrivals of its mandatory instances past the wraparound. A mutant read and shown equivalent is since declared in
-`test/host/equivalent-mutants.jsonl`, with its reason, found by what it changes as
-`--survivors` finds them: it still runs, and one declared equivalent and killed is
-reported, the declaration being wrong. The score is given twice, of all the valid mutants
-and of those not declared: the power-aware kernel's 26 read that evening, the 21 of the
-choice of speed and 5 of DM_SLACK's slack, give 80.1 % of the 775 others. No mutant is
-declared that has not been read, and none for being hard to kill. The term those two mutants
-of the excess changed, always 0 there, was then taken out of `GetProcessorSpeed`, with the
-user's agreement, and its mutants with it: 24 remain declared.
-
-The hard kernel's 96 survivors were read the same evening, each settled where it could be
-by a build of the mutant, a model given the fault, or a crafted task set. 47 change
-nothing the kernel promises: stores to zeroed sentinels or overwritten before any read,
-ties the algorithm leaves open, compiler barriers whose ARM code is the same without them,
-assertions of DEBUG_MODE. 46 of them are declared (one, the deadline-monotonic priorities
-all shifted by one, was left out, its argument near 255 tasks not tight enough): 88.6 % of
-the 438 others, from 80.2 % of all. 5 more the host cannot see and `tools/check_order.py`
-kills on the ARM builds. The 44 left are behaviours no test reads, 17 of them visible only
-on a board, where any example would catch most (the timer never started, the idle task
-left masked). Those the host can reach, ranked by what they would cost: an event-driven
-task elected still a zombie, its context then discarded; queue indices taken from leftover
-SRAM, which the host's uniform fill of 0xA5 hides; an event released late across the
-wraparound; the 3-slot writer taking the slot being read; a signal dropped until the next
-interrupt. The reading also found a fault of the host test, not of the kernel: a deadline
-armed past the wraparound made `HostTicksToNextEvent` skip the interrupt of the wrap, which
-the random task sets, their signals far apart, never met.
-
-Tests were then written for the survivors the host can reach, and each kill checked by
-running the mutant again:
-
-- a task the kernel elects is never a zombie but while it ends (212);
-- the host's port asks what a board needs at start: the timer initialised, then started
-  with interrupts masked; the handler only once it is; the start asking a context switch
-  and unmasking; the idle task sleeping; the comparator's flag raised at the deadline
-  armed. Eighteen mutants seen only on a board die so (12 to 19, 89, 222, 241 to 248);
-- memory from OSMalloc filled with a small count in each word rather than one byte, under
-  which two indices forgotten no longer read equal and a size forgotten no longer reads
-  huge (338, 340, 348, 370). It hid two others, a narrow field forgotten reading the 0 of
-  a small count's upper bytes as if set (46, 385): no fill sees all, and the IPC tests run
-  under both, 0xA5 staying the default;
-- queues of 2 to 4 nodes taken across the wrap of their indices from 12 phases (250 to
-  254, 330, 331), and a slot of one byte read by reference (460).
-
-Two of the 3-slot buffer's table, 413 and 416, the writer taking the slot being read,
-still survive a reference held from every state: the models and the litmus tests catch
-them, `mutants.py` does not. And `tools/differential.py` draws since the same night an
-event-driven task signalled at the edges, a signal just before the wraparound and a second
-within its workload, or one at the very tick of the wrap, or at time 0. Its first run
-failed on most builds; read with the trace, no failure was the kernel's. Its model gave
-the server's deadlines in the order of the signals where the kernel gives them in the
-order of the releases, a signal before its task's last deadline being released at that
-deadline, after later signals of other tasks; it counted signals the kernel coalesces, one
-kept pending per event, the rest dropped (TestSignals), which sets that may coalesce are now
-left out for; and a ninth task, past the host's eight, was dropped unseen, which the host
-now refuses aloud. 2,000 sets a build agree.
-
-Run whole on 9d9157c, at 300 task sets a build, the hard kernel's mutants scored 86.4 %
-(418 of 484), 95.4 % of the 438 not declared; the power-aware kernel's 81.5 % (651 of
-799), 84.0 % of the 775 not declared; the soft kernel's 79.0 % (572 of 724). The run also
-showed a fault of `tools/mutants.py`: a test that ran past its time limit was reported
-killed, but only `make` was stopped, and three soft mutants (217, 218, 247) kept spinning
-an hour and forty minutes after the campaign, their parent gone. Each step now runs in a
-process group of its own, killed whole on the limit.
-
-Eight of the hard kernel's survivors had never been read (0, 127, 130, 206, 225, 226, 236,
-459 of that run); they were on 2026-10-10, each against a build of the mutant, and six
-are killed since by a test that fails on it:
-
-- the server's deadlines starting from 1 rather than 0 (0): an event-driven task signalled
-  at time 0 got the deadline 301 for 300, and a periodic one arriving at 151 with the
-  deadline 301 preempted it, one tick behind (`signalzero`);
-- the comparator's alarm in the window between the timer handler arming it and its
-  PENDSTCLR, as when the next arrival is a tick away (130): the clear drops the soft
-  interrupt the alarm raised, and the handler, looking at the alarm's flag only with an
-  event-driven task to reschedule, left the arrival to the next interrupt, the
-  wraparound, 18 minutes on the RP2040. The host's clear did nothing; it now drops the
-  requests made so far, as the target's single pending bit is, and `windowalarm` raises
-  the alarm just before it. The same test finds the clear left out (127), which on the
-  target only runs the handler again for nothing;
-- the start no longer setting the stack's base (226), which an application that
-  allocated nothing before it would have started at 0: the host's OSMalloc keeps that
-  base as the port's does, and `notask` and every start check it;
-- the indices of an event's queue left to wrap at what OSMalloc held (236): under the
-  count fill, three tasks on one event lose their turns after 8 operations, 8 not being a
-  multiple of 3 (`eventturns`);
-- a slot of no byte, which `OSInitBuffer` takes, read by reference as data (459): the
-  reference must be NULL, as the function's comment says.
-
-One is equivalent and declared (206): an event-driven task signalled at the very instant
-of its previous deadline goes to the arrival queue for that instant rather than straight
-to the ready queue, and the same pass of the handler, finding the timer already past it,
-releases it at once with the same deadline; only the order of the releases of one pass
-may change, which the list they come from, last in first out, already leaves open. And
-one is a behaviour no test reads (225): the start allocating 4 bytes rather than 0, the
-heap 4 bytes smaller and the stacks starting 4 bytes lower, which the host's OSMalloc,
-taken from the C library, does not count. The survivors run again at 300 task sets, the
-six died, and the hard kernel's mutants score 87.6 % (424 of 484), 97.0 % of the 437 not
-declared. That run showed a fault of `tools/mutants.py`: scoring a part of the mutants,
-it ranked mutants alike among that part alone, and a declaration of the second of two
-alike, 98, matched no survivor; they are ranked among the whole source's since. The
-same fault chose the mutants to run: given a file of part of them, as its own
-`-again.jsonl` is, `--survivors` ranked them alike among that part, and ran the soft
-kernel's `totalWork += tmp` left out at line 619, killed long before, for the same left
-out at line 646. A record whose number still names the same mutant is now taken by it.
-
-The soft kernel's 152 survivors of 9d9157c were run again on the same day: the tests
-added for the hard kernel killed 10, its code being shared, and the 142 left were read,
-9 of them declared before. Each was set against its twin in the hard kernel, found by
-the function it lies in and its rank there, and the reason of a twin declared taken
-over only where the code is the same and the reason holds in the soft kernel's frame:
-of 19 barriers, 9 are caught by `tools/check_order.py` on the ARM builds, among them
-the one after a task's zombie state in `OSEndTask`, whose twin in the hard kernel keeps
-its order without it; 5 leave the memory accesses, the calls and the barriers in the
-same order on the eight ARM builds, compared one by one, and are declared; the others
-move loads, register reuse or an inlining decision, which `check_order.py` does not
-follow, and are written below. Then:
-
-- 26 are killed by tests written for them: a deadline of 0 with a WCET of 0 (30); the
-  soft kernel's edges of creation (`createevents`): a first arrival of 65,535 turns, the
-  127 tasks a byte of DM priorities holds, an event-driven task with no utilization, a
-  workload computed past 2^30, the shares of 1/256 and 255/256, under DM a WCET equal to
-  its workload (49, 52, 378 to 381, 391, 401); the first instance numbered 0 for a k of
-  255 and of 200, and mandatory with blocks of zeros (63, 65, 66); a first instance a
-  turn and a remainder away (87, 468); a mandatory instance at the last tick before the
-  counter wraps, which a bound of `>=` read a turn later, the test of another task's
-  optional instance leaving it out (294, `firmatwrap`); and under DM the test's count of
-  the event-driven tasks of higher priority, the earliest release and every workload
-  after, the last in part above and below its WCET, an instance that would end late
-  dropped and one that fits run (180 to 197, `firmeventsdm`); under EDF the share
-  reserved for the events counted from their server's last deadline (202,
-  `firmeventsedf`). The host's timed tasks now count the ends past the deadline of the
-  instance the kernel elected, taken from the next arrival it had set then, which holds
-  whatever was dropped and across the wrap of the counter.
-- 78 are declared, the reason of each in `test/host/equivalent-mutants.jsonl`: ties and
-  bounds no value reaches, guards against an overflow that WCET <= deadline <= period
-  already rules out, a pre-test that `IsTaskSchedulable` makes again strictly, the idle
-  task's priority that nothing reads, the next mandatory arrival of a task found at a
-  shift with no turn left, which the same pass releases and recomputes before any test
-  reads it, and the twins.
-- 20 are behaviours no test reads. Barriers the compiler moves loads or registers
-  across, or inlines differently without, which `check_order.py` does not follow, read
-  by hand on the RP2040 build with no store crossing (111, 122, 124, 508, 540, 542,
-  544); the wait-free queue's helpers finding their work done, which `test/model/fifo.py`
-  explores (528, 530, 566, 568), and two entries of the 3-slot table the models and the
-  litmus tests catch (655, 658), as in the hard kernel; the 4 bytes of the start's
-  allocation (463); `STATE_DROP` left unset, an optimisation by its own comment, read
-  again only by a re-entry between the mark and the removal (130); a reserve of 1/256
-  for an event-driven task of WCET 0 (387); and under EDF the share reserved for events
-  computed short, a utilization of 1/256 left out or a part of a tick (199, 203, 204,
-  206): an optional instance is tested once the events due before it have run, and
-  those released after get a later deadline than its own, so that it ends in time; what
-  the share protects is the events' own deadlines, which no test sets dense enough to
-  reach.
-
-Run again with those tests, the 142 gave the 26 kills and 87 survivors declared: the
-soft kernel's mutants score 84.0 % (608 of 724), 95.4 % of the 637 not declared.
-
-The power-aware kernel's 148 survivors of 9d9157c, run again the same day, gave 5 kills;
-the 143 left, 24 declared before, were read as the soft kernel's were, its only target,
-the RP2040, compiled under each of its five builds for the barriers. Those it could not
-settle by reading ran again at 2,000 task sets a build instead of 300 (`--sets`), which
-killed two: EDF*'s arrival times left unshifted in the ready queue at the wraparound,
-which broke a tie the wrong way in set 1200 of `pa_dra`. `tools/differential.py` checks
-that set at every run since, beside its 300 (`KEPT`). Then:
-
-- 2 more are killed by tests: a deadline of 0 with a WCET of 0 (39), and an event-driven
-  task whose WCET is its workload, which the power-aware kernel takes (287); 4 barriers
-  of the slot buffers are caught by `tools/check_order.py` (810 to 816);
-- 84 are declared: the twins of the hard kernel's declared ones whose code and frame are
-  the same; barriers that leave the memory accesses, the calls and the barriers in the
-  same order on the five builds, among them the one after a task's zombie state in
-  `OSEndTask`, which `check_order.py` needs on the Cortex-M33 for the hard kernel but the
-  RP2040 does not; statics read only after a creation or a dispatch sets them; the
-  arguments of a pair completed with `check`, which only completes the pair stored; the
-  simulation brought up to date twice at one instant; the halves of a pair swapped,
-  independent; an excess that is always 0 when an update begins; a slack of one tick,
-  which the fastest speed absorbs at the RP2040's operating points; the flag that keeps
-  the speed saved once per pass of the handler, set and cleared within it (107, first
-  written as a speed saved stale that the speed reference missed, which it was not: the
-  lines read were one off);
-- 27 are behaviours no test reads, alive at 2,000 sets where they were run so: the
-  handler and the idle task after it left at the speed before rather than the fastest,
-  energy only, every task's dispatch setting its own (106); EDF*'s
-  ties in the simulation queue after the wraparound, its zombies and the event-driven
-  tasks waiting in the arrival queue left unshifted (129, 130, 140); a slack computed
-  and not yet installed at the wraparound, credited with 2^30 (143, 144), which the tests
-  that take the wrap at each point of an ending task reach without a task slow enough to
-  show it; the time a slack runs out from, taken earlier, and the work of an event-driven
-  task released at once kept from the instance before, both making the slack smaller
-  (229, 362); the time of the last update left behind by `UpdateRemainingWork`, which
-  every caller sets but on a second turn of the handler's loop (368); one tick of excess
-  more or less at the first update of DRA's simulation (3, 4); the simulation's clock
-  taken back when it ran ahead (409) and the path its own comment says only an
-  interrupting call reaches (412, 413); the time of an ending task's dispatch taken from
-  the slack just installed rather than read again, the same on the host (96, 331); the
-  wait-free queue's helpers, two entries of the 3-slot table and the 4 bytes of the
-  start, as in the hard kernel (619, 621, 657, 659, 746, 749, 558); the priorities all
-  shifted by one, as in the hard kernel (74); and the event FIFO's barriers the compiler
-  inlines differently without (631, 633, 635).
-
-Run again with those tests and the set kept, the 143 gave the 4 kills and 107 survivors
-declared, 108 with 107 since: the power-aware kernel's mutants score 82.6 % (660 of 799),
-95.5 % of the 691 not declared. The three kernels, on the code of 2026-10-10: hard 87.6 %, 97.0 % of those
-not declared; soft 84.0 %, 95.4 %; power-aware 82.6 %, 95.5 %. Every survivor is read:
-killed, declared with its reason, caught on the ARM builds by `tools/check_order.py`, or
-written above.
-
-Taken further the same day, at the user's request (roadmap, task 6). The barriers left
-written settle two ways. `ScheduleNextTask` runs in a context marked not to be saved,
-`OSEndTask` and `OSSuspendSynchronousTask` setting `_OSNoSaveContext` before they call
-it: any interrupt that touches the ready queue ends that context, so only the order of
-its stores reaches anyone, which `check_order.py` checks, and the loads its barriers
-order do not matter (soft 111, 122, 124, declared). The event FIFO's posting of an
-operation, the call of its helper, the clearing, and the descriptor written before the
-posting keep their order on every build without each of its barriers, compared from the
-disassembly with three faulty variants each caught on every build, a posting left out,
-moved after the call, and a field of the descriptor written after it (soft 508, 540,
-542, 544, power-aware 631, 633, 635, declared). And three tests:
-
-- `slackatwrap`: under DM_SLACK a task ends one tick before the wrap, the wrap taken at
-  each point of its end, a slack computed and not yet installed; an alarm at the
-  handler's clear turns its loop once more, which credited the slack with 2^30 when its
-  time was left unshifted, a task of lower priority then slowed to the slowest
-  (power-aware 143, 144);
-- `spuriousturn`, every build: an alarm with nothing due in every pass of the handler
-  must change neither the schedule nor the speeds; it caught the time of the last update
-  left behind by `UpdateRemainingWork`, the work run counted twice (power-aware 368);
-- `firmeventsedf 2`: an event-driven task due before the optional instance, its share
-  left out when the server's last deadline lay ahead (soft 203).
-
-EDF*'s ties in the simulation queue after the wraparound (power-aware 129, 130, 140) ran
-at 20,000 task sets a build: the first set that failed them, 19989 of `pa_dra`, failed
-the kernel as well, a speed below the reference's, and killed nothing. Read as task 7,
-the fault was the reference's: a periodic release and a signal at one instant, the
-kernel's handler serves them in two passes on the host, an interrupt each, the first
-bringing DRA's simulation up to date and counting the server's excess since the last
-update, 2 ticks there, before the signal sets the server's deadline; the reference
-served both in one pass, the signal first setting that deadline, and lost the excess,
-a task with one tick of work left then due at the fastest speed where the kernel, rightly,
-took the slack. The reference serves each signal in a pass of its own since, and
-`tools/differential.py` keeps the set. They stay written, as soft 199, 204 and 206, a share computed short by less
-than a tick or at 1/256, which the reservation's own pessimism covers in the cases set
-up. The scores then: hard 87.6 %, 97.0 % of those not declared; soft 84.1 % (609 of
-724), 96.7 % of the 630 not declared; power-aware 83.0 % (663 of 799), 96.4 % of the 688
-not declared.
-
-Most of the soft kernel's survivors are in the test of its optional instances,
-`IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
-window under-counts by one WCET at most, and random task sets seldom come that close. A
-reference of that test, computed apart and compared decision by decision, would read
-them; it is not written. What the test promises is checked instead, since 2026-10-05:
-`tools/differential.py` runs each (m,k)-firm set a second time, tasks taking less than
-their WCET, and simulates from each optional instance admitted the schedule in which
-every instance takes its WCET; the instance must end by its deadline. Kernels made to
-leave out the instance's own WCET, half the mandatory work or the partial instance fail
-it under DM, and hang on the overload guard under EDF. The survivors pass: they
-under-count within what still fits.
-
-Two things kept that check short, found on 2026-10-07 from a question of the user's, about
-instances ending early. Every instance of a task took the same time, so an end never came
-earlier than the one before; and nothing compared the kernel's decisions with its test.
-The kernel tests an optional instance once, when it first reaches the head, and drops it
-for good: in `firmonce`, an instance dropped at 100 would pass the same test at 121, the
-task before it having ended in 1 tick of its 50, and is never tested again. That is no
-fault of safety, and the test pins it as the kernel has it. Since then the host's trace
-takes a time for each instance (`D task instance takes`), drawn apart for the second run
-of each (m,k)-firm set, and `tools/differential.py` holds the kernel to its test, written
-from `IsTaskSchedulable`'s header rather than its code. The kernel's count of mandatory
-instances rounds up, ceil(n m / k) over n whole periods, where an even pattern may hold
-fewer; the reference rounds as the kernel does, a rule taken from its code after the
-pattern alone had admitted instances the kernel dropped, two of them read in the trace to
-that rounding. An optional instance that
-starts must pass the test at its start or at an end before, where it may have been
-admitted, a release at that instant preempting it. An instance dropped must fail it where
-the trace shows when it was decided: at the first point the kernel considered optional
-instances while it waited, if it was the only one undecided there. The first version took
-for such a point an end where an instance admitted before, then preempted, was still due,
-and failed the kernel twice in 2,000 sets; read in the trace, the kernel was right. On
-1,000 sets of each build, of the 2,794 optional instances dropped under EDF, 2,231 are so
-checked; 2,141 could have run, every instance taking its WCET and keeping its deadline,
-and 331 would have passed the test at a later point the kernel scheduled from; under DM,
-1,789, 1,441 and 224 of 2,072. Testing a dropped instance again would win the last number.
-A tighter test could win most of the one before, but not by leaving out the instances due
-after the optional one's deadline, as tried the same day (see "Hypotheses that were
-wrong"): it has to hold the deadlines of the instances it delays.
-
-The test that does, under EDF, is the processor demand criterion from the instant of
-decision: the instances released from then on are feasible without the optional one, and
-with it every deadline from its own on must have the instant, its WCET and the mandatory
-instances due by that deadline before it, until the processor would first be free, from
-where the schedule is the one without it. A prototype in `tools/differential.py`
-(`demand_test`), judged against the schedule as it was, admitted 2,140 of the 2,141 drops
-that could have run, none that could not, and refused none of the 23,481 instances the
-kernel admitted; the one left was due past the end of the run, which the simulation does
-not see. As admitting an instance changes what follows, `tools/firm_admission.py` runs
-the whole schedule again under each test, on 2,000 sets, every instance taking its WCET,
-then a time of its own: with the kernel's test 75.4 % of the optional instances run, with
-the demand test 81.3 %, and with no test at all, admitting whatever fits by itself, 81.3 %
-as well, missing 279 deadlines; the other two miss none. Its cost is the walk of the
-instances released in that busy stretch: one in the mean, 75 at most over 5,000 sets of
-`tools/differential.py`, where the kernel's test walks the tasks once. Not in the kernel:
-a busy stretch has no bound but the load, and a kernel would have to stop the walk at a
-bound of its own, refusing past it, which stays safe.
-
-It went into the kernel the same evening, with the user's agreement, as `DemandFits`,
-under EDF when no event-driven task has bandwidth reserved, the old count staying for the
-rest and for DM: the busy stretch as the fixed point of the work released before it, then
-the demand at the optional instance's deadline and at each mandatory one's up to the end
-of the stretch, the mandatory instances of an interval counted as ceil(j m / k) over the
-pattern's numbers, a formula checked against the pattern for every m and k up to 40.
-`OS_FIRM_DEMAND_BOUND`, 16, was chosen on `tools/firm_admission.py`: on 1,000 sets, 8
-ran 81.4 % of the optional instances, 16 and more 81.8 %, as with no bound. The reference
-of `tools/differential.py` follows it, bound included; on 5,000 sets the kernel admitted
-none it refuses and dropped none it admits where the instant is sure, and kept every
-deadline; under EDF the drops fell from 2,794 to 856 on the first 1,000, and
-`tools/firm_admission.py` runs 81.1 % of the optional instances, from 75.4 %. The Pico's
-images under DM are the same byte for byte. Two host tests reach what the random sets do not: a
-refusal at the optional instance's own deadline, with an event-driven task of WCET 0,
-which alone reserves no bandwidth, waiting in the arrival queue (`firmdemand`), and a
-period past 2^30 in the busy stretch (`firmdemandlong`). What a decision costs was measured
-on the Pico the same night, at 125 MHz, by `BenchAdmissionPico` (`make KERNEL=SOFT
-bench-admission`, `tools/admission_cost.py`): the eight tasks of the costliest set
-`tools/firm_admission.py`'s simulation found among 1,500, each instance spinning a
-pseudo-random quarter of its WCET to all of it, each test timed in cycles by SysTick.
-The count it replaced, on the same tasks: 16.6 µs in the mean, 33.9 at most, over 20,000
-tests, and the board ran on. `DemandFits`: 78 µs in the mean and 419 at most over its
-first 42 tests, interrupts masked around each, after which the kernel's overload guard
-stopped the board, an instance still running at its next release; interrupts left as
-the kernel has them, 67.7 µs and 420 over 634 tests, then the guard again, a mandatory
-instance not started by its next release. The test takes the instant it is called for
-the instant the optional instance would start, and its own time, up to 420 µs where the
-shortest period is 283, is counted nowhere; the count's pessimism covered its 34 µs.
-The RP2040's core divides in software, and each count of an interval divides several
-times. With the user's agreement the kernel went back to the count the same night,
-under EDF as under DM, the reference of `tools/differential.py`, `docs/api.md` and the
-host tests with it; `DemandFits` stays in the history, its prototype in
-`tools/differential.py` and `tools/firm_admission.py` to count what a test that counted
-its own cost might win. The bench, now timing the count, stays. On the same tasks the count took 13.8 µs in the
-mean and 31.0 at most over 20,000 tests, interrupts masked, and 13.9 and 31.7 left
-unmasked, the board running on both times; the 16.6 µs of the run before went through
-the share reserved for event-driven tasks, which the bench no longer reserves.
-Of its 60 mutants that compiled, the random sets killed 40. Read, 7 of the 20 left were
-faults no set had met, killed by host tests. Four, at the edges, were found again by
-simulating the schedule under the fault (`tools/firm_admission.py`'s simulation, the
-kernel's test written in Python) and confirmed with the kernel so made: a demand equal to a
-deadline refused, at the optional instance's own or a later one, an instance released
-at the very end of an interval or a period before it counted (`firmdemandset`, three
-sets whose count of instances run over 6,000 ticks changes). Three were read: a period
-past 2^30 left out of the stretch, which admitted an instance that delayed another past
-its deadline (`firmdemandlongdue`), and, twice, a task of WCET 0 divided by, which on this
-Mac's arm64 reads 0 and refuses, and traps under UndefinedBehaviorSanitizer
-(`firmdemand`). An event-driven
-task read as a periodic one, and an instance released at the end of the stretch counted
-against the bound, died with them. 3 are declared equivalent (the demand at the end of the
-stretch, at most the stretch by its fixed point; the optional instance's deadline checked
-twice; a WCET of 1 divided by itself). 8 stay, counted: 5 change only how long the fixed
-point may take before the walk of the stretch refuses past the bound, which no test
-times; 2 are overflow guards at 2^30; and one checks the deadlines past the stretch,
-which hold only as long as the mandatory instances can be scheduled at all, what the
-kernel assumes and does not check. 49 of 60, 86 % of the 57 not declared; the two
-mutants of its call both die.
-Run again on the soft kernel's 152 survivors at 300 sets a build, the reference killed 4:
-a mandatory arrival one tick before the deadline left out (151), a test that admits at
-the deadline itself (213), an optional instance put at the head of their queue rather
-than by its deadline (364), and,
-by a drop the test refuses, a partial instance counted whole (169). Of the survivors left
-in the periodic part of the test, 8 were read and change nothing (a scan that goes past
-the deadline adding 0, ties where both branches add the WCET), and are declared with the
-guard of the test, 107, which `IsTaskSchedulable` makes redundant; 3 more, overflow guards
-weakened or skipped for a WCET of 1, would differ only near 2^30 ticks of work, and stay
-counted. The rest are in the event-driven part, which the reference leaves out. The
-kernel scores 79.6 % (576 of 724), 80.6 % of the 715 not declared.
-
-A quarter of the power-aware kernel's survivors were in
-the choice of speed (`GetProcessorSpeed`, DRA's simulation, DM_SLACK's slack): a mutant
-that picks a faster speed than it needs keeps every deadline, and nothing held the
-policies to the speeds their specification gives.
-
-Since 2026-10-05 `tools/speed_reference.py` does. It computes the speed of each dispatch
-from the ZottaOS manual's chapter 6, written before the kernel's code was read, and
-`tools/differential.py` fails a speed other than its own. Run against the kernel, it
-first disagreed on most builds, and each disagreement was read in the kernel before
-anything was changed: three were the reference's own mistakes (the releases past the end
-of the run, which the kernel knows; the work received, which the kernel keeps in whole
-ticks as the manual's figure does in integers; and when an end decides, before the
-release at the same instant); the rest were the kernel departing from the manual, each
-towards a faster speed, none towards a missed deadline. The kernel set the speed only
-when the task to run changed, where the manual does at every timer interrupt, so that a
-release that did not preempt reclaimed nothing; and DM_SLACK took its slack only for an
-instance not alone, where DR_OTE takes the slower of its two. Both were ZottaOS's, and
-both were corrected the same day, the reference agreeing again. Two departures stay,
-written in the reference: its EDF* breaks ties the other way from the paper, as its
-header says, and DM_SLACK keeps one slack, the last left, where the manual keeps one per
-task. The reference agreed with the kernel on 1,000 task sets of each of the five
-builds, before and after the corrections, on the Mac and in the CI's image before. Of
-the 171 mutants of the code that chose a speed before the corrections, 100 were killed
-without the reference, 109 with it, and 112 at the 300 task sets a build the CI runs
-(`tools/mutants.py --sets`); after them, 104 of the 164 of the same code. The survivors
-left were mostly code of the event-driven tasks under DRA, which the reference then
-left out, the manual not saying where they stand in its simulation, and comparisons
-whose edge gives the same speed. Under OTE and DM_SLACK the reference takes event-driven tasks
-in too since the same evening, their next release bounding the stretch, and under
-DM_SLACK the slack an event-driven instance leaves: of the 17 mutants of the code that
-bounds the stretch, the 6 left are such comparisons. Two of DM_SLACK's survivors were
-first written as behaviours no test reads; read again on 2026-10-06, neither is. Leaving out the
-`CompilerBarrier()` before the SC that hands a slack over changes nothing GCC emits for
-the RP2040, the only target that builds DM_SLACK: `DMSlackCalculateSlack` disassembles
-the same with and without it, which keeps it as a guard against a compiler that would
-sink the three stores past the call. And a task given its own slack back, `>=` for `>`
-on the priorities, never meets one: a task keeps every deadline running its remaining
-WCET at the fastest speed from any point, so that its end plus the slack it leaves is
-at most its deadline, and the slack, run out with the time elapsed, is gone by its next
-release, at least a deadline after the one before.
-
-On 2026-10-06 the reference took in the event-driven tasks under DRA and DR_OTE, where
-the manual is silent, as the kernel has them: an instance in the simulation by the
-server's deadline, and the server's share of the time it has nothing pending taken as
-excess, counted and rounded at each update of the simulation, at the instants the
-kernel makes them. With its instances alone in the simulation, the reference disagreed,
-the kernel always slower; 10,000 task sets under the two builds, checked for deadlines
-only, missed none, before the excess was written in. With it, DRA agreed on 3,300 sets.
-DR_OTE disagreed once more, the kernel faster: an event-driven task that might be
-released at once sent it to the fastest speed, DRA's time left out, where OTE alone
-should have lost its time, as DM_SLACK has it since 80cc6dc. Corrected with the user's
-agreement, it agreed on 3,000 sets. A kernel made to count no excess fails its
-first task sets under both builds.
-
-## What the README claims, and what checks it
-
-That lesson, a claim no test reads is not checked, was applied to the README on
-2026-10-04: each claim it makes about behaviour, set against what reads it in the
-behaviour, a test, a model, the board or an instrument.
-
-| Claim | What reads it | Found |
-|---|---|---|
-| Scheduling by EDF or DM | the host test's view of the task control block; `tools/differential.py`, each trace checked against the algorithm of its build | holds |
-| No periodic tick: the timer interrupts at a release only | nothing on the host; on the U5, the idle task's 454,487 Stop 2 in three hours, which a tick would have cut short | to add: the trace's timer interrupts set against the releases. Done on 2026-10-05: `tools/differential.py` reads every interrupt of the comparator, and a host port made to interrupt every 500 ticks fails its first task set |
-| The power-aware kernel slows down only as far as every deadline holds | `tools/differential.py` under its five builds, with kernels made to run too slow; the host test's speeds | holds |
-| It slows down as far as DRA, OTE and DM_SLACK compute | nothing until 2026-10-05: a kernel faster than its policy kept every deadline. Since, `tools/speed_reference.py`, from the ZottaOS manual, each speed of `tools/differential.py`'s traces, and since 2026-10-06 DRA's and DR_OTE's with event-driven tasks | **did not quite**: a release that did not preempt reclaimed nothing, and DM_SLACK left its slack out of a task alone. Both corrected the same day (80cc6dc). DR_OTE left DRA out when an event-driven task could be released at once, corrected on 2026-10-06 |
-| Overload drops chosen (m,k)-firm instances, not deadlines at random | the host test's `firm` runs, `firmoverload*` | holds |
-| The queues take no lock | `docs/architecture.md` | **false since 2026-09-25**: `OSSuspendSynchronousTask` masks interrupts around the enqueue of a task on its event. The README now says so |
-| The queue between the cores went from fifteen barriers to six | the model `fifo_mp.py` | **stale**: seven since 2026-09-29 |
-| The models found four bugs | `docs/method.md`, "Hypotheses that were wrong" | **stale**: six, two of them in the queue between the cores |
-| Two boards checked at each commit | `tools/board_ci.md` | **stale**: three, the Pico 2 since 2026-09-28 |
-| 87 to 90 % of each kernel's lines run | `tools/coverage.py` | **stale**: every line runs or is excluded with its reason, 90.5 % of the branches |
-| How much current Stop 2 saves is not measured | `docs/stm32u5.md` | **stale**: measured on 2026-10-03 with a PPK2 |
-| Whether DVFS saves energy is not settled | issues #23 and #5 | **stale**: settled against it on the U5, some 10 % at best on the RP2350; open on the RP2040, settled on 2026-10-10: up to some 5 % in WFI, nothing in SLEEP |
-| The program shown is a whole program for the Pico | since 2026-10-04 the Pico's Makefile builds it from the page, and the Renode suite checks that its LED blinks at 1 Hz | **false**: it never routed GPIO 25 to the SIO nor made it an output, and on the chip the LED would not have lit. The page now shows the whole program |
-| Responses stay under the bound of the analysis | `tools/response_times.py` on the traces in `docs/data` | holds, and since 2026-10-04 under EDF too |
-| How it schedules: EDF keeps (50, 25) and (80, 35), DM leaves the second unfinished at 80; the (m,k)-firm set at 110 % keeps every deadline, optional instances dropped | since 2026-10-18 `tools/host_figures.py --check` in the CI: the host runs, each statement checked on its trace, and the figures compared with what the run draws | holds |
-| The figures: 4,716 bytes, 3.2 µs, +28 ppm, 108,000 activations | each dated, with its source | measurements of a day, not claims about every build |
-
-Six claims had gone stale as the work moved on, two were false, and two were read by
-nothing. The README was corrected the same day, and its program is built and run from
-the page since. The check of the tick was added on 2026-10-05.
-
-Set again on 2026-10-10, before the first release (roadmap, task 8). Every claim of
-behaviour holds on that code: the speeds against the policies at 20,000 task sets under
-DRA and DR_OTE once the reference served each signal in a pass of its own (task 7), the
-round of 3.5 µs and 12 µs at worst read by the bench on 2e30970. Stale: the STM32U3's
-row, "Renode only" while the board has been on the bench since 2026-10-09, and the
-NUCLEO-U575ZI-Q's, which runs the soft kernel's endurance test and from its flash; three
-ports where there are four; 91.15 % of the branches where there are 91.78 %; the
-STM32U3's page missing from the table. Corrected the same day (6a4f138), with the
-optional instance's single test and its count written where the README meets them, and
-`api.md` saying that the API is not yet stable.
-
-## What this changes in the repository
-
-The CI runs the kernel, under Renode and on the host, besides building it. That is how
-the `-O2` defect and the scheduling one above were found. A measurement is written with
-its date and its deviation (the +28 ppm of the frequency counter, `rp2040.md`). A result
-that did not reproduce is said so. A commit message gives its reasoning, wrong turns
-included.
 
 ## Audits, and what they leave unproved
 
@@ -1168,3 +658,547 @@ through pointers that were not volatile. GCC could therefore reuse the counter r
 the loop and the comparator just written, and take an event whose time had passed for
 one to come, 71 minutes later. GCC 16.2 happened to read them again. The eleven accesses
 are volatile now, as those of the 16-bit path already were.
+
+## The mutant campaigns, by date
+
+### 2026-10-04 and 05: the first run
+
+The first run, on 2026-10-04, killed 355 of the hard kernel's 484 mutants that compiled,
+73.3 %; 487 of the soft one's 718, 67.8 %; and 536 of the power-aware one's 798, 67.2 %.
+Read one by one, the survivors of
+the hard kernel fell in five kinds:
+
+| Kind | Hard | What they were |
+|---|---:|---|
+| Equivalent: nothing a run can see changes | ~20 | ties broken the other way, a field set to the 0 it already held, a bound moved where no value reaches it |
+| The target's only | ~30 | interrupts masked, compiler and memory barriers, the timer started, PendSV pended: the host's port does nothing there, and `check_order.py`, Renode and the boards are what read them |
+| Hidden by the host | ~30 | every field a creation sets: the host's `OSMalloc` handed out zeroed blocks, where the target's SRAM holds what the last image left, so a field left unset read 0 and passed |
+| The helpers of the wait-free queue | 7 | an operation finding its work done, which two nested interrupts reach: `test/model/fifo.py` explores them |
+| Behaviour no test read | ~30 | below |
+
+The last kind was the work, and it found three things beyond tests to write:
+
+- the host test's blocks are now filled with 0xA5, as SRAM is not zeros: no field the
+  kernels set turned out forgotten, but leaving one out now fails;
+- `RunAcross`, the loop that jumps the host's clock from event to event, ran a task of
+  a period past 2^30 a whole turn late, which no test had; fixed, and `longperiod` tests
+  it (`test/host/README.md`);
+- the variant of `EnqueueRescheduleQueue` for a port without `NonMaskableSoftwareTimer`
+  was compiled by no build: the three ports and the host defined it. It was ZottaOS's,
+  and went on 2026-10-05, the 97 images of the examples the same byte for byte.
+
+The tests added for the rest: the edges of what a creation accepts (`createbounds`), a
+period past 2^30 run over three wraps (`longperiod`), two events signalled at once
+(`twosignals`), an event-driven task started at its signal and spaced by its workload
+from the arrival queue (`eventspacing`), the edges of the slot buffers, and the harness
+checking that a task ending leaves its context unsaved and asks for a switch, as the
+timer handler must, which the host's port only counts.
+
+`tools/differential.py` now also draws event-driven tasks, a workload apart under DM and
+a total bandwidth server under EDF, and (m,k)-firm sets that overload unless optional
+instances are dropped. Each task takes its WCET, so an optional instance wrongly admitted
+misses its deadline.
+
+Run again on the survivors, the hard kernel's score rose to 79.5 % (385 of 484), the soft
+one's to 74.2 % (533 of 718), and the power-aware one's to 71.8 % (573 of 798).
+
+### 2026-10-05 and 06: the speeds held to a reference
+
+A quarter of the power-aware kernel's survivors were in
+the choice of speed (`GetProcessorSpeed`, DRA's simulation, DM_SLACK's slack): a mutant
+that picks a faster speed than it needs keeps every deadline, and nothing held the
+policies to the speeds their specification gives.
+
+Since 2026-10-05 `tools/speed_reference.py` does. It computes the speed of each dispatch
+from the ZottaOS manual's chapter 6, written before the kernel's code was read, and
+`tools/differential.py` fails a speed other than its own. Run against the kernel, it
+first disagreed on most builds, and each disagreement was read in the kernel before
+anything was changed: three were the reference's own mistakes (the releases past the end
+of the run, which the kernel knows; the work received, which the kernel keeps in whole
+ticks as the manual's figure does in integers; and when an end decides, before the
+release at the same instant); the rest were the kernel departing from the manual, each
+towards a faster speed, none towards a missed deadline. The kernel set the speed only
+when the task to run changed, where the manual does at every timer interrupt, so that a
+release that did not preempt reclaimed nothing; and DM_SLACK took its slack only for an
+instance not alone, where DR_OTE takes the slower of its two. Both were ZottaOS's, and
+both were corrected the same day, the reference agreeing again. Two departures stay,
+written in the reference: its EDF* breaks ties the other way from the paper, as its
+header says, and DM_SLACK keeps one slack, the last left, where the manual keeps one per
+task. The reference agreed with the kernel on 1,000 task sets of each of the five
+builds, before and after the corrections, on the Mac and in the CI's image before. Of
+the 171 mutants of the code that chose a speed before the corrections, 100 were killed
+without the reference, 109 with it, and 112 at the 300 task sets a build the CI runs
+(`tools/mutants.py --sets`); after them, 104 of the 164 of the same code. The survivors
+left were mostly code of the event-driven tasks under DRA, which the reference then
+left out, the manual not saying where they stand in its simulation, and comparisons
+whose edge gives the same speed. Under OTE and DM_SLACK the reference takes event-driven tasks
+in too since the same evening, their next release bounding the stretch, and under
+DM_SLACK the slack an event-driven instance leaves: of the 17 mutants of the code that
+bounds the stretch, the 6 left are such comparisons. Two of DM_SLACK's survivors were
+first written as behaviours no test reads; read again on 2026-10-06, neither is. Leaving out the
+`CompilerBarrier()` before the SC that hands a slack over changes nothing GCC emits for
+the RP2040, the only target that builds DM_SLACK: `DMSlackCalculateSlack` disassembles
+the same with and without it, which keeps it as a guard against a compiler that would
+sink the three stores past the call. And a task given its own slack back, `>=` for `>`
+on the priorities, never meets one: a task keeps every deadline running its remaining
+WCET at the fastest speed from any point, so that its end plus the slack it leaves is
+at most its deadline, and the slack, run out with the time elapsed, is gone by its next
+release, at least a deadline after the one before.
+
+On 2026-10-06 the reference took in the event-driven tasks under DRA and DR_OTE, where
+the manual is silent, as the kernel has them: an instance in the simulation by the
+server's deadline, and the server's share of the time it has nothing pending taken as
+excess, counted and rounded at each update of the simulation, at the instants the
+kernel makes them. With its instances alone in the simulation, the reference disagreed,
+the kernel always slower; 10,000 task sets under the two builds, checked for deadlines
+only, missed none, before the excess was written in. With it, DRA agreed on 3,300 sets.
+DR_OTE disagreed once more, the kernel faster: an event-driven task that might be
+released at once sent it to the fastest speed, DRA's time left out, where OTE alone
+should have lost its time, as DM_SLACK has it since 80cc6dc. Corrected with the user's
+agreement, it agreed on 3,000 sets. A kernel made to count no excess fails its
+first task sets under both builds.
+
+### 2026-10-06: the survivors read, and the wraparound
+
+Run whole on 2026-10-06 at the 300 task sets a build the CI runs, rather than 100: the
+soft kernel 74.2 % again (533 of 718), the hard one 79.5 % (385 of 484). The hard
+kernel's score was first written 80.4 % (389 of 484), and the run of 2026-10-06 seemed
+to lose four mutants. Its survivors run again at f7622b7, the source of that day, gave
+30 killed, not 34, and left the same 99 survivors as the run of 2026-10-06: the 389 was
+miscounted, and nothing was lost. Under the hard kernel's builds, 300 task sets cannot
+kill fewer mutants than 100, the first 100 being the same sets drawn from the same seed.
+The power-aware kernel, run whole the same evening at 300 task sets: 76.9 % (610 of
+793), from 71.8 %. Of the mutants both runs hold, 85 survived on 2026-10-04 and are
+killed now, by the tests and the speed reference added since and by the larger runs
+together, the runs not telling which: 12 of them in `DRASimUpdateElapseTime`, the excess
+of the event-driven tasks that the reference took in that day. The 183 left are mostly
+in the timer's handler (28), the choice of speed (21) and the initialisation of the slot
+buffers (15).
+
+The 21 of the choice of speed, `GetProcessorSpeed`, were read one by one that evening,
+and none is a behaviour left unchecked. One is the task given its own slack back, read
+above. Fourteen move the edge of a comparison where both
+sides give the same speed: a bound set to the value it is compared with, or a time left
+equal to the work, which the fastest speed alone does at the operating points of the
+RP2040 and the host, 24 and 102 in 256ths. Two read DRA's excess with the opposite sign:
+`DRASimUpdateElapseTime`, called before each choice, has already spent it, and a build
+made to trap on a non-zero excess there ran 4,000 task sets under DRA and DR_OTE and the
+host test without trapping. Two give DM_SLACK a slack of 0 or 1 tick, which the fastest
+speed absorbs at those points. One starts the slack's bound at 1 rather than 0, the same
+again; and the last runs at the slowest speed a task with no work left on record, which
+the task ends at the instant it is dispatched, no trace showing it run.
+
+The same evening the random task sets were taken across the wraparound: the host test's
+trace starts at any phase of the counter, and half the sets of `tools/differential.py`
+now start just short of 2^30, the trace still counting time from the start, so that
+every check and the speed reference read them unchanged. Every set had run within its
+first 6,000 ticks, far from the wraparound, which only the hand-written tests `timewrap`,
+`firmwrap` and `longperiod` reached. The hard kernels held. The others did not, three
+ways:
+
+- **OTE lost its time before each wraparound.** The power-aware kernel read the next
+  arrival from its low part alone: an arrival past 2^30 seemed past, and the last
+  instance before each wraparound ran at the fastest speed. Faster than needed, no
+  deadline at risk. `GetNextArrival` counts the wraparound in.
+- **A task ending at the very tick of the wraparound read a time 2^30 short.** The
+  counter had wrapped, the timer's handler not yet shifted the kernel's times. DM_SLACK
+  credited the slack that task left with 2^30, which the handler then took from the work
+  of the next task; the soft kernel saw every deadline 2^30 ahead, admitted an optional
+  instance that could not end in time, and the host test's scheduler never returned.
+  Slowed down on 2^30 of slack, tasks of lower priority could miss their deadlines: the
+  window is the few cycles between the counter's wrap and the handler, every eighteen
+  minutes on the RP2040. A time read by a task is now taken past 2^30 when it lies half
+  the range of the counter before the last time the kernel set (`GetTaskTime` in both
+  kernels); `timewrap` and `firmwrapend` end a task at that tick, and the second fails
+  without the correction.
+- **The reference was wrong twice**, the kernel right: the handler zeroes the server's
+  deadline and the time the excess was counted to when it shifts them below 0, losing the
+  excess counted before the wraparound, as the kernel's comment says; and a task whose
+  WCET the simulation has used up, dispatched again at the wraparound, gets no time from
+  DRA, as `GetDRASlackTime`'s comment says. The reference takes both now.
+
+Both corrections of the kernels were made with the user's agreement.
+
+Run again across the wraparound, the power-aware kernel's mutants scored 77.5 % (621 of
+801), the hard kernel's survivors lost 3 more, the code that shifts its times (388 of 484,
+80.2 %), and the soft kernel's 4 of the 179 found again, all in the code that carries the
+arrivals of its mandatory instances past the wraparound. A mutant read and shown
+equivalent is since declared in
+`test/host/equivalent-mutants.jsonl`, with its reason, found by what it changes as
+`--survivors` finds them: it still runs, and one declared equivalent and killed is
+reported, the declaration being wrong. The score is given twice, of all the valid mutants
+and of those not declared: the power-aware kernel's 26 read that evening, the 21 of the
+choice of speed and 5 of DM_SLACK's slack, give 80.1 % of the 775 others. No mutant is
+declared that has not been read, and none for being hard to kill. The term those two mutants
+of the excess changed, always 0 there, was then taken out of `GetProcessorSpeed`, with the
+user's agreement, and its mutants with it: 24 remain declared.
+
+The hard kernel's 96 survivors were read the same evening, each settled where it could be
+by a build of the mutant, a model given the fault, or a crafted task set. 47 change
+nothing the kernel promises: stores to zeroed sentinels or overwritten before any read,
+ties the algorithm leaves open, compiler barriers whose ARM code is the same without them,
+assertions of DEBUG_MODE. 46 of them are declared (one, the deadline-monotonic priorities
+all shifted by one, was left out, its argument near 255 tasks not tight enough): 88.6 % of
+the 438 others, from 80.2 % of all. 5 more the host cannot see and `tools/check_order.py`
+kills on the ARM builds. The 44 left are behaviours no test reads, 17 of them visible only
+on a board, where any example would catch most (the timer never started, the idle task
+left masked). Those the host can reach, ranked by what they would cost: an event-driven
+task elected still a zombie, its context then discarded; queue indices taken from leftover
+SRAM, which the host's uniform fill of 0xA5 hides; an event released late across the
+wraparound; the 3-slot writer taking the slot being read; a signal dropped until the next
+interrupt. The reading also found a fault of the host test, not of the kernel: a deadline
+armed past the wraparound made `HostTicksToNextEvent` skip the interrupt of the wrap, which
+the random task sets, their signals far apart, never met.
+
+Tests were then written for the survivors the host can reach, and each kill checked by
+running the mutant again:
+
+- a task the kernel elects is never a zombie but while it ends (212);
+- the host's port asks what a board needs at start: the timer initialised, then started
+  with interrupts masked; the handler only once it is; the start asking a context switch
+  and unmasking; the idle task sleeping; the comparator's flag raised at the deadline
+  armed. Eighteen mutants seen only on a board die so (12 to 19, 89, 222, 241 to 248);
+- memory from OSMalloc filled with a small count in each word rather than one byte, under
+  which two indices forgotten no longer read equal and a size forgotten no longer reads
+  huge (338, 340, 348, 370). It hid two others, a narrow field forgotten reading the 0 of
+  a small count's upper bytes as if set (46, 385): no fill sees all, and the IPC tests run
+  under both, 0xA5 staying the default;
+- queues of 2 to 4 nodes taken across the wrap of their indices from 12 phases (250 to
+  254, 330, 331), and a slot of one byte read by reference (460).
+
+Two of the 3-slot buffer's table, 413 and 416, the writer taking the slot being read,
+still survive a reference held from every state: the models and the litmus tests catch
+them, `mutants.py` does not. And `tools/differential.py` draws since the same night an
+event-driven task signalled at the edges, a signal just before the wraparound and a second
+within its workload, or one at the very tick of the wrap, or at time 0. Its first run
+failed on most builds; read with the trace, no failure was the kernel's. Its model gave
+the server's deadlines in the order of the signals where the kernel gives them in the
+order of the releases, a signal before its task's last deadline being released at that
+deadline, after later signals of other tasks; it counted signals the kernel coalesces, one
+kept pending per event, the rest dropped (TestSignals), which sets that may coalesce are now
+left out for; and a ninth task, past the host's eight, was dropped unseen, which the host
+now refuses aloud. 2,000 sets a build agree.
+
+### 2026-10-07: 9d9157c, and the test of optional instances
+
+Run whole on 9d9157c, at 300 task sets a build, the hard kernel's mutants scored 86.4 %
+(418 of 484), 95.4 % of the 438 not declared; the power-aware kernel's 81.5 % (651 of
+799), 84.0 % of the 775 not declared; the soft kernel's 79.0 % (572 of 724). The run also
+showed a fault of `tools/mutants.py`: a test that ran past its time limit was reported
+killed, but only `make` was stopped, and three soft mutants (217, 218, 247) kept spinning
+an hour and forty minutes after the campaign, their parent gone. Each step now runs in a
+process group of its own, killed whole on the limit.
+
+Most of the soft kernel's survivors are in the test of its optional instances,
+`IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
+window under-counts by one WCET at most, and random task sets seldom come that close. A
+reference of that test, computed apart and compared decision by decision, would read
+them; it is not written. What the test promises is checked instead, since 2026-10-05:
+`tools/differential.py` runs each (m,k)-firm set a second time, tasks taking less than
+their WCET, and simulates from each optional instance admitted the schedule in which
+every instance takes its WCET; the instance must end by its deadline. Kernels made to
+leave out the instance's own WCET, half the mandatory work or the partial instance fail
+it under DM, and hang on the overload guard under EDF. The survivors pass: they
+under-count within what still fits.
+
+Two things kept that check short, found on 2026-10-07 from a question of the user's, about
+instances ending early. Every instance of a task took the same time, so an end never came
+earlier than the one before; and nothing compared the kernel's decisions with its test.
+The kernel tests an optional instance once, when it first reaches the head, and drops it
+for good: in `firmonce`, an instance dropped at 100 would pass the same test at 121, the
+task before it having ended in 1 tick of its 50, and is never tested again. That is no
+fault of safety, and the test pins it as the kernel has it. Since then the host's trace
+takes a time for each instance (`D task instance takes`), drawn apart for the second run
+of each (m,k)-firm set, and `tools/differential.py` holds the kernel to its test, written
+from `IsTaskSchedulable`'s header rather than its code. The kernel's count of mandatory
+instances rounds up, ceil(n m / k) over n whole periods, where an even pattern may hold
+fewer; the reference rounds as the kernel does, a rule taken from its code after the
+pattern alone had admitted instances the kernel dropped, two of them read in the trace to
+that rounding. An optional instance that
+starts must pass the test at its start or at an end before, where it may have been
+admitted, a release at that instant preempting it. An instance dropped must fail it where
+the trace shows when it was decided: at the first point the kernel considered optional
+instances while it waited, if it was the only one undecided there. The first version took
+for such a point an end where an instance admitted before, then preempted, was still due,
+and failed the kernel twice in 2,000 sets; read in the trace, the kernel was right. On
+1,000 sets of each build, of the 2,794 optional instances dropped under EDF, 2,231 are so
+checked; 2,141 could have run, every instance taking its WCET and keeping its deadline,
+and 331 would have passed the test at a later point the kernel scheduled from; under DM,
+1,789, 1,441 and 224 of 2,072. Testing a dropped instance again would win the last number.
+A tighter test could win most of the one before, but not by leaving out the instances due
+after the optional one's deadline, as tried the same day (see "Hypotheses that were
+wrong"): it has to hold the deadlines of the instances it delays.
+
+The test that does, under EDF, is the processor demand criterion from the instant of
+decision: the instances released from then on are feasible without the optional one, and
+with it every deadline from its own on must have the instant, its WCET and the mandatory
+instances due by that deadline before it, until the processor would first be free, from
+where the schedule is the one without it. A prototype in `tools/differential.py`
+(`demand_test`), judged against the schedule as it was, admitted 2,140 of the 2,141 drops
+that could have run, none that could not, and refused none of the 23,481 instances the
+kernel admitted; the one left was due past the end of the run, which the simulation does
+not see. As admitting an instance changes what follows, `tools/firm_admission.py` runs
+the whole schedule again under each test, on 2,000 sets, every instance taking its WCET,
+then a time of its own: with the kernel's test 75.4 % of the optional instances run, with
+the demand test 81.3 %, and with no test at all, admitting whatever fits by itself, 81.3 %
+as well, missing 279 deadlines; the other two miss none. Its cost is the walk of the
+instances released in that busy stretch: one in the mean, 75 at most over 5,000 sets of
+`tools/differential.py`, where the kernel's test walks the tasks once. Not in the kernel:
+a busy stretch has no bound but the load, and a kernel would have to stop the walk at a
+bound of its own, refusing past it, which stays safe.
+
+It went into the kernel the same evening, with the user's agreement, as `DemandFits`,
+under EDF when no event-driven task has bandwidth reserved, the old count staying for the
+rest and for DM: the busy stretch as the fixed point of the work released before it, then
+the demand at the optional instance's deadline and at each mandatory one's up to the end
+of the stretch, the mandatory instances of an interval counted as ceil(j m / k) over the
+pattern's numbers, a formula checked against the pattern for every m and k up to 40.
+`OS_FIRM_DEMAND_BOUND`, 16, was chosen on `tools/firm_admission.py`: on 1,000 sets, 8
+ran 81.4 % of the optional instances, 16 and more 81.8 %, as with no bound. The reference
+of `tools/differential.py` follows it, bound included; on 5,000 sets the kernel admitted
+none it refuses and dropped none it admits where the instant is sure, and kept every
+deadline; under EDF the drops fell from 2,794 to 856 on the first 1,000, and
+`tools/firm_admission.py` runs 81.1 % of the optional instances, from 75.4 %. The Pico's
+images under DM are the same byte for byte. Two host tests reach what the random sets do not: a
+refusal at the optional instance's own deadline, with an event-driven task of WCET 0,
+which alone reserves no bandwidth, waiting in the arrival queue (`firmdemand`), and a
+period past 2^30 in the busy stretch (`firmdemandlong`). What a decision costs was measured
+on the Pico the same night, at 125 MHz, by `BenchAdmissionPico` (`make KERNEL=SOFT
+bench-admission`, `tools/admission_cost.py`): the eight tasks of the costliest set
+`tools/firm_admission.py`'s simulation found among 1,500, each instance spinning a
+pseudo-random quarter of its WCET to all of it, each test timed in cycles by SysTick.
+The count it replaced, on the same tasks: 16.6 µs in the mean, 33.9 at most, over 20,000
+tests, and the board ran on. `DemandFits`: 78 µs in the mean and 419 at most over its
+first 42 tests, interrupts masked around each, after which the kernel's overload guard
+stopped the board, an instance still running at its next release; interrupts left as
+the kernel has them, 67.7 µs and 420 over 634 tests, then the guard again, a mandatory
+instance not started by its next release. The test takes the instant it is called for
+the instant the optional instance would start, and its own time, up to 420 µs where the
+shortest period is 283, is counted nowhere; the count's pessimism covered its 34 µs.
+The RP2040's core divides in software, and each count of an interval divides several
+times. With the user's agreement the kernel went back to the count the same night,
+under EDF as under DM, the reference of `tools/differential.py`, `docs/api.md` and the
+host tests with it; `DemandFits` stays in the history, its prototype in
+`tools/differential.py` and `tools/firm_admission.py` to count what a test that counted
+its own cost might win. The bench, now timing the count, stays. On the same tasks the
+count took 13.8 µs in the
+mean and 31.0 at most over 20,000 tests, interrupts masked, and 13.9 and 31.7 left
+unmasked, the board running on both times; the 16.6 µs of the run before went through
+the share reserved for event-driven tasks, which the bench no longer reserves.
+Of its 60 mutants that compiled, the random sets killed 40. Read, 7 of the 20 left were
+faults no set had met, killed by host tests. Four, at the edges, were found again by
+simulating the schedule under the fault (`tools/firm_admission.py`'s simulation, the
+kernel's test written in Python) and confirmed with the kernel so made: a demand equal to a
+deadline refused, at the optional instance's own or a later one, an instance released
+at the very end of an interval or a period before it counted (`firmdemandset`, three
+sets whose count of instances run over 6,000 ticks changes). Three were read: a period
+past 2^30 left out of the stretch, which admitted an instance that delayed another past
+its deadline (`firmdemandlongdue`), and, twice, a task of WCET 0 divided by, which on this
+Mac's arm64 reads 0 and refuses, and traps under UndefinedBehaviorSanitizer
+(`firmdemand`). An event-driven
+task read as a periodic one, and an instance released at the end of the stretch counted
+against the bound, died with them. 3 are declared equivalent (the demand at the end of the
+stretch, at most the stretch by its fixed point; the optional instance's deadline checked
+twice; a WCET of 1 divided by itself). 8 stay, counted: 5 change only how long the fixed
+point may take before the walk of the stretch refuses past the bound, which no test
+times; 2 are overflow guards at 2^30; and one checks the deadlines past the stretch,
+which hold only as long as the mandatory instances can be scheduled at all, what the
+kernel assumes and does not check. 49 of 60, 86 % of the 57 not declared; the two
+mutants of its call both die.
+Run again on the soft kernel's 152 survivors at 300 sets a build, the reference killed 4:
+a mandatory arrival one tick before the deadline left out (151), a test that admits at
+the deadline itself (213), an optional instance put at the head of their queue rather
+than by its deadline (364), and,
+by a drop the test refuses, a partial instance counted whole (169). Of the survivors left
+in the periodic part of the test, 8 were read and change nothing (a scan that goes past
+the deadline adding 0, ties where both branches add the WCET), and are declared with the
+guard of the test, 107, which `IsTaskSchedulable` makes redundant; 3 more, overflow guards
+weakened or skipped for a WCET of 1, would differ only near 2^30 ticks of work, and stay
+counted. The rest are in the event-driven part, which the reference leaves out. The
+kernel scores 79.6 % (576 of 724), 80.6 % of the 715 not declared.
+
+### 2026-10-10: every survivor read
+
+Eight of the hard kernel's survivors had never been read (0, 127, 130, 206, 225, 226,
+236, 459 of the run on 9d9157c); they were on 2026-10-10, each against a build of the
+mutant, and six are killed since by a test that fails on it:
+
+- the server's deadlines starting from 1 rather than 0 (0): an event-driven task signalled
+  at time 0 got the deadline 301 for 300, and a periodic one arriving at 151 with the
+  deadline 301 preempted it, one tick behind (`signalzero`);
+- the comparator's alarm in the window between the timer handler arming it and its
+  PENDSTCLR, as when the next arrival is a tick away (130): the clear drops the soft
+  interrupt the alarm raised, and the handler, looking at the alarm's flag only with an
+  event-driven task to reschedule, left the arrival to the next interrupt, the
+  wraparound, 18 minutes on the RP2040. The host's clear did nothing; it now drops the
+  requests made so far, as the target's single pending bit is, and `windowalarm` raises
+  the alarm just before it. The same test finds the clear left out (127), which on the
+  target only runs the handler again for nothing;
+- the start no longer setting the stack's base (226), which an application that
+  allocated nothing before it would have started at 0: the host's OSMalloc keeps that
+  base as the port's does, and `notask` and every start check it;
+- the indices of an event's queue left to wrap at what OSMalloc held (236): under the
+  count fill, three tasks on one event lose their turns after 8 operations, 8 not being a
+  multiple of 3 (`eventturns`);
+- a slot of no byte, which `OSInitBuffer` takes, read by reference as data (459): the
+  reference must be NULL, as the function's comment says.
+
+One is equivalent and declared (206): an event-driven task signalled at the very instant
+of its previous deadline goes to the arrival queue for that instant rather than straight
+to the ready queue, and the same pass of the handler, finding the timer already past it,
+releases it at once with the same deadline; only the order of the releases of one pass
+may change, which the list they come from, last in first out, already leaves open. And
+one is a behaviour no test reads (225): the start allocating 4 bytes rather than 0, the
+heap 4 bytes smaller and the stacks starting 4 bytes lower, which the host's OSMalloc,
+taken from the C library, does not count. The survivors run again at 300 task sets, the
+six died, and the hard kernel's mutants score 87.6 % (424 of 484), 97.0 % of the 437 not
+declared. That run showed a fault of `tools/mutants.py`: scoring a part of the mutants,
+it ranked mutants alike among that part alone, and a declaration of the second of two
+alike, 98, matched no survivor; they are ranked among the whole source's since. The
+same fault chose the mutants to run: given a file of part of them, as its own
+`-again.jsonl` is, `--survivors` ranked them alike among that part, and ran the soft
+kernel's `totalWork += tmp` left out at line 619, killed long before, for the same left
+out at line 646. A record whose number still names the same mutant is now taken by it.
+
+The soft kernel's 152 survivors of 9d9157c were run again on the same day: the tests
+added for the hard kernel killed 10, its code being shared, and the 142 left were read,
+9 of them declared before. Each was set against its twin in the hard kernel, found by
+the function it lies in and its rank there, and the reason of a twin declared taken
+over only where the code is the same and the reason holds in the soft kernel's frame:
+of 19 barriers, 9 are caught by `tools/check_order.py` on the ARM builds, among them
+the one after a task's zombie state in `OSEndTask`, whose twin in the hard kernel keeps
+its order without it; 5 leave the memory accesses, the calls and the barriers in the
+same order on the eight ARM builds, compared one by one, and are declared; the others
+move loads, register reuse or an inlining decision, which `check_order.py` does not
+follow, and are written below. Then:
+
+- 26 are killed by tests written for them: a deadline of 0 with a WCET of 0 (30); the
+  soft kernel's edges of creation (`createevents`): a first arrival of 65,535 turns, the
+  127 tasks a byte of DM priorities holds, an event-driven task with no utilization, a
+  workload computed past 2^30, the shares of 1/256 and 255/256, under DM a WCET equal to
+  its workload (49, 52, 378 to 381, 391, 401); the first instance numbered 0 for a k of
+  255 and of 200, and mandatory with blocks of zeros (63, 65, 66); a first instance a
+  turn and a remainder away (87, 468); a mandatory instance at the last tick before the
+  counter wraps, which a bound of `>=` read a turn later, the test of another task's
+  optional instance leaving it out (294, `firmatwrap`); and under DM the test's count of
+  the event-driven tasks of higher priority, the earliest release and every workload
+  after, the last in part above and below its WCET, an instance that would end late
+  dropped and one that fits run (180 to 197, `firmeventsdm`); under EDF the share
+  reserved for the events counted from their server's last deadline (202,
+  `firmeventsedf`). The host's timed tasks now count the ends past the deadline of the
+  instance the kernel elected, taken from the next arrival it had set then, which holds
+  whatever was dropped and across the wrap of the counter.
+- 78 are declared, the reason of each in `test/host/equivalent-mutants.jsonl`: ties and
+  bounds no value reaches, guards against an overflow that WCET <= deadline <= period
+  already rules out, a pre-test that `IsTaskSchedulable` makes again strictly, the idle
+  task's priority that nothing reads, the next mandatory arrival of a task found at a
+  shift with no turn left, which the same pass releases and recomputes before any test
+  reads it, and the twins.
+- 20 are behaviours no test reads. Barriers the compiler moves loads or registers
+  across, or inlines differently without, which `check_order.py` does not follow, read
+  by hand on the RP2040 build with no store crossing (111, 122, 124, 508, 540, 542,
+  544); the wait-free queue's helpers finding their work done, which `test/model/fifo.py`
+  explores (528, 530, 566, 568), and two entries of the 3-slot table the models and the
+  litmus tests catch (655, 658), as in the hard kernel; the 4 bytes of the start's
+  allocation (463); `STATE_DROP` left unset, an optimisation by its own comment, read
+  again only by a re-entry between the mark and the removal (130); a reserve of 1/256
+  for an event-driven task of WCET 0 (387); and under EDF the share reserved for events
+  computed short, a utilization of 1/256 left out or a part of a tick (199, 203, 204,
+  206): an optional instance is tested once the events due before it have run, and
+  those released after get a later deadline than its own, so that it ends in time; what
+  the share protects is the events' own deadlines, which no test sets dense enough to
+  reach.
+
+Run again with those tests, the 142 gave the 26 kills and 87 survivors declared: the
+soft kernel's mutants score 84.0 % (608 of 724), 95.4 % of the 637 not declared.
+
+The power-aware kernel's 148 survivors of 9d9157c, run again the same day, gave 5 kills;
+the 143 left, 24 declared before, were read as the soft kernel's were, its only target,
+the RP2040, compiled under each of its five builds for the barriers. Those it could not
+settle by reading ran again at 2,000 task sets a build instead of 300 (`--sets`), which
+killed two: EDF*'s arrival times left unshifted in the ready queue at the wraparound,
+which broke a tie the wrong way in set 1200 of `pa_dra`. `tools/differential.py` checks
+that set at every run since, beside its 300 (`KEPT`). Then:
+
+- 2 more are killed by tests: a deadline of 0 with a WCET of 0 (39), and an event-driven
+  task whose WCET is its workload, which the power-aware kernel takes (287); 4 barriers
+  of the slot buffers are caught by `tools/check_order.py` (810 to 816);
+- 84 are declared: the twins of the hard kernel's declared ones whose code and frame are
+  the same; barriers that leave the memory accesses, the calls and the barriers in the
+  same order on the five builds, among them the one after a task's zombie state in
+  `OSEndTask`, which `check_order.py` needs on the Cortex-M33 for the hard kernel but the
+  RP2040 does not; statics read only after a creation or a dispatch sets them; the
+  arguments of a pair completed with `check`, which only completes the pair stored; the
+  simulation brought up to date twice at one instant; the halves of a pair swapped,
+  independent; an excess that is always 0 when an update begins; a slack of one tick,
+  which the fastest speed absorbs at the RP2040's operating points; the flag that keeps
+  the speed saved once per pass of the handler, set and cleared within it (107, first
+  written as a speed saved stale that the speed reference missed, which it was not: the
+  lines read were one off);
+- 27 are behaviours no test reads, alive at 2,000 sets where they were run so: the
+  handler and the idle task after it left at the speed before rather than the fastest,
+  energy only, every task's dispatch setting its own (106); EDF*'s
+  ties in the simulation queue after the wraparound, its zombies and the event-driven
+  tasks waiting in the arrival queue left unshifted (129, 130, 140); a slack computed
+  and not yet installed at the wraparound, credited with 2^30 (143, 144), which the tests
+  that take the wrap at each point of an ending task reach without a task slow enough to
+  show it; the time a slack runs out from, taken earlier, and the work of an event-driven
+  task released at once kept from the instance before, both making the slack smaller
+  (229, 362); the time of the last update left behind by `UpdateRemainingWork`, which
+  every caller sets but on a second turn of the handler's loop (368); one tick of excess
+  more or less at the first update of DRA's simulation (3, 4); the simulation's clock
+  taken back when it ran ahead (409) and the path its own comment says only an
+  interrupting call reaches (412, 413); the time of an ending task's dispatch taken from
+  the slack just installed rather than read again, the same on the host (96, 331); the
+  wait-free queue's helpers, two entries of the 3-slot table and the 4 bytes of the
+  start, as in the hard kernel (619, 621, 657, 659, 746, 749, 558); the priorities all
+  shifted by one, as in the hard kernel (74); and the event FIFO's barriers the compiler
+  inlines differently without (631, 633, 635).
+
+Run again with those tests and the set kept, the 143 gave the 4 kills and 107 survivors
+declared, 108 with 107 since: the power-aware kernel's mutants score 82.6 % (660 of 799),
+95.5 % of the 691 not declared. The three kernels, on the code of 2026-10-10: hard
+87.6 %, 97.0 % of those
+not declared; soft 84.0 %, 95.4 %; power-aware 82.6 %, 95.5 %. Every survivor is read:
+killed, declared with its reason, caught on the ARM builds by `tools/check_order.py`, or
+written above.
+
+Taken further the same day, at the user's request (roadmap, task 6). The barriers left
+written settle two ways. `ScheduleNextTask` runs in a context marked not to be saved,
+`OSEndTask` and `OSSuspendSynchronousTask` setting `_OSNoSaveContext` before they call
+it: any interrupt that touches the ready queue ends that context, so only the order of
+its stores reaches anyone, which `check_order.py` checks, and the loads its barriers
+order do not matter (soft 111, 122, 124, declared). The event FIFO's posting of an
+operation, the call of its helper, the clearing, and the descriptor written before the
+posting keep their order on every build without each of its barriers, compared from the
+disassembly with three faulty variants each caught on every build, a posting left out,
+moved after the call, and a field of the descriptor written after it (soft 508, 540,
+542, 544, power-aware 631, 633, 635, declared). And three tests:
+
+- `slackatwrap`: under DM_SLACK a task ends one tick before the wrap, the wrap taken at
+  each point of its end, a slack computed and not yet installed; an alarm at the
+  handler's clear turns its loop once more, which credited the slack with 2^30 when its
+  time was left unshifted, a task of lower priority then slowed to the slowest
+  (power-aware 143, 144);
+- `spuriousturn`, every build: an alarm with nothing due in every pass of the handler
+  must change neither the schedule nor the speeds; it caught the time of the last update
+  left behind by `UpdateRemainingWork`, the work run counted twice (power-aware 368);
+- `firmeventsedf 2`: an event-driven task due before the optional instance, its share
+  left out when the server's last deadline lay ahead (soft 203).
+
+EDF*'s ties in the simulation queue after the wraparound (power-aware 129, 130, 140) ran
+at 20,000 task sets a build: the first set that failed them, 19989 of `pa_dra`, failed
+the kernel as well, a speed below the reference's, and killed nothing. Read as task 7,
+the fault was the reference's: a periodic release and a signal at one instant, the
+kernel's handler serves them in two passes on the host, an interrupt each, the first
+bringing DRA's simulation up to date and counting the server's excess since the last
+update, 2 ticks there, before the signal sets the server's deadline; the reference
+served both in one pass, the signal first setting that deadline, and lost the excess,
+a task with one tick of work left then due at the fastest speed where the kernel, rightly,
+took the slack. The reference serves each signal in a pass of its own since, and
+`tools/differential.py` keeps the set. They stay written, as soft 199, 204 and 206, a
+share computed short by less
+than a tick or at 1/256, which the reservation's own pessimism covers in the cases set
+up. The scores then: hard 87.6 %, 97.0 % of those not declared; soft 84.1 % (609 of
+724), 96.7 % of the 630 not declared; power-aware 83.0 % (663 of 799), 96.4 % of the 688
+not declared.
