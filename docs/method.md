@@ -237,62 +237,72 @@ the field it reads did not exist.
 ### The line-by-line audit
 
 The new code, the RP2040 port and the Cortex-M layer, has been audited line by line.
-That turned up four defects: a race between `OSEnqueueUART` and its interrupt, a
-zero-sized transmission that emptied 64 KB onto the port, missing header dependencies,
-and stale comments.
+The audit found four defects:
 
-The kernel inherited from ZottaOS went through the same audit on 2026-09-25. Each finding
-was reproduced by a host test that failed before its fix (`test/host/README.md`):
+- a race between `OSEnqueueUART` and its interrupt;
+- a transmission of zero bytes that emptied 64 KB onto the port;
+- missing header dependencies;
+- stale comments.
 
-- a slot buffer lost a slot to a reader preempting its writer, and read fields
+The kernel inherited from ZottaOS went through the same audit on 2026-09-25. Each
+finding was reproduced by a host test that failed before its fix (`test/host/README.md`):
+
+- a slot buffer lost a slot to a reader that preempted its writer, and read fields that
   `OSMalloc` had not cleared;
-- an event-driven task ending at its deadline was inserted twice in the ready queue;
-- an event-driven task waiting past a wrap was sorted before periodic tasks due earlier;
-- deadlines were left unshifted at the wrap in the soft kernel's optional instances, in
-  the power-aware kernel under deadline-monotonic scheduling, and in DRA's simulation
+- an event-driven task that ended at its deadline was inserted twice in the ready queue;
+- an event-driven task that waited past a wrap was sorted before periodic tasks due
+  earlier;
+- at the wrap, some deadlines were not shifted: in the soft kernel's optional instances,
+  in the power-aware kernel under deadline-monotonic scheduling, and in DRA's simulation
   queue;
 - a DM_SLACK slack was given twice;
 - a task past its WCET was slowed to the slowest speed;
 - the soft kernel's test of optional instances overflowed;
-- the kernel accepted creations it cannot count with, which it now refuses.
+- the kernel accepted creations it cannot count with, and now refuses them.
 
 In the compiled code of the Cortex-M0+, three of the five emulated load-linked read the
-value before setting the reservation, so an interrupt in between went unseen. A compiler
-barrier now keeps the order.
+value before they set the reservation. So an interrupt in between went unseen. A
+compiler barrier now keeps the order.
 
-The RP2350 and STM32U5 ports went through the same audit on 2026-09-29, by two agents
-reading one port each, every finding then checked by hand against the code. Two defects
-were each reproduced under Renode by a test that fails on the code before:
+The RP2350 and STM32U5 ports went through the same audit on 2026-09-29. Two agents read
+one port each. Every finding was then checked by hand against the code. Two defects were
+each reproduced under Renode by a test that fails on the code from before:
 
-- the STM32U5's idle task in Stop 2 slept past the 2^30 wrap when the next arrival was
-  an event-driven task's beyond it, and the kernel's clock lost the overshoot, up to 2 s
-  on the board, with nothing counted late (`Stop2EventWrapU5`, `stm32u5.md`);
-- `OSEnqueueUART` primed the transmission at task level with only the UART's interrupt
-  masked, so that a task preempting another inside it emptied the same buffer from where
-  the other stood: 179 lines of some 18,600 came out broken in 0.3 s on the Pico 2, 60
-  of some 400 on the Pico, whose senders then all but stopped (`UARTSendersPico2`,
-  `UARTSendersPico`). The RP2040 had it too, from the port the RP2350's was taken from;
-  the first audit had closed the race of the call with its own interrupt, not with
-  another caller. On the Pico 2 itself, on 2026-09-30, 18,106 lines in 20 s came out
-  whole (`tools/pico2_uart.py`).
+- On the STM32U5, the idle task in Stop 2 slept past the 2^30 wrap when the next
+  arrival was an event-driven task's, beyond the wrap. The kernel's clock lost the
+  overshoot, up to 2 s on the board, and nothing was counted late (`Stop2EventWrapU5`,
+  `stm32u5.md`).
+- `OSEnqueueUART` started the transmission at task level with only the UART's interrupt
+  masked. A task that preempted another inside it emptied the same buffer from where the
+  other stood. On the Pico 2, 179 lines of some 18,600 came out broken in 0.3 s. On the
+  Pico, 60 of some 400 did, and its senders then all but stopped (`UARTSendersPico2`,
+  `UARTSendersPico`). The RP2040 had the defect too, from the port that the RP2350's was
+  taken from. The first audit had closed the race of the call with its own interrupt,
+  not with another caller. On the Pico 2 itself, on 2026-09-30, 18,106 lines in 20 s
+  came out whole (`tools/pico2_uart.py`).
 
-The smaller findings were fixed the same day without a test of their own, each read
-against the code and the whole suites run again after: the U585's vector table trapped
-as reserved five interrupts it has (SAES, AES, PKA, OTFDEC1 and OTFDEC2), taken from the
-U575's; the flash prefetch was on, the condition of erratum 2.2.26, and served nothing
-to images in SRAM; `OSInitUART` said TRUE with its queue unallocated, and
-`OSInitTimerEvent`, which said nothing, wrote past an empty block for no node; the Pico
-ports released blocks from reset by a read-modify-write of `RESETS`, which could put
-back in reset what core 1 had just released; `OSGetStop2Counts` unmasked the interrupts
-whatever the caller's state. The comment on the booster's clock was wrong too: it takes
-PLL1's source before the divider M, 16 MHz from the HSE, not 4.
+The smaller findings were fixed the same day without a test of their own. Each was read
+against the code, and the whole suites were run again after:
 
-One finding was left for later: without the HSE, PLL1 took the MSIS at 3.998 MHz, under
-the 4 MHz floor of its input. Since 2026-09-30 it takes the MSIS of range 2, 16.0017
-MHz; an independent review of that change found two faults the same day, both fixed.
-The NUCLEO-U575ZI-Q, taken for a board without the HSE, has one (the hypotheses above):
-the path first ran on a chip as `SleepNoHSEU5` on the UNO Q on 2026-10-02 (`stm32u5.md`,
-"Without the HSE").
+- The U585's vector table trapped as reserved five interrupts that it has (SAES, AES,
+  PKA, OTFDEC1 and OTFDEC2). The table had been taken from the U575's.
+- The flash prefetch was on. That is the condition of erratum 2.2.26, and the prefetch
+  served nothing to images in SRAM.
+- `OSInitUART` returned TRUE with its queue unallocated. `OSInitTimerEvent` returned
+  nothing, and wrote past an empty block when asked for no node.
+- The Pico ports took blocks out of reset by a read-modify-write of `RESETS`. That
+  could put back in reset what core 1 had just taken out.
+- `OSGetStop2Counts` unmasked the interrupts whatever the caller's state.
+
+The comment on the booster's clock was wrong too. The booster takes PLL1's source before
+the divider M: 16 MHz from the HSE, not 4.
+
+One finding was left for later. Without the HSE, PLL1 took the MSIS at 3.998 MHz, under
+the 4 MHz floor of its input. Since 2026-09-30 it takes the MSIS of range 2, at 16.0017
+MHz. An independent review of that change found two faults the same day; both were
+fixed. The NUCLEO-U575ZI-Q was thought to have no HSE, but it has one (see the
+hypotheses above). The path first ran on a chip on 2026-10-02, as `SleepNoHSEU5` on
+the UNO Q (`stm32u5.md`, "Without the HSE").
 
 ### The review before release 0.1
 
