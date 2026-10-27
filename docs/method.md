@@ -672,73 +672,77 @@ that makes no progress for 10 s.
 
 ### Store order on one core
 
-The same holds on one core for the stores a task makes that the timer interrupt may
-find half done. The processor keeps their order; the compiler need not, and did not.
+The same holds on one core, for the stores a task makes that the timer interrupt may
+find half done. The processor keeps their order. The compiler need not, and did not.
+
 Besides `OSEndTask` (above), the soft kernel's `ScheduleNextTask` promotes an optional
 instance in three stages. It marks the instance `STATE_ACTIVATE`, moves it to the head
 of the ready queue in three steps, and sets it `STATE_INIT`. The interrupt completes a
-promotion it finds marked. GCC saw the mark overwritten and dropped it, on the
+promotion that it finds marked. GCC saw the mark overwritten and dropped it, on the
 Cortex-M0+, the M33 and the M4 alike. A promotion interrupted there left the task both
 at the head of the queue and in the list of optional instances. No test had shown it.
 
-Compiler barriers now order these stores, those of the two drops in the same function,
-and the clearing of `SetActiveTaskRemainingTime` in the power-aware kernel (a flag since
-removed, above). `tools/check_order.py` checks the compiled order of each on every path,
-on every build of the Pico, the Pico 2 and the F4 (2026-09-25). The F4 port was removed
-on 2026-09-26, and the STM32U5's builds are checked in its place. Run on the kernels of
-the day before, the check reports exactly the faults found by hand: `OSEndTask` on the
-M33 and the M4, and the promotion on all three. The mutants script shows each rule
-failing on a source whose order is turned around. An audit of the ports found no other
-such sequence, apart from one latent in the UART, which is now ordered as well.
+Compiler barriers now order these stores. They also order those of the two drops in the
+same function, and the clearing of `SetActiveTaskRemainingTime` in the power-aware
+kernel (a flag since removed, above). `tools/check_order.py` checks the compiled order
+of each one on every path, on every build of the Pico, the Pico 2 and the F4
+(2026-09-25). The F4 port was removed on 2026-09-26, and the STM32U5's builds are
+checked in its place. Run on the kernels of the day before, the check reports exactly
+the faults found by hand: `OSEndTask` on the M33 and the M4, and the promotion on all
+three. The mutants script shows each rule failing on a source whose order is turned
+around. An audit of the ports found no other such sequence, apart from one latent in the
+UART, which is now ordered as well.
 
 An independent review of the kernels found one more on 2026-09-30, in the power-aware
-kernel under DRA and DR_OTE. Two compare-and-stores that a task makes as it ends keep
-their operands and the step they reached in static variables, so that the timer
-interrupt can complete a pair the task left half done. GCC kept the step in a register
-and wrote only its last value: the disassembly held no store of step 0 or 1, and an
-interrupt between the two stores found no pair pending, leaving the simulation of DRA
-behind and its choice of speed too low. The variables are now volatile, a compiler
-barrier follows each store, and the step moves to the one after the step done, not by
-one from what it holds, since a task resuming after the interrupt completed its pair
-took it past its end. The host test takes an interrupt at each of those barriers.
+kernel under DRA and DR_OTE. A task that ends makes two compare-and-stores. They keep
+their operands, and the step they reached, in static variables, so that the timer
+interrupt can complete a pair that the task left half done. GCC kept the step in a
+register, and wrote only its last value: the disassembly held no store of step 0 or 1.
+An interrupt between the two stores found no pair pending. The simulation of DRA
+then fell behind, and chose too low a speed. The variables are now volatile, and a
+compiler barrier follows each store. The step is now set to the one after the step done,
+instead of moving up by one from what it holds. Moving up by one had taken the step past
+its end when a task resumed after the interrupt had completed its pair. The host test
+takes an interrupt at each of those barriers.
 
-The same review found the soft kernel admitting under EDF an optional instance that
-could not end in time. With an event-driven task whose server deadline lay far ahead,
-`IsTaskSchedulable` subtracted from the work the instance and the mandatory ones need,
-where events due later take nothing from it. The instance started, was still in the
-ready queue at its next arrival, and was inserted again: the queue looped. The host
-test `firmdiscount` reproduces it and fails on the code before.
+The same review found that the soft kernel, under EDF, admitted an optional instance
+that could not end in time. With an event-driven task whose server deadline lay far
+ahead, `IsTaskSchedulable` subtracted the events' term from the work that the instance
+and the mandatory instances need. Events due later, though, take nothing from that work.
+The instance started, was still in the ready queue at its next arrival, and was inserted
+again: the queue looped. The host test `firmdiscount` reproduces it, and fails on the
+code from before.
 
 ### What else -O2 could take
 
 What else -O2 could take was checked the same day. The host tests pass at -O2 under the
-whole of UndefinedBehaviorSanitizer, with Clang on the Mac, and the CI now runs them so
-with GCC. Every inline assembly statement that must keep its place among memory
-accesses now declares it: `CLREX`, the `WFI` of the idle task, the `SEV` and `WFE` of
-the launch of core 1. The 88 images of every build came out byte for byte the same, so
-this too is a guarantee rather than a fix.
+whole of UndefinedBehaviorSanitizer, with Clang on the Mac. The CI now does the same
+with GCC. Every inline assembly statement that must keep its place among memory accesses
+now declares it: `CLREX`, the `WFI` of the idle task, the `SEV` and `WFE` of the launch
+of core 1. The 88 images of every build came out byte for byte the same, so these
+declarations too are a guarantee rather than a fix.
 
 The board machine ran `tools/check_order.py` on what its own GCC 16.2 built, while the
-CI's compiler was 14.2. Since 2026-09-26 the CI builds with 16.2 and also checks the
-order of every variant under 14.2. The bench, now an Arduino UNO Q with no GCC 16, runs
-the CI's images.
+CI's compiler was 14.2. Since 2026-09-26, the CI builds with 16.2, and also checks the
+order of every variant under 14.2. The bench is now an Arduino UNO Q with no GCC 16. It
+runs the CI's images.
 
-The code breaks the strict-aliasing rule, and GCC uses it. Built with
-`-fno-strict-aliasing`, all 88 images change, among them functions of the kernels,
+The code breaks the strict-aliasing rule, and GCC uses that rule. Built with
+`-fno-strict-aliasing`, all 88 images change. Among them are functions of the kernels,
 which access the same memory as `TCB`, `ETCB` and the port's `MinimalTCB`. The one
-difference read, in `OSEndTask`, is a value reused instead of read again, correct either
-way. No fault has been traced to aliasing. Every firmware is now built with
-`-fno-strict-aliasing` anyway, as insurance against what another version of GCC could
-draw from the rule the code breaks. On the board that cost 68 bytes, and 3.4 to 3.5 µs
-per round on average, 11 to 12 µs at worst, over two runs of each.
+difference read, in `OSEndTask`, is a value reused instead of read again. It is correct
+either way. No fault has been traced to aliasing. Every firmware is now built with
+`-fno-strict-aliasing` anyway. This insures against what another version of GCC could
+draw from the rule that the code breaks. On the board, that cost 68 bytes. Over two runs
+of each, the mean round went from 3.4 to 3.5 µs, and the worst from 11 to 12 µs.
 
 Built with `-Wextra -Wnull-dereference -Warray-bounds=2`, no variant gave any of the
-warnings the optimiser computes. A comparison of signedness, though, led to the timer
-events of the STM32 port. On its 32-bit timers the counter and the comparator were read
-through pointers that were not volatile. GCC could therefore reuse the counter read in
-the loop and the comparator just written, and take an event whose time had passed for
-one to come, 71 minutes later. GCC 16.2 happened to read them again. The eleven accesses
-are volatile now, as those of the 16-bit path already were.
+warnings that the optimiser computes. A comparison of signedness, though, led to the
+timer events of the STM32 port. On its 32-bit timers, the counter and the comparator
+were read through pointers that were not volatile. GCC could therefore reuse the counter
+read in the loop, and the comparator just written. It could then take an event whose
+time had passed for one to come, 71 minutes later. GCC 16.2 happened to read them again.
+The eleven accesses are now volatile, as those of the 16-bit path already were.
 
 ## The mutant campaigns, by date
 
