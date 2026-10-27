@@ -884,124 +884,154 @@ task sets under both builds.
 
 ### 2026-10-06: the survivors read, and the wraparound
 
-Run whole on 2026-10-06 at the 300 task sets a build the CI runs, rather than 100: the
-soft kernel 74.2 % again (533 of 718), the hard one 79.5 % (385 of 484). The hard
-kernel's score was first written 80.4 % (389 of 484), and the run of 2026-10-06 seemed
-to lose four mutants. Its survivors run again at f7622b7, the source of that day, gave
-30 killed, not 34, and left the same 99 survivors as the run of 2026-10-06: the 389 was
-miscounted, and nothing was lost. Under the hard kernel's builds, 300 task sets cannot
-kill fewer mutants than 100, the first 100 being the same sets drawn from the same seed.
-The power-aware kernel, run whole the same evening at 300 task sets: 76.9 % (610 of
-793), from 71.8 %. Of the mutants both runs hold, 85 survived on 2026-10-04 and are
-killed now, by the tests and the speed reference added since and by the larger runs
-together, the runs not telling which: 12 of them in `DRASimUpdateElapseTime`, the excess
-of the event-driven tasks that the reference took in that day. The 183 left are mostly
-in the timer's handler (28), the choice of speed (21) and the initialisation of the slot
-buffers (15).
+On 2026-10-06 the mutants were run whole, at the 300 task sets a build that the CI runs,
+rather than 100. The soft kernel scored 74.2 % again (533 of 718), and the hard one 79.5
+% (385 of 484).
 
-The 21 of the choice of speed, `GetProcessorSpeed`, were read one by one that evening,
-and none is a behaviour left unchecked. One is the task given its own slack back, read
-above. Fourteen move the edge of a comparison where both
-sides give the same speed: a bound set to the value it is compared with, or a time left
-equal to the work, which the fastest speed alone does at the operating points of the
-RP2040 and the host, 24 and 102 in 256ths. Two read DRA's excess with the opposite sign:
-`DRASimUpdateElapseTime`, called before each choice, has already spent it, and a build
-made to trap on a non-zero excess there ran 4,000 task sets under DRA and DR_OTE and the
-host test without trapping. Two give DM_SLACK a slack of 0 or 1 tick, which the fastest
-speed absorbs at those points. One starts the slack's bound at 1 rather than 0, the same
-again; and the last runs at the slowest speed a task with no work left on record, which
-the task ends at the instant it is dispatched, no trace showing it run.
+The hard kernel's score had first been written 80.4 % (389 of 484), and the run of
+2026-10-06 seemed to lose four mutants. Its survivors were run again at f7622b7, the
+source of that day. They gave 30 killed, not 34, and left the same 99 survivors as the
+run of 2026-10-06. The 389 was miscounted, and nothing was lost. Under the hard kernel's
+builds, 300 task sets cannot kill fewer mutants than 100: the first 100 are the same
+sets, drawn from the same seed.
 
-The same evening the random task sets were taken across the wraparound: the host test's
-trace starts at any phase of the counter, and half the sets of `tools/differential.py`
-now start just short of 2^30, the trace still counting time from the start, so that
-every check and the speed reference read them unchanged. Every set had run within its
-first 6,000 ticks, far from the wraparound, which only the hand-written tests `timewrap`,
-`firmwrap` and `longperiod` reached. The hard kernels held. The others did not, three
-ways:
+The power-aware kernel was run whole the same evening, at 300 task sets: 76.9 % (610 of
+793), up from 71.8 %. Of the mutants that both runs hold, 85 survived on 2026-10-04 and
+are killed now. The tests and the speed reference added since, and the larger runs,
+killed them together; the runs do not tell which did. 12 of the 85 are in
+`DRASimUpdateElapseTime`, the excess of the event-driven tasks that the reference took
+in that day. The 183 left are mostly in the timer's handler (28), the choice of speed
+(21) and the initialisation of the slot buffers (15).
+
+The 21 in the choice of speed, `GetProcessorSpeed`, were read one by one that evening.
+None is a behaviour left unchecked:
+
+- One is the task given its own slack back, read above.
+- Fourteen move the edge of a comparison where both sides give the same speed: a bound
+  set to the value it is compared with, or a time left equal to the work. Only the
+  fastest speed does that work in that time, at the operating points of the RP2040 and
+  the host, 24 and 102 in 256ths.
+- Two read DRA's excess with the opposite sign. `DRASimUpdateElapseTime`, called before
+  each choice, has already spent it. A build made to trap on a non-zero excess there ran
+  4,000 task sets under DRA and DR_OTE, and the host test, without trapping.
+- Two give DM_SLACK a slack of 0 or 1 tick, which the fastest speed absorbs at those
+  points.
+- One starts the slack's bound at 1 rather than 0, which is the same again.
+- The last runs a task with no work left on record at the slowest speed. That task ends
+  at the instant it is dispatched, and no trace shows it run.
+
+The same evening, the random task sets were taken across the wraparound. The host test's
+trace now starts at any phase of the counter. Half the sets of `tools/differential.py`
+now start just short of 2^30. The trace still counts time from the start, so every check
+and the speed reference read the traces unchanged. Until then, every set had run within
+its first 6,000 ticks, far from the wraparound. Only the hand-written tests `timewrap`,
+`firmwrap` and `longperiod` reached it. The hard kernels held. The others did not, in
+three ways:
 
 - **OTE lost its time before each wraparound.** The power-aware kernel read the next
-  arrival from its low part alone: an arrival past 2^30 seemed past, and the last
-  instance before each wraparound ran at the fastest speed. Faster than needed, no
-  deadline at risk. `GetNextArrival` counts the wraparound in.
-- **A task ending at the very tick of the wraparound read a time 2^30 short.** The
-  counter had wrapped, the timer's handler not yet shifted the kernel's times. DM_SLACK
-  credited the slack that task left with 2^30, which the handler then took from the work
-  of the next task; the soft kernel saw every deadline 2^30 ahead, admitted an optional
-  instance that could not end in time, and the host test's scheduler never returned.
-  Slowed down on 2^30 of slack, tasks of lower priority could miss their deadlines: the
-  window is the few cycles between the counter's wrap and the handler, every eighteen
-  minutes on the RP2040. A time read by a task is now taken past 2^30 when it lies half
-  the range of the counter before the last time the kernel set (`GetTaskTime` in both
-  kernels); `timewrap` and `firmwrapend` end a task at that tick, and the second fails
-  without the correction.
-- **The reference was wrong twice**, the kernel right: the handler zeroes the server's
-  deadline and the time the excess was counted to when it shifts them below 0, losing the
-  excess counted before the wraparound, as the kernel's comment says; and a task whose
-  WCET the simulation has used up, dispatched again at the wraparound, gets no time from
-  DRA, as `GetDRASlackTime`'s comment says. The reference takes both now.
+  arrival from its low part alone. An arrival past 2^30 then seemed past, and the last
+  instance before each wraparound ran at the fastest speed. That was faster than needed,
+  with no deadline at risk. `GetNextArrival` now counts the wraparound in.
+- **A task that ended at the very tick of the wraparound read a time 2^30 short.** The
+  counter had wrapped, but the timer's handler had not yet shifted the kernel's times.
+  DM_SLACK credited the slack that the task left with 2^30, and the handler then took
+  that from the work of the next task. The soft kernel saw every deadline 2^30 ahead. It
+  admitted an optional instance that could not end in time, and the host test's
+  scheduler never returned. Slowed down on 2^30 of slack, tasks of lower priority could
+  miss their deadlines. The window is the few cycles between the counter's wrap and the
+  handler, every eighteen minutes on the RP2040. A time read by a task is now taken past
+  2^30 when it lies half the range of the counter before the last time the kernel set
+  (`GetTaskTime`, in both kernels). `timewrap` and `firmwrapend` end a task at that
+  tick, and the second fails without the correction.
+- **The reference was wrong twice, and the kernel right.** First, the handler zeroes the
+  server's deadline, and the time the excess was counted to, when it shifts them below
+  zero. This loses the excess counted before the wraparound, as the kernel's comment
+  says. Second, a task whose WCET the simulation has used up, dispatched again at the
+  wraparound, gets no time from DRA, as the comment of `GetDRASlackTime` says. The
+  reference now takes both in.
 
 Both corrections of the kernels were made with the user's agreement.
 
-Run again across the wraparound, the power-aware kernel's mutants scored 77.5 % (621 of
-801), the hard kernel's survivors lost 3 more, the code that shifts its times (388 of 484,
-80.2 %), and the soft kernel's 4 of the 179 found again, all in the code that carries the
-arrivals of its mandatory instances past the wraparound. A mutant read and shown
-equivalent is since declared in
-`test/host/equivalent-mutants.jsonl`, with its reason, found by what it changes as
-`--survivors` finds them: it still runs, and one declared equivalent and killed is
-reported, the declaration being wrong. The score is given twice, of all the valid mutants
-and of those not declared: the power-aware kernel's 26 read that evening, the 21 of the
-choice of speed and 5 of DM_SLACK's slack, give 80.1 % of the 775 others. No mutant is
-declared that has not been read, and none for being hard to kill. The term those two mutants
-of the excess changed, always 0 there, was then taken out of `GetProcessorSpeed`, with the
+Run again across the wraparound:
+
+- the power-aware kernel's mutants scored 77.5 % (621 of 801);
+- the hard kernel's survivors lost 3 more, in the code that shifts its times (388 of
+  484, 80.2 %);
+- the soft kernel's survivors lost 4 of the 179 found again, all in the code that
+  carries the arrivals of its mandatory instances past the wraparound.
+
+Since then, a mutant that was read and shown equivalent is declared in
+`test/host/equivalent-mutants.jsonl`, with its reason. A declared mutant is found by
+what it changes, as `--survivors` finds survivors. The declared mutant still runs. If
+one declared equivalent is killed, it is reported, since the declaration is then wrong.
+The score is given twice: of all the valid mutants, and of those not declared. The
+power-aware kernel's 26 read that evening are the 21 of the choice of speed and 5 of
+DM_SLACK's slack. They give 80.1 % of the 775 others. No mutant is declared that has not
+been read, and none for being hard to kill. The two mutants of the excess changed a term
+that is always 0 there. That term was then taken out of `GetProcessorSpeed`, with the
 user's agreement, and its mutants with it: 24 remain declared.
 
-The hard kernel's 96 survivors were read the same evening, each settled where it could be
-by a build of the mutant, a model given the fault, or a crafted task set. 47 change
-nothing the kernel promises: stores to zeroed sentinels or overwritten before any read,
-ties the algorithm leaves open, compiler barriers whose ARM code is the same without them,
-assertions of DEBUG_MODE. 46 of them are declared (one, the deadline-monotonic priorities
-all shifted by one, was left out, its argument near 255 tasks not tight enough): 88.6 % of
-the 438 others, from 80.2 % of all. 5 more the host cannot see and `tools/check_order.py`
-kills on the ARM builds. The 44 left are behaviours no test reads, 17 of them visible only
-on a board, where any example would catch most (the timer never started, the idle task
-left masked). Those the host can reach, ranked by what they would cost: an event-driven
-task elected still a zombie, its context then discarded; queue indices taken from leftover
-SRAM, which the host's uniform fill of 0xA5 hides; an event released late across the
-wraparound; the 3-slot writer taking the slot being read; a signal dropped until the next
-interrupt. The reading also found a fault of the host test, not of the kernel: a deadline
-armed past the wraparound made `HostTicksToNextEvent` skip the interrupt of the wrap, which
-the random task sets, their signals far apart, never met.
+The hard kernel's 96 survivors were read the same evening. Each was settled, where it
+could be, by a build of the mutant, a model given the fault, or a crafted task set:
 
-Tests were then written for the survivors the host can reach, and each kill checked by
-running the mutant again:
+- 47 change nothing that the kernel promises: stores to zeroed sentinels, or stores
+  overwritten before any read; ties that the algorithm leaves open; compiler barriers
+  whose ARM code is the same without them; assertions of DEBUG_MODE. 46 of them are
+  declared, giving 88.6 % of the 438 others, from 80.2 % of all. One was left out: the
+  mutant that shifts all the deadline-monotonic priorities by one. Its argument near 255
+  tasks is not tight enough.
+- 5 more the host cannot see, and `tools/check_order.py` kills them on the ARM builds.
+- The 44 left are behaviours no test reads. 17 of them are visible only on a board,
+  where any example would catch most (the timer never started, the idle task left
+  masked).
 
-- a task the kernel elects is never a zombie but while it ends (212);
-- the host's port asks what a board needs at start: the timer initialised, then started
-  with interrupts masked; the handler only once it is; the start asking a context switch
-  and unmasking; the idle task sleeping; the comparator's flag raised at the deadline
-  armed. Eighteen mutants seen only on a board die so (12 to 19, 89, 222, 241 to 248);
-- memory from OSMalloc filled with a small count in each word rather than one byte, under
-  which two indices forgotten no longer read equal and a size forgotten no longer reads
-  huge (338, 340, 348, 370). It hid two others, a narrow field forgotten reading the 0 of
-  a small count's upper bytes as if set (46, 385): no fill sees all, and the IPC tests run
-  under both, 0xA5 staying the default;
-- queues of 2 to 4 nodes taken across the wrap of their indices from 12 phases (250 to
-  254, 330, 331), and a slot of one byte read by reference (460).
+Of these 44, those that the host can reach, ranked by what they would cost:
 
-Two of the 3-slot buffer's table, 413 and 416, the writer taking the slot being read,
-still survive a reference held from every state: the models and the litmus tests catch
-them, `mutants.py` does not. And `tools/differential.py` draws since the same night an
-event-driven task signalled at the edges, a signal just before the wraparound and a second
-within its workload, or one at the very tick of the wrap, or at time 0. Its first run
-failed on most builds; read with the trace, no failure was the kernel's. Its model gave
-the server's deadlines in the order of the signals where the kernel gives them in the
-order of the releases, a signal before its task's last deadline being released at that
-deadline, after later signals of other tasks; it counted signals the kernel coalesces, one
-kept pending per event, the rest dropped (TestSignals), which sets that may coalesce are now
-left out for; and a ninth task, past the host's eight, was dropped unseen, which the host
-now refuses aloud. 2,000 sets a build agree.
+- an event-driven task elected while still a zombie, its context then discarded;
+- queue indices taken from leftover SRAM, which the host's uniform fill of 0xA5 hides;
+- an event released late across the wraparound;
+- the 3-slot writer taking the slot being read;
+- a signal dropped until the next interrupt.
+
+The reading also found a fault of the host test, not of the kernel. A deadline armed
+past the wraparound made `HostTicksToNextEvent` skip the interrupt of the wrap. The
+random task sets, whose signals are far apart, never met it.
+
+Tests were then written for the survivors that the host can reach. Each kill was checked
+by running the mutant again:
+
+- A task that the kernel elects is never a zombie, except while it ends (212).
+- The host's port asks for what a board needs at start: the timer initialised, then
+  started with interrupts masked; the handler, only once it is; the start asking for a
+  context switch and unmasking; the idle task sleeping; the comparator's flag raised at
+  the deadline armed. Eighteen mutants seen only on a board die so (12 to 19, 89, 222,
+  241 to 248).
+- Memory from OSMalloc is filled with a small count in each word, rather than one byte.
+  Under that fill, two forgotten indices no longer read equal, and a forgotten size no
+  longer reads huge (338, 340, 348, 370). It hid two others: a forgotten narrow field
+  read the 0 of a small count's upper bytes as if set (46, 385). No fill sees all. The
+  IPC tests run under both, and 0xA5 stays the default.
+- Queues of 2 to 4 nodes are taken across the wrap of their indices from 12 phases (250
+  to 254, 330, 331), and a slot of one byte is read by reference (460).
+
+Two mutants of the 3-slot buffer's table, 413 and 416, have the writer take the slot
+being read. They still survive a reference held from every state. The models and the
+litmus tests catch them; `mutants.py` does not.
+
+Since the same night, `tools/differential.py` also draws an event-driven task signalled
+at the edges: a signal just before the wraparound and a second within its workload, a
+signal at the very tick of the wrap, or one at time 0. Its first run failed on most
+builds. Read with the trace, no failure was the kernel's:
+
+- Its model gave the server's deadlines in the order of the signals. The kernel gives
+  them in the order of the releases: a signal before its task's last deadline is
+  released at that deadline, after later signals of other tasks.
+- It counted signals that the kernel coalesces: one kept pending per event, the rest
+  dropped (TestSignals). Sets that may coalesce are now left out.
+- A ninth task, past the host's eight, was dropped unseen. The host now refuses it
+  aloud.
+
+2,000 sets a build agree.
 
 ### 2026-10-07: 9d9157c, and the test of optional instances
 
