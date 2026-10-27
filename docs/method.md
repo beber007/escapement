@@ -306,143 +306,176 @@ the UNO Q (`stm32u5.md`, "Without the HSE").
 
 ### The review before release 0.1
 
-Release 0.1's task 12, on 2026-10-11: five agents on Claude Fable 5.1, each given one
-part and none the others' conclusions, read the code at fef9d5e. Each finding was then
-read against the code or the data before it counted.
+This was release 0.1's task 12, on 2026-10-11. Five agents on Claude Fable 5.1 read the
+code at fef9d5e. Each was given one part, and none saw the others' conclusions. Each
+finding was then read against the code or the data before it counted.
 
 **The documentation against the code and the measurements.** Nineteen findings, all
-confirmed, none a defect of the code: claims the later work had made false, the
-documentation lagging the STM32U3's arrival above all. The STM32U3's page still said the
-board had not come and nothing on it was measured; the RP2040's, that its current was
-not measured; the README counted three boards checked at each commit, four since
-2026-10-10; `architecture.md` had no STM32U3 among its targets; `build.md` gave the
-power-aware kernel to the Pico alone and wrote only `SleepU5Flash` into a flash; the
-Pico's second week of endurance was still running in two places, stopped on 2026-10-10;
-the suites' counts of tests were those of 2026-10-05. Two figures had no record behind
-them: the relock of PLL_SYS, 53 µs in `power-aware.md` where the run recorded in
-`rp2040.md` gives 55 at most, and the lines of the RP2040 port, miscounted by two. Each
-is corrected where it stood, the figure measured kept. One is left as it is, being dated:
-the sizes of the README and of `build.md`, of bf447b8, which have grown since (the
-`TaskLEDPico` of fef9d5e, 4,896 / 8 / 2,264 bytes with GCC 16.2, the MPU's guard in its
-`bss`); release item 4 measures them again on the candidate.
+confirmed. None was a defect of the code. They were claims that later work had made
+false, above all where the documentation lagged the STM32U3's arrival:
 
-**The RP2040 and RP2350 ports.** Six findings, five confirmed against the code and fixed,
-none reproduced on a board:
+- The STM32U3's page still said that the board had not come, and that nothing on it was
+  measured.
+- The RP2040's page said that its current was not measured.
+- The README counted three boards checked at each commit. There are four since
+  2026-10-10.
+- `architecture.md` had no STM32U3 among its targets.
+- `build.md` gave the power-aware kernel to the Pico alone, and wrote only
+  `SleepU5Flash` into a flash.
+- Two places said that the Pico's second week of endurance was still running. It was
+  stopped on 2026-10-10.
+- The suites' counts of tests were those of 2026-10-05.
 
-- `OSInitSleepGate` armed alarm 3 with the timer still in reset after a power-on or a
-  watchdog reset, `_OSInitializeTimer`, which releases it, coming only with
-  `OSStartMultitasking`; the images on the bench, loaded after one that had released it,
-  never met it. The gate releases the timer itself now, on both ports.
-- The idle task's sleep took alarm 2 for armed whenever an image before had left it so,
-  its time then 0, and stopped PLL_SYS for no sleep until it fired: alarm 2 counts only
-  with an event manager on it now, on both ports.
-- The RP2040's clock set-up wrote 0 to the whole of CLK_SYS_CTRL, turning the auxiliary
-  mux to the PLL, still in reset, as it left it: the RP2350's had been fixed on
-  2026-09-30 and the RP2040's not, the one fix shared ports must share.
-- Three comments said what the code no longer does, and `make SLEEP_GATE=1
-  SLEEP_SPEED=0` built an idle task that ignores its sleep speed: the Makefile refuses
-  the pair.
+Two figures had no record behind them. The relock of PLL_SYS was 53 µs in
+`power-aware.md`, where the run recorded in `rp2040.md` gives 55 at most. The lines
+of the RP2040 port were miscounted by two. Each is corrected where it stood, to the
+figure measured. One item is left as it is, because it is dated: the sizes in the README
+and in `build.md`, from bf447b8. They have grown since. The `TaskLEDPico` of fef9d5e
+takes 4,896 / 8 / 2,264 bytes with GCC 16.2, with the MPU's guard in its `bss`. Release
+item 4 measures them again on the candidate.
 
-Left open: the RP2040's idle task moves the auxiliary mux off PLL_SYS before stopping it,
-because without that the chip faulted waking from SLEEP, while the RP2350's leaves it,
-and works. Both are measured on their boards; why the RP2040 faulted is not understood.
+**The RP2040 and RP2350 ports.** Six findings. Five were confirmed against the code and
+fixed. None was reproduced on a board:
 
-**The STM32U3 and STM32U5 ports.** Every register, address and bit the STM32U3 port
-writes read against RM0487 rev. 3, the power-aware driver's sequences with them: none
-wrong. Seven smaller findings, confirmed against the code:
+- `OSInitSleepGate` armed alarm 3 with the timer still in reset, after a power-on or a
+  watchdog reset. `_OSInitializeTimer` takes the timer out of reset, but it runs only
+  with `OSStartMultitasking`. The images on the bench never met this, since each was
+  loaded after one that had taken the timer out of reset. The gate now takes the timer
+  out of reset itself, on both ports.
+- When a previous image had left alarm 2 armed, the idle task's sleep took it for armed,
+  with its time then 0. So no sleep was long enough to stop PLL_SYS, until the alarm fired. Now
+  alarm 2 counts only when an event manager is on it, on both ports.
+- The RP2040's clock set-up wrote 0 to the whole of CLK_SYS_CTRL. This turned the
+  auxiliary mux to the PLL, still in reset, at the moment the glitchless mux left it.
+  The RP2350's set-up had been fixed on 2026-09-30, and the RP2040's had not, though
+  shared ports must share such a fix.
+- Three comments said what the code no longer does. `make SLEEP_GATE=1
+  SLEEP_SPEED=0` built an idle task that ignores its sleep speed. The Makefile now
+  refuses the pair.
 
-- `make` then `make KERNEL=PA` in the same directory linked the hard kernel's objects
-  into images named for the other: the dependencies of `-MMD` do not see the flags.
-  Reproduced on the U3, and the same in every port's Makefile, which now keeps the flags
-  of its last build and removes the objects when they change (removed rather than dated:
-  macOS's make 3.81 dates to the second, and an object of the same second passed for new).
+Left open: the RP2040's idle task moves the auxiliary mux off PLL_SYS before it stops
+it. Without that, the chip faulted when it woke from SLEEP. The RP2350's idle task
+leaves the mux, and works. Both are measured on their boards. Why the RP2040 faulted is
+not understood.
+
+**The STM32U3 and STM32U5 ports.** Every register, address and bit that the STM32U3 port
+writes was read against RM0487 rev. 3, and so were the power-aware driver's sequences.
+None was wrong. Seven smaller findings were confirmed against the code:
+
+- `make`, then `make KERNEL=PA` in the same directory, linked the hard kernel's objects
+  into images named for the other kernel. The dependencies of `-MMD` do not see the
+  flags. This was reproduced on the U3, and every port's Makefile had it. Each Makefile
+  now keeps the flags of its last build, and removes the objects when they change. They
+  are removed rather than dated: macOS's make 3.81 dates to the second, and an object
+  of the same second passed for new.
 - The U3's set-up left the LSE off if it found LSEON cleared and LSERDY not yet fallen,
-  six cycles of the LSE: it starts it again now, its drive written only once both read 0.
-- `OSMSILocked` said the PLL mode enabled, not locked, and an LSE lost for good after a
-  lock went uncounted at every wake-up: both say what happened now.
-- `OSSetStop2Wake` took a margin as long as the shortest sleep, which wrapped the sleep's
-  length, the chip waking 1.83 s late: it is held under `OS_STOP2_MIN_US`, on both ports.
-- A comment of the U3's said the MSIK unused, and the Makefile left out that an idle task
-  with Stop 2 ignores `SLEEP_SPEED`.
+  a state that lasts six cycles of the LSE. It now starts the LSE again, and writes its
+  drive only once both read 0.
+- `OSMSILocked` reported the PLL mode enabled, not locked. An LSE lost for good
+  after a lock also went uncounted at every wake-up. Both now report what happened.
+- `OSSetStop2Wake` took a margin as long as the shortest sleep, which wrapped the
+  sleep's length: the chip woke 1.83 s late. The margin is now held under
+  `OS_STOP2_MIN_US`, on both ports.
+- A comment of the U3's said that the MSIK was unused. The Makefile did not say that
+  an idle task with Stop 2 ignores `SLEEP_SPEED`.
 
-Left open: the U5's idle task enters Stop 2 with USART1 enabled, which RM0487 asks the
-U3's not to and RM0456 the U5's likewise, though the U5 has run so for days; a fix would
-be checked on its board.
+Left open: the U5's idle task enters Stop 2 with USART1 enabled. RM0487 asks the U3 not
+to do this, and RM0456 asks the same of the U5. Yet the U5 has run so for days. A fix
+would be checked on its board.
 
-**The three kernels.** Their shared FIFO and slot-buffer code is still identical across
-the three. Five findings, three fixed:
+**The three kernels.** Their shared FIFO and slot-buffer code is still identical in all
+three. Five findings, three of them fixed:
 
-- Under the power-aware kernel, LastRemainingWorkUpdate, and under DRA and DR_OTE the
-  simulation's time and its zombies, were shifted at every wrap and brought forward only
-  while a task ran: after two or three wraps with nothing to run they overflowed INT32,
-  and under DRA the simulation, stuck in the past, could grant a task slack it did not
-  have. `TestLongIdle`, a task of three turns' period across seven wraps, stopped on the
-  overflow at `EscapementHardPA.c:693` before the fix: the timer handler now brings them
-  to the present when it hands the processor to the idle task, as DM_SLACK already did
-  for the first. The simulation consumes its work interval by interval, so advancing it
-  more often changes nothing it computes, which `differential.py` checks against the
-  reference of the policies.
-- `OSMalloc` rounded its size up in the 16 bits of its parameter: 65,533 to 65,535 bytes
-  came to 0, and the block handed out was the one before. It rounds in 32 bits now.
-- The soft kernel's test of an optional instance under DM bounded the periodic tasks'
-  sum at 2^30 and not the event-driven tasks' terms, two of which could overflow it: they
-  are bounded alike now (`TestFirmHeavyEvents`, which takes that bound).
+- Under the power-aware kernel, LastRemainingWorkUpdate was shifted at every wrap, and
+  brought forward only while a task ran. So were the simulation's time and its zombies
+  under DRA and DR_OTE. After two or three wraps with nothing to run, they overflowed
+  INT32. Under DRA, the simulation, stuck in the past, could grant a task slack it did
+  not have. `TestLongIdle` runs a task with a period of three turns, across seven wraps.
+  Before the fix, it stopped on the overflow at `EscapementHardPA.c:693`. Now the timer
+  handler brings these times to the present when it hands the processor to the idle task, as
+  DM_SLACK already did for LastRemainingWorkUpdate. The simulation consumes its work
+  interval by interval. So advancing it more often changes nothing it computes, and
+  `differential.py` checks this against the reference of the policies.
+- `OSMalloc` rounded its size up within the 16 bits of its parameter. So 65,533 to
+  65,535 bytes came to 0, and the block handed out was the one before. It now rounds in
+  32 bits.
+- Under DM, the soft kernel's test of an optional instance bounded the periodic tasks'
+  sum at 2^30, but not the event-driven tasks' terms. Two of those could overflow it.
+  The event-driven terms are now bounded as the periodic sum is
+  (`TestFirmHeavyEvents`, which takes the sum past that bound).
 
-Left open, both inherited from ZottaOS: under EDF the event-driven tasks' server deadline
-grows by each workload without a bound, and two workloads near 2^30, minutes each, could
-take it past INT32; and under EDF\* an event-driven task ready across a wrap keeps its
-release time unshifted until its next release, which changes only a tie between two
-equal absolute deadlines.
+Two are left open, both inherited from ZottaOS. Under EDF, the server deadline of the
+event-driven tasks grows by each workload, without a bound. Two workloads near 2^30,
+minutes each, could take it past INT32. Under EDF\*, an event-driven task ready
+across a wrap keeps its release time unshifted until its next release. This changes only
+a tie between two equal absolute deadlines.
 
-**The flash images and the tools that write and check them.** The second stage, its CRC,
-the RP2350's IMAGE_DEF and the four layouts in flash read without fault. Seven findings:
+**The flash images and the tools that write and check them.** The second stage, its
+CRC, the RP2350's IMAGE_DEF and the four layouts in flash were read, and had no fault.
+Seven findings:
 
-- The power-aware check of the STM32U3 added the same day left the board's long run
-  reading the board through it: its reader would have taken the checked image for a
-  restart and loaded its own over it, mid-check. The check of cc1a4ac ran with the run
-  stopped by hand, and passed; `BOARD_SOAK_SERVICE=none` stops it now.
-- `tools/board_ci.sh` read GitHub's answers through a pipe into jq, whose status, 0 on an
-  empty input, stood for the request's: a request that failed marked the commit as
-  checked, with the status `error`, rather than be tried again. The answer is kept first.
-- `tools/pico_flash.sh` and `pico2_flash.sh` always ended with 0, and a write that failed
-  left the image before running for the next tool to read: they end with the
-  verification's outcome now.
-- Three comments said the images run from SRAM where `FLASH=1` puts them in the flash,
-  and `board_ci.md` gave a check 20 minutes where the last took 28.
+- The power-aware check of the STM32U3, added the same day, left the board's long run
+  reading the board during the check. The run's reader would have taken the checked
+  image for a restart, and loaded its own image over it in the middle of the check. The
+  check of cc1a4ac ran with the run stopped by hand, and passed. `BOARD_SOAK_SERVICE=none`
+  now stops the run.
+- `tools/board_ci.sh` read GitHub's answers through a pipe into jq. The pipe's status
+  was jq's, which is 0 on an empty input, and it stood for the request's. So a request
+  that failed marked the commit as checked, with the status `error`, instead of being
+  tried again. The answer is now kept first.
+- `tools/pico_flash.sh` and `pico2_flash.sh` always ended with 0. A write that failed
+  left the previous image running, for the next tool to read. They now end with the
+  verification's outcome.
+- Three comments said that the images run from SRAM, where `FLASH=1` puts them in the
+  flash. `board_ci.md` said that a check takes 20 minutes, where the last took 28.
 
-Left open: in the RP2040's flash image libgcc's division stays in the flash, called from
-the kernel's queue in SRAM through a veneer, its first call through a cold cache;
-`tools/soak.py` loads a Pico image as one in SRAM whichever it is, used by hand only; and
-`tools/nucleo_flash.sh` writes again when its verification fails for any reason, a read
-error included, which costs a counted writing at worst.
+Left open:
 
-**What checking the fixes found.** The STM32U3's fix to its start of the LSE, which runs
-once at start, moved the code by a few bytes, and the Renode suite then hung in
-`SleepWrapU3`: the chip asleep in Stop 2 for good, LPTIM1 counting, its compare at 0. The
-wake-up had fallen on a count of 0, once in 65,536, and Renode's model of LPTIM1 refuses
-a compare of 0 ("Compare value cannot be 0"), where the chip matches it as the counter
-passes 0 at each reload (RM0487, LPTIMx_ISR, CC1IF, p. 1925; the U5, on the same driver,
-has entered Stop 2 some 150,000 times an hour on its boards without hanging). The suites
-had passed by the luck of where the wake-ups fell. The platforms of both STM32 ports take
-a fixed copy of the model now (`emulation/renode/Escapement_STM32L0_LpTimer.cs`), as they
-took one of the timer's, and the driver stays as the boards ran it.
+- In the RP2040's flash image, libgcc's division stays in the flash. The kernel's queue
+  in SRAM calls it through a veneer, the first call through a cold cache.
+- `tools/soak.py` loads a Pico image as an SRAM image, whichever it is. It is used by
+  hand only.
+- `tools/nucleo_flash.sh` writes again when its verification fails for any reason, a
+  read error included. At worst that costs one counted writing.
 
-**The mutants on the candidate.** Run whole on c0ff963 at 300 task sets a build: hard
-87.6 % (424 of 484), 97.0 % of the 437 not declared, as before the review; soft 84.0 %
-(609 of 725), 96.7 % of the 630 not declared, its one new survivor the bound the review
-put after the share for events (`totalWork >= 0x3FFFFFFF`), declared as its two twins
-are; power-aware 83.0 % (664 of 800), 96.2 % of the 690 not declared. One declaration was
-wrong, and `tools/mutants.py` said so: DM_SLACK's slack left negative once run out, read
-on 2026-10-10 as harmless, overflows its 32 bits after two wraps idle, and
-`TestLongIdle` kills it; the declaration is gone. Two survivors are new, both killed
-before the review and both hidden since by the update it added to the handler when idle,
-which brings DRA's simulation to the present at each pass: the pair of the simulation
-left pending by an interrupt and not completed on entry (117), which `endinside` caught,
-the handler's first update then completing that pair in place of its own; and the time
-of the last excess left unshifted at the wraparound (151), which set 116 of `pa_drote`
-caught. Each now costs one update of the simulation computed from a time behind, until
-the next: less excess and less slack, a faster speed, never a later end. They stay
-written as behaviours no test reads.
+**What checking the fixes found.** The STM32U3 starts its LSE once, at start. The fix to
+that start moved the code by a few bytes, and the Renode suite then hung in
+`SleepWrapU3`: the chip asleep in Stop 2 for good, LPTIM1 counting, its compare at 0.
+The wake-up had fallen on a count of 0, once in 65,536. Renode's model of LPTIM1 refuses
+a compare of 0 ("Compare value cannot be 0"). The chip matches it as the counter passes
+0 at each reload (RM0487, LPTIMx_ISR, CC1IF, p. 1925). The U5 uses the same driver, and
+has entered Stop 2 some 150,000 times an hour on its boards without hanging. The suites
+had passed only because of where the wake-ups happened to fall. The platforms of both
+STM32 ports now take a fixed copy of the model
+(`emulation/renode/Escapement_STM32L0_LpTimer.cs`), as they took one of the timer's. The
+driver stays as the boards ran it.
+
+**The mutants on the candidate.** Run whole on c0ff963, at 300 task sets a build:
+
+- Hard: 87.6 % (424 of 484), and 97.0 % of the 437 not declared equivalent, as before
+  the review.
+- Soft: 84.0 % (609 of 725), and 96.7 % of the 630 not declared equivalent. Its one new survivor
+  is the bound that the review put after the share for events
+  (`totalWork >= 0x3FFFFFFF`). It is declared, as its two twins are.
+- Power-aware: 83.0 % (664 of 800), and 96.2 % of the 690 not declared equivalent.
+
+One declaration was wrong, and `tools/mutants.py` said so. DM_SLACK's slack, left
+negative once run out, was read on 2026-10-10 as harmless. In fact it overflows its 32
+bits after two wraps idle, and `TestLongIdle` kills it. The declaration is gone.
+
+Two survivors are new. Both were killed before the review. Both have been hidden since
+by the update that the review added to the handler when idle, which brings DRA's
+simulation to the present at each pass:
+
+- The pair of the simulation left pending by an interrupt and not completed on entry
+  (117). `endinside` caught it. Now the handler's first update completes that pair in
+  place of its own.
+- The time of the last excess left unshifted at the wraparound (151). Set 116 of
+  `pa_drote` caught it.
+
+Each now costs one update of the simulation computed from a time behind, until the next
+update: less excess and less slack, a faster speed, never a later end. They stay written
+as behaviours no test reads.
 
 ### Two fixes that were wrong
 
