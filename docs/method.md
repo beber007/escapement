@@ -1,65 +1,70 @@
 # Verifying AI-assisted development
 
-This project is written with an AI assistant, so the repository has to show that what
-was produced is correct. This page describes the levels of verification, then records
-the hypotheses that turned out wrong and the defects found along the way, with their
-dates.
+This project is written with an AI assistant. So the repository must show that what the
+assistant produced is correct. This page lists the levels of checks. Then it records the
+hypotheses that proved wrong and the defects found, each with its date.
 
-The working rule fits in one line: **the AI proposes, the instrument decides.** Nothing
-here counts as established because it was asserted confidently, by the assistant or by
-anyone else. It is established when something outside the claim confirms it.
+The rule is: **the AI proposes, the instrument decides.** Nothing here counts as
+established because someone states it with confidence, whether the assistant or anyone
+else. It is established once something outside the claim confirms it.
 
 ## Six independent levels
 
 | Level | Means | Catches |
 |---|---|---|
-| Compilation | GitHub Actions, each push to `main` and each pull request: GCC 16.2, GCC 14.2 (since 2026-09-26) and clang | code that does not build, and anything one compiler forgives that the other does not |
-| The scheduler alone | the kernel built for the host, with time as a variable, in CI | a kernel that does not run the algorithm it claims, the 2^30 wrap of its clock, which the board reaches only after eighteen minutes, and the parts of the kernel no example exercises: event-driven tasks, FIFO queue, slot buffers |
-| Every interleaving | small models of the slot buffers and of the FIFO queue, explored exhaustively in CI (`test/model`) | what no test that runs one path at a time can reach: an interrupt at the one instruction where it matters |
+| Compilation | GitHub Actions, on each push to `main` and each pull request: GCC 16.2, GCC 14.2 (since 2026-09-26) and clang | code that does not build; code that one compiler accepts and another does not |
+| The scheduler alone | the kernel built for the host, with time as a variable, in CI | a kernel that does not run the algorithm it claims; the wrap of its clock at 2^30, which the board reaches only after eighteen minutes; the parts of the kernel that no example uses: event-driven tasks, the FIFO queue, the slot buffers |
+| Every interleaving | small models of the slot buffers and of the FIFO queue, explored in full in CI (`test/model`) | what a test that runs one path at a time cannot reach, such as an interrupt at the one instruction where it matters |
 | Replayable execution | Renode, replayed by `renode-test` in CI | a kernel that builds but does not schedule |
 | Internal state on hardware | OpenOCD and SWD | an emulator that models the hardware wrongly |
-| Independent instrument | frequency counter of a Bus Pirate v4 | everything above at once — it trusts no software from this repository |
+| Independent instrument | frequency counter of a Bus Pirate v4 | all of the above at once: it trusts no software from this repository |
 
-The levels are ordered by how much they cost and by how little they assume. The sixth
-exists because the fifth still runs through a debugger, and that turned out to matter
-(the `TIMER_DBGPAUSE` investigation in `rp2040.md`). Beside these levels, the CI runs:
+Each level costs more than the one before, and assumes less. The sixth exists because
+the fifth still goes through a debugger, and that turned out to matter: see the
+`TIMER_DBGPAUSE` investigation in `rp2040.md`. The CI also runs these checks:
 
-- static analysis: cppcheck over each port, GCC's `-fanalyzer`, clang
-  (`tools/clang_check.sh`), and since 2026-10-13 CodeQL over what clang compiles there
-  (`codeql.yml`);
-- the compiled order of the accesses the lock-free code depends on (below);
-- since 2026-10-04, coverage: a commit fails that leaves a line of the kernels unrun by
-  the host test without saying why (`tools/coverage.py`);
-- since 2026-10-04, a differential test: the traces of random task sets, run by the
-  kernels on the host, checked against the algorithm each build claims
-  (`tools/differential.py`). Who runs must be a valid choice of EDF or deadline-monotonic
-  scheduling at every instant, the processor never idles while work waits, every
-  instance ends when its work is done and by its deadline, and under EDF within the
-  bound of Spuri's response time analysis (`tools/response_times.py`). Kernels made
-  wrong on purpose — either order reversed, arrivals sorted the wrong way, a speed one
-  step too low or always the slowest — fail it within the first few task sets of each
-  build.
+- static analysis: cppcheck on each port, GCC's `-fanalyzer` and clang
+  (`tools/clang_check.sh`). Since 2026-10-13, CodeQL also reads what clang compiles
+  there (`codeql.yml`);
+- the compiled order of the memory accesses that the lock-free code depends on (see
+  below);
+- coverage, since 2026-10-04 (`tools/coverage.py`). A commit fails if the host test
+  leaves a line of a kernel unrun, unless the line is excluded with its reason;
+- a differential test, since 2026-10-04 (`tools/differential.py`). The kernels run
+  random task sets on the host. Each trace is checked against the algorithm its build
+  claims:
+  - at every instant, the task that runs is a valid choice under EDF or under
+    deadline-monotonic scheduling;
+  - the processor never idles while work waits;
+  - every instance ends once its work is done, and by its deadline;
+  - under EDF, each response stays within the bound of Spuri's response time analysis
+    (`tools/response_times.py`).
+
+Kernels made wrong on purpose fail the differential test within the first few task sets
+of each build. They are: an order reversed (EDF's or DM's), arrivals sorted the wrong
+way, a speed one step too low, and always the slowest speed.
 
 ## What this changes in the repository
 
-The CI runs the kernel, under Renode and on the host, besides building it. That is how
-the `-O2` defect and the scheduling one below were found. A measurement is written with
-its date and its deviation (the +28 ppm of the frequency counter, `rp2040.md`). A result
-that did not reproduce is said so. A commit message gives its reasoning, wrong turns
-included.
+The CI does not only build the kernel. It runs it too, under Renode and on the host.
+That is how the `-O2` defect and the scheduling defect below were found. A measurement
+is written with its date and its deviation, such as the +28 ppm of the frequency counter
+(`rp2040.md`). When a result did not reproduce, the docs say so. A commit message gives
+its reasoning, wrong turns included.
 
 ## Mutants: how strong the tests are
 
-Coverage says a line runs; it does not say a test would notice the line being wrong.
-`tools/mutants.py` makes one small fault at a time in a kernel's source, a comparison
-turned round, `+` for `-`, `&&` for `||`, 0 for 1, a statement of one line left out, and
-runs the host test and `tools/differential.py` on the builds of that kernel. A mutant is
-killed when a test fails, survives when none does. Lines no build of the host compiles,
-code of a variant the host does not build, are left out: a mutant there changes nothing
-the host runs.
+Coverage says that a line runs. It does not say that a test would notice if the line
+were wrong. `tools/mutants.py` puts one small fault at a time into a kernel's source: a
+comparison turned round, `+` for `-`, `&&` for `||`, 0 for 1, or a one-line statement
+left out. Then it runs the host test and `tools/differential.py` on the builds of that
+kernel. A mutant is killed when a test fails. It survives when no test fails.
 
-The last whole run was on c0ff963, the candidate of release 0.1, on 2026-10-11, at 300
-task sets a build:
+`tools/mutants.py` leaves some lines out: those that no host build compiles, such as the code of a
+variant the host does not build. A mutant there changes nothing that the host runs.
+
+The last full run was on c0ff963, the candidate for release 0.1, on 2026-10-11. It used
+300 task sets per build:
 
 | Kernel | Mutants killed | Of those not declared equivalent |
 |---|---:|---:|
@@ -67,52 +72,66 @@ task sets a build:
 | Soft | 84.0 % (609 of 725) | 96.7 % of 630 |
 | Power-aware | 83.0 % (664 of 800) | 96.2 % of 690 |
 
-Every survivor was read. Each one was then killed by a test, declared equivalent with
-its reason in `test/host/equivalent-mutants.jsonl`, caught on the ARM builds by
-`tools/check_order.py`, or written as a behaviour no test reads. Since then, the mutants
-of the kernel lines a pull request changes are run before it is merged
-(`tools/mutants.py --only`), as `CLAUDE.md` asks. How the scores got there is told by
-date in "The mutant campaigns, by date", at the end of this page.
+Every survivor was read. Each one then had one of four outcomes:
+
+- killed by a test;
+- declared equivalent, with its reason, in `test/host/equivalent-mutants.jsonl`;
+- caught on the ARM builds by `tools/check_order.py`;
+- written down as a behaviour that no test reads.
+
+Since then, the mutants of the kernel lines a pull request changes are run before it is
+merged (`tools/mutants.py --only`), as `CLAUDE.md` asks. The section "The mutant
+campaigns, by date", at the end of this page, tells how the scores got there.
 
 ## What the README claims, and what checks it
 
-The lesson of the mutants, a claim no test reads is not checked, was applied to the
-README on 2026-10-04: each claim it makes about behaviour, set against what reads it in
-the behaviour, a test, a model, the board or an instrument.
+The mutants taught a lesson: a claim that no test reads is not checked. On 2026-10-04,
+this lesson was applied to the README. Each claim it makes about behaviour was set
+against what reads it: a test, a model, the board or an instrument.
 
 | Claim | What reads it | Found |
 |---|---|---|
-| Scheduling by EDF or DM | the host test's view of the task control block; `tools/differential.py`, each trace checked against the algorithm of its build | holds |
-| No periodic tick: the timer interrupts at a release only | nothing on the host; on the U5, the idle task's 454,487 Stop 2 in three hours, which a tick would have cut short | to add: the trace's timer interrupts set against the releases. Done on 2026-10-05: `tools/differential.py` reads every interrupt of the comparator, and a host port made to interrupt every 500 ticks fails its first task set |
+| Scheduling by EDF or DM | the host test's view of the task control block; `tools/differential.py`, which checks each trace against the algorithm of its build | holds |
+| No periodic tick: the timer interrupts at a release only | nothing on the host. On the U5, in three hours, the idle task entered Stop 2 454,487 times; a tick would have cut those sleeps short | to add: the trace's timer interrupts set against the releases. Done on 2026-10-05: `tools/differential.py` reads every interrupt of the comparator. A host port made to interrupt every 500 ticks fails its first task set |
 | The power-aware kernel slows down only as far as every deadline holds | `tools/differential.py` under its five builds, with kernels made to run too slow; the host test's speeds | holds |
-| It slows down as far as DRA, OTE and DM_SLACK compute | nothing until 2026-10-05: a kernel faster than its policy kept every deadline. Since, `tools/speed_reference.py`, from the ZottaOS manual, each speed of `tools/differential.py`'s traces, and since 2026-10-06 DRA's and DR_OTE's with event-driven tasks | **did not quite**: a release that did not preempt reclaimed nothing, and DM_SLACK left its slack out of a task alone. Both corrected the same day (80cc6dc). DR_OTE left DRA out when an event-driven task could be released at once, corrected on 2026-10-06 |
+| It slows down as far as DRA, OTE and DM_SLACK compute | nothing until 2026-10-05: a kernel faster than its policy still kept every deadline. Since then, `tools/speed_reference.py`, written from the ZottaOS manual, checks each speed in the traces of `tools/differential.py`. Since 2026-10-06 it also checks the speeds of DRA and DR_OTE with event-driven tasks | **not quite**: a release that did not preempt reclaimed nothing, and DM_SLACK left out its slack for a task alone. Both were corrected the same day (80cc6dc). DR_OTE left DRA out when an event-driven task could be released at once; corrected on 2026-10-06 |
 | Overload drops chosen (m,k)-firm instances, not deadlines at random | the host test's `firm` runs, `firmoverload*` | holds |
 | The queues take no lock | `docs/architecture.md` | **false since 2026-09-25**: `OSSuspendSynchronousTask` masks interrupts around the enqueue of a task on its event. The README now says so |
 | The queue between the cores went from fifteen barriers to six | the model `fifo_mp.py` | **stale**: seven since 2026-09-29 |
 | The models found four bugs | `docs/method.md`, "Hypotheses that were wrong" | **stale**: six, two of them in the queue between the cores |
 | Two boards checked at each commit | `tools/board_ci.md` | **stale**: three, the Pico 2 since 2026-09-28 |
-| 87 to 90 % of each kernel's lines run | `tools/coverage.py` | **stale**: every line runs or is excluded with its reason, 90.5 % of the branches |
+| 87 to 90 % of each kernel's lines run | `tools/coverage.py` | **stale**: every line runs or is excluded with its reason; 90.5 % of the branches |
 | How much current Stop 2 saves is not measured | `docs/stm32u5.md` | **stale**: measured on 2026-10-03 with a PPK2 |
-| Whether DVFS saves energy is not settled | issues #23 and #5 | **stale**: settled against it on the U5, some 10 % at best on the RP2350; open on the RP2040, settled on 2026-10-10: up to some 5 % in WFI, nothing in SLEEP |
-| The program shown is a whole program for the Pico | since 2026-10-04 the Pico's Makefile builds it from the page, and the Renode suite checks that its LED blinks at 1 Hz | **false**: it never routed GPIO 25 to the SIO nor made it an output, and on the chip the LED would not have lit. The page now shows the whole program |
-| Responses stay under the bound of the analysis | `tools/response_times.py` on the traces in `docs/data` | holds, and since 2026-10-04 under EDF too |
-| How it schedules: EDF keeps (50, 25) and (80, 35), DM leaves the second unfinished at 80; the (m,k)-firm set at 110 % keeps every deadline, optional instances dropped | since 2026-10-18 `tools/host_figures.py --check` in the CI: the host runs, each statement checked on its trace, and the figures compared with what the run draws | holds |
-| The figures: 4,716 bytes, 3.2 µs, +28 ppm, 108,000 activations | each dated, with its source | measurements of a day, not claims about every build |
+| Whether DVFS saves energy is not settled | issues #23 and #5 | **stale**: settled against DVFS on the U5; some 10 % at best on the RP2350. Open on the RP2040, then settled on 2026-10-10: up to some 5 % in WFI, nothing in SLEEP |
+| The program shown is a whole program for the Pico | since 2026-10-04, the Pico's Makefile builds it from the page, and the Renode suite checks that its LED blinks at 1 Hz | **false**: it never routed GPIO 25 to the SIO and never made it an output. On the chip, the LED would not have lit. The page now shows the whole program |
+| Responses stay under the bound of the analysis | `tools/response_times.py` on the traces in `docs/data` | holds, and under EDF too since 2026-10-04 |
+| How it schedules: EDF keeps (50, 25) and (80, 35), DM leaves the second unfinished at 80; the (m,k)-firm set at 110 % keeps every deadline, optional instances dropped | since 2026-10-18, `tools/host_figures.py --check` in the CI. It runs the kernel on the host, checks each statement on the trace, and compares the figures with what the runs draw | holds |
+| The figures: 4,716 bytes, 3.2 µs, +28 ppm, 108,000 activations | each one dated, with its source | measurements of a day, not claims about every build |
 
-Six claims had gone stale as the work moved on, two were false, and two were read by
-nothing. The README was corrected the same day, and its program is built and run from
-the page since. The check of the tick was added on 2026-10-05.
+Six claims had gone stale as the work moved on. Two were false. Two were read by
+nothing. The README was corrected the same day. Since then, its program is built and run
+from the page. The check of the tick was added on 2026-10-05.
 
-Set again on 2026-10-10, before the first release (roadmap, task 8). Every claim of
-behaviour holds on that code: the speeds against the policies at 20,000 task sets under
-DRA and DR_OTE once the reference served each signal in a pass of its own (task 7), the
-round of 3.5 µs and 12 µs at worst read by the bench on 2e30970. Stale: the STM32U3's
-row, "Renode only" while the board has been on the bench since 2026-10-09, and the
-NUCLEO-U575ZI-Q's, which runs the soft kernel's endurance test and from its flash; three
-ports where there are four; 91.15 % of the branches where there are 91.78 %; the
-STM32U3's page missing from the table. Corrected the same day (6a4f138), with the
-optional instance's single test and its count written where the README meets them, and
-`api.md` saying that the API is not yet stable.
+The claims were checked again on 2026-10-10, before the first release (roadmap, task
+8). Every claim about behaviour holds on that code:
+
+- the speeds match the policies at 20,000 task sets under DRA and DR_OTE, once the
+  reference served each signal in a pass of its own (task 7);
+- the bench read the round on 2e30970: 3.5 µs, and 12 µs at worst.
+
+Some items were stale:
+
+- the STM32U3's row said "Renode only", but the board had been on the bench since
+  2026-10-09;
+- the NUCLEO-U575ZI-Q's row did not say that it runs the soft kernel's endurance test,
+  and from its flash;
+- the README counted three ports, where there are four;
+- it gave 91.15 % of the branches, where there are 91.78 %;
+- the table lacked the STM32U3's page.
+
+All were corrected the same day (6a4f138). That commit also made `api.md` say that the
+API is not yet stable. Where the README mentions the optional instance, 7416533 wrote
+down its single test and its count, the same day.
 
 ## Hypotheses that were wrong
 
