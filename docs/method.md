@@ -555,39 +555,48 @@ does exploit here, is turned off (below).
 
 ### Scale
 
-The execution tests exercise three or four tasks, the host test ten. Nothing here
-establishes how the scheduler behaves with thirty. The 2³⁰ wrap of the kernel clock,
-about eighteen minutes away on hardware, is crossed on the host, under Renode, and on
-the UNO Q's STM32U5 by its endurance test (2026-09-26), four times in its first hour and
-a quarter.
+The execution tests run three or four tasks, and the host test ten. Nothing here shows
+how the scheduler behaves with thirty. The kernel clock wraps at 2³⁰, about eighteen
+minutes away on hardware. That wrap is crossed on the host, under Renode, and on the UNO
+Q's STM32U5 by its endurance test (2026-09-26): four times in its first hour and a
+quarter.
 
 ### Between the cores
 
 The RP2350 port was audited line by line on 2026-09-29 (above). Its emulated platform
-acknowledges its clocks blindly (`emulation.md`); a Pico 2 has run it since 2026-09-28,
-its clocks checked and its outputs timed on a frequency counter (`architecture.md`).
+acknowledges its clocks blindly (`emulation.md`). A Pico 2 has run the port since
+2026-09-28, with its clocks checked and its outputs timed on a frequency counter
+(`architecture.md`).
 
-Between the cores, the models cover the orders of access the architecture allows. That
-the compiled code keeps the order they need is checked by `tools/check_order.py`, in the
-CI, on every build of the Pico and the Pico 2, of the STM32U5 since its port
-(2026-09-25) and of the STM32U3 since its (2026-10-06), on every path through the
-buffers' functions.
+Between the cores, the models cover the orders of access that the architecture allows.
+`tools/check_order.py` checks that the compiled code keeps the order the models need. It
+runs in the CI, on every path through the buffers' functions, on every build of:
+
+- the Pico and the Pico 2;
+- the STM32U5, since its port (2026-09-25);
+- the STM32U3, since its port (2026-10-06).
+
 `tools/check_order_mutants.sh` shows the check failing without any one of the barriers.
-There are nine in the two buffers' source since the status of a buffer, which the models
-leave out, is set after its slot is handed over (2026-09-25). The queue between the
-cores had no such check until 2026-09-30: only its source and its model named its seven
-barriers. The check now follows the queue through its LL and SC, which are calls, and
-each barrier removed from the source is caught, each by the pair of accesses it stands
-between. An independent review found two holes in it the same day, both closed: a path
-went on past a return GCC writes as `ldmia.w sp!, {..., pc}`, which the check took for
-an ordinary load, and the pairs let the E5 of the next round stand for the E10 that must
-follow the LL of the place, so that a queue without E10, or with it before the LL,
-passed. Changes to the algorithm that keep its order, as a test turned around at E11,
-are not the check's to find.
+The two buffers' source has had nine of them since 2026-09-25, when the status of a
+buffer came to be set after its slot is handed over. The models leave that status out.
 
-The check cannot see a reordering by the processor that the architecture does not
-allow, which is the models' premise. Nor can it see code the compiler might emit for
-another version or optimisation level until it runs there. Without the barriers' memory
+The queue between the cores had no such check until 2026-09-30. Only its source and its
+model named its seven barriers. The check now follows the queue through its LL and SC,
+which are calls. Each barrier removed from the source is caught by the pair of accesses
+it stands between. An independent review found two holes in the check the same day, and
+both were closed:
+
+- A path went on past a return that GCC writes as `ldmia.w sp!, {..., pc}`. The check
+  took that return for an ordinary load.
+- The pairs let the E5 of the next round stand for the E10 that must follow the LL of
+  the place. A queue without E10, or with E10 before the LL, therefore passed.
+
+Changes to the algorithm that keep its order, such as a test turned around at E11, are
+not for the check to find.
+
+The check cannot see a reordering by the processor that the architecture does not allow:
+that is the models' premise. Nor can it see the code that the compiler might emit for
+another version or optimisation level, until it runs there. Without the barriers' memory
 clobber, GCC 16.2 happened to keep the same order at -O2 (2026-09-25). The clobber is a
 guarantee, not a fix to an observed fault.
 
@@ -595,13 +604,15 @@ guarantee, not a fix to an observed fault.
 
 The Pico 2 keeps its accesses in order: `LitmusPico2.c` found none reordered. On the
 board, then, the queue between the cores shows that it runs, not that its seven barriers
-are needed. `test/litmus` (2026-10-04) compiles `Escapement_CoreQueue.c` unchanged for an
-Apple M3 Pro, its LL and SC made LDXR and STXR, its DMB a `DMB ISH`. That processor does
-use the freedom Armv8-M gives Normal memory. Two threads first run the three classic
-litmus tests, then each enqueues its own numbered items and dequeues in turns, under a
-check of each item's contents, of each producer's order and, at the end, of every item
-dequeued once. Each mutant then leaves one barrier out of the processor while keeping it
-in the compiler.
+are needed.
+
+`test/litmus` (2026-10-04) compiles `Escapement_CoreQueue.c` unchanged for an Apple M3
+Pro. Its LL and SC become LDXR and STXR, and its DMB a `DMB ISH`. That processor does
+use the freedom that Armv8-M gives Normal memory. Two threads first run the three
+classic litmus tests. Then each thread enqueues its own numbered items, and dequeues in
+turns. Throughout, a check covers each item's contents and each producer's order. At the
+end, it checks that every item was dequeued once. Each mutant then leaves one barrier
+out of the processor, while keeping it in the compiler.
 
 | Run, 2026-10-04 | Result |
 |---|---|
@@ -612,17 +623,18 @@ in the compiler.
 | Without the barrier after D9 | caught in 1 run of 5, with four pairs of threads running |
 | Without the one after E5, E15, D5, D6 or D15 | caught in none of 2 runs each |
 
-Two barriers are now shown needed on a real processor, not only in the model. The five
-the bench does not catch are no less needed: `fifo_mp.py` finds each one's run against
-the architecture, and this processor does not happen to take it. The bench stands for a
-processor that reorders, not for a Cortex-M, none of which is known to reorder as far.
+Two barriers are now shown to be needed on a real processor, not only in the model. The
+five that the bench does not catch are no less needed. For each one, `fifo_mp.py` finds
+a run that the architecture allows and that fails without it. This processor does not
+happen to take that run. The bench stands for a processor that reorders, not for a
+Cortex-M. No Cortex-M is known to reorder as far.
 
 The kernel's 3-slot buffer went on the same bench the same day (`test/litmus/slots.c`).
 `EscapementHard.c` is compiled as it stands, through the host port of `test/host` built
-with `HOST_LITMUS`: its barriers are a `DMB ISH`, its LL and SC an LDXRB and an STXRB.
-A writer writes items of 16 bytes, a number and a check word, and a reader copies the
-latest out. A slot written while it is read, or named before it is filled, comes out
-torn or short, and the numbers read must never go backwards.
+with `HOST_LITMUS`. Its barriers become a `DMB ISH`, and its LL and SC an LDXRB and an
+STXRB. A writer writes items of 16 bytes, each with a number and a check word. A reader
+copies the latest item out. A slot written while it is read, or named before it is
+filled, comes out torn or short. The numbers read must never go backwards.
 
 | Run, 2026-10-04 | Result |
 |---|---|
@@ -631,11 +643,12 @@ torn or short, and the numbers read must never go backwards.
 | Without the one before the reader's LL of `Reading` | caught in 5 runs of 5: a torn slot |
 | Without the one after `Latest`, the one before `Status`, or the one before `Reading = 3` | caught in none of 5 runs each |
 
-The two caught are the two the model gives the plainest reason for: the slot filled
-before it is named, and the reader's request seen before it reads the slot.
+The two caught are the two for which the model gives the plainest reason: the slot must
+be filled before it is named, and the reader's request must be seen before it reads the
+slot.
 
-The 4-slot buffer went on it next (`slots.c -4`), with no LL or SC: each side writes
-only words of its own.
+The 4-slot buffer went on the bench next (`slots.c -4`). It has no LL or SC: each side
+writes only words of its own.
 
 | Run, 2026-10-04 | Result |
 |---|---|
@@ -645,15 +658,15 @@ only words of its own.
 | Without the one before the reader takes the slot from `Index` | caught in 5 runs of 5: a slot read short |
 | Without the one before `Status`, or the one before the reader names its pair in `Reading` | caught in none of 5 runs each |
 
-Of the three structures, the 4-slot buffer shows the most of its barriers needed on
-this processor, three of five, against two of five for the 3-slot buffer and two of
-seven for the queue. The barrier before `Status`, common to both buffers, is never
-caught: it matters only for the first item, which the bench reads among millions.
+Of the three structures, the 4-slot buffer shows the most of its barriers needed on this
+processor: three of five. The 3-slot buffer shows two of five, and the queue two of
+seven. The barrier before `Status`, common to both buffers, is never caught. It matters
+only for the first item, and the bench reads that item among millions.
 
 The first version of the bench had a fault of its own. In place of the barrier it left
-out, it counted the passes with an atomic add. Between an LDXR and its STXR, that
-exclusive access cleared the reservation, so every SC failed and the mutant without the
-barrier after E9 looped for ten minutes. The bench looked like it had found a livelock
+out, it counted the passes with an atomic add. That exclusive access, between an LDXR
+and its STXR, cleared the reservation. Every SC then failed, and the mutant without the
+barrier after E9 looped for ten minutes. The bench looked as if it had found a livelock
 in the queue. Its mutants now add no access to memory, and a watchdog stops a thread
 that makes no progress for 10 s.
 
