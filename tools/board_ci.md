@@ -41,6 +41,19 @@ A run with nothing new ends at once, in some 2 s, when every commit was already 
 or its CI has not finished. The timer ran every half hour until 2026-09-27, when
 that wait had become the longest part of a check.
 
+A commit that changes only `.md` files does not run the boards. None of them goes into an
+image the boards run. The script first finds a base commit. For a pull request, it is the
+point where the pull request left `main`. For `main`, it is the last commit of `main` the
+bench checked. The base must show `success` on GitHub for all four board statuses. A
+failed check, a board left unchecked or a base never checked does not count. If every
+file changed since the base ends in `.md`, the script posts the four statuses as a
+success: "documentation only", with the base named. It marks the commit as checked only
+once the four are posted, and on a pull request it leaves its comment. It takes no image
+and no probe's lock, and stops no long run. Any other case runs the full check: a file
+that is not `.md`, a file deleted or renamed, an empty change, a base that did not pass,
+no answer from GitHub, or no token. `--force` always runs the full check. Before this, a
+pull request of documentation alone waited its turn on the bench like any other.
+
 A run holds a lock. Between runs the board is free for work by hand, which must not
 overlap a run. Within one, the boards are checked side by side, each through its own
 debugger (a Debug Probe, an ST-LINK, the UNO Q's own SWD), each with its own log, put
