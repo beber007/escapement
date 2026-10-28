@@ -66,7 +66,7 @@ variant the host does not build. A mutant there changes nothing that the host ru
 The last full run was on c0ff963, the candidate for release 0.1, on 2026-10-11. It used
 300 task sets per build:
 
-| Kernel | Mutants killed | Of those not declared equivalent |
+| Kernel | Mutants killed | Of those not marked as equivalent |
 |---|---:|---:|
 | Hard | 87.6 % (424 of 484) | 97.0 % of 437 |
 | Soft | 84.0 % (609 of 725) | 96.7 % of 630 |
@@ -75,7 +75,7 @@ The last full run was on c0ff963, the candidate for release 0.1, on 2026-10-11. 
 Every survivor was read. Each one then had one of four outcomes:
 
 - killed by a test;
-- declared equivalent, with its reason, in `test/host/equivalent-mutants.jsonl`;
+- marked as equivalent, with its reason, in `test/host/equivalent-mutants.jsonl`;
 - caught on the ARM builds by `tools/check_order.py`;
 - written down as a behaviour that no test reads.
 
@@ -117,7 +117,7 @@ The claims were checked again on 2026-10-10, before the first release (roadmap, 
 
 - the speeds match the policies at 20,000 task sets under DRA and DR_OTE, once the
   reference served each signal in a pass of its own (task 7);
-- the bench read the round on 2e30970: 3.5 µs, and 12 µs at worst.
+- the bench measured the scheduling round on 2e30970: 3.5 µs, and 12 µs at worst.
 
 Some items were stale:
 
@@ -130,8 +130,8 @@ Some items were stale:
 - the table lacked the STM32U3's page.
 
 All were corrected the same day (6a4f138). That commit also made `api.md` say that the
-API is not yet stable. Where the README mentions the optional instance, 7416533 wrote
-down its single test and its count, the same day.
+API is not yet stable. Where the README mentions the optional instance, 7416533
+documented its single test and its count, the same day.
 
 ## Hypotheses that were wrong
 
@@ -147,20 +147,20 @@ wrong with confidence. So the record must show how each conclusion was reached.
 | Rewriting history to drop deleted blobs would shrink `.git` from 12 MB to 7 MB | The repository, measured after the attempt | No gain at all that day, and the operation was reverted. Measured again later on a copy, the same idea took 12 MB down to 7. So the first measurement was of something else. What it was has not been found |
 | Including the dependency files at the top of a `Makefile` is harmless | `make` stopped building anything but one object file | The first rule that `make` reads becomes the default goal, and a `.d` file provides one |
 | Building at `-O2` was a matter of adding the flag: it built, both emulation suites passed, and the board measured 3.2 µs per round instead of 7.0 | The CI, on its own toolchain | The kernel HardFaults there. Local success only proved that one compiler version was forgiving |
-| Now that the hard kernel honours the algorithm an application selects, the soft and the power-aware kernels do too | The soft kernel run on the host: the deadline of every mandatory instance read 0 | Both headers set deadline-monotonic themselves, as `EscapementHard.h` had. The soft kernel had never run under EDF since the takeover. The power-aware example was configured for EDF, but ran deadline-monotonic |
+| Now that the hard kernel honours the algorithm an application selects, the soft and the power-aware kernels do too | The soft kernel run on the host: the deadline of every mandatory instance read 0 | Both headers set deadline-monotonic themselves, as `EscapementHard.h` had. The soft kernel had never run under EDF since the code was taken up again. The power-aware example was configured for EDF, but ran deadline-monotonic |
 | Building the soft kernel under EDF only needs the header fixed | The `_Static_assert` on the task control block, which failed | The port tested the algorithm before any kernel header had defined its names. To the preprocessor, an undefined name is 0: `EDF == DEADLINE_MONOTONIC_SCHEDULING` read `0 == 0`. The context switch would then have read the task's entry point four bytes off. The names now live in `Escapement_Modes.h`, which is included first |
 | The power-aware kernel stalls on the board. Once looked at closely, so does the hard one | A trace written by the firmware itself, and read without stopping a core | The hard kernel stalled only while the debugger stopped core 0 to read where it was. Time ran on, the probe missed its deadline, and the overload guard fired. The power-aware kernel did stall on its own, from a timer interrupt that the previous image had left pending. This was a defect of the port. Neither Renode nor a start from power-up could show it |
 | The host test of the soft kernel is deterministic: time is a variable, and nothing else varies | The same code, green on `main`, failed the next CI run with a signed overflow | The kernel read the period of the idle task, which has none. It read it from whatever the heap held past the task's block. AddressSanitizer now reports it on every run |
 | The four Pico builds passed their suite, so the Cortex-M0 context switch was sound | The power-aware kernel on the Pico read and wrote past the end of the RAM from its timer handler. This showed as a warning in the Renode log, not as a failed test | The context switch reduced the state of every starting task to its running bit with an `ANDS`. The Cortex-M3 variant tests into another register instead. The idle task lost `TASKTYPE_BLOCKING`. The power-aware kernel then took it for a periodic task with work left, and went 44 bytes into a 20-byte block. The hard and soft kernels consult that flag on the idle task only to sort arrivals ahead of it. They then read a field the idle task does not have, which happened to do no harm in the examples. The defect would also have hurt an event-driven task, and no Pico example has one. The suite now fails on any access past the RAM |
 | The Cortex-M0 context switch saves what a task needs: R4-R7, as the ZottaOS port for it said. R8-R11 are out of reach of Thumb-1 code | `IPCPico` under Renode. It failed under the soft kernel and deadline-monotonic scheduling once both fixes that the endurance test called for were in. It passed as soon as anything observed it. A watchpoint set only past 35.98 ms caught the Filler writing a slot's number into a node of the FIFO queue (2026-09-25) | R8-R11 are preserved across calls, as R4-R7 are, and GCC uses them in Thumb-1 code. A task that preempts another and ends is wiped from the stack, with whatever it left in them. The Filler resumed inside `OSWriteBuffer` with the preempting task's R8 as the index of its latest slot. Its next slot pointed nine slots past the three. The fixes had only led GCC to keep a value in R8 across a point where a task can be preempted. The handler now saves R8-R11 through R4-R7. `IPCPico` checks them around a delay, while the tasks that preempt it leave them changed. It fails on the old handler under the hard, the soft and the power-aware kernels |
-| `SoakPico2` stopped under Renode on the kernel's overload check, only with core 1 running. The assistant stated that Renode's exclusives were the cause, and changed the test to play the RP2350's monitor, as the tests between the cores already do | The soft kernel under deadline-monotonic scheduling still stopped in 4 runs of 4, with the monitor played. Then watchpoints on the state of the task that missed its deadline, on `_OSNoSaveContext` and on `_OSActiveTask` (2026-09-25) | `OSEndTask` marks the task a zombie, then says that its context is not to be saved. Nothing kept GCC from storing the flag first. It did so for the Cortex-M33 of the Pico 2 and the M4 of the F4, under the hard and the soft kernels. For the M0+ it happened to keep the order. An interrupt in between found a running task that was not a zombie. It left the task in the ready queue, and wiped its stack in the switch it made. The kernel still saw the task as running. Later the task was resumed with the context of the task it had preempted, here the idle task, and it stopped the kernel at its next arrival. Core 1 only moved the interrupts onto that instruction. A compiler barrier now separates the two stores in all three kernels. The monitor is out of the test, and the test passes without it: 6 runs of 6 alone under the hard kernel, and the suite twice under each of the four builds of the Pico 2 |
+| `SoakPico2` stopped under Renode on the kernel's overload check, only with core 1 running. The assistant stated that Renode's exclusives were the cause, and changed the test to emulate the RP2350's monitor, as the tests between the cores already do | The soft kernel under deadline-monotonic scheduling still stopped in 4 runs of 4, with the monitor emulated. Then watchpoints on the state of the task that missed its deadline, on `_OSNoSaveContext` and on `_OSActiveTask` (2026-09-25) | `OSEndTask` marks the task a zombie, then says that its context is not to be saved. Nothing kept GCC from storing the flag first. It did so for the Cortex-M33 of the Pico 2 and the M4 of the F4, under the hard and the soft kernels. For the M0+ it happened to keep the order. An interrupt in between found a running task that was not a zombie. It left the task in the ready queue, and wiped its stack in the switch it made. The kernel still saw the task as running. Later the task was resumed with the context of the task it had preempted, here the idle task, and it stopped the kernel at its next arrival. Core 1 only moved the interrupts onto that instruction. A compiler barrier now separates the two stores in all three kernels. The monitor is out of the test, and the test passes without it: 6 runs of 6 alone under the hard kernel, and the suite twice under each of the four builds of the Pico 2 |
 | The 3-slot buffer is Chen and Burns' mechanism, with an LL/SC pair where they use compare-and-swap. So it is as sound as theirs | An exhaustive model of the reader and the writer (`test/model/threeslot.py`), with the LL/SC pair emulated as on the Cortex-M0+ | A compare-and-swap fails only when the value changed. A store-conditional also fails when an interrupt merely came between it and its load-linked. The reader then left `Reading` at 3 and read slot 3 of three. The reader now tries again. The host test makes store-conditionals fail on purpose to check it |
-| The 3-slot buffer, with its reader retrying, is as sound between two cores as on one | The model taken to two cores, each with its own reservation, which a store of the other core to `Reading` clears (2026-09-24) | The writer tried its store-conditional once. On one core that was harmless: the interrupt that makes it fail also clears the reader's reservation. Between two cores, the reader's reservation survives. Its store-conditional then hands it a `Latest` read before the writer published. The writer picks the slot that is neither `Reading` nor the new `Latest`, and so writes the slot being read. The writer now tries again, in all three kernels. The model also fails with monitors local to each core. This is why the RP2350 needs `ACTLR.EXTEXCLALL` |
+| The 3-slot buffer, with its reader retrying, is as sound between two cores as on one | The model extended to two cores, each with its own reservation, which a store of the other core to `Reading` clears (2026-09-24) | The writer tried its store-conditional once. On one core that was harmless: the interrupt that makes it fail also clears the reader's reservation. Between two cores, the reader's reservation survives. Its store-conditional then hands it a `Latest` read before the writer published. The writer picks the slot that is neither `Reading` nor the new `Latest`, and so writes the slot being read. The writer now tries again, in all three kernels. The model also fails with monitors local to each core. This is why the RP2350 needs `ACTLR.EXTEXCLALL` |
 | The slot buffers need nothing more between two cores than on one: the 4-slot buffer carried 320,000 reads between the cores of the Pico with none torn, and the models of both held on two cores | The same models, with each core free to perform its loads and stores out of program order, as Armv6-M and Armv8-M allow for Normal memory (2026-09-25) | Nothing in the kernels ordered a slot's bytes before its announcement, nor the reader's announcement before its copy. Each buffer needs four barriers. The model catches the removal of any one: a read then mixes two records. The kernels now have them: a `DMB` on the RP2040 and the RP2350. The board showed no torn read without them. That proves only that its cores did not reorder those accesses in that test. The architecture does not promise it |
 | The FIFO queue of Evéquoz's Figure 3 can be used between the two cores of the RP2350 as it stands: it is lock-free, and built on LL/SC, which the chip has | An exhaustive model of two cores running it (`test/model/fifo_mp.py`), with the RP2350's monitor and SCs that may fail for no reason (2026-09-25) | Figure 3 assumes the LL/SC of the paper's Figure 2. There, an SC fails only when another thread's SC succeeded on the same word. So an enqueuer whose one SC on Tail fails may assume that Tail moved on. The paper warns that real LL/SC give less, and offers another algorithm for them (its Section 5 and Figure 5). On the RP2350, an SC also fails when the other core wrote anywhere in the granule, or for no visible reason. Tail then stays behind an enqueue that returned. A dequeue that follows answers that the queue is empty while it holds the item. The same goes for Head. The model shows Figure 3 holding under the paper's LL/SC and failing under the chip's. `Escapement_CoreQueue.c` keeps Figure 3, and tries that SC again while the LL still finds the old index |
 | A DMB between any two accesses of the queue between the cores to different words, fifteen in all, is more than it needs. A model of weakly ordered cores would say which to keep | `explore_weak` in `test/model/fifo_mp.py`, each core performing its accesses in any order Armv8-M allows. It ran at first with three of them pending at most. Then, on a machine of 30 GB, it ran with as many as the longest run of accesses between two barriers (2026-09-26) | Five are needed, and each is caught when left out. Without the one after D5, a dequeue answers that the queue is empty while it holds an item. Without any one of the other four, a dequeuer reads an item's contents before its enqueuer wrote them. The narrow window could say nothing about the ten others. It held without the barrier at the entry of Enqueue, although the architecture lets the publishing SC overtake the store there unless another DMB stops it. The window as wide as the runs between barriers, which no access crosses, showed nine of them superfluous, one at a time. It showed the five, with the one before a dequeue returns, to be enough. Each scenario took 25 minutes and 16 GB at most. Without that last barrier, one case outgrew 26 GB. The queue keeps six, within the model's bounds: two places, two operations per core, two rounds of each loop. On 2026-09-29, with each state kept as a 16-byte fingerprint, the five held without the sixth too, at a longest window of 9 |
 | The queue between the cores may count on an SC's write being seen before the writes after it: the model had always assumed so | The model letting a store pass an SC ahead of it (2026-09-29, prompted by an audit of the port). In it, each core's reservation follows program order, and only a write to its Location ends it. This follows the architecture as read (DDI0553B.y, B7.2.3: a control dependency starts from a read; atomic-ordered-before orders an SC after its own LL alone) | Wrong. With the six barriers, Tail was seen advanced before the item it counts was in its place. A dequeuer found the place empty and helped Head past it, and the item was lost, in all three scenarios. The RP2350's monitor covers the granule, yet it still let one run through. A DMB after E15 and one after D15 close it, and each is needed. The eight hold at their full windows, 5, 6 and 4. Without the one before a dequeue returns, the seven left hold too, at 5, 6 and 7. So the queue keeps seven, each needed. The chip likely never shows it, since its SC waits for the bus's answer. Neither the board nor Renode could have shown it. The architecture allows it, and that is what the model is for. The 3-slot buffer's model made the same assumption, and holds without it: after its SC, each core reads Reading again, which waits for the SC, and its next stores take their slot from that read |
-| The RP2350's exclusive monitor, played under Renode by hooks on the LL/SC functions, is played right: each hook runs whole | `FIFOCoresPico2`, with each core a producer and a consumer of the same queues, at a slice of 1 us (2026-09-26) | 1,004 records were taken of 1,000 written, and the sums of their counters were off. The queue's model holds with two of each. With the played monitor under a lock, every record came through once. The hooks of the two cores can run at once, and two SCs on one granule had both found their reservation |
+| The RP2350's exclusive monitor, emulated under Renode by hooks on the LL/SC functions, is emulated right: each hook runs whole | `FIFOCoresPico2`, with each core a producer and a consumer of the same queues, at a slice of 1 us (2026-09-26) | 1,004 records were taken of 1,000 written, and the sums of their counters were off. The queue's model holds with two of each. With the emulated monitor under a lock, every record came through once. The hooks of the two cores can run at once, and two SCs on one granule had both found their reservation |
 | The FIFO queue of the kernels is wait-free on one core: whoever preempts an announced operation completes it | An exhaustive model of the queue (`test/model/fifo.py`), each run checked for linearizability | A dequeue that signals an event and finds the queue empty leaves the signal. Then it gets preempted before marking itself done. The first helper to see the signal left without marking it done either. A waiting task then took the signal. A second helper, preempted since before, found the slot empty and put a signal back. One event woke two tasks. The dequeue now marks itself done when it finds its signal |
 | A full FIFO queue that refuses a node would corrupt its tail, since it has no capacity test like the one in Evéquoz's paper. Stated by the assistant from reading the code | The host test, strengthened to check the queue after the refusal | The enqueue only ever writes into an empty slot. The reading had missed that guard. The queue refuses cleanly |
 | DRA, DR_OTE and DM_SLACK compile, and only running them is left. The roadmap said so, from reading the build | Building the power-aware kernel with each of them, on the target and on the host (2026-09-24) | None compiled. DRA and DR_OTE called an interrupt intrinsic of the MSP430. They also gave the task control block a third link, where the context switch reads its fields. DM_SLACK read a clock variable that no longer exists. Once they built, the host test found four defects. First, the speed computation multiplied a time by a ratio, and overflowed past 21 s; OTE shares it. Second, DRA shifted a time that nothing updates without event-driven tasks, and overflowed at the third wraparound. Third, DRA looked for the running task in its simulation queue, and read through a null link when the task had outlived its WCET there. Fourth, DM_SLACK gave the time a task left unused to tasks of higher priority, which never counted it in their response time. A hand-built task set shows the first task missing its deadline. The time now goes to tasks of lower priority, as the kernel's own comment said |
@@ -452,16 +452,16 @@ driver stays as the boards ran it.
 
 **The mutants on the candidate.** Run whole on c0ff963, at 300 task sets a build:
 
-- Hard: 87.6 % (424 of 484), and 97.0 % of the 437 not declared equivalent, as before
+- Hard: 87.6 % (424 of 484), and 97.0 % of the 437 not marked as equivalent, as before
   the review.
-- Soft: 84.0 % (609 of 725), and 96.7 % of the 630 not declared equivalent. Its one new survivor
-  is the bound that the review put after the share for events
-  (`totalWork >= 0x3FFFFFFF`). It is declared, as its two twins are.
-- Power-aware: 83.0 % (664 of 800), and 96.2 % of the 690 not declared equivalent.
+- Soft: 84.0 % (609 of 725), and 96.7 % of the 630 not marked as equivalent. Its one new
+  survivor is the bound that the review put after the share for events (`totalWork >=
+  0x3FFFFFFF`). It is marked as equivalent, as its two twins are.
+- Power-aware: 83.0 % (664 of 800), and 96.2 % of the 690 not marked as equivalent.
 
-One declaration was wrong, and `tools/mutants.py` said so. DM_SLACK's slack, left
+One of those marks was wrong, and `tools/mutants.py` said so. DM_SLACK's slack, left
 negative once run out, was read on 2026-10-10 as harmless. In fact it overflows its 32
-bits after two wraps idle, and `TestLongIdle` kills it. The declaration is gone.
+bits after two wraps idle, and `TestLongIdle` kills it. The mark is removed.
 
 Two survivors are new. Both were killed before the review. Both have been hidden since
 by the update that the review added to the handler when idle, which brings DRA's
@@ -474,8 +474,8 @@ simulation to the present at each pass:
   `pa_drote` caught it.
 
 Each now costs one update of the simulation computed from a time behind, until the next
-update: less excess and less slack, a faster speed, never a later end. They stay written
-as behaviours no test reads.
+update: less excess and less slack, a faster speed, never a later end. They stay
+recorded as behaviours no test reads.
 
 ### Two fixes that were wrong
 
@@ -629,12 +629,13 @@ a run that the architecture allows and that fails without it. This processor doe
 happen to take that run. The bench stands for a processor that reorders, not for a
 Cortex-M. No Cortex-M is known to reorder as far.
 
-The kernel's 3-slot buffer went on the same bench the same day (`test/litmus/slots.c`).
-`EscapementHard.c` is compiled as it stands, through the host port of `test/host` built
-with `HOST_LITMUS`. Its barriers become a `DMB ISH`, and its LL and SC an LDXRB and an
-STXRB. A writer writes items of 16 bytes, each with a number and a check word. A reader
-copies the latest item out. A slot written while it is read, or named before it is
-filled, comes out torn or short. The numbers read must never go backwards.
+The kernel's 3-slot buffer was run on the same bench the same day
+(`test/litmus/slots.c`). `EscapementHard.c` is compiled as it stands, through the host
+port of `test/host` built with `HOST_LITMUS`. Its barriers become a `DMB ISH`, and its
+LL and SC an LDXRB and an STXRB. A writer writes items of 16 bytes, each with a number
+and a check word. A reader copies the latest item out. A slot written while it is read,
+or named before it is filled, comes out torn or short. The numbers read must never go
+backwards.
 
 | Run, 2026-10-04 | Result |
 |---|---|
@@ -647,8 +648,8 @@ The two caught are the two for which the model gives the plainest reason: the sl
 be filled before it is named, and the reader's request must be seen before it reads the
 slot.
 
-The 4-slot buffer went on the bench next (`slots.c -4`). It has no LL or SC: each side
-writes only words of its own.
+The 4-slot buffer was run on the bench next (`slots.c -4`). It has no LL or SC: each
+side writes only words of its own.
 
 | Run, 2026-10-04 | Result |
 |---|---|
@@ -827,7 +828,7 @@ and none towards a missed deadline:
   the slower of its two speeds.
 
 Both were ZottaOS's. Both were corrected the same day, and the reference agreed again.
-Two departures stay, written in the reference. Its EDF* breaks ties the other way from
+Two departures stay, recorded in the reference. Its EDF* breaks ties the other way from
 the paper, as its header says. DM_SLACK keeps one slack, the last left, where the manual
 keeps one per task.
 
@@ -849,7 +850,7 @@ DM_SLACK: their next release bounds the stretch. Under DM_SLACK, it takes in the
 that an event-driven instance leaves too. Of the 17 mutants of the code that bounds the
 stretch, the 6 left are such comparisons.
 
-Two of DM_SLACK's survivors were first written as behaviours no test reads. Read again
+Two of DM_SLACK's survivors were first recorded as behaviours no test reads. Read again
 on 2026-10-06, neither is:
 
 - Leaving out the `CompilerBarrier()` before the SC that hands a slack over changes
@@ -872,9 +873,9 @@ The excess is counted and rounded at each update of the simulation, at the insta
 kernel makes them.
 
 With the instances in the simulation but no excess yet, the reference disagreed, the
-kernel always slower. Before the excess was written in, 10,000 task sets under the two
-builds, checked for deadlines only, missed none. With the excess, DRA agreed on 3,300
-sets.
+kernel always slower. Before the excess was added to the reference, 10,000 task sets
+under the two builds, checked for deadlines only, missed none. With the excess, DRA
+agreed on 3,300 sets.
 
 DR_OTE disagreed once more, the kernel faster. An event-driven task that might be
 released at once sent it to the fastest speed, with DRA's time left out. Only OTE should
@@ -960,16 +961,17 @@ Run again across the wraparound:
 - the soft kernel's survivors lost 4 of the 179 found again, all in the code that
   carries the arrivals of its mandatory instances past the wraparound.
 
-Since then, a mutant that was read and shown equivalent is declared in
-`test/host/equivalent-mutants.jsonl`, with its reason. A declared mutant is found by
-what it changes, as `--survivors` finds survivors. The declared mutant still runs. If
-one declared equivalent is killed, it is reported, since the declaration is then wrong.
-The score is given twice: of all the valid mutants, and of those not declared. The
-power-aware kernel's 26 read that evening are the 21 of the choice of speed and 5 of
-DM_SLACK's slack. They give 80.1 % of the 775 others. No mutant is declared that has not
-been read, and none for being hard to kill. The two mutants of the excess changed a term
-that is always 0 there. That term was then taken out of `GetProcessorSpeed`, with the
-user's agreement, and its mutants with it: 24 remain declared.
+Since then, a mutant that was read and shown equivalent is marked as such in
+`test/host/equivalent-mutants.jsonl`, with its reason. A mutant marked as equivalent is
+found by what it changes, as `--survivors` finds survivors. The marked mutant still
+runs. If one marked as equivalent is killed, it is reported, since the mark is then
+wrong. The score is given twice: of all the valid mutants, and of those not marked as
+equivalent. The power-aware kernel's 26 read that evening are the 21 of the choice of
+speed and 5 of DM_SLACK's slack. They give 80.1 % of the 775 others. No mutant is marked
+as equivalent that has not been read, and none for being hard to kill. The two mutants
+of the excess changed a term that is always 0 there. That term was then taken out of
+`GetProcessorSpeed`, with the user's agreement, and its mutants with it: 24 remain
+marked as equivalent.
 
 The hard kernel's 96 survivors were read the same evening. Each was settled, where it
 could be, by a build of the mutant, a model given the fault, or a crafted task set:
@@ -977,9 +979,9 @@ could be, by a build of the mutant, a model given the fault, or a crafted task s
 - 47 change nothing that the kernel promises: stores to zeroed sentinels, or stores
   overwritten before any read; ties that the algorithm leaves open; compiler barriers
   whose ARM code is the same without them; assertions of DEBUG_MODE. 46 of them are
-  declared, giving 88.6 % of the 438 others, from 80.2 % of all. One was left out: the
-  mutant that shifts all the deadline-monotonic priorities by one. Its argument near 255
-  tasks is not tight enough.
+  marked as equivalent, giving 88.6 % of the 438 others, from 80.2 % of all. One was
+  left out: the mutant that shifts all the deadline-monotonic priorities by one. Its
+  argument near 255 tasks is not tight enough.
 - 5 more the host cannot see, and `tools/check_order.py` kills them on the ARM builds.
 - The 44 left are behaviours no test reads. 17 of them are visible only on a board,
   where any example would catch most (the timer never started, the idle task left
@@ -1037,8 +1039,9 @@ builds. Read with the trace, no failure was the kernel's:
 
 Run whole on 9d9157c, at 300 task sets a build, the mutants scored:
 
-- hard kernel: 86.4 % (418 of 484), and 95.4 % of the 438 not declared;
-- power-aware kernel: 81.5 % (651 of 799), and 84.0 % of the 775 not declared;
+- hard kernel: 86.4 % (418 of 484), and 95.4 % of the 438 not marked as equivalent;
+- power-aware kernel: 81.5 % (651 of 799), and 84.0 % of the 775 not marked as
+  equivalent;
 - soft kernel: 79.0 % (572 of 724).
 
 The run also showed a fault of `tools/mutants.py`. A test that ran past its time limit
@@ -1171,7 +1174,7 @@ With the user's agreement, the kernel went back to the count the same night, und
 as under DM. The reference of `tools/differential.py`, `docs/api.md` and the host tests
 went back with it. `DemandFits` stays in the history. Its prototype stays in
 `tools/differential.py` and `tools/firm_admission.py`, to count what a test that counted
-its own cost might win. The bench stays, now timing the count. On the same tasks, the
+its own cost might gain. The bench stays, now timing the count. On the same tasks, the
 count took 13.8 µs in the mean and 31.0 at most over 20,000 tests with interrupts
 masked, and 13.9 and 31.7 with them unmasked. The board ran on both times. The 16.6 µs
 of the run before went through the share reserved for event-driven tasks, which the
@@ -1193,7 +1196,7 @@ were read:
   (`firmdemand`).
 - 2 more died with them: an event-driven task read as a periodic one, and an instance
   released at the end of the stretch counted against the bound.
-- 3 are declared equivalent: the demand at the end of the stretch, which is at most the
+- 3 are marked as equivalent: the demand at the end of the stretch, which is at most the
   stretch by its fixed point; the optional instance's deadline checked twice; a WCET of
   1 divided by itself.
 - 8 stay, counted. 5 change only how long the fixed point may take before the walk of
@@ -1202,8 +1205,8 @@ were read:
   mandatory instances can be scheduled at all, which the kernel assumes and does not
   check.
 
-That makes 49 of 60, 86 % of the 57 not declared. The two mutants of the call to
-`DemandFits` both die.
+That makes 49 of 60, 86 % of the 57 not marked as equivalent. The two mutants of the
+call to `DemandFits` both die.
 
 The soft kernel's 152 survivors were run again at 300 sets a build. The reference killed
 4:
@@ -1216,11 +1219,11 @@ The soft kernel's 152 survivors were run again at 300 sets a build. The referenc
 
 Of the survivors left in the periodic part of the test, 8 were read and change nothing:
 a scan that goes past the deadline adding 0, and ties where both branches add the WCET.
-They are declared, with the guard of the test, 107, which `IsTaskSchedulable` makes
-redundant. 3 more are overflow guards, weakened or skipped for a WCET of 1. They would
-differ only near 2^30 ticks of work, and stay counted. The rest are in the event-driven
-part, which the reference leaves out. The kernel scores 79.6 % (576 of 724), 80.6 % of
-the 715 not declared.
+They are marked as equivalent, with the guard of the test, 107, which
+`IsTaskSchedulable` makes redundant. 3 more are overflow guards, weakened or skipped for
+a WCET of 1. They would differ only near 2^30 ticks of work, and stay counted. The rest
+are in the event-driven part, which the reference leaves out. The kernel scores 79.6 %
+(576 of 724), 80.6 % of the 715 not marked as equivalent.
 
 ### 2026-10-10: every survivor read
 
@@ -1248,8 +1251,8 @@ the mutant. Six are killed since, each by a test that fails on it:
 - A slot of no byte, which `OSInitBuffer` takes, is read by reference as data (459). The
   reference must be NULL, as the function's comment says.
 
-One is equivalent and declared (206). An event-driven task signalled at the very instant
-of its previous deadline goes to the arrival queue for that instant, rather than
+One is equivalent and marked so (206). An event-driven task signalled at the very
+instant of its previous deadline goes to the arrival queue for that instant, rather than
 straight to the ready queue. The same pass of the handler finds the timer already past
 it, and releases it at once with the same deadline. Only the order of the releases of
 one pass may change. The list they come from, last in first out, already leaves that
@@ -1260,22 +1263,23 @@ heap is then 4 bytes smaller, and the stacks start 4 bytes lower. The host's OSM
 taken from the C library, does not count this.
 
 The survivors were run again at 300 task sets, and the six died. The hard kernel's
-mutants score 87.6 % (424 of 484), and 97.0 % of the 437 not declared.
+mutants score 87.6 % (424 of 484), and 97.0 % of the 437 not marked as equivalent.
 
 That run showed a fault of `tools/mutants.py`. When it scored a part of the mutants, it
-ranked alike mutants among that part alone. A declaration of the second of two alike
-mutants, 98, then matched no survivor. Alike mutants are ranked among the whole source's
-since. The same fault chose the mutants to run. Given a file of part of them, as its own
-`-again.jsonl` is, `--survivors` ranked alike mutants among that part. It ran the soft
-kernel's `totalWork += tmp` left out at line 619, killed long before, in place of the
-same left out at line 646. A record whose number still names the same mutant is now
-taken by that number.
+ranked alike mutants among that part alone. An equivalence entry for the second of two
+alike mutants, 98, then matched no survivor. Alike mutants are ranked among the whole
+source's since. The same fault chose the mutants to run. Given a file of part of them,
+as its own `-again.jsonl` is, `--survivors` ranked alike mutants among that part. It ran
+the soft kernel's `totalWork += tmp` left out at line 619, killed long before, in place
+of the same left out at line 646. A record whose number still names the same mutant is
+now taken by that number.
 
 The soft kernel's 152 survivors of 9d9157c were run again the same day. The tests added
 for the hard kernel killed 10, since the code is shared. The 142 left were read; 9 of
-them had been declared before. Each was set against its twin in the hard kernel, found
-by the function it lies in and its rank there. A twin's declared reason was taken over
-only where the code is the same and the reason holds in the soft kernel's frame.
+them had been marked as equivalent before. Each was set against its twin in the hard
+kernel, found by the function it lies in and its rank there. A twin's recorded reason
+was reused only where the code is the same and the reason holds in the soft kernel's
+frame.
 
 Of 19 barriers:
 
@@ -1283,9 +1287,9 @@ Of 19 barriers:
   a task's zombie state in `OSEndTask`, whose twin in the hard kernel keeps its order
   without it.
 - 5 leave the memory accesses, the calls and the barriers in the same order on the eight
-  ARM builds, compared one by one. They are declared.
+  ARM builds, compared one by one. They are marked as equivalent.
 - The others move loads, register reuse or an inlining decision, which `check_order.py`
-  does not follow. They are written below.
+  does not follow. They are listed below.
 
 Then:
 
@@ -1311,12 +1315,12 @@ Then:
   The host's timed tasks now count the ends past the deadline of the instance that the
   kernel elected. That deadline is taken from the next arrival the kernel had set then,
   which holds whatever was dropped, and across the wrap of the counter.
-- 78 are declared, the reason of each in `test/host/equivalent-mutants.jsonl`: ties and
-  bounds that no value reaches; guards against an overflow that WCET <= deadline <=
-  period already rules out; a pre-test that `IsTaskSchedulable` makes again, strictly;
-  the idle task's priority, which nothing reads; the next mandatory arrival of a task
-  found at a shift with no turn left, which the same pass releases and recomputes before
-  any test reads it; and the twins.
+- 78 are marked as equivalent, the reason of each in
+  `test/host/equivalent-mutants.jsonl`: ties and bounds that no value reaches; guards
+  against an overflow that WCET <= deadline <= period already rules out; a pre-test that
+  `IsTaskSchedulable` makes again, strictly; the idle task's priority, which nothing
+  reads; the next mandatory arrival of a task found at a shift with no turn left, which
+  the same pass releases and recomputes before any test reads it; and the twins.
 - 20 are behaviours no test reads:
   - Barriers that the compiler moves loads or registers across, or inlines differently
     without, which `check_order.py` does not follow. They were read by hand on the
@@ -1334,23 +1338,24 @@ Then:
     deadline than its own, so it ends in time. What the share protects is the events'
     own deadlines, and no test sets events dense enough to reach them.
 
-Run again with those tests, the 142 gave the 26 kills and 87 survivors declared. The
-soft kernel's mutants score 84.0 % (608 of 724), and 95.4 % of the 637 not declared.
+Run again with those tests, the 142 gave the 26 kills and 87 survivors marked as
+equivalent. The soft kernel's mutants score 84.0 % (608 of 724), and 95.4 % of the 637
+not marked as equivalent.
 
 The power-aware kernel's 148 survivors of 9d9157c were run again the same day, and gave
-5 kills. The 143 left were read as the soft kernel's were; 24 of them had been declared
-before. For the barriers, the power-aware kernel's only target, the RP2040, was compiled
-under each of its five builds. Those that reading could not settle ran again at 2,000
-task sets a build instead of 300 (`--sets`). That killed two: EDF*'s arrival times left
-unshifted in the ready queue at the wraparound, which broke a tie the wrong way in set
-1200 of `pa_dra`. Since then, `tools/differential.py` checks that set at every run,
-beside its 300 (`KEPT`). Then:
+5 kills. The 143 left were read as the soft kernel's were; 24 of them had been marked as
+equivalent before. For the barriers, the power-aware kernel's only target, the RP2040,
+was compiled under each of its five builds. Those that reading could not settle ran
+again at 2,000 task sets a build instead of 300 (`--sets`). That killed two: EDF*'s
+arrival times left unshifted in the ready queue at the wraparound, which broke a tie the
+wrong way in set 1200 of `pa_dra`. Since then, `tools/differential.py` checks that set
+at every run, beside its 300 (`KEPT`). Then:
 
 - 2 more are killed by tests: a deadline of 0 with a WCET of 0 (39), and an event-driven
   task whose WCET is its workload, which the power-aware kernel takes (287). 4 barriers
   of the slot buffers are caught by `tools/check_order.py` (810 to 816).
-- 84 are declared:
-  - The twins of the hard kernel's declared ones whose code and frame are the same.
+- 84 are marked as equivalent:
+  - The twins of the hard kernel's equivalent ones whose code and frame are the same.
   - Barriers that leave the memory accesses, the calls and the barriers in the same
     order on the five builds. Among them is the one after a task's zombie state in
     `OSEndTask`, which `check_order.py` needs on the Cortex-M33 for the hard kernel, but
@@ -1364,7 +1369,7 @@ beside its 300 (`KEPT`). Then:
   - A slack of one tick, which the fastest speed absorbs at the RP2040's operating
     points.
   - The flag that keeps the speed saved once per pass of the handler, set and cleared
-    within it (107). It was first written as a stale saved speed that the speed
+    within it (107). It was first recorded as a stale saved speed that the speed
     reference missed. It was not: the lines read were one off.
 - 27 are behaviours no test reads, still alive at 2,000 sets where they were run so:
   - The handler, and the idle task after it, left at the speed before rather than the
@@ -1392,34 +1397,34 @@ beside its 300 (`KEPT`). Then:
     633, 635).
 
 Run again with those tests and the set kept, the 143 gave the 4 kills and 107 survivors
-declared; 108 since, mutant 107 among them. The power-aware kernel's mutants score
-82.6 % (660 of 799), and 95.5 % of the 691 not declared.
+marked as equivalent; 108 since, mutant 107 among them. The power-aware kernel's mutants
+score 82.6 % (660 of 799), and 95.5 % of the 691 not marked as equivalent.
 
 The three kernels, on the code of 2026-10-10:
 
-| Kernel | Mutants killed | Of those not declared |
+| Kernel | Mutants killed | Of those not marked as equivalent |
 |---|---:|---:|
 | Hard | 87.6 % | 97.0 % |
 | Soft | 84.0 % | 95.4 % |
 | Power-aware | 82.6 % | 95.5 % |
 
-Every survivor is read. Each is killed, declared with its reason, caught on the ARM
-builds by `tools/check_order.py`, or written above.
+Every survivor is read. Each is killed, marked as equivalent with its reason, caught on
+the ARM builds by `tools/check_order.py`, or recorded above.
 
 The work was taken further the same day, at the user's request (roadmap, task 6). The
-barriers left written settle in two ways:
+barriers left on that list settle in two ways:
 
 - `ScheduleNextTask` runs in a context marked not to be saved: `OSEndTask` and
   `OSSuspendSynchronousTask` set `_OSNoSaveContext` before they call it. Any interrupt
   that touches the ready queue ends that context. Only the order of `ScheduleNextTask`'s
   stores then reaches anyone, which `check_order.py` checks, and the loads its barriers
-  order do not matter (soft 111, 122, 124, declared).
+  order do not matter (soft 111, 122, 124, marked as equivalent).
 - The event FIFO's posting of an operation, the call of its helper, the clearing, and
-  the descriptor written before the posting keep their order on every build without
-  each of its barriers. This was compared from the disassembly, with three faulty
-  variants, each caught on every build: a posting left out, a posting moved after the
-  call, and a field of the descriptor written after it (soft 508, 540, 542, 544;
-  power-aware 631, 633, 635; declared).
+  the descriptor written before the posting keep their order on every build without each
+  of its barriers. This was compared from the disassembly, with three faulty variants,
+  each caught on every build: a posting left out, a posting moved after the call, and a
+  field of the descriptor written after it (soft 508, 540, 542, 544; power-aware 631,
+  633, 635; marked as equivalent).
 
 Three tests came with it:
 
@@ -1449,13 +1454,13 @@ the kernel as well, with a speed below the reference's, and killed nothing. Read
   where the kernel, rightly, took the slack.
 
 Since then, the reference serves each signal in a pass of its own, and
-`tools/differential.py` keeps the set. Power-aware 129, 130 and 140 stay written. Soft
-199, 204 and 206 stay written too: a share computed short by less than a tick, or at
+`tools/differential.py` keeps the set. Power-aware 129, 130 and 140 stay recorded. Soft
+199, 204 and 206 stay recorded too: a share computed short by less than a tick, or at
 1/256, which the reservation's own pessimism covers in the cases set up.
 
 The scores then:
 
-| Kernel | Mutants killed | Of those not declared |
+| Kernel | Mutants killed | Of those not marked as equivalent |
 |---|---:|---:|
 | Hard | 87.6 % | 97.0 % |
 | Soft | 84.1 % (609 of 724) | 96.7 % of 630 |
