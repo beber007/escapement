@@ -249,161 +249,225 @@ waited so, and task 3 does. Task 4 began the same day.
    behaviour holds, and the stale rows are corrected (6a4f138). The boards checked at
    each commit become four when task 4 turns on the NUCLEO-U385RG-Q's check. The
    RP2040's verdict is task 9's to write.
-9. **The energy verdict on the RP2040 — done on 2026-10-10.** Added by the user on 2026-10-10, who had left it
-   after this release on 2026-10-07: item 1 below, on its bench, a plain Pico powered and
-   measured by the PPK2; whether DVFS beats racing to sleep, and what the same bench
-   settles with it (the idle task at 12 or 125 MHz, DRA, DR_OTE and DM_SLACK against OTE,
-   the regulator's settling, the core undervolted). The verdict written where `README.md`,
-   `power-aware.md` and `rp2040.md` give it open. Needs the user's hands: a plain Pico,
-   probe2's, whose endurance run the user stopped on 2026-10-10 for it, and the PPK2 wired
-   to it. Prepared on 2026-10-10: `SleepPico` (`rp2040.md`, "For the PPK2:
-   SleepPico") checked on probe1's Pico W without the PPK2, its phases, its operating
-   points and the lock of PLL_SYS, 55 µs. Measured the same day on probe2's Pico
-   (`power-aware.md`, "Measuring the RP2040"): a cycle costs least at 125 MHz; DVFS saves
-   up to some 5 % with the idle task in WFI, nothing in SLEEP; the sleep is the lever,
-   73 %, and a SLEEP with PLL_SYS stopped would take more, task 10.
-10. **The RP2040's idle task in SLEEP with PLL_SYS stopped — done on 2026-10-10.** Added by the user on
-   2026-10-10, from task 9's verdict: 1.22 mA against 5.07 in SLEEP with PLL_SYS running.
-   As the RP2350's idle task does (`Escapement_SleepGate.c` there): PLL_SYS stopped for
-   each sleep long enough, the sleep ended early by an alarm of its own so that the lock,
-   some 55 µs, is over by the kernel's next alarm, and clk_sys's auxiliary source moved
-   off PLL_SYS first, without which the chip faulted waking from SLEEP (`rp2040.md`, "For
-   the PPK2: SleepPico"); under the power-aware kernel too, at whichever operating point.
-   Checked on the board: the timer events and the deadlines on time, and the current with
-   the PPK2. Done on probe2's Pico (`rp2040.md`, "SLEEP with PLL_SYS stopped"): the timer
-   events' figures unchanged under the hard and power-aware kernels, every event 0 µs
-   late; `TaskLEDPico` 2.18 mA against 5.49 with PLL_SYS running (−60 %), 2.22 and 2.41
-   under OTE and DR_OTE. Alarm 3 kept from the timer events once the sleep takes it, on
-   the RP2350 too, whose port lacked the guard.
-11. **DVFS on the STM32U3: measured, then the power-aware kernel if it pays.** Added by
-   the user on 2026-10-10. First the measure (`stm32u3.md`, "Measuring DVFS"):
-   `DVFSU3Flash` (0b17ba9) on the NUCLEO-U385RG-Q, the PPK2 in place of JP4, after the
-   pins of task 3. DVFS pays if a CRC at 48 MHz in range 2 costs less charge than at
-   96 MHz in range 1 by more than the Stop 2 that the time saved at 96 MHz would sleep;
-   the verdict written in `power-aware.md` either way. If it pays, the power-aware
-   kernel on the port: `OSSetProcessorSpeed` on the sequences `DVFSU3.c` checks, TIM2
-   and TIM4 rescaled at each change so that the kernel's time does not slip (plan §5.3),
-   USART1 on HSI16 so that its rate does not follow the clock, the wake-up from Stop 2
-   at the point in effect, the Renode platform and the board check with it, and the
-   kernel's run of task 14 on the board. If it does not, the port stays hard and soft.
-   Needs the user's hands for the PPK2. Measured on 2026-10-10 (`stm32u3.md`,
-   "Measuring DVFS"): on the SMPS a CRC costs 14.2 % less at 48 MHz in range 2 than at
-   96 MHz in range 1, far more than the Stop 2 given up: DVFS pays. **Done on
-   2026-10-11** (`stm32u3.md`, "The power-aware kernel"; the verdict in
-   `power-aware.md`): two operating points, 48 MHz in range 2 and 96 in range 1, 24 and 12
-   costing more a cycle than 48. Where the plan had TIM2 and TIM4 rescaled, they count the
-   MSIK instead, 12 MHz whatever the core runs at: rewriting a prescaler loses the
-   fraction of a microsecond under way at each change. On the board `BenchDVFSU3` lost no
-   microsecond over 5.8 million changes in a minute, a raise taking 15.2 µs, a fall 4.3;
-   the board check on the power-aware images passed by hand, and `board/u3` checks them
-   at each commit from this one on, before the hard kernel's. Renode runs the whole suite on a
-   `KERNEL=PA` build. The kernel's run of task 14 is to come with the others.
-12. **A review of the whole, code and documentation.** Added by the user on 2026-10-10,
-   before the freeze so that what it finds is fixed before the candidate and its runs.
-   By agents on Claude Fable 5.1, each given one part and none the conclusions of
-   another: the three kernels; the RP2040 and RP2350 ports; the STM32U5 and STM32U3
-   ports; the flash images and their tools (second stages, linker scripts,
-   `pico_flash.sh`, `nucleo_flash.sh`, `unoq_check.sh`); the documentation against the
-   code, each claim of `README.md` and of the pages it links to the code and the
-   measurement it rests on. First what no audit has read: the STM32U3 port, the flash
-   images, the RP2040's sleep with PLL_SYS stopped, the kernels' changes since the
-   review of 2026-09-30 (`method.md`, "Audits, and what they leave unproved"). Each
-   finding checked against the code before it counts, then fixed, declared no fault
-   with its reason, or left open in the notes; what the review found and how it was
-   checked written in `method.md`. **Done on 2026-10-11** (`method.md`, "The review
-   before release 0.1"): five agents at fef9d5e, each finding read against the code or
-   the data. The documentation had nineteen out of date, all corrected; the ports and
-   tools, among smaller ones, a timer written while still in reset by the RP2040's and
-   RP2350's sleep, a power-aware check of the STM32U3 that left the board's long run
-   reading it, and Makefiles that linked one kernel's objects into another's images;
-   the kernels, an overflow of the power-aware kernel's times after two wraps idle,
-   reproduced by `TestLongIdle` and fixed. Each fixed, or left open with its reason.
-12b. **The entry pages made plain and inviting.** Added by the user on 2026-10-11, after
-   the review: `README.md` and the pages a visitor reads first (`architecture.md`,
-   `build.md`, `api.md`) in short sentences, one idea each and the conclusion first, the
-   detail left to the technical pages; the README's opening and its figures laid out to
-   catch the eye, with simple diagrams where they help. No fact added, removed or changed:
-   each figure and date checked unchanged against the diff. **Done on 2026-10-11**: the
-   README opens on three points and the Pico's DVFS figure, a diagram shows what each push
-   goes through, the energy measured on each chip is a table; `architecture.md` opens its
-   targets with one; the numbers of the README the same before and after.
-13. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. The
-   tools task 14 needs went in first, as the user agreed on 2026-10-11, so that the
-   candidate carries what tests it: `tools/soak.py` runs a Pico from its flash and drives
-   a Pico 2 (`pico2`), each checked on its board for 3 minutes, and `tools/endurance.sh`
-   runs one platform's kernels in turn, each under a status of its own. **Done on
-   2026-10-11**: `v0.1.0-rc1` on c0ff963, its CI and its four board checks passed. From
-   it on, fixes only. (Until the runs of task 14 took every kernel again, `EscapementHard.c`
-   was to stay as it was at 041af76, the commit of its week.)
-14. **Endurance on the candidate — done on 2026-10-12.** 8 hours for each kernel on each platform, as the
-   user decided on 2026-10-10 (a week until then, cut to 24 hours, then to this; rule 3
-   of `CLAUDE.md`, "Before a release"). Ten runs, one board each platform, run in turn
-   on it and in parallel across them, from flash once task 4 is done; the soft kernel
-   with the (m,k)-firm variant of task 2 (`SoakFirm*`), the others with `Soak*`:
-   - RP2040, probe2's Pico: hard, soft, power-aware, 24 hours in all; the PPK2 of task 9
-     unwired first, the board powered by its USB again;
-   - RP2350, probe3's Pico 2: hard, soft, 16 hours; the board CI skips the Pico 2 while
-     a run holds `lock-probe3`, as it skipped probe2's Pico (`board_ci.md`);
-   - STM32U5, the NUCLEO-U575ZI-Q: hard, soft, 16 hours;
-   - STM32U3, the NUCLEO-U385RG-Q: hard, soft, power-aware, 24 hours in all.
-   The runs before the candidate are cited beside, not in their place: the hard kernel's
-   week on the Pico at 041af76, the power-aware kernel's 4 d 18 h 47 min at 80cc6dc
-   (stopped on 2026-10-10 for task 9's PPK2, no restart, no error, 384 wraps), the soft
-   kernel's day on each NUCLEO board (tasks 2 and 3). A fix to a kernel makes an `rc2`
-   and starts that kernel's runs again on every platform. Begun on 2026-10-11 at 14:27
-   UTC, the ten images built from the tag, `tools/endurance.sh` on each platform. The two
-   NUCLEO boards took over the image they were running instead of the tag's, `soak.py`
-   loading a NUCLEO only if it is silent; stopped two minutes in, both started again at
-   14:29 with `BOARD_SOAK_RELOAD`, which `endurance.sh` sets since (a fix to the tools
-   alone, its commit held back so as not to start the board CI meanwhile). All ten
-   passed, each status `endurance/<platform>-<kernel>` posted on c0ff963 in success: 8
-   hours, no error, no restart, 26 wraps of the kernel clock, no reading REJECTED; the hard
-   kernels ended on 2026-10-11 near 22:30 UTC, the Pico 2's and the STM32U5's soft
-   kernels on 2026-10-12 near 06:30, the Pico's and the STM32U3's power-aware kernels at
-   14:30. The logs stay on the UNO Q, in `~/endurance-rc1/images`. `escapement-soak-u3`
-   started again after, the commits held back pushed.
-14b. **What the STM32U3's power-aware kernel saves — item 7, brought into 0.1 — done on
-   2026-10-12.** Added by
-   the user on 2026-10-11, during the runs of task 14. Measured on the candidate's own
-   images, so that the verdict is on the code released: `SleepU3`, built from the tag
-   with `FLASH=1 PHASES=30`, under the hard kernel racing to Stop 2 against the
-   power-aware kernel under each policy (`KERNEL=PA`, `POWER=` OTE, DRA, DR_OTE,
-   DM_SLACK), as on the RP2040 (`power-aware.md`, "Measuring the RP2040"); five images.
-   `TaskLEDU3` was set aside: it drives LD2 on D13, whose current the PPK2 in place of
-   JP4 would count. After the U3's runs end, the board
-   free; the PPK2 in place of JP4 by the user's hands. The verdict written in
-   `power-aware.md` and `stm32u3.md`, and in the release's notes. A fault it finds in
-   the code makes an `rc2`, and the U3's runs start again. Measured from 15:24 to 15:51
-   UTC, then again from 15:56 to 16:23, 300 s an image (`tools/pa_u3.py`): 3.3 to 4.0 %
-   less charge than the hard kernel with the idle task in Stop 2, 6.6 to 6.8 % less in
-   Sleep, the two runs within 0.15 % of each other, DRA some 2 µA above the other
-   policies in both, no fault in any image; no `rc2` (`stm32u3.md`, "The power-aware
-   kernel").
-   Each image was written through the PPK2, CN1 left in, then powered down 6 s; the
-   ST-LINK's virtual COM port hands over what it held while no one read it, which the
-   tool drops.
-15. **The release — done on 2026-10-12.** Its notes, from `git log` since the fork and from this page; the tag
-   `v0.1.0`; a GitHub release. Then, as the user decided on 2026-10-11, `main` takes
-   changes through pull requests only: a rule of GitHub on it, a pull request required
-   with the CI's `build` passed, a linear history, neither a force push nor a deletion,
-   and no push straight to it, the user's included, unless the rule is turned off on
-   purpose; the rule written in `CLAUDE.md`, "Rules that do not change". The board
-   checks still run once a change is merged: `tools/board_ci.sh` builds `main` alone, and
-   a pull request runs nothing on the bench (its header). Pull requests let work go on
-   while an endurance run holds `main` still, as the eight commits waiting through task
-   14's runs did not. The tag `v0.1.0` on 8f3f794, its CI and its four board checks
-   passed, the code the candidate's runs and measures were made on but for the number of
-   the release in `Escapement.h` (`ESCAPEMENT_RELEASE`, its 31 board images byte for byte
-   those before), and the release published the same day. The rule on `main`, a ruleset
-   of GitHub, requires the job `build` the workflow gained for it, which passes only if
-   every other job did.
+9. **The energy verdict on the RP2040 — done on 2026-10-10.** Added by the user on
+   2026-10-10, who had put it off until after this release on 2026-10-07. It is item 1
+   below, on its bench: a plain Pico powered and measured by the PPK2. The task: whether
+   DVFS beats racing to sleep, and what the same bench settles with it. That is the idle
+   task at 12 or 125 MHz, DRA, DR_OTE and DM_SLACK against OTE, the regulator's
+   settling, and the core undervolted. The verdict written where `README.md`,
+   `power-aware.md` and `rp2040.md` list it as open. It needed the user at the bench: a
+   plain Pico, probe2's, whose endurance run the user stopped on 2026-10-10 for it, and
+   the PPK2 wired to it.
 
-**Not in 0.1**, open after it: DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
-the PPK2 as a check of each commit on the STM32U5 (item 4); how
-often a wake-up byte of LPUART1 comes out wrong (item 6); testing a dropped optional
-instance again; an exhaustive enumeration of small task sets and fuzzing; a test of
-optional instances by processor demand that counts its own cost, bounded and measured on
-each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`).
+   Prepared on 2026-10-10: `SleepPico` (`rp2040.md`, "For the PPK2: SleepPico") was
+   checked on probe1's Pico W without the PPK2. That covered its phases, its operating
+   points and the lock of PLL_SYS, 55 µs. Measured the same day on probe2's Pico
+   (`power-aware.md`, "Measuring the RP2040"):
+
+   - a cycle costs least at 125 MHz;
+   - DVFS saves up to some 5 % with the idle task in WFI, nothing in SLEEP;
+   - the sleep is the lever, 73 %, and a SLEEP with PLL_SYS stopped would save more:
+     task 10.
+10. **The RP2040's idle task in SLEEP with PLL_SYS stopped — done on 2026-10-10.** Added
+    by the user on 2026-10-10, from task 9's verdict: 1.22 mA against 5.07 in SLEEP with
+    PLL_SYS running. The task, as the RP2350's idle task does it
+    (`Escapement_SleepGate.c` there):
+
+    - PLL_SYS stopped for each sleep long enough;
+    - the sleep ended early by an alarm of its own, so that the lock, some 55 µs, is
+      over by the kernel's next alarm;
+    - clk_sys's auxiliary source moved off PLL_SYS first, without which the chip faulted
+      waking from SLEEP (`rp2040.md`, "For the PPK2: SleepPico");
+    - under the power-aware kernel too, at whichever operating point.
+
+    Checked on the board: the timer events and the deadlines on time, and the current
+    with the PPK2. Done on probe2's Pico (`rp2040.md`, "SLEEP with PLL_SYS stopped").
+    The timer events' figures are unchanged under the hard and power-aware kernels,
+    every event 0 µs late. `TaskLEDPico` draws 2.18 mA against 5.49 with PLL_SYS running
+    (−60 %), and 2.22 and 2.41 under OTE and DR_OTE. Alarm 3 is now kept out of the
+    timer events once the sleep uses it. The same holds on the RP2350, whose port lacked
+    the guard.
+11. **DVFS on the STM32U3: measured, then the power-aware kernel if it pays.** Added by
+    the user on 2026-10-10. First the measure (`stm32u3.md`, "Measuring DVFS"):
+    `DVFSU3Flash` (0b17ba9) on the NUCLEO-U385RG-Q, the PPK2 in place of JP4, after the
+    pins of task 3. DVFS pays if a CRC at 48 MHz in range 2 costs less charge than at
+    96 MHz in range 1, by more than the Stop 2 that the time saved at 96 MHz would
+    sleep. The verdict is written in `power-aware.md` either way.
+
+    If it pays, the power-aware kernel is added to the port:
+
+    - `OSSetProcessorSpeed` on the sequences `DVFSU3.c` checks;
+    - TIM2 and TIM4 rescaled at each change, so that the kernel's time does not slip
+      (plan §5.3);
+    - USART1 on HSI16, so that its rate does not follow the clock;
+    - the wake-up from Stop 2 at the point in effect;
+    - the Renode platform and the board check with it, and the kernel's run of task 14
+      on the board.
+
+    If it does not, the port stays hard and soft. It needed the user at the bench for
+    the PPK2.
+
+    Measured on 2026-10-10 (`stm32u3.md`, "Measuring DVFS"). On the SMPS, a CRC costs
+    14.2 % less at 48 MHz in range 2 than at 96 MHz in range 1. That is far more than
+    the Stop 2 given up: DVFS pays.
+
+    **Done on 2026-10-11** (`stm32u3.md`, "The power-aware kernel"; the verdict in
+    `power-aware.md`). There are two operating points, 48 MHz in range 2 and 96 in
+    range 1. The speeds of 24 and 12 MHz cost more a cycle than 48. The plan had TIM2
+    and TIM4 rescaled. Instead, they count the MSIK, 12 MHz whatever the core runs at:
+    rewriting a prescaler loses the fraction of a microsecond under way at each change.
+    On the board, `BenchDVFSU3` lost no microsecond over 5.8 million changes in a
+    minute. A raise took 15.2 µs, a fall 4.3. The board check on the power-aware images
+    passed by hand. `board/u3` checks them at each commit from this one on, before the
+    hard kernel's. Renode runs the whole suite on a `KERNEL=PA` build. The kernel's run
+    of task 14 was to come with the others.
+12. **A review of the whole, code and documentation.** Added by the user on 2026-10-10,
+    before the freeze, so that what it found would be fixed before the candidate and its
+    runs. The review was made by agents on Claude Fable 5.1. Each was given one part,
+    and none the conclusions of another:
+
+    - the three kernels;
+    - the RP2040 and RP2350 ports;
+    - the STM32U5 and STM32U3 ports;
+    - the flash images and their tools (second stages, linker scripts, `pico_flash.sh`,
+      `nucleo_flash.sh`, `unoq_check.sh`);
+    - the documentation against the code: each claim of `README.md` and of the pages it
+      links to, against the code and the measurement it rests on.
+
+    First came what no audit had read: the STM32U3 port, the flash images, the RP2040's
+    sleep with PLL_SYS stopped, and the kernels' changes since the review of 2026-09-30
+    (`method.md`, "Audits, and what they leave unproved"). Each finding was checked
+    against the code before it counted. It was then fixed, judged not a fault, with its
+    reason, or left open in the notes. What the review found, and how it was checked, is
+    recorded in `method.md`.
+
+    **Done on 2026-10-11** (`method.md`, "The review before release 0.1"): five agents
+    at fef9d5e, each finding read against the code or the data.
+
+    - The documentation had nineteen things out of date, all corrected.
+    - The ports and tools had, among smaller ones: a timer written while still in reset
+      by the RP2040's and RP2350's sleep; a power-aware check of the STM32U3 that left
+      the board's long run reading it; and Makefiles that linked one kernel's objects
+      into another's images.
+    - The kernels had an overflow of the power-aware kernel's times after two wraps
+      idle, reproduced by `TestLongIdle` and fixed.
+
+    Each finding was fixed, or left open with its reason.
+12b. **The entry pages made plain and inviting.** Added by the user on 2026-10-11, after
+     the review. The task: `README.md` and the pages a visitor reads first
+     (`architecture.md`, `build.md`, `api.md`) in short sentences, one idea each and the
+     conclusion first, the detail left to the technical pages. The README's opening and
+     its figures laid out to catch the eye, with simple diagrams where they help. No
+     fact added, removed or changed: each figure and date checked unchanged against the
+     diff.
+
+    **Done on 2026-10-11.** The README opens on three points and the Pico's DVFS figure.
+    A diagram shows what each push goes through, and the energy measured on each chip is
+    a table. `architecture.md` opens its targets with a table too. The numbers of the
+    README are the same before and after.
+13. **The freeze.** A tag `v0.1.0-rc1` on a commit whose CI and board checks pass. The
+    tools that task 14 needs went in first, as the user agreed on 2026-10-11, so that
+    the candidate carries what tests it. `tools/soak.py` runs a Pico from its flash and
+    drives a Pico 2 (`pico2`), each checked on its board for 3 minutes.
+    `tools/endurance.sh` runs one platform's kernels in turn, each under a status of its
+    own.
+
+    **Done on 2026-10-11**: `v0.1.0-rc1` on c0ff963, its CI and its four board checks
+    passed. From it on, fixes only. Until the runs of task 14 had run every kernel
+    again, `EscapementHard.c` was to stay as it was at 041af76, the commit of its
+    week-long run.
+14. **Endurance on the candidate — done on 2026-10-12.** 8 hours for each kernel on each
+    platform, as the user decided on 2026-10-10. It was a week until then, cut to 24
+    hours, then to this (rule 3 of `CLAUDE.md`, "Before a release"). Ten runs, one board
+    a platform: in turn on each board, and in parallel across them, from flash once task
+    4 was done. The soft kernel ran the (m,k)-firm variant of task 2 (`SoakFirm*`), the
+    others `Soak*`:
+
+    - RP2040, probe2's Pico: hard, soft, power-aware, 24 hours in all. The PPK2 of task
+      9 was unwired first, and the board powered by its USB again.
+    - RP2350, probe3's Pico 2: hard, soft, 16 hours. The board CI skips the Pico 2 while
+      a run holds `lock-probe3`, as it skipped probe2's Pico (`board_ci.md`).
+    - STM32U5, the NUCLEO-U575ZI-Q: hard, soft, 16 hours.
+    - STM32U3, the NUCLEO-U385RG-Q: hard, soft, power-aware, 24 hours in all.
+
+    The runs before the candidate are cited beside, not in their place:
+
+    - the hard kernel's week on the Pico, at 041af76;
+    - the power-aware kernel's 4 d 18 h 47 min at 80cc6dc, stopped on 2026-10-10 for
+      task 9's PPK2: no restart, no error, 384 wraps;
+    - the soft kernel's day on each NUCLEO board (tasks 2 and 3).
+
+    A fix to a kernel was to make an `rc2`, and start that kernel's runs again on every
+    platform.
+
+    Begun on 2026-10-11 at 14:27 UTC: the ten images built from the tag,
+    `tools/endurance.sh` on each platform. The two NUCLEO boards kept running the image
+    they had instead of the tag's: `soak.py` loads a NUCLEO only if it is silent.
+    Stopped two minutes in, both started again at 14:29 with `BOARD_SOAK_RELOAD`, which
+    `endurance.sh` sets since. That was a fix to the tools alone, its commit held back
+    so as not to start the board CI meanwhile.
+
+    All ten passed, each status `endurance/<platform>-<kernel>` posted on c0ff963 in
+    success. Each ran 8 hours. None had an error, a restart or a reading REJECTED. Each
+    counted 26 wraps of the kernel clock. The hard kernels ended on 2026-10-11 near
+    22:30 UTC. The Pico 2's and the STM32U5's soft kernels ended on 2026-10-12 near
+    06:30, and the Pico's and the STM32U3's power-aware kernels at 14:30. The logs stay
+    on the UNO Q, in `~/endurance-rc1/images`. `escapement-soak-u3` started again after,
+    and the commits held back were pushed.
+14b. **What the STM32U3's power-aware kernel saves — item 7, brought into 0.1 — done on
+     2026-10-12.** Added by the user on 2026-10-11, during the runs of task 14. It was
+     measured on the candidate's own images, so that the verdict is on the code
+     released. `SleepU3` was built from the tag with `FLASH=1 PHASES=30`. It ran under
+     the hard kernel racing to Stop 2, against the power-aware kernel under each policy
+     (`KERNEL=PA`, `POWER=` OTE, DRA, DR_OTE, DM_SLACK), as on the RP2040
+     (`power-aware.md`, "Measuring the RP2040"): five images. `TaskLEDU3` was set aside:
+     it drives LD2 on D13, whose current the PPK2 in place of JP4 would count. The
+     measure was to come after the U3's runs ended, the board free, the PPK2 put in
+     place of JP4 by the user. The verdict written in `power-aware.md` and `stm32u3.md`,
+     and in the release's notes. A fault the measure found in the code would make an
+     `rc2`, and start the U3's runs again.
+
+    Measured from 15:24 to 15:51 UTC, then again from 15:56 to 16:23, 300 s an image
+    (`tools/pa_u3.py`):
+
+    - 3.3 to 4.0 % less charge than the hard kernel with the idle task in Stop 2;
+    - 6.6 to 6.8 % less in Sleep;
+    - the two runs within 0.15 % of each other;
+    - DRA some 2 µA above the other policies in both;
+    - no fault in any image, and no `rc2` (`stm32u3.md`, "The power-aware kernel").
+
+    Each image was written through the PPK2, CN1 left in, then powered down 6 s. The
+    ST-LINK's virtual COM port hands over what it held while no one read it, which the
+    tool drops.
+15. **The release — done on 2026-10-12.** Its notes, from `git log` since the fork and
+    from this page; the tag `v0.1.0`; a GitHub release. Then, as the user decided on
+    2026-10-11, `main` takes changes through pull requests only. A GitHub branch
+    protection rule on it requires a pull request with the CI's `build` passed, and a
+    linear history. It allows neither a force push nor a deletion on `main`, and no push
+    straight to it, the user's included, unless the rule is turned off on purpose. The
+    rule is written in `CLAUDE.md`, "Rules that do not change". The board checks still
+    ran once a change was merged: `tools/board_ci.sh` built `main` alone, and a pull
+    request ran nothing on the bench (its header). Pull requests let work go on while an
+    endurance run holds `main` still, as the eight commits waiting through task 14's
+    runs did not.
+
+    The tag `v0.1.0` is on 8f3f794. Its CI and its four board checks passed. Its code is
+    the one the candidate's runs and measures were made on, but for the number of the
+    release in `Escapement.h` (`ESCAPEMENT_RELEASE`). Its 31 board images are byte for
+    byte those before. The release was published the same day. The rule on `main`, a
+    GitHub ruleset, requires the job `build` that the workflow gained for it, which
+    passes only if every other job did.
+
+**Not in 0.1**, open after it:
+
+- DORMANT on the RP2350 with the external 32.768 kHz oscillator (item 5, step 3);
+- the PPK2 as a check of each commit on the STM32U5 (item 4);
+- how often a wake-up byte of LPUART1 comes out wrong (item 6);
+- testing a dropped optional instance again;
+- an exhaustive enumeration of small task sets, and fuzzing;
+- a test of optional instances by processor demand that counts its own cost, bounded and
+  measured on each target, and costs less (`DemandFits`, taken out on 2026-10-07,
+  `method.md`).
 
 ## Open work
 
