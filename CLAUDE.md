@@ -39,23 +39,34 @@ Set by the user; no session reopens them.
   release branch as one to `main`. The first pull request
   to `release/0.1` brings the job `build` its workflow lacks (added after `v0.1.0`), the
   one check the rule requires.
-- **The open work lives in the issues; a pull request holds one subject** (decided by the
-  user on 2026-10-12). Each open task, idea or question is an issue, labelled (`kernel`,
-  `bench`, `drivers`, `energy`, `tools`, `ci`, `idea`, `showcase`) and ordered on the
-  project board "Escapement" (field Order); `docs/roadmap.md` keeps the direction and what
-  is done, each item done written there by the pull request that does the work. A change
-  of the documentation alone opens no pull request: it waits on a branch for the next
-  one of real work. A commit outside the subject of a pull request goes to a pull request
-  of its own, merged first if the other builds on it. A pull request is opened, and
-  merged, only once the user agrees. Before asking to merge: reviews again and again,
-  each reading the whole diff and above all what changed since the last, until one finds
-  nothing; the mutants of the kernel lines changed (`tools/mutants.py --only`), each
-  survivor killed by a test or declared equivalent with its reason; for each fault
-  found, a test seen to fail on it first, then the fix, then every check again, and why
-  the tests had let it pass written down; the history cleaned, each commit one change
-  that passes the tests alone, the fixes of the reviews folded into the commits they
-  fix, the final tree checked identical. `main` and `release/*` merge by rebase only,
-  and a branch merged is deleted.
+- **The open work lives in the issues; a pull request holds one subject** (decided by
+  the user on 2026-10-12). Each open task, idea or question is an issue, labelled
+  (`kernel`, `bench`, `drivers`, `energy`, `tools`, `ci`, `idea`, `showcase`) and
+  ordered on the project board "Escapement" (field Order); `docs/roadmap.md` keeps the
+  direction and what is done, each item done written there by the pull request that does
+  the work. An update of `docs/roadmap.md` alone opens no pull request: it waits on a
+  branch for the next one of real work. Any other change of the documentation may have a
+  pull request of its own (corrected by the user on 2026-10-28). A commit outside the
+  subject of a pull request goes to a pull request of its own, merged first if the other
+  builds on it. A pull request is opened, and merged, only once the user agrees. Before
+  asking to merge: reviews again and again, each reading the whole diff and above all
+  what changed since the last, until one finds nothing; the mutants of the kernel lines
+  changed (`tools/mutants.py --only`), each survivor killed by a test or declared
+  equivalent with its reason; for each fault found, a test seen to fail on it first,
+  then the fix, then every check again, and why the tests had let it pass written down;
+  the history cleaned, each commit one change that passes the tests alone, the fixes of
+  the reviews folded into the commits they fix, the final tree checked identical. `main`
+  and `release/*` merge by rebase only, and a branch merged is deleted.
+- **A pull request of documentation alone takes a lighter review** (decided by the user
+  on 2026-10-27). It changes only Markdown files (`.md`), wherever they are. One full
+  review reads the whole diff: the meaning kept, each fact against the code, the plain
+  style. Its findings are fixed. One more review reads those fixes alone. What it finds
+  is fixed, and the reviews stop there. This replaces the reviews until one finds
+  nothing. The rest still holds: the before and after shown to the user before the
+  change, the encoding, lines of 88 columns at most, no number or name lost,
+  `tools/host_figures.py --check` when the README changes, the history cleaned and the
+  final tree checked identical, the board checks, and the user's agreement to open and
+  to merge.
 
 ## Commands
 
