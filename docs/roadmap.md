@@ -38,160 +38,208 @@ ran some minutes on it without an error, hard and soft (`stm32u3.md`, "On the bo
 
 Written on 2026-10-07 from every note of the project, after the user set the rules of
 `CLAUDE.md`: one task at a time, carried to its end; a release when it is coherent, with
-no date. Coherent means that each claim the release makes is checked on the code it
-ships, and that each endurance run and measurement it cites was made on that code.
+no date. Coherent means two things. Each claim the release makes is checked on the code
+it ships. Each endurance run and measurement it cites was made on that code.
 
 **Scope.** The hard, soft and power-aware kernels, each under EDF and DM, on the boards
-that check every commit: the RP2040 (all three kernels), the RP2350, the STM32U5 and,
-since the user added it on 2026-10-09, the STM32U3 (all three kernels, the power-aware
-one since task 11 found DVFS worth it there). The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
+that check every commit:
+
+- the RP2040, with all three kernels;
+- the RP2350;
+- the STM32U5;
+- the STM32U3, added by the user on 2026-10-09, with all three kernels. The power-aware
+  one came in once task 11 found DVFS worth it there.
+
+The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
 
 **Tasks, in order, each finished before the next begins.** Since 2026-10-09, a task left
-with nothing but a wait (an endurance run, the CI, the user's hands) may be set aside for
-the next, two at most, as `CLAUDE.md` has it; task 2 waited so and task 3 does, and
-task 4 began the same day.
+with nothing but a wait may be set aside for the next, two at most, as `CLAUDE.md` has
+it. The wait may be an endurance run, the CI or the user's hands. Task 2 waited so, and
+task 3 does. Task 4 began the same day.
 
 1. **What the soft kernel's test of an optional instance costs on the Pico — done on
    2026-10-07** (`method.md`, after "It went into the kernel"). `DemandFits` took up to
-   420 µs and the board missed deadlines; the kernel went back to the count, as the user
-   decided, which took 13.8 µs in the mean and 31.0 at most over 20,000 tests and kept
-   every deadline (`make KERNEL=SOFT bench-admission`, `tools/admission_cost.py`).
+   420 µs, and the board missed deadlines. The kernel went back to the count, as the
+   user decided. The count took 13.8 µs in the mean and 31.0 at most over 20,000 tests,
+   and kept every deadline (`make KERNEL=SOFT bench-admission`,
+   `tools/admission_cost.py`).
 2. **An endurance run that exercises the soft kernel's optional instances — done on
-   2026-10-10.** `SoakPico`
-   and `SoakU5`, built with `KERNEL=SOFT`, give every task m = k = 1: no optional
-   instance, no test of one, ever runs. A variant with (m,k)-firm tasks under a load that
-   forces drops, checking that no mandatory instance misses its deadline.
+   2026-10-10.** `SoakPico` and `SoakU5`, built with `KERNEL=SOFT`, give every task m =
+   k = 1. No optional instance runs, and no test of one. The task: a variant with
+   (m,k)-firm tasks, under a load that forces drops, checking that no mandatory instance
+   misses its deadline.
+
    Written on 2026-10-08: each port's soft build adds `SoakFirm` to its endurance test
-   (`SoakFirmPico`, `SoakFirmPico2`, `SoakFirmU5`, `SoakFirmU3`, `SoakU5.c`), a
-   (2,5)-firm task of 5 ms working 1.5 ms of each, whose optional instances the kernel's
-   test refuses whenever the long task, which declares 7 ms of its 10, arrives before
-   their deadline. Each instance checks from the clock the instances dropped before it:
-   a mandatory one among them, a number other than `OSGetTaskInstance`'s, or an end past
-   the deadline is an error. Under Renode, EDF and DM, 3.5 s of `SoakFirmU5` ran 280
-   mandatory instances, some 200 optional and dropped some 215, without error; a kernel
-   given m = 3 where the task counts 2 made 4 errors. `make -C .../nucleo-u575
-   KERNEL=SOFT` builds it for the NUCLEO-U575ZI-Q, `tools/soak.py` reads its counts.
-   On the board from 2026-10-08 05:28 UTC, at 98d8051: after 23 h 46 min, 6.85 million
-   mandatory instances, 6.34 million optional ones run and 3.93 million dropped, every
-   count of the kernel at 0, the latest end 4,016 µs into the 5 ms, the link lost a
-   byte. The fault was the UART driver's, from the STM32U5 port on: `stm32u5.md`, "The
-   endurance test". On the fix, d9bad06, from 2026-10-09 05:53 UTC: at 16:55 the
-   reader took one report with some 20 bytes missing from its middle for one of an
-   older image, its numbers shifted, 67,879,873 errors for one line; the board's counts,
-   kept from the start of the run, were at 0 the minute after. The bytes were lost by
-   `tools/soak.py`, which read the port once a minute, 18 kB of reports against Linux's
-   4 kB; it now drains the port as they come and takes only the image's own length
-   (9597205, d1a6c86), and the run went on under it from 19:51 UTC, taken over without a
-   load, the link's count at 0 errors. At 24 h, 2026-10-10 05:53 UTC: 6.91 million
-   mandatory instances, 6.40 million optional ones run and 3.98 million dropped, every
-   count of the board at 0, the latest end 4,016 µs into the 5 ms, the link 0 errors and
-   0 overruns, no line rejected by the reader since 19:51. The `errors` total of
-   `tools/soak.py` for this run still holds the 67,879,873 of the line misread.
-3. **The STM32U3 on its board — done on 2026-10-10, but for D0, D1 and JP4.** Added by the user on 2026-10-09, the day the
-   NUCLEO-U385RG-Q came: `SoakU3` ran 329 s and `SoakFirmU3` 182 s without an error
-   (`stm32u3.md`, "On the board"), `SleepU3` 60 s through Stop 2 within every bound of
-   `tools/unoq_sleep.py`. Written the same day (2e7f0b6): the board check of each
-   commit, `board/u3`, as `board/u5`, passed by hand, its images built by the CI, its
-   long run the service `escapement-soak-u3`; the points of "What only the board can
-   decide" that it answered (`stm32u3.md`, "On the board"). Left: 24 h of `SoakFirmU3`
-   without an error, then `BOARD_CI_U3=1` on the bench; the
-   pins D0, D1, D7, D8, D12 and D13 and the current on JP4, which need the user's hands;
-   the LSE's start, R1RDY and BOOSTRDY timed, or said open. The run from 07:14 UTC
-   was stopped at 12 h 32 min: taken over by the reader of 9597205, it took the link's
-   count from a report left a minute in the buffers, behind the board's, and the board
-   counted an error of the link (task 2 says why). Loaded again under d1a6c86 at 19:51
-   UTC; its 24 h end on 2026-10-10 at 19:51 UTC. Done then: 24 h 2 min, 80 wraps, every
-   count of the board at 0, 6.92 million mandatory instances, 6.53 million optional ones
-   run and 3.85 million dropped, the latest end 4,029 µs into the 5 ms, the pulse at
-   most 92 µs late, the link 55.3 MB with no error and no overrun, no line rejected by
-   the reader, the MSI locked again 3 times (`stm32u3.md`, "On the board"). The same
-   evening `ClockU3` timed the set-up and the PPK2's logic inputs found D7, D8, D12 and
-   D13 on their pins. Left to the user's hands: D0 and D1, LPUART1, which need the FTDI
-   cable, and the current on JP4, with task 11's measure. `BOARD_CI_U3=1` with task 4.
-4. **The examples from flash, on every board that allows it — done on 2026-10-10.** They run from SRAM today,
-   loaded over SWD. From flash, on the Pico, the Pico 2 and the NUCLEO-U575ZI-Q
-   (`SleepU5Flash` already does there) and the NUCLEO-U385RG-Q, with what flash brings in: the RP2040's and
-   RP2350's execute-in-place cache, the STM32's wait states as the clock changes, DVFS
-   with code read through XIP. Not on the UNO Q's STM32U585, whose flash holds Arduino's
-   firmware, which stays. The STM32U5's flash takes some 10,000 erasures: a board check
-   may not program it at each commit; how often it may is part of the task.
-   Begun on 2026-10-09 with the Pico 2, the one board free of an endurance run:
-   `make FLASH=1`, built by the CI, and `tools/pico2_flash.sh`; from its flash, the
-   examples that count in memory and those of the UART pass, but for the overlapping
+   (`SoakFirmPico`, `SoakFirmPico2`, `SoakFirmU5`, `SoakFirmU3`, `SoakU5.c`). It is a
+   (2,5)-firm task of 5 ms, working 1.5 ms of each. A long task declares 7 ms of its 10.
+   The kernel's test refuses the optional instances whenever the long task arrives
+   before their deadline. Each instance checks from the clock the instances dropped
+   before it. It counts an error for a mandatory one among them, a number other than
+   `OSGetTaskInstance`'s, or an end past the deadline. Under Renode, EDF and DM, 3.5 s
+   of `SoakFirmU5` ran 280 mandatory instances and some 200 optional ones, and dropped
+   some 215, without error. A kernel given m = 3 where the task counts 2 made 4 errors.
+   `make -C .../nucleo-u575 KERNEL=SOFT` builds it for the NUCLEO-U575ZI-Q, and
+   `tools/soak.py` reads its counts.
+
+   On the board from 2026-10-08 05:28 UTC, at 98d8051. After 23 h 46 min: 6.85 million
+   mandatory instances, 6.34 million optional ones run and 3.93 million dropped. Every
+   count of the kernel was at 0, and the latest end 4,016 µs into the 5 ms. The link
+   lost a byte. The fault was the UART driver's, from the STM32U5 port on (`stm32u5.md`,
+   "The endurance test").
+
+   On the fix, d9bad06, from 2026-10-09 05:53 UTC. At 16:55, the reader took one report
+   with some 20 bytes missing from its middle for one of an older image. Its numbers
+   were shifted: 67,879,873 errors for one line. The board's counts, kept from the start
+   of the run, were at 0 the minute after. The bytes were lost by `tools/soak.py`. It
+   read the port once a minute: 18 kB of reports, against Linux's 4 kB. It now drains
+   the port as they come, and takes only the image's own length (9597205, d1a6c86). The
+   run went on under it from 19:51 UTC, taken over without a load, the link's count at 0
+   errors.
+
+   At 24 h, 2026-10-10 05:53 UTC: 6.91 million mandatory instances, 6.40 million
+   optional ones run and 3.98 million dropped. Every count of the board was at 0, and
+   the latest end 4,016 µs into the 5 ms. The link had 0 errors and 0 overruns. The
+   reader had rejected no line since 19:51. The `errors` total of `tools/soak.py` for
+   this run still holds the 67,879,873 of the line misread.
+3. **The STM32U3 on its board — done on 2026-10-10, but for D0, D1 and JP4.** Added by
+   the user on 2026-10-09, the day the NUCLEO-U385RG-Q came. `SoakU3` ran 329 s and
+   `SoakFirmU3` 182 s without an error (`stm32u3.md`, "On the board"). `SleepU3` ran
+   60 s through Stop 2, within every bound of `tools/unoq_sleep.py`.
+
+   Written the same day (2e7f0b6): the board check of each commit, `board/u3`, as
+   `board/u5`. It passed by hand. Its images are built by the CI, and its long run is
+   the service `escapement-soak-u3`. The points of "What only the board can decide" that
+   it answered are in `stm32u3.md`, "On the board". Left then:
+
+   - 24 h of `SoakFirmU3` without an error, then `BOARD_CI_U3=1` on the bench;
+   - the pins D0, D1, D7, D8, D12 and D13, and the current on JP4, which need the user's
+     hands;
+   - the LSE's start, R1RDY and BOOSTRDY timed, or said open.
+
+   The run from 07:14 UTC was stopped at 12 h 32 min. The reader of 9597205 had taken it
+   over. It took the link's count from a report left a minute in the buffers, behind the
+   board's, and the board counted an error of the link (task 2 says why). The run was
+   loaded again under d1a6c86 at 19:51 UTC, its 24 h to end on 2026-10-10 at 19:51 UTC.
+
+   Done then: 24 h 2 min and 80 wraps. Every count of the board was at 0. The run had
+   6.92 million mandatory instances, 6.53 million optional ones run and 3.85 million
+   dropped. The latest end was 4,029 µs into the 5 ms, and the pulse at most 92 µs late.
+   The link carried 55.3 MB with no error and no overrun, and the reader rejected no
+   line. The MSI locked again 3 times (`stm32u3.md`, "On the board"). The same evening,
+   `ClockU3` timed the set-up, and the PPK2's logic inputs found D7, D8, D12 and D13 on
+   their pins. Left to the user's hands: D0 and D1, LPUART1, which need the FTDI cable,
+   and the current on JP4, with task 11's measure. `BOARD_CI_U3=1` went with task 4.
+4. **The examples from flash, on every board that allows it — done on 2026-10-10.** They
+   ran from SRAM, loaded over SWD. The task: run them from flash on the Pico, the Pico
+   2, the NUCLEO-U575ZI-Q (`SleepU5Flash` already does there) and the NUCLEO-U385RG-Q.
+   The task also covers what flash brings in: the RP2040's and RP2350's execute-in-place
+   cache, the STM32's wait states as the clock changes, DVFS with code read through XIP.
+   Not on the UNO Q's STM32U585: its flash holds Arduino's firmware, which stays. The
+   STM32U5's flash takes some 10,000 erasures. A board check may not program it at each
+   commit, and how often it may is part of the task.
+
+   Begun on 2026-10-09 with the Pico 2, the one board free of an endurance run: `make
+   FLASH=1`, built by the CI, and `tools/pico2_flash.sh`. From its flash, the examples
+   that count in memory and those of the UART pass. The exception is the overlapping
    outcome of LB, which `LitmusPico2` meets from SRAM only (`rp2040.md`, "From the
-   flash"): that criterion kept from SRAM, as the user decided on 2026-10-09. The Pico the same day (`rp2040.md`, "The Pico from its
-   flash"): a second stage of our own, `tools/pico_flash.sh`; the timer events and DVFS
-   on one core pass from the flash, the plain array of `FourSlotCoresPico` never tears
-   there (its criterion kept from SRAM, as the user decided), and under the power-aware
-   kernel the first rounds, the XIP cache cold, took hundreds of microseconds and the
-   reader overran its first period: the kernel and the port now run from SRAM in a
-   flash image of the RP2040 and the RP2350, as the user decided the same day. The
-   two NUCLEO boards take `make FLASH=1` too, not yet run: their boards hold endurance
-   runs. How often their flash may be written, set on 2026-10-09: 10,000 erasures a page
-   on both (RM0456 rev. 7, 7.3.8; RM0487 rev. 3), and some 21 commits a day since
-   2026-09-19, 63 at most, would wear a flash written at each commit out in about a
-   year. `tools/nucleo_flash.sh` reads the flash against the image first and writes only
-   what differs, counts each writing on the bench, stops at 1,000 in all, a tenth of
-   the endurance, and takes a cap a day, `NUCLEO_FLASH_PER_DAY`: the board CI is to set
-   it to 1, as the user decided on 2026-10-09, its other checks staying in SRAM, some 365
-   writings a year. Its paths checked on 2026-10-09 against a stand-in for OpenOCD, its
-   Tcl in OpenOCD. On the NUCLEO-U575ZI-Q on 2026-10-10, its run of task 2 ended: both
-   paths on the board, a writing and an image found the same; `tools/soak.py` starts an
-   image linked into the flash through it; `SoakFirmU5` and `SoakU5` 10 min each from
-   the flash, every count at 0 (`stm32u5.md`, "The endurance test from the flash"). The
-   board CI, as the user decided on 2026-10-10: no check of each commit on the
-   NUCLEO-U575ZI-Q, as before; on the NUCLEO-U385RG-Q the check stays in SRAM and the
-   long run it carries on goes from the flash, written only when the commit's image
-   differs, once in 24 hours at most (`tools/unoq_check.sh`, `board_ci.md`); its three
-   outcomes, written, held back and failed, checked with stand-ins for the boards. The
-   user lifted both caps the same day, the day's and the 1,000 in all, on every board:
-   each commit that changes the long run's image writes it, each writing still counted.
-   Done on 2026-10-10 once task 3's run ended: `SoakFirmU3` and `SoakU3` 10 min each
-   from the NUCLEO-U385RG-Q's flash, written by `tools/soak.py` through
-   `tools/nucleo_flash.sh`, every count at 0, the link without an error
-   (`stm32u3.md`, "The endurance test from the flash"); its long run since, the service
-   `escapement-soak-u3`, `SoakU3` of c7c8afa from the flash, and `BOARD_CI_U3=1` on the
-   bench, which checks it at each commit.
-5. **Every mutant read — done on 2026-10-10.** Of each kernel's survivors at 300 task sets, each one killed
-   by a test, declared equivalent with its reason (`test/host/equivalent-mutants.jsonl`),
-   or written in `method.md` as a behaviour no test reads and why; the hard kernel's
-   unread ones first (0, 127, 130, 206, 225, 226, 236, 459), then those of the soft and
-   power-aware kernels never read. The scores measured again on the code as it then is.
-   Begun on 2026-10-10, set before tasks 3 and 4 ended as the user allowed: the hard
-   kernel's eight read, six killed, one declared, one written (`method.md`); 87.6 %, 97.0 %
-   of those not declared. The soft kernel's 142 read the same day: 84.0 %, 95.4 % of those
-   not declared. The power-aware kernel's 119 too: 82.6 %, 95.5 % of those not declared.
-   Every survivor killed, declared, caught by `tools/check_order.py` on the ARM builds, or
-   written in `method.md`, "The mutant campaigns, by date".
-6. **The mutants further — done on 2026-10-10.** Added by the user on 2026-10-10, the day task 5 ended, from
-   what its survivors left: `tools/check_order.py` taught the loads and the event FIFO's
-   posting, which the soft and power-aware kernels' barriers order and it does not
-   follow (soft 111, 122, 124, 508, 540, 542, 544; power-aware 631, 633, 635); then
-   scenarios for the narrow ones: the share
-   reserved for events under EDF (soft 199, 203, 204, 206), EDF*'s ties after the
-   wraparound (power-aware 129, 130, 140), a slack pending at the wraparound (143, 144).
-   Task 8 set aside meanwhile, its first part done (6a4f138). Done on 2026-10-10: the
-   loads need no rule, `ScheduleNextTask` running in a context not to be saved, and the
-   FIFO's barriers keep its order on every build, checked from the disassembly; three
-   tests kill six (`method.md`); soft 84.1 %, 96.7 % of those not declared, power-aware
-   83.0 %, 96.4 %.
-7. **The power-aware kernel against its reference under DRA — done on 2026-10-10.** Added by the user on
-   2026-10-10: set 19989 of `pa_dra` (seed 1), found by task 6's search at 20,000 task
-   sets, has a task with one tick of work left resume at 4674 at speed 1 where
-   `tools/speed_reference.py` gives the fastest, no deadline missed. Which of the two is
-   wrong, read in the code and in the ZottaOS manual; corrected with the user's agreement
-   if it is the kernel, and the set kept by `tools/differential.py` once both agree.
-   The reference was wrong: it served a periodic release and a signal of one instant in
-   one pass of the handler, where the host makes two, and lost the server's excess that
-   the first counts; corrected, the set kept (`method.md`).
-8. **The documentation against the code — done on 2026-10-10.** Each claim of `README.md` set again against
-   what checks it (`method.md`, "What the README claims"), on the code as it then is;
-   `api.md` stating that the API is not yet stable; the known limits written where a
-   reader meets them: an optional instance tested once, DM keeping the count, DVFS worth
-   nothing on the STM32U5 and some 10 % on the RP2350, the energy verdict on the RP2040
-   as task 9 finds it. Set again on 2026-10-10 (`method.md`, "What the README claims"):
-   every claim of behaviour holds, the stale rows corrected (6a4f138); the boards checked
-   at each commit become four when task 4 turns on the NUCLEO-U385RG-Q's check, and the
+   flash"). That criterion is kept from SRAM, as the user decided on 2026-10-09.
+
+   The Pico the same day (`rp2040.md`, "The Pico from its flash"): a second stage of our
+   own, `tools/pico_flash.sh`. The timer events and DVFS on one core pass from the
+   flash. The plain array of `FourSlotCoresPico` never tears there, and its criterion is
+   kept from SRAM, as the user decided. Under the power-aware kernel, the first rounds
+   took hundreds of microseconds, the XIP cache cold, and the reader overran its first
+   period. The kernel and the port now run from SRAM in a flash image of the RP2040 and
+   the RP2350, as the user decided the same day.
+
+   The two NUCLEO boards take `make FLASH=1` too. It was not yet run then: their boards
+   held endurance runs. How often their flash may be written was set on 2026-10-09. Both
+   take 10,000 erasures a page (RM0456 rev. 7, 7.3.8; RM0487 rev. 3). Some 21 commits a
+   day since 2026-09-19, 63 at most, would wear out a flash written at each commit in
+   about a year. `tools/nucleo_flash.sh` reads the flash against the image first, and
+   writes only what differs. It counts each writing on the bench, and stops at 1,000 in
+   all, a tenth of the endurance. It also takes a cap a day, `NUCLEO_FLASH_PER_DAY`. The
+   board CI was to set it to 1, as the user decided on 2026-10-09, its other checks
+   staying in SRAM: some 365 writings a year. The script's paths were checked on
+   2026-10-09 against a stand-in for OpenOCD, and its Tcl in OpenOCD.
+
+   On the NUCLEO-U575ZI-Q on 2026-10-10, once its run of task 2 ended: both paths on the
+   board, a writing and an image found the same. `tools/soak.py` starts an image linked
+   into the flash through `tools/nucleo_flash.sh`. `SoakFirmU5` and `SoakU5` ran 10 min
+   each from the flash, every count at 0 (`stm32u5.md`, "The endurance test from the
+   flash").
+
+   The board CI, as the user decided on 2026-10-10:
+
+   - no check of each commit on the NUCLEO-U575ZI-Q, as before;
+   - on the NUCLEO-U385RG-Q, the check stays in SRAM. The long run it carries on goes
+     from the flash, written only when the commit's image differs, once in 24 hours at
+     most (`tools/unoq_check.sh`, `board_ci.md`). Its three outcomes, written, held back
+     and failed, were checked with stand-ins for the boards.
+
+   The user lifted both caps the same day, the day's and the 1,000 in all, on every
+   board. Each commit that changes the long run's image writes it, each writing still
+   counted.
+
+   Done on 2026-10-10, once task 3's run ended: `SoakFirmU3` and `SoakU3` ran 10 min
+   each from the NUCLEO-U385RG-Q's flash, written by `tools/soak.py` through
+   `tools/nucleo_flash.sh`. Every count was at 0, and the link without an error
+   (`stm32u3.md`, "The endurance test from the flash"). Its long run since is the
+   service `escapement-soak-u3`, `SoakU3` of c7c8afa from the flash. `BOARD_CI_U3=1` is
+   on the bench, which checks the board at each commit.
+5. **Every mutant read — done on 2026-10-10.** The task: every survivor of each kernel
+   at 300 task sets killed by a test, declared equivalent with its reason
+   (`test/host/equivalent-mutants.jsonl`), or written in `method.md` as a behaviour no
+   test reads, and why. The hard kernel's unread ones first (0, 127, 130, 206, 225, 226,
+   236, 459), then those of the soft and power-aware kernels never read. The scores
+   measured again on the code as it then is.
+
+   Begun on 2026-10-10, before tasks 3 and 4 ended, as the user allowed:
+
+   - the hard kernel's eight read: six killed, one declared, one written (`method.md`);
+     87.6 %, and 97.0 % of those not declared;
+   - the soft kernel's 142 read the same day: 84.0 %, and 95.4 % of those not declared;
+   - the power-aware kernel's 119 too: 82.6 %, and 95.5 % of those not declared.
+
+   Every survivor is killed, declared, caught by `tools/check_order.py` on the ARM
+   builds, or written in `method.md`, "The mutant campaigns, by date".
+6. **The mutants further — done on 2026-10-10.** Added by the user on 2026-10-10, the
+   day task 5 ended, from what its survivors left. The task: teach
+   `tools/check_order.py` the loads and the event FIFO's posting. The soft and
+   power-aware kernels' barriers order them, and the tool does not follow them (soft
+   111, 122, 124, 508, 540, 542, 544; power-aware 631, 633, 635). Then write scenarios
+   for the narrow ones: the share reserved for events under EDF (soft 199, 203, 204,
+   206), EDF*'s ties after the wraparound (power-aware 129, 130, 140), and a slack
+   pending at the wraparound (143, 144). Task 8 was set aside meanwhile, its first part
+   done (6a4f138).
+
+   Done on 2026-10-10. The loads need no rule, since `ScheduleNextTask` runs in a
+   context not to be saved. The FIFO's barriers keep its order on every build, checked
+   from the disassembly. Three tests kill six (`method.md`). Soft: 84.1 %, and 96.7 % of
+   those not declared. Power-aware: 83.0 %, and 96.4 %.
+7. **The power-aware kernel against its reference under DRA — done on 2026-10-10.**
+   Added by the user on 2026-10-10. Task 6's search at 20,000 task sets found set 19989
+   of `pa_dra` (seed 1). In it, a task with one tick of work left resumes at 4674 at
+   speed 1, where `tools/speed_reference.py` gives the fastest. No deadline is missed.
+   The task: find which of the two is wrong, in the code and in the ZottaOS manual. If
+   it is the kernel, correct it with the user's agreement. Keep the set in
+   `tools/differential.py` once both agree.
+
+   The reference was wrong. It served a periodic release and a signal of one instant in
+   one pass of the handler, where the host makes two. It lost the server's excess that
+   the first pass counts. It is corrected, and the set kept (`method.md`).
+8. **The documentation against the code — done on 2026-10-10.** The task:
+
+   - each claim of `README.md` set again against what checks it (`method.md`, "What the
+     README claims"), on the code as it then is;
+   - `api.md` stating that the API is not yet stable;
+   - the known limits written where a reader meets them: an optional instance tested
+     once, DM keeping the count, DVFS worth nothing on the STM32U5 and some 10 % on the
+     RP2350, and the energy verdict on the RP2040 as task 9 finds it.
+
+   Set again on 2026-10-10 (`method.md`, "What the README claims"). Every claim of
+   behaviour holds, and the stale rows are corrected (6a4f138). The boards checked at
+   each commit become four when task 4 turns on the NUCLEO-U385RG-Q's check. The
    RP2040's verdict is task 9's to write.
 9. **The energy verdict on the RP2040 — done on 2026-10-10.** Added by the user on 2026-10-10, who had left it
    after this release on 2026-10-07: item 1 below, on its bench, a plain Pico powered and
