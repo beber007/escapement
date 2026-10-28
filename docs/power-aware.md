@@ -2,105 +2,114 @@
 
 The power-aware kernel, `EscapementHardPA`, lowers the frequency and the core voltage
 when the execution times the tasks declare leave room before the next deadline. It has
-two drivers, the RP2040's, described below, and since 2026-10-11 the STM32U3's
+two drivers. The RP2040's is described below. The STM32U3's has existed since 2026-10-11
 (`stm32u3.md`, "The power-aware kernel"). The kernel also runs in the host test
-(`test/host`). This page sets out what the datasheets lead one to expect, what the
-bench has measured, and what emulation can and cannot show.
+(`test/host`). This page says what the datasheets lead one to expect, what the bench has
+measured, and what emulation can and cannot show.
 
-**Measured so far.** On the STM32U5, 2026-10-03: a cycle costs least at 160 MHz, and
-racing to Stop 2 beats every slower speed at every load (below). On the RP2350, the
-same day: DVFS saves some 10 % at best within the specification, with the idle task in
-SLEEP and PLL_SYS running, and next to nothing once SLEEP stops PLL_SYS (issues #23
-and #6). On the RP2040, 2026-10-10: up to some 5 % with the idle task in WFI, nothing once
-it sleeps in SLEEP ("Measuring the RP2040", below). On the STM32U3, the same day: a cycle
-costs 14 % less at 48 MHz in range 2 than at 96 in range 1, and its Stop 2 too little for
-racing to make up for it: the one chip here where DVFS beats racing to the deepest
-sleep the kernel uses (below). Its power-aware kernel, 2026-10-12: some 4 % less charge
-than the hard kernel racing to Stop 2, on a task set that computes 0.1 % of its time.
+**Measured so far:**
+
+- STM32U5, 2026-10-03: a cycle costs least at 160 MHz. Racing to Stop 2 beats every
+  slower speed at every load (below).
+- RP2350, the same day: DVFS saves some 10 % at best within the specification, with the
+  idle task in SLEEP and PLL_SYS running. It saves next to nothing once SLEEP stops
+  PLL_SYS (issues #23 and #6).
+- RP2040, 2026-10-10: up to some 5 % with the idle task in WFI, nothing once it sleeps
+  in SLEEP ("Measuring the RP2040", below).
+- STM32U3, the same day: a cycle costs 14 % less at 48 MHz in range 2 than at 96 MHz in
+  range 1. Its Stop 2 saves too little for racing to make up for it. It is the one chip
+  here where DVFS beats racing to the deepest sleep the kernel uses (below). Its
+  power-aware kernel, 2026-10-12: some 4 % less charge than the hard kernel racing to
+  Stop 2, on a task set that computes 0.1 % of its time.
 
 ## Is DVFS worth anything?
 
 **The physics.** For a fixed amount of work of *W* cycles, the dynamic energy is
-`α·C·V²·f · W/f = α·C·V²·W`, which does not depend on the frequency. Lowering *f* alone
+`α·C·V²·f · W/f = α·C·V²·W`. It does not depend on the frequency. Lowering *f* alone
 gains nothing. It even lengthens the active time, and with it the leakage energy. The
 only lever is V², and V can only be lowered by lowering f.
 
-**What the RP2040 offers.** Within its specification the core runs at 1.10 V at 125 MHz
-and at 1.05 V below (see the driver further down). (1.05/1.10)² ≈ 0.91, so some 9 % less
+**What the RP2040 offers.** Within its specification, the core runs at 1.10 V at 125 MHz
+and at 1.05 V below (see the driver further down). (1.05/1.10)² ≈ 0.91: some 9 % less
 dynamic energy per cycle in the core. Undervolted, as the bench may do outside the
 specification, 0.90 V at 12 MHz gives (0.90/1.10)² ≈ 0.67, a third less.
 
 **What tempers this.** Those figures are for the core alone, and computed, not measured.
 The RP2040's core regulator is linear, so the board draws the core's current at the
-supply voltage. That current per cycle falls with V, not V², and the 9 % in the core
-becomes some 5 % at the supply. The V² law also covers switching only. The crystal, the
-PLL kept running, the always-on blocks and the leakage do not scale with it.
+supply voltage. That current per cycle falls with V, not V². The 9 % in the core becomes
+some 5 % at the supply. The V² law also covers switching only. The crystal, the PLL kept
+running, the always-on blocks and the leakage do not scale with it.
 
-**The alternative is race-to-sleep.** Run at full speed, finish, then sleep as deeply as
+**The alternative is race-to-sleep:** run at full speed, finish, then sleep as deeply as
 the chip allows. On the STM32U585 of the UNO Q, Stop 2 with all SRAM kept draws 20.5 µA
-by its datasheet, and 8.2 µA on the STM32U575 with its SMPS (`stm32u5.md`). The RP2040
-has no such mode (see the table below). Since dynamic energy does not depend on f,
-running fast costs nothing extra and shortens the time the fixed costs are paid for.
-Where the chip sleeps well, race-to-sleep is expected to match DVFS or beat it, and it is
-simpler. On the U5 and the RP2350 it does (Measured so far, above).
+by its datasheet. On the STM32U575 with its SMPS, it draws 8.2 µA (`stm32u5.md`). The
+RP2040 has no such mode (see the table below). Dynamic energy does not depend on f.
+Running fast therefore costs nothing extra, and it shortens the time the fixed costs are
+paid for. Where the chip sleeps well, race-to-sleep should match DVFS or beat it, and it
+is simpler. On the U5 and the RP2350 it does (Measured so far, above).
 
 DVFS can win only where sleeping is not an option:
 
 - idle gaps shorter than the cost of waking up. On the U5, waking from Stop 2 took up to
-  885 µs on the board on 2026-09-27, the clock rebuilt from the crystal (`stm32u5.md`),
-  against the 1 ms period of the probe in `TaskLEDPico`;
+  885 µs on the board on 2026-09-27, the clock rebuilt from the crystal (`stm32u5.md`).
+  The probe in `TaskLEDPico` has a period of 1 ms;
 - a latency constraint that forbids deep sleep;
 - a peripheral that needs the core clock domain.
 
-Whatever the energy gain, the kernel's part is the scheduling. Its four policies, OTE
-(the default), DRA, DR_OTE and DM_SLACK, compute from the declared WCETs when the speed
-can be lowered without a task missing its deadline (`EscapementHardPA.h`). OTE, the
-one-time extension, gives the slack to the last task instance in the ready queue, after
-Shin and Choi [1]. DRA, the dynamic reclaiming algorithm, and the EDF\* it runs on are
-those of Aydin, Melhem, Mossé and Mejía-Alvarez [2]; DR_OTE combines the two. DM_SLACK,
-for deadline-monotonic scheduling, was designed for ZottaOS: the slack a task leaves goes
-to lower-priority tasks only, a scheme close to Saewong and Rajkumar's but with fewer
-computations [3] (ZottaOS User Manual, May 2012, pp. 92-100).
+Whatever the energy gain, the kernel's part is the scheduling. It has four policies: OTE
+(the default), DRA, DR_OTE and DM_SLACK. Each computes from the declared WCETs when the
+speed can be lowered without a task missing its deadline (`EscapementHardPA.h`):
+
+- OTE, the one-time extension, gives the slack to the last task instance in the ready
+  queue, after Shin and Choi [1].
+- DRA, the dynamic reclaiming algorithm, and the EDF\* it runs on are those of Aydin,
+  Melhem, Mossé and Mejía-Alvarez [2].
+- DR_OTE combines the two.
+- DM_SLACK, for deadline-monotonic scheduling, was designed for ZottaOS. The slack a
+  task leaves goes to lower-priority tasks only. The scheme is close to Saewong and
+  Rajkumar's, with fewer computations [3] (ZottaOS User Manual, May 2012, pp. 92-100).
 
 ZottaOS measured a gain. Its manual shows the energy saved by EDF with dynamic
-reclaiming and OTE, against EDF that only sleeps (LPM1) when idle, as a function of the
-load, for three synthetic tasks on a prerelease MSP430F5438A (the X430F55438): about
-10 % at a fixed frequency assignment for an 80 % worst-case load, and some 20 % more
-when the actual load drops to 20 % (fig. 6.11 and table 6.5, pp. 98-99). The MSP430
-port is gone and that result has not been reproduced on any target of Escapement.
+reclaiming and OTE, as a function of the load. The baseline is EDF that only sleeps
+(LPM1) when idle. The task set is three synthetic tasks, on a prerelease MSP430F5438A
+(the X430F55438). The gain is about 10 % at a fixed frequency assignment for an 80 %
+worst-case load. It is some 20 % more when the actual load drops to 20 % (fig. 6.11 and
+table 6.5, pp. 98-99). The MSP430 port is gone. That result has not been reproduced on
+any target of Escapement.
 
 ## Measuring the RP2040
 
-The argument above gives DVFS a niche on the RP2040, because it sleeps poorly, and the
-board is at hand. Measuring it needs a bench, described here so that it can be built.
+The argument above gives DVFS a niche on the RP2040, because it sleeps poorly. The board
+is also at hand. Measuring it needs a bench, described here so that it can be built.
 
 **Where to measure.** On a Pico, 5 V from `VSYS` goes through a buck-boost converter
-before it reaches the 3V3 rail that feeds the RP2040. Measuring upstream of it would
+before it reaches the 3V3 rail that feeds the RP2040. Upstream of it, a reading would
 mostly measure the converter's efficiency, which varies with the load. The right point
-is the 3V3 rail, and it can be reached without touching the board: ground `3V3_EN`
-(pin 37) to disable the on-board regulator, and feed `3V3(OUT)` (pin 36) from outside,
-the shunt on that supply.
+is the 3V3 rail. It can be reached without touching the board: ground `3V3_EN` (pin 37)
+to disable the on-board regulator, and feed `3V3(OUT)` (pin 36) from outside, with the
+shunt on that supply.
 
 The port helps here. The firmware runs from SRAM, so the QSPI flash stays idle and adds
 almost nothing to the reading.
 
-**Use a Pico, not a Pico W.** The CYW43439 wireless chip sits on the same rail and draws
+**Use a Pico, not a Pico W.** The CYW43439 wireless chip sits on the same rail. It draws
 current even when idle, which would put a varying floor under every reading.
 
-**The instrument.** A Nordic Power Profiler Kit II powers the target, spans about a
-hundred nanoamps to an amp, and integrates energy over a window: energy per unit of
-work, not the average current an INA226 would give, is what settles DVFS against
-race-to-sleep. Chosen on 2026-09-24, it has measured the STM32U5 and the Pico 2 since
-2026-10-03, and the Pico on 2026-10-10 (below). The Pico 2 was measured on VSYS, its regulator included,
-so its figures are not those of the 3V3 rail recommended above.
+**The instrument.** A Nordic Power Profiler Kit II powers the target. It spans about a
+hundred nanoamps to an amp, and integrates energy over a window. What settles DVFS
+against race-to-sleep is energy per unit of work, not the average current an INA226
+would give. The PPK2 was chosen on 2026-09-24. It has measured the STM32U5 and the Pico
+2 since 2026-10-03, and the Pico on 2026-10-10 (below). The Pico 2 was measured on VSYS,
+its regulator included. Its figures are therefore not those of the 3V3 rail recommended
+above.
 
-Because the core regulator is linear (RP2040 datasheet, section 2.10), part of what V²
-promises is dissipated in it rather than saved. The bench would measure a gain smaller
+The core regulator is linear (RP2040 datasheet, section 2.10). Part of what V² promises
+is therefore dissipated in it rather than saved. The bench would measure a gain smaller
 than V².
 
-**Measured on 2026-10-10** (roadmap, task 9), on probe2's plain Pico, the PPK2 powering
+**Measured on 2026-10-10** (roadmap, task 9), on probe2's plain Pico. The PPK2 powered
 the 3V3 rail at 3.3 V, `3V3_EN` grounded, the USB unplugged. `SleepPico` (`rp2040.md`)
-computing without a pause, the current at each operating point of the driver:
+computed without a pause. The current at each operating point of the driver:
 
 | Point | Within the specification | Undervolted (`UNDERVOLT=1`) |
 |---|---|---|
@@ -109,9 +118,9 @@ computing without a pause, the current at each operating point of the driver:
 | 12 MHz | 4.97 mA at 1.05 V, 414 pC | 4.48 mA at 0.90 V, 374 pC |
 
 No result of the CRC computed throughout came out wrong, undervolted included. As on the
-STM32U5 and the RP2350, a cycle costs least at full speed: what decides is the sleep the
-time saved goes to. Then the same load in each sleep, some 100 µs of work at 125 MHz
-every 100 ms, two cycles of 30 s phases agreeing within 0.5 %:
+STM32U5 and the RP2350, a cycle costs least at full speed. What decides is the sleep
+that the time saved goes to. Then the same load ran in each sleep: some 100 µs of work
+at 125 MHz every 100 ms. Two cycles of 30 s phases agreed within 0.5 %:
 
 | The idle task's sleep | Mean |
 |---|---|
@@ -120,9 +129,10 @@ every 100 ms, two cycles of 30 s phases agreeing within 0.5 %:
 | SLEEP at 125 MHz, PLL_SYS running (`SLEEP_GATE=1`) | 5.07 mA |
 | SLEEP, PLL_SYS stopped, locked again in 55 µs at most on waking | 1.22 mA |
 
-Racing at 125 MHz beats running at 50 MHz when the sleep draws under 2.4 mA, at 12 MHz
-under 3.2 mA; undervolted, under 1.05 and 2.6 mA. The kernel itself, `TaskLEDPico`'s task
-set built under each kernel and policy, its LED moved off the board, 60 s each:
+Racing at 125 MHz beats running at 50 MHz when the sleep draws under 2.4 mA. It beats
+12 MHz under 3.2 mA. Undervolted, the thresholds are 1.05 and 2.6 mA. Then the kernel
+itself: `TaskLEDPico`'s task set, built under each kernel and policy, its LED moved off
+the board, 60 s each:
 
 | Kernel and policy | Idle in WFI | Idle in SLEEP (`SLEEP_GATE=1`) | The same, PLL_SYS stopped |
 |---|---|---|---|
@@ -133,14 +143,17 @@ set built under each kernel and policy, its LED moved off the board, 60 s each:
 | power-aware, DM_SLACK | 19.55 mA (−4.2 %) | | |
 | power-aware, OTE, idle at 12 MHz | 6.60 mA (−68 %) | | |
 
-**The verdict on the RP2040**, within its specification: DVFS saves up to some 5 % while
-the idle task waits in WFI at full speed, and nothing once it sleeps in SLEEP, where
-racing wins; DR_OTE saves most of the four policies, DRA least. The sleep is the lever,
-some 73 % of the task set's energy, and a SLEEP with PLL_SYS stopped, 1.22 mA against
-5.07, takes more: the idle task does it since the same day (roadmap, task 10; the last
-column, measured afterwards, `rp2040.md`, "SLEEP with PLL_SYS stopped"), 60 % off the
-task set's current in SLEEP, and DVFS there costs more still. Below the
-specified voltage 50 MHz edges racing to that sleep by a hair.
+**The verdict on the RP2040**, within its specification:
+
+- DVFS saves up to some 5 % while the idle task waits in WFI at full speed.
+- It saves nothing once the idle task sleeps in SLEEP, where racing wins.
+- DR_OTE saves the most of the four policies, DRA the least.
+- The sleep is the lever, some 73 % of the task set's energy. A SLEEP with PLL_SYS
+  stopped draws 1.22 mA against 5.07, and saves more. Since 2026-10-10, the idle task
+  built with `SLEEP_GATE=1` has done it (roadmap, task 10). The last column was measured
+  afterwards (`rp2040.md`, "SLEEP with PLL_SYS stopped"): 60 % off the task set's
+  current in SLEEP. DVFS there costs more still.
+- Below the specified voltage, 50 MHz edges racing to that sleep by a hair.
 
 ## The DVFS driver of the RP2040
 
@@ -154,36 +167,39 @@ three operating points. `make KERNEL=PA` builds it in the Pico example.
 | `OS_12MHZ_SPEED` | crystal, through `clk_ref` | 1.05 V | 0.90 V |
 
 **The PLL stays locked.** Every change parks `clk_sys` on `clk_ref`, changes a post
-divider if need be, and takes the PLL back, glitchlessly both ways. None of this waits
-for a lock. The whole change runs with interrupts masked, 3.9 to 8.7 µs by the bench of
-2026-09-24 (`rp2040.md`). The price is a VCO that keeps running at 12 MHz. Stopping it
-there would save its current and cost a relock on the way back up, 55 µs at most (`rp2040.md`), which in SLEEP
-takes the idle task from 5.07 to 1.22 mA (measured on 2026-10-10, above); the idle task
-built with `SLEEP_GATE=1` does so, the operating points themselves unchanged. The 50 MHz point replaces the 48 MHz one first declared, which the same VCO
-cannot produce. The timer's 1 µs tick comes from the crystal and does not move.
+divider if need be, and takes the PLL back. Both switches are glitchless. None of this
+waits for a lock. The whole change runs with interrupts masked: 3.9 to 8.7 µs, by the
+bench of 2026-09-24 (`rp2040.md`). The price is a VCO that keeps running at 12 MHz.
+Stopping it there would save its current, and cost a relock on the way back up, 55 µs at
+most (`rp2040.md`). In SLEEP, that takes the idle task from 5.07 to 1.22 mA (measured on
+2026-10-10, above). The idle task built with `SLEEP_GATE=1` does so, the operating
+points themselves unchanged. The 50 MHz point replaces the 48 MHz one first declared,
+which the same VCO cannot produce. The timer's 1 µs tick comes from the crystal and does
+not move.
 
-The idle task sleeps at 125 MHz by default. `make KERNEL=PA SLEEP_SPEED=0` lets it sleep
-at 12 MHz, the interrupt that wakes it raising the speed again (`rp2040.md`, "Where the
-idle task sleeps").
+The idle task sleeps at 125 MHz by default. With `make KERNEL=PA SLEEP_SPEED=0`, it
+sleeps at 12 MHz, and the interrupt that wakes it raises the speed again (`rp2040.md`,
+"Where the idle task sleeps").
 
 **The voltage moves little within the specification.** The datasheet guarantees the core
-between 1.05 and 1.16 V only (table 634), although the regulator accepts 0.80 to 1.30 V
-in 50 mV steps. Within the specification the voltage therefore only goes from 1.10 to
-1.05 V (The physics, above). Since 1.05 V is valid up to 133 MHz, raising the
-frequency never has to wait for the regulator. What is left is mostly frequency scaling,
-which on its own saves little against race-to-sleep: on the RP2350, some 10 % at best
-(Measured so far, above).
+between 1.05 and 1.16 V only (table 634). The regulator accepts 0.80 to 1.30 V, in 50 mV
+steps. Within the specification, the voltage therefore only goes from 1.10 to 1.05 V
+(The physics, above). The core runs at 1.05 V up to 133 MHz, so raising the frequency
+never has to wait for the regulator. What is left is mostly frequency scaling. On its
+own, that saves little against race-to-sleep: on the RP2350, some 10 % at best (Measured
+so far, above).
 
 **Undervolting, for the bench only.** `make KERNEL=PA UNDERVOLT=1` pairs 0.95 V with
-50 MHz and 0.90 V with 12 MHz. It also lowers the brown-out detector to 0.817 V; left
-alone, it would reset the chip around 0.86 V (0.83 to 0.89 V). These settings rest on
-reports, not on any guarantee. On the Raspberry Pi forums a Pico ran at 10 MHz under
-0.90 V and did not under 0.85 V, and an RP2350 at 150 MHz failed below 0.90 V. The risks:
+50 MHz and 0.90 V with 12 MHz. It also lowers the brown-out detector to 0.817 V. Left
+alone, the detector would reset the chip around 0.86 V (0.83 to 0.89 V). These settings
+rest on reports, not on any guarantee. On the Raspberry Pi forums, a Pico ran at 10 MHz
+under 0.90 V and did not under 0.85 V. An RP2350 at 150 MHz failed below 0.90 V. The
+risks:
 
 - no damage: lowering the voltage does not wear the chip, as raising it may;
 - timing errors. Below the voltage a frequency needs, some logic paths settle late. The
-  result is a fault or, worse, a wrong result with no symptom, so the bench has to run a
-  computation whose result it checks, not only measure current;
+  result is a fault or, worse, a wrong result with no symptom. The bench therefore has
+  to run a computation whose result it checks, not only measure current;
 - spread between chips and temperatures, with the regulator itself within 3 %. A
   setting of 0.90 V may deliver 0.873 V;
 - the order of a change. The voltage has to rise before the frequency and fall after,
@@ -195,95 +211,102 @@ reports, not on any guarantee. On the Raspberry Pi forums a Pico ran at 10 MHz u
 **What emulation proves.** The RP2040 models have no voltage regulator, so
 `escapement_pico.repl` adds a model of `VREG`. `escapement_pico.robot` hooks the writes
 to it, to `CLK_SYS_CTRL` and to the post dividers (`rp2040_dvfs_check.py`). Over 100 ms
-of `TaskLEDPico`, clk_sys never runs faster than the voltage allows, and the voltage
-does change and reaches its lowest setting. The test shows that the registers are driven
-in the right order, and says nothing about energy: none of the platforms used here ties
-the speed of the emulated core to its clock, and none models a supply voltage.
+of `TaskLEDPico`, clk_sys never runs faster than the voltage allows. The voltage does
+change, and reaches its lowest setting. The test shows that the registers are driven in
+the right order. It says nothing about energy: none of the platforms used here ties the
+speed of the emulated core to its clock, and none models a supply voltage.
 
 ## Targets weighed
 
 DVFS pays off where sleep is poor. The best low-power MCUs are therefore those where it
-should help least, race-to-sleep serving them better.
+should help least: race-to-sleep serves them better.
 
-A good candidate has a wide, finely controlled voltage range and fixed costs small next
-to switching, hence a high frequency. Its deep sleep is poor or slow to wake from, or its
-load is continuous and rules out sleeping.
+A good candidate has a wide, finely controlled voltage range. Its fixed costs are small
+next to switching, hence a high frequency. Its deep sleep is poor or slow to wake from,
+or its load is continuous and rules out sleeping.
 
 | Target | Why | Caveat |
 |---|---|---|
-| **RP2040** | Core voltage adjustable in 50 mV steps, though the datasheet only guarantees 1.05 to 1.16 V (see above). Clock programmable from a few kHz to 133 MHz. Above all, **poor sleep**: no 1 µA Stop mode, and dormant mode loses the clocks. SLEEP, which gates the clocks while the kernel's timer runs on, is given at 0.39 mA typical in the datasheet's example, its PLLs stopped (roadmap, Done). Race-to-sleep is weak there, so DVFS has a niche. Cortex-M0+, covered by the generic layer. Measured on 2026-10-10: up to some 5 % with the idle task in WFI, nothing once it sleeps in SLEEP (above). | QSPI flash that does not follow the core voltage. The images run from SRAM, which leaves it idle, but it stays on the rail. |
-| **RP2350** | The RP2040's successor, on a board as cheap, the Pico 2. The same PLL scheme, so the clock half of the DVFS driver should largely carry over, and 150 MHz. Its core regulator is a **switching** one, to be driven anew, which removes the caveat of the RP2040's linear regulator. Its Cortex-M33 is ARMv8-M, which the generic layer covers since 2026-09-24. The port exists, without a DVFS driver (`architecture.md`). | Sleep is better than on the RP2040, with a power manager, switchable domains and SRAM retention, so the argument of poor sleep weakens: measured on 2026-10-03, SLEEP 4.2 mA, DORMANT 0.36 mA, DVFS some 10 % at best (issues #23 and #6). QSPI flash as on the RP2040. Renode has no model of it: a platform of our own (`emulation.md`). |
-| **Cortex-M7 (STM32H7…)** | Presumably the largest gain in absolute watts. At 400–550 MHz switching should make up most of the budget, so V² would apply to most of it; not checked against a datasheet here. Typical workloads (audio, SDR, motor control) are **continuous** and cannot sleep. | Core not covered by the generic layer, which has the M0, M3, M4 and M33. |
+| **RP2040** | Core voltage adjustable in 50 mV steps, though the datasheet only guarantees 1.05 to 1.16 V (see above). Clock programmable from a few kHz to 133 MHz. Above all, **poor sleep**: no 1 µA Stop mode, and dormant mode loses the clocks. SLEEP gates the clocks while the kernel's timer runs on. The datasheet's example gives it 0.39 mA typical, its PLLs stopped (roadmap, Done). Race-to-sleep is weak there, so DVFS has a niche. Cortex-M0+, covered by the generic layer. Measured on 2026-10-10: up to some 5 % with the idle task in WFI, nothing once it sleeps in SLEEP (above). | QSPI flash that does not follow the core voltage. The images run from SRAM, which leaves it idle, but it stays on the rail. |
+| **RP2350** | The RP2040's successor, on a board as cheap, the Pico 2. The same PLL scheme, so the clock half of the DVFS driver should largely carry over. 150 MHz. Its core regulator is a **switching** one, to be driven anew. That removes the caveat of the RP2040's linear regulator. Its Cortex-M33 is ARMv8-M, which the generic layer covers since 2026-09-24. The port exists, without a DVFS driver (`architecture.md`). | Sleep is better than on the RP2040, with a power manager, switchable domains and SRAM retention. The argument of poor sleep weakens. Measured on 2026-10-03: SLEEP 4.2 mA, DORMANT 0.36 mA, DVFS some 10 % at best (issues #23 and #6). QSPI flash as on the RP2040. Renode has no model of it: a platform of our own (`emulation.md`). |
+| **Cortex-M7 (STM32H7…)** | Presumably the largest gain in absolute watts. At 400–550 MHz, switching should make up most of the budget, so V² would apply to most of it. This is not checked against a datasheet here. Typical workloads (audio, SDR, motor control) are **continuous** and cannot sleep. | Core not covered by the generic layer, which has the M0, M3, M4 and M33. |
 | **STM32L4** | Once the cheapest STM32 port: a Cortex-M4, which the generic layer covers, with wider voltage scaling than the L1. Set aside (`roadmap.md`). | Renode ships no L4 platform, so the emulation would have to be built along with the port. |
 | **STM32U5** | Four voltage ranges, a 40 nm process, less leakage than anything else here. Ported, without DVFS. | Stop 2 draws tens of µA or less, so race-to-sleep dominates. Measured on 2026-10-03: DVFS gains nothing (below). |
 | **STM32U3** | Two voltage ranges, 0.9 and 0.75 V typical, on an SMPS, and a system clock that is the MSI divided, with no PLL to lock again. Ported since 2026-10-09, with DVFS since 2026-10-11. | Measured on 2026-10-10: a cycle costs 14 % less at 48 MHz in range 2 than at 96 in range 1, and more again at 24 and 12 MHz (below). |
-| ESP32, Ambiq Apollo | — | To rule out. The ESP32 already has vendor DFS (`esp_pm`) with automatic idling; on Ambiq parts the voltage is managed internally, with no lever for the user. |
+| ESP32, Ambiq Apollo | — | To rule out. The ESP32 already has vendor DFS (`esp_pm`), with automatic idling. On Ambiq parts the voltage is managed internally, with no lever for the user. |
 
 **The STM32U585 of the UNO Q, read on 2026-09-26** (RM0456 rev. 7, datasheet DS13086
 rev. 10; typical figures at 25 °C and 3 V, none measured). Its package is a BGA without
-the SMPS (PKG = 00111, read on the board), so the core runs on the LDO, which dissipates
-what the core voltage saves. It draws 84 µA/MHz in run at 160 MHz in range 1 and 73 at
-24 MHz in range 4 (table 38), some 13 % apart. PLL1 runs at 160 MHz in range 1 only, at
-55 MHz at most in range 3, and not at all in range 4 (table 87). Its output divider is
-written with the PLL stopped, so a lower speed means either the 16 MHz crystal alone or
-PLL1 locked again, 25 to 50 µs. Raising the range waits 12 to 21 µs a step for VOSRDY on
-the LDO (table 76), and up to 50 µs for the EPOD booster above 55 MHz. The kernel's
-timer, TIM2, counts on the APB clock, which a change of speed changes.
+the SMPS (PKG = 00111, read on the board). The core therefore runs on the LDO, which
+dissipates what the core voltage saves. It draws 84 µA/MHz in run at 160 MHz in range 1,
+and 73 at 24 MHz in range 4 (table 38): some 13 % apart. PLL1 runs at 160 MHz in range 1
+only, at 55 MHz at most in range 3, and not at all in range 4 (table 87). Its output
+divider is written with the PLL stopped. A lower speed therefore means either the 16 MHz
+crystal alone, or PLL1 locked again, 25 to 50 µs. Raising the range waits 12 to 21 µs a
+step for VOSRDY on the LDO (table 76). Above 55 MHz, it also waits up to 50 µs for the
+EPOD booster. The kernel's timer, TIM2, counts on the APB clock, which a change of speed
+changes.
 
-Idle, the difference is far larger. The idle task's WFI left the chip in Sleep, 4.35 mA
-at 160 MHz (table 45). Stop 2 keeping all of SRAM, which the images run from, takes
-20.5 µA (table 56). With a tenth of the processor busy at 160 MHz, that is some 5.3 mA
-against 1.4 mA. Stop 2 stops TIM2, but LPTIM1 on the 32.768 kHz crystal counts through it
+Idle, the difference is far larger. The idle task's WFI left the chip in Sleep: 4.35 mA
+at 160 MHz (table 45). Stop 2 keeping all of SRAM, which the images run from, takes 20.5
+µA (table 56). With a tenth of the processor busy at 160 MHz, that is some 5.3 mA
+against 1.4 mA. Stop 2 stops TIM2. LPTIM1, on the 32.768 kHz crystal, counts through it
 (RCC_CCIPR3), in steps of 30.5 µs. The order for the U5 was therefore an LPTIM time base
-and an idle task in Stop 2 first, some four times less current by the datasheet. DVFS
-would come after, if at all, for some 10 % more on this board, and only once the PPK2 has
-measured the first. The idle task has slept in Stop 2 on the board since 2026-09-27
-(`stm32u5.md`).
+and an idle task in Stop 2 first: some four times less current, by the datasheet. DVFS
+would come after, if at all, for some 10 % more on this board. It would come only once
+the PPK2 had measured the first. The idle task has slept in Stop 2 on the board since
+2026-09-27 (`stm32u5.md`).
 
-**Measured on 2026-10-03**, on the STM32U575 of a NUCLEO-U575ZI-Q, its SMPS on, at 3.3 V,
-with a PPK2 (`stm32u5.md`, "Slower clocks, measured"): the core computing drew 10.68 mA
-at 160 MHz, 5.66 at 80, 3.64 at 40 and 1.82 at 16, some 67, 71, 91 and 113 pC a cycle.
-The lower voltage ranges do not pay for the longer time: a cycle costs least at the
-highest speed, and racing to Stop 2, 5 to 7 µA, beats each slower speed at every load.
-On the LDO, the U585's only regulator, the same images drew 20.44, 10.50, 6.20 and 2.89
-mA, 128, 131, 155 and 180 pC a cycle: twice the SMPS's, in the same order, where the
-figures above, 84 and 73 µA/MHz, put a cycle 13 % cheaper slower. DVFS has nothing to
-gain on the U5, on either regulator.
+**Measured on 2026-10-03**, on the STM32U575 of a NUCLEO-U575ZI-Q, its SMPS on, at 3.3
+V, with a PPK2 (`stm32u5.md`, "Slower clocks, measured"). The core computing drew 10.68
+mA at 160 MHz, 5.66 at 80, 3.64 at 40 and 1.82 at 16: some 67, 71, 91 and 113 pC a
+cycle. The lower voltage ranges do not pay for the longer time. A cycle costs least at
+the highest speed, and racing to Stop 2, 5 to 7 µA, beats each slower speed at every
+load. On the LDO, the U585's only regulator, the same images drew 20.44, 10.50, 6.20 and
+2.89 mA: 128, 131, 155 and 180 pC a cycle. That is twice the SMPS's, in the same order.
+The datasheet's figures above, 84 and 73 µA/MHz, put a cycle 13 % cheaper slower
+instead. DVFS has nothing to gain on the U5, on either regulator.
 
 **The STM32U385 of a NUCLEO-U385RG-Q, measured on 2026-10-10** (`stm32u3.md`, "Measuring
-DVFS"), a PPK2 in place of JP4, a CRC computed without a pause at each operating point,
-its charge counted against the CRCs done: on the SMPS, 48 MHz in range 2 does the same
-work for 14.2 % less charge than 96 MHz in range 1, and 24 and 12 MHz cost more than 48
-in either range. Racing at 96 MHz and sleeping in Stop 2 for the time saved, 144 µs a
-CRC, would save some 1.4 nC of Stop 2 at even 10 µA, against the 41.6 nC a CRC saves at
-48 MHz. **DVFS pays on the STM32U3**, where on the U5, the RP2350 and the RP2040 racing to
-their deepest sleep wins. Its driver has two points, 48 and 96 MHz, since a kernel that lowers the speed as
+DVFS"). A PPK2 took the place of JP4. A CRC was computed without a pause at each
+operating point, and its charge counted against the CRCs done. On the SMPS, 48 MHz in
+range 2 does the same work for 14.2 % less charge than 96 MHz in range 1. At 24 or
+12 MHz, in either range, a CRC costs more than at 48. Racing at 96 MHz frees 144 µs a
+CRC. Sleeping in Stop 2 for that time costs some 1.4 nC, even at 10 µA. Running at
+48 MHz instead saves 41.6 nC a CRC. **DVFS pays on the STM32U3.** On the U5, the RP2350
+and the RP2040, racing to their deepest sleep wins.
+
+The STM32U3's driver has two points, 48 and 96 MHz. A kernel that lowers the speed as
 far as the deadlines allow would spend more at 24 or 12 (`stm32u3.md`, "The power-aware
-kernel"). What it saves a task set under the kernel, measured on 2026-10-12 on the
-images of `v0.1.0-rc1` (`stm32u3.md`, "The power-aware kernel"): `SleepU3`, one task of
-some 100 µs every 100 ms, drew 485.4 and 484.7 µA in two runs under the hard kernel
-racing to Stop 2, and 465.9 to 468.6 µA under the power-aware kernel with each of its
-four policies, 3.3 to 4.0 % less, DRA the least; with the idle task in Sleep, 3.646 and
-3.642 mA against 3.398 to 3.400, 6.6 to 6.8 % less. On the RP2040 the
-same kernel saved up to some 5 % with its idle task in WFI and nothing once it slept
-(above). The STM32U3 is the one chip here where it saves charge with the idle task in
-its deepest sleep, a little.
+kernel"). What it saves a task set under the kernel was measured on 2026-10-12, on the
+images of `v0.1.0-rc1` (`stm32u3.md`, "The power-aware kernel"). `SleepU3` runs one task
+of some 100 µs every 100 ms:
+
+- Racing to Stop 2 under the hard kernel, it drew 485.4 and 484.7 µA in two runs. Under
+  the power-aware kernel, it drew 465.9 to 468.6 µA with each of the four policies: 3.3
+  to 4.0 % less, DRA the least.
+- With the idle task in Sleep, it drew 3.646 and 3.642 mA against 3.398 to 3.400: 6.6 to
+  6.8 % less.
+
+On the RP2040, the same kernel saved up to some 5 % with its idle task in WFI, and
+nothing once it slept (above). The STM32U3 is the one chip here where it saves charge
+with the idle task in its deepest sleep, a little.
 
 The bulk of a port is the comparator timer, the vector table and the UART, not energy
-management: the context switch, the atomics and the scheduler do not move.
+management. The context switch, the atomics and the scheduler do not move.
 
 The RP2350 port was begun for its two cores rather than its regulator, and the U5 port
 for the Arduino UNO Q's STM32U585 (`roadmap.md`).
 
 ## The STM32L1 driver, removed
 
-The first DVFS driver of the project was written for the STM32L1, three steps at 4, 16
-and 32 MHz, and removed on 2026-09-22 with the L1 examples (4dede39), once the Pico ran
-every test they ran. Its bench, `IccMeasure.c`, was never run, for want of a board; under
-Renode the voltage stayed in its highest range, the idle loop going back to full speed
-before every `WFI`. That work found Renode's L151 platform declaring TIM2 a 32-bit
-counter where the L1 has a 16-bit one, which a derived platform fixed. The history keeps
-both.
+The first DVFS driver of the project was written for the STM32L1: three steps, at 4, 16
+and 32 MHz. It was removed on 2026-09-22 with the L1 examples (4dede39), once the Pico
+ran every test they ran. Its bench, `IccMeasure.c`, was never run, for want of a board.
+Under Renode, the voltage stayed in its highest range, the idle loop going back to full
+speed before every `WFI`. That work found that Renode's L151 platform declared TIM2 a
+32-bit counter, where the L1 has a 16-bit one. A derived platform fixed it. The history
+keeps both.
 
 ## Sources
 
