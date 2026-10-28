@@ -113,8 +113,9 @@ hold() {
 [ -d "$SRC/.git" ] || git clone --quiet "https://github.com/$REPO.git" "$SRC"
 git -C "$SRC" fetch --quiet origin main
 MAIN=$(git -C "$SRC" rev-parse origin/main)
-main_due=""
-if [ "${1:-}" = "--force" ] || [ "$(cat "$DIR/last" 2>/dev/null)" != "$MAIN" ]; then
+main_due="" force=""
+[ "${1:-}" != "--force" ] || force=yes
+if [ -n "$force" ] || [ "$(cat "$DIR/last" 2>/dev/null)" != "$MAIN" ]; then
     main_due=yes
 fi
 # The open pull requests from a branch of this repository whose head is not checked yet,
@@ -143,14 +144,15 @@ fi
 SHA=$MAIN
 
 status() {   # state description [context, board/pico by default]
-    # Kept for the comment on a pull request, the last of each context counting.
+    # Kept for the comment on a pull request, the last of each context counting. A post
+    # that fails sets $unposted, which only skip_docs reads.
     printf '%s\t%s\t%s\n' "${3:-board/pico}" "$1" "$2" >>"$DIR/posted"
     [ -r "$TOKEN" ] || return 0
     jq -n --arg s "$1" --arg d "$2" --arg c "${3:-board/pico}" \
         '{state: $s, context: $c, description: $d}' |
     curl --silent --show-error --fail --output /dev/null -X POST \
         -H "Authorization: Bearer $(cat "$TOKEN")" -H "Accept: application/vnd.github+json" \
-        --data @- "https://api.github.com/repos/$REPO/statuses/$SHA" || true
+        --data @- "https://api.github.com/repos/$REPO/statuses/$SHA" || unposted=yes
 }
 
 # in_build and in_probe run a command in the example's directory and at the root of the
@@ -288,6 +290,125 @@ checked() {
     if [ -z "$PR" ]; then echo "$SHA" >"$DIR/last"; else echo "$SHA" >>"$DIR/prs-checked"; fi
 }
 
+# comment: the outcome on the pull request, one comment of the bench's, found by its
+# marker and replaced at each check (issue #28): the statuses posted, the key figures and
+# the whole log, the probes' serial numbers and this machine's paths taken out. Needs
+# the token to write pull requests; without, the statuses alone are posted.
+comment() {
+    [ -r "$TOKEN" ] || return 0
+    marker="<!-- board-ci -->"
+    log=$(sed -e "s|$HOME|~|g" -e 's/[0-9A-F]\{16,\}/<serial>/g' "$LOG")
+    body=$(
+        echo "$marker"
+        echo "### Board checks of $(echo "$SHA" | cut -c1-7)"
+        echo
+        echo "$(date -u '+%Y-%m-%d %H:%M UTC'), $((($(date +%s) - STARTED + 59) / 60)) min, images: $IMAGES"
+        echo
+        echo "| Board | State | Description |"
+        echo "|---|---|---|"
+        # The last status of each context, in the order first posted.
+        awk -F'\t' '!($1 in last) { order[++n] = $1 } { last[$1] = $2 "\t" $3 }
+            END { for (i = 1; i <= n; i++) { split(last[order[i]], f, "\t")
+                  printf "| %s | %s | %s |\n", order[i], f[1], f[2] } }' "$DIR/posted"
+        echo
+        echo "<details><summary>Key figures</summary>"
+        echo
+        echo '```text'
+        printf '%s\n' "$log" | grep -E '^(=== |ok|FAILED|mean|maximum|rounds|4-slot buffer|events delivered|[0-9]+ -> [0-9]+ MHz|SleepU|[0-9]+ reports over)' || true
+        echo '```'
+        echo "</details>"
+        echo
+        echo "<details><summary>The bench's log ($(printf '%s\n' "$log" | wc -l) lines)</summary>"
+        echo
+        echo '```text'
+        printf '%s\n' "$log" | head -c 60000
+        echo '```'
+        echo "</details>"
+    )
+    auth="Authorization: Bearer $(cat "$TOKEN")"
+    url="https://api.github.com/repos/$REPO/issues"
+    # The answer kept before jq reads it, as in ci_images: unread, a second comment is
+    # posted rather than none.
+    id=""
+    if json=$(curl --silent --show-error --fail -H "$auth" "$url/$PR/comments?per_page=100"); then
+        id=$(printf '%s' "$json" |
+             jq -r --arg m "$marker" '[.[] | select(.body | startswith($m))][0].id // empty') ||
+            id=""
+    fi
+    if [ -n "$id" ]; then
+        method=PATCH target=$url/comments/$id
+    else
+        method=POST target=$url/$PR/comments
+    fi
+    jq -n --arg b "$body" '{body: $b}' |
+        curl --silent --show-error --fail --output /dev/null -X "$method" -H "$auth" \
+            -H "Accept: application/vnd.github+json" --data @- "$target" ||
+        echo "the comment on pull request #$PR was not posted"
+}
+
+# docs_only: whether $SHA changes Markdown files alone, none of which goes into an image
+# the boards run, since a base whose four board statuses are all success: main since the
+# last main checked, a pull request since its merge base with main. That last check may
+# have failed, or posted nothing for a board whose probe was held, and a merge base may
+# never have been checked: the statuses on GitHub, which the rule of main reads, decide,
+# the latest of each context. Sets $base, $changes, as git lists them, and $docs, their
+# number. Returns 1, and the commit gets the full check, when anything else changed,
+# nothing did, the base has not passed, GitHub did not answer, or on --force.
+# --no-renames shows a rename as a file deleted and one added: a file deleted, even a .md,
+# never passes for documentation alone.
+docs_only() {
+    [ -z "$force" ] && [ -r "$TOKEN" ] || return 1
+    if [ -n "$PR" ]; then
+        # The head fetched as below, the same branch at the same commit.
+        git -C "$SRC" fetch --quiet origin "refs/heads/$BRANCH" &&
+            [ "$(git -C "$SRC" rev-parse FETCH_HEAD)" = "$SHA" ] &&
+            base=$(git -C "$SRC" merge-base "$MAIN" "$SHA") || return 1
+    else
+        base=$(cat "$DIR/last" 2>/dev/null) && [ -n "$base" ] || return 1
+    fi
+    changes=$(git -C "$SRC" diff --no-renames --name-status "$base" "$SHA" 2>/dev/null) ||
+        return 1
+    docs=$(printf '%s\n' "$changes" | awk -F'\t' '
+        NF == 0 { next }
+        { n += 1 }
+        $1 != "A" && $1 != "M" || $2 !~ /\.md$/ { other = 1 }
+        END { if (other || n == 0) exit 1; print n }') || return 1
+    # Kept before jq reads it, as in ci_images.
+    json=$(api "commits/$base/status?per_page=100") || return 1
+    printf '%s' "$json" | jq -e '[.statuses[] | {(.context): .state}] | add // {} |
+        .["board/pico"] == "success" and .["board/pico2"] == "success" and
+        .["board/u5"] == "success" and .["board/u3"] == "success"' >/dev/null
+}
+
+# skip_docs: the four statuses the rule of main requires, in success as on the base, the
+# commit marked checked, and the comment on a pull request; no image, no probe's lock, no
+# long run stopped. Such a pull request waited its turn on the bench for nothing. Marked
+# checked only once the four are posted: else the next run tries again.
+skip_docs() {
+    LOG=$DIR/logs/$(date +%Y%m%d-%H%M%S)-$(echo "$SHA" | cut -c1-7).log
+    STARTED=$(date +%s) IMAGES=none
+    : >"$DIR/posted"
+    what=main; [ -z "$PR" ] || what="pull request #$PR"
+    short=$(echo "$base" | cut -c1-7)
+    {
+        echo "$what at $SHA, $(date), documentation only since $base, which passed:"
+        printf '%s\n' "$changes" | cut -f2-
+    } >"$LOG"
+    files="files"; [ "$docs" != 1 ] || files="file"
+    unposted=""
+    for board in pico u5 u3 pico2; do
+        status success "documentation only, as $short ($docs $files), nothing for the boards" \
+            "board/$board"
+    done
+    if [ -n "$unposted" ]; then
+        echo "the statuses of $SHA were not all posted: tried again at the next run"
+        return 0
+    fi
+    checked
+    cat "$LOG"
+    [ -z "$PR" ] || comment
+}
+
 # The commit to check: main if due, else the pull requests in turn; with the CI's images,
 # the first whose run is over, so that a run not over or failed, main's included, holds
 # none of the others back. One commit a run.
@@ -300,6 +421,7 @@ for candidate in ${main_due:+main} $prs; do
         PR=${candidate%%:*} rest=${candidate#*:}
         SHA=${rest%%:*} BRANCH=${rest#*:} event=pull_request
     fi
+    if docs_only; then skip_docs; exit 0; fi
     [ "$IMAGES" = ci ] || { picked=yes; break; }
     got=0
     ci_images $event || got=$?
@@ -407,62 +529,6 @@ if [ -n "$PR" ]; then service=none long="the long run kept on main's image"; fi
 resume() {   # resume <board>: its long run started again after a pull request's check
     [ -z "$PR" ] || [ ! -f "$HOME/.config/systemd/user/escapement-soak-$1.service" ] ||
         systemctl --user start "escapement-soak-$1"
-}
-
-# comment: the outcome on the pull request, one comment of the bench's, found by its
-# marker and replaced at each check (issue #28): the statuses posted, the key figures and
-# the whole log, the probes' serial numbers and this machine's paths taken out. Needs
-# the token to write pull requests; without, the statuses alone are posted.
-comment() {
-    [ -r "$TOKEN" ] || return 0
-    marker="<!-- board-ci -->"
-    log=$(sed -e "s|$HOME|~|g" -e 's/[0-9A-F]\{16,\}/<serial>/g' "$LOG")
-    body=$(
-        echo "$marker"
-        echo "### Board checks of $(echo "$SHA" | cut -c1-7)"
-        echo
-        echo "$(date -u '+%Y-%m-%d %H:%M UTC'), $((($(date +%s) - STARTED + 59) / 60)) min, images: $IMAGES"
-        echo
-        echo "| Board | State | Description |"
-        echo "|---|---|---|"
-        # The last status of each context, in the order first posted.
-        awk -F'\t' '!($1 in last) { order[++n] = $1 } { last[$1] = $2 "\t" $3 }
-            END { for (i = 1; i <= n; i++) { split(last[order[i]], f, "\t")
-                  printf "| %s | %s | %s |\n", order[i], f[1], f[2] } }' "$DIR/posted"
-        echo
-        echo "<details><summary>Key figures</summary>"
-        echo
-        echo '```text'
-        printf '%s\n' "$log" | grep -E '^(=== |ok|FAILED|mean|maximum|rounds|4-slot buffer|events delivered|[0-9]+ -> [0-9]+ MHz|SleepU|[0-9]+ reports over)' || true
-        echo '```'
-        echo "</details>"
-        echo
-        echo "<details><summary>The bench's log ($(printf '%s\n' "$log" | wc -l) lines)</summary>"
-        echo
-        echo '```text'
-        printf '%s\n' "$log" | head -c 60000
-        echo '```'
-        echo "</details>"
-    )
-    auth="Authorization: Bearer $(cat "$TOKEN")"
-    url="https://api.github.com/repos/$REPO/issues"
-    # The answer kept before jq reads it, as in ci_images: unread, a second comment is
-    # posted rather than none.
-    id=""
-    if json=$(curl --silent --show-error --fail -H "$auth" "$url/$PR/comments?per_page=100"); then
-        id=$(printf '%s' "$json" |
-             jq -r --arg m "$marker" '[.[] | select(.body | startswith($m))][0].id // empty') ||
-            id=""
-    fi
-    if [ -n "$id" ]; then
-        method=PATCH target=$url/comments/$id
-    else
-        method=POST target=$url/$PR/comments
-    fi
-    jq -n --arg b "$body" '{body: $b}' |
-        curl --silent --show-error --fail --output /dev/null -X "$method" -H "$auth" \
-            -H "Accept: application/vnd.github+json" --data @- "$target" ||
-        echo "the comment on pull request #$PR was not posted"
 }
 
 # The STM32U5 of the UNO Q, on the CI's image of its endurance test.
