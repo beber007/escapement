@@ -1035,141 +1035,192 @@ builds. Read with the trace, no failure was the kernel's:
 
 ### 2026-10-07: 9d9157c, and the test of optional instances
 
-Run whole on 9d9157c, at 300 task sets a build, the hard kernel's mutants scored 86.4 %
-(418 of 484), 95.4 % of the 438 not declared; the power-aware kernel's 81.5 % (651 of
-799), 84.0 % of the 775 not declared; the soft kernel's 79.0 % (572 of 724). The run also
-showed a fault of `tools/mutants.py`: a test that ran past its time limit was reported
-killed, but only `make` was stopped, and three soft mutants (217, 218, 247) kept spinning
-an hour and forty minutes after the campaign, their parent gone. Each step now runs in a
-process group of its own, killed whole on the limit.
+Run whole on 9d9157c, at 300 task sets a build, the mutants scored:
+
+- hard kernel: 86.4 % (418 of 484), and 95.4 % of the 438 not declared;
+- power-aware kernel: 81.5 % (651 of 799), and 84.0 % of the 775 not declared;
+- soft kernel: 79.0 % (572 of 724).
+
+The run also showed a fault of `tools/mutants.py`. A test that ran past its time limit
+was reported killed, but only `make` was stopped. Three soft mutants (217, 218, 247)
+kept spinning an hour and forty minutes after the campaign, their parent gone. Each step
+now runs in a process group of its own, killed whole on the limit.
 
 Most of the soft kernel's survivors are in the test of its optional instances,
-`IsTaskSchedulable`: a mutant that leaves out a task's last partial instance in the
-window under-counts by one WCET at most, and random task sets seldom come that close. A
+`IsTaskSchedulable`. A mutant that leaves out a task's last partial instance in the
+window under-counts by one WCET at most. Random task sets seldom come that close. A
 reference of that test, computed apart and compared decision by decision, would read
-them; it is not written. What the test promises is checked instead, since 2026-10-05:
-`tools/differential.py` runs each (m,k)-firm set a second time, tasks taking less than
-their WCET, and simulates from each optional instance admitted the schedule in which
-every instance takes its WCET; the instance must end by its deadline. Kernels made to
-leave out the instance's own WCET, half the mandatory work or the partial instance fail
-it under DM, and hang on the overload guard under EDF. The survivors pass: they
-under-count within what still fits.
+them; it is not written. Since 2026-10-05, what the test promises is checked instead.
+`tools/differential.py` runs each (m,k)-firm set a second time, with tasks taking less
+than their WCET. From each optional instance admitted, it simulates the schedule in
+which every instance takes its WCET. The instance must end by its deadline. Some kernels
+were made to leave out the instance's own WCET, half the mandatory work, or the partial
+instance. They fail this check under DM, and hang on the overload guard under EDF. The
+survivors pass: they under-count within what still fits.
 
-Two things kept that check short, found on 2026-10-07 from a question of the user's, about
-instances ending early. Every instance of a task took the same time, so an end never came
-earlier than the one before; and nothing compared the kernel's decisions with its test.
+On 2026-10-07, a question from the user about instances ending early found two things
+that kept that check short. Every instance of a task took the same time, so an end never
+came earlier than the one before. Nothing compared the kernel's decisions with its test
+either.
+
 The kernel tests an optional instance once, when it first reaches the head, and drops it
-for good: in `firmonce`, an instance dropped at 100 would pass the same test at 121, the
-task before it having ended in 1 tick of its 50, and is never tested again. That is no
-fault of safety, and the test pins it as the kernel has it. Since then the host's trace
-takes a time for each instance (`D task instance takes`), drawn apart for the second run
-of each (m,k)-firm set, and `tools/differential.py` holds the kernel to its test, written
-from `IsTaskSchedulable`'s header rather than its code. The kernel's count of mandatory
-instances rounds up, ceil(n m / k) over n whole periods, where an even pattern may hold
-fewer; the reference rounds as the kernel does, a rule taken from its code after the
-pattern alone had admitted instances the kernel dropped, two of them read in the trace to
-that rounding. An optional instance that
-starts must pass the test at its start or at an end before, where it may have been
-admitted, a release at that instant preempting it. An instance dropped must fail it where
-the trace shows when it was decided: at the first point the kernel considered optional
-instances while it waited, if it was the only one undecided there. The first version took
-for such a point an end where an instance admitted before, then preempted, was still due,
-and failed the kernel twice in 2,000 sets; read in the trace, the kernel was right. On
-1,000 sets of each build, of the 2,794 optional instances dropped under EDF, 2,231 are so
-checked; 2,141 could have run, every instance taking its WCET and keeping its deadline,
-and 331 would have passed the test at a later point the kernel scheduled from; under DM,
-1,789, 1,441 and 224 of 2,072. Testing a dropped instance again would win the last number.
-A tighter test could win most of the one before, but not by leaving out the instances due
-after the optional one's deadline, as tried the same day (see "Hypotheses that were
-wrong"): it has to hold the deadlines of the instances it delays.
+for good. In `firmonce`, an instance dropped at 100 would pass the same test at 121,
+since the task before it ended in 1 tick of its 50. It is never tested again. That is no
+fault of safety, and the test pins it as the kernel has it.
 
-The test that does, under EDF, is the processor demand criterion from the instant of
-decision: the instances released from then on are feasible without the optional one, and
-with it every deadline from its own on must have the instant, its WCET and the mandatory
-instances due by that deadline before it, until the processor would first be free, from
-where the schedule is the one without it. A prototype in `tools/differential.py`
-(`demand_test`), judged against the schedule as it was, admitted 2,140 of the 2,141 drops
-that could have run, none that could not, and refused none of the 23,481 instances the
-kernel admitted; the one left was due past the end of the run, which the simulation does
-not see. As admitting an instance changes what follows, `tools/firm_admission.py` runs
-the whole schedule again under each test, on 2,000 sets, every instance taking its WCET,
-then a time of its own: with the kernel's test 75.4 % of the optional instances run, with
-the demand test 81.3 %, and with no test at all, admitting whatever fits by itself, 81.3 %
-as well, missing 279 deadlines; the other two miss none. Its cost is the walk of the
-instances released in that busy stretch: one in the mean, 75 at most over 5,000 sets of
-`tools/differential.py`, where the kernel's test walks the tasks once. Not in the kernel:
-a busy stretch has no bound but the load, and a kernel would have to stop the walk at a
-bound of its own, refusing past it, which stays safe.
+Since then, the host's trace takes a time for each instance (`D task instance takes`),
+drawn apart for the second run of each (m,k)-firm set. `tools/differential.py` holds the
+kernel to its test, written from the header of `IsTaskSchedulable` rather than from its
+code. The kernel's count of mandatory instances rounds up: ceil(n m / k) over n whole
+periods, where an even pattern may hold fewer. The reference rounds as the kernel does.
+That rule was taken from the kernel's code after the pattern alone had admitted
+instances that the kernel dropped; two of them were read in the trace, and traced to
+that rounding.
 
-It went into the kernel the same evening, with the user's agreement, as `DemandFits`,
-under EDF when no event-driven task has bandwidth reserved, the old count staying for the
-rest and for DM: the busy stretch as the fixed point of the work released before it, then
-the demand at the optional instance's deadline and at each mandatory one's up to the end
-of the stretch, the mandatory instances of an interval counted as ceil(j m / k) over the
-pattern's numbers, a formula checked against the pattern for every m and k up to 40.
-`OS_FIRM_DEMAND_BOUND`, 16, was chosen on `tools/firm_admission.py`: on 1,000 sets, 8
-ran 81.4 % of the optional instances, 16 and more 81.8 %, as with no bound. The reference
-of `tools/differential.py` follows it, bound included; on 5,000 sets the kernel admitted
-none it refuses and dropped none it admits where the instant is sure, and kept every
-deadline; under EDF the drops fell from 2,794 to 856 on the first 1,000, and
-`tools/firm_admission.py` runs 81.1 % of the optional instances, from 75.4 %. The Pico's
-images under DM are the same byte for byte. Two host tests reach what the random sets do not: a
-refusal at the optional instance's own deadline, with an event-driven task of WCET 0,
-which alone reserves no bandwidth, waiting in the arrival queue (`firmdemand`), and a
-period past 2^30 in the busy stretch (`firmdemandlong`). What a decision costs was measured
-on the Pico the same night, at 125 MHz, by `BenchAdmissionPico` (`make KERNEL=SOFT
-bench-admission`, `tools/admission_cost.py`): the eight tasks of the costliest set
-`tools/firm_admission.py`'s simulation found among 1,500, each instance spinning a
-pseudo-random quarter of its WCET to all of it, each test timed in cycles by SysTick.
-The count it replaced, on the same tasks: 16.6 µs in the mean, 33.9 at most, over 20,000
-tests, and the board ran on. `DemandFits`: 78 µs in the mean and 419 at most over its
-first 42 tests, interrupts masked around each, after which the kernel's overload guard
-stopped the board, an instance still running at its next release; interrupts left as
-the kernel has them, 67.7 µs and 420 over 634 tests, then the guard again, a mandatory
-instance not started by its next release. The test takes the instant it is called for
-the instant the optional instance would start, and its own time, up to 420 µs where the
-shortest period is 283, is counted nowhere; the count's pessimism covered its 34 µs.
-The RP2040's core divides in software, and each count of an interval divides several
-times. With the user's agreement the kernel went back to the count the same night,
-under EDF as under DM, the reference of `tools/differential.py`, `docs/api.md` and the
-host tests with it; `DemandFits` stays in the history, its prototype in
-`tools/differential.py` and `tools/firm_admission.py` to count what a test that counted
-its own cost might win. The bench, now timing the count, stays. On the same tasks the
-count took 13.8 µs in the
-mean and 31.0 at most over 20,000 tests, interrupts masked, and 13.9 and 31.7 left
-unmasked, the board running on both times; the 16.6 µs of the run before went through
-the share reserved for event-driven tasks, which the bench no longer reserves.
-Of its 60 mutants that compiled, the random sets killed 40. Read, 7 of the 20 left were
-faults no set had met, killed by host tests. Four, at the edges, were found again by
-simulating the schedule under the fault (`tools/firm_admission.py`'s simulation, the
-kernel's test written in Python) and confirmed with the kernel so made: a demand equal to a
-deadline refused, at the optional instance's own or a later one, an instance released
-at the very end of an interval or a period before it counted (`firmdemandset`, three
-sets whose count of instances run over 6,000 ticks changes). Three were read: a period
-past 2^30 left out of the stretch, which admitted an instance that delayed another past
-its deadline (`firmdemandlongdue`), and, twice, a task of WCET 0 divided by, which on this
-Mac's arm64 reads 0 and refuses, and traps under UndefinedBehaviorSanitizer
-(`firmdemand`). An event-driven
-task read as a periodic one, and an instance released at the end of the stretch counted
-against the bound, died with them. 3 are declared equivalent (the demand at the end of the
-stretch, at most the stretch by its fixed point; the optional instance's deadline checked
-twice; a WCET of 1 divided by itself). 8 stay, counted: 5 change only how long the fixed
-point may take before the walk of the stretch refuses past the bound, which no test
-times; 2 are overflow guards at 2^30; and one checks the deadlines past the stretch,
-which hold only as long as the mandatory instances can be scheduled at all, what the
-kernel assumes and does not check. 49 of 60, 86 % of the 57 not declared; the two
-mutants of its call both die.
-Run again on the soft kernel's 152 survivors at 300 sets a build, the reference killed 4:
-a mandatory arrival one tick before the deadline left out (151), a test that admits at
-the deadline itself (213), an optional instance put at the head of their queue rather
-than by its deadline (364), and,
-by a drop the test refuses, a partial instance counted whole (169). Of the survivors left
-in the periodic part of the test, 8 were read and change nothing (a scan that goes past
-the deadline adding 0, ties where both branches add the WCET), and are declared with the
-guard of the test, 107, which `IsTaskSchedulable` makes redundant; 3 more, overflow guards
-weakened or skipped for a WCET of 1, would differ only near 2^30 ticks of work, and stay
-counted. The rest are in the event-driven part, which the reference leaves out. The
-kernel scores 79.6 % (576 of 724), 80.6 % of the 715 not declared.
+An optional instance that starts must pass the test at its start, or at an earlier end.
+It may have been admitted at that end, then preempted by a release at the same instant.
+An instance dropped must fail the test where the trace shows when it was decided. That
+is the first point where the kernel considered optional instances while it waited, if
+the dropped instance was the only one undecided there. The first version took for such a
+point an end where an instance admitted before, then preempted, was still due. It failed
+the kernel twice in 2,000 sets; read in the trace, the kernel was right.
+
+On 1,000 sets of each build:
+
+| Optional instances dropped | Under EDF | Under DM |
+|---|---:|---:|
+| In all | 2,794 | 2,072 |
+| Checked where the trace shows the decision | 2,231 | 1,789 |
+| Could have run, every instance taking its WCET and keeping its deadline | 2,141 | 1,441 |
+| Would have passed the test at a later point the kernel scheduled from | 331 | 224 |
+
+Testing a dropped instance again would win the last row. A tighter test could win most
+of the row before. It could not do so by leaving out the instances due after the
+optional one's deadline, as tried the same day (see "Hypotheses that were wrong"). It
+has to hold the deadlines of the instances it delays.
+
+Under EDF, the test that does so is the processor demand criterion, from the instant of
+decision. The instances released from then on are feasible without the optional one.
+With it, each deadline from its own on must be at least the instant, plus its WCET, plus
+the work of the mandatory instances due by that deadline. This holds until the processor
+would first be free. From there, the schedule is the one without it.
+
+A prototype in `tools/differential.py` (`demand_test`) was judged against the schedule
+as it was. It admitted 2,140 of the 2,141 drops that could have run, and none that could
+not. It refused none of the 23,481 instances that the kernel admitted. The one left was
+due past the end of the run, which the simulation does not see.
+
+As admitting an instance changes what follows, `tools/firm_admission.py` runs the whole
+schedule again under each test, on 2,000 sets: every instance taking its WCET, then a
+time of its own.
+
+- With the kernel's test, 75.4 % of the optional instances run.
+- With the demand test, 81.3 %.
+- With no test at all, admitting whatever fits by itself, 81.3 % as well, but 279
+  deadlines are missed. The other two miss none.
+
+The demand test costs the walk of the instances released in that busy stretch: one in
+the mean, and 75 at most over 5,000 sets of `tools/differential.py`. The kernel's test
+walks the tasks once. It was not put in the kernel at first: a busy stretch has no bound
+but the load. A kernel would have to stop the walk at a bound of its own, and refuse
+past it, which stays safe.
+
+It went into the kernel the same evening, with the user's agreement, as `DemandFits`. It
+applied under EDF when no event-driven task had bandwidth reserved. The old count stayed
+for the rest, and for DM. `DemandFits` computed the busy stretch, as the fixed point of
+the work released before it. It then computed the demand at the optional instance's
+deadline, and at each mandatory one's, up to the end of the stretch. The mandatory
+instances of an interval were counted as ceil(j m / k) over the pattern's numbers. That
+formula was checked against the pattern for every m and k up to 40.
+
+`OS_FIRM_DEMAND_BOUND`, 16, was chosen on `tools/firm_admission.py`. On 1,000 sets, a
+bound of 8 ran 81.4 % of the optional instances, and 16 or more ran 81.8 %, as with no
+bound. The reference of `tools/differential.py` followed the kernel, bound included. On
+5,000 sets, the kernel admitted none that the reference refused, dropped none that the
+reference admitted where the instant was sure, and kept every deadline. Under EDF, the
+drops fell from 2,794 to 856 on the first 1,000 sets. `tools/firm_admission.py` ran 81.1
+% of the optional instances, from 75.4 %. The Pico's images under DM are the same byte
+for byte.
+
+Two host tests reach what the random sets do not:
+
+- a refusal at the optional instance's own deadline, with an event-driven task of WCET
+  0, which alone reserves no bandwidth, waiting in the arrival queue (`firmdemand`);
+- a period past 2^30 in the busy stretch (`firmdemandlong`).
+
+What a decision costs was measured on the Pico the same night, at 125 MHz, by
+`BenchAdmissionPico` (`make KERNEL=SOFT bench-admission`, `tools/admission_cost.py`). It
+runs the eight tasks of the costliest set that the simulation of
+`tools/firm_admission.py` found among 1,500. Each instance spins a pseudo-random share
+of its WCET, from a quarter to all of it. SysTick times each test in cycles.
+
+- The count that `DemandFits` replaced, on the same tasks: 16.6 µs in the mean and 33.9
+  at most, over 20,000 tests. The board ran on.
+- `DemandFits`, with interrupts masked around each test: 78 µs in the mean and 419 at
+  most, over its first 42 tests. Then the kernel's overload guard stopped the board, an
+  instance still running at its next release.
+- `DemandFits`, with interrupts left as the kernel has them: 67.7 µs and 420, over 634
+  tests. Then the guard again, a mandatory instance not started by its next release.
+
+The test takes the instant it is called for the instant the optional instance would
+start. Its own time, up to 420 µs where the shortest period is 283, is counted nowhere.
+The count's pessimism covered the count's own 34 µs. The RP2040's core divides in
+software, and each count of an interval divides several times.
+
+With the user's agreement, the kernel went back to the count the same night, under EDF
+as under DM. The reference of `tools/differential.py`, `docs/api.md` and the host tests
+went back with it. `DemandFits` stays in the history. Its prototype stays in
+`tools/differential.py` and `tools/firm_admission.py`, to count what a test that counted
+its own cost might win. The bench stays, now timing the count. On the same tasks, the
+count took 13.8 µs in the mean and 31.0 at most over 20,000 tests with interrupts
+masked, and 13.9 and 31.7 with them unmasked. The board ran on both times. The 16.6 µs
+of the run before went through the share reserved for event-driven tasks, which the
+bench no longer reserves.
+
+Of the 60 mutants of `DemandFits` that compiled, the random sets killed 40. The 20 left
+were read:
+
+- 7 were faults that no set had met, killed by host tests. Four, at the edges, were
+  found again by simulating the schedule under the fault (the simulation of
+  `tools/firm_admission.py`, with the kernel's test written in Python). They were
+  confirmed with the kernel so made. They are: a demand equal to a deadline refused, at
+  the optional instance's own or at a later one; an instance released at the very end of
+  an interval, or a period before it, counted (`firmdemandset`, three sets whose count
+  of instances run over 6,000 ticks changes). Three were read: a period past 2^30 left
+  out of the stretch, which admitted an instance that delayed another past its deadline
+  (`firmdemandlongdue`); and, twice, a division by a task of WCET 0, which reads 0 on
+  this Mac's arm64 and refuses, and traps under UndefinedBehaviorSanitizer
+  (`firmdemand`).
+- 2 more died with them: an event-driven task read as a periodic one, and an instance
+  released at the end of the stretch counted against the bound.
+- 3 are declared equivalent: the demand at the end of the stretch, which is at most the
+  stretch by its fixed point; the optional instance's deadline checked twice; a WCET of
+  1 divided by itself.
+- 8 stay, counted. 5 change only how long the fixed point may take before the walk of
+  the stretch refuses past the bound, which no test times. 2 are overflow guards at
+  2^30. The last checks the deadlines past the stretch. Those hold only as long as the
+  mandatory instances can be scheduled at all, which the kernel assumes and does not
+  check.
+
+That makes 49 of 60, 86 % of the 57 not declared. The two mutants of the call to
+`DemandFits` both die.
+
+The soft kernel's 152 survivors were run again at 300 sets a build. The reference killed
+4:
+
+- a mandatory arrival one tick before the deadline left out (151);
+- a test that admits at the deadline itself (213);
+- an optional instance put at the head of their queue, rather than by its deadline
+  (364);
+- a partial instance counted whole (169), killed by a drop that the test refuses.
+
+Of the survivors left in the periodic part of the test, 8 were read and change nothing:
+a scan that goes past the deadline adding 0, and ties where both branches add the WCET.
+They are declared, with the guard of the test, 107, which `IsTaskSchedulable` makes
+redundant. 3 more are overflow guards, weakened or skipped for a WCET of 1. They would
+differ only near 2^30 ticks of work, and stay counted. The rest are in the event-driven
+part, which the reference leaves out. The kernel scores 79.6 % (576 of 724), 80.6 % of
+the 715 not declared.
 
 ### 2026-10-10: every survivor read
 
