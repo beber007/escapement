@@ -1,7 +1,8 @@
 # Building
 
 Every example builds with a bare-metal ARM toolchain and `make`, from its own directory.
-This page lists the build options, the memory footprint and how an image reaches a board.
+This page lists the build options, the memory footprint and how an image reaches a
+board.
 
 ## Toolchain
 
@@ -14,10 +15,10 @@ The toolchain prefix can be overridden:
 `make CROSS_COMPILE=/path/to/arm-none-eabi-`.
 
 The code is compiled freestanding and linked without a C library (`-nostdlib`). Only
-`libgcc` is linked, for the routines the hardware does not provide, such as integer
+`libgcc` is linked. It supplies the routines that the hardware lacks, such as integer
 division on the Cortex-M0+, which has no divide instruction. No newlib is needed.
 Everything is built at `-O2`. The kernel did not survive that level until the
-exception-pending barriers went in (`method.md`).
+exception-pending barriers were added (`method.md`).
 
 ## Examples and footprint
 
@@ -26,10 +27,10 @@ cd Escapement/CORTEX-Mx/RP2040/Examples/pico
 make
 ```
 
-The CI builds the four example directories (with `STM32U3/Examples/nucleo-u385`) on
-each push to `main` and each pull request; `STM32U5/Examples/nucleo-u575` is built by
-its job for the board's images (`tools/board_images.sh`). Sizes with GCC 16.2 at commit
-2ade62a, on 2026-10-26:
+The CI builds the four example directories (with `STM32U3/Examples/nucleo-u385`) on each
+push to `main` and each pull request. `STM32U5/Examples/nucleo-u575` is built by its job
+for the board's images (`tools/board_images.sh`). The sizes below are with GCC 16.2 at
+commit 2ade62a, on 2026-10-26:
 
 | Example | Core | MCU | Tasks | `text` / `data` / `bss` |
 |---|---|---|---|---|
@@ -38,9 +39,9 @@ its job for the board's images (`tools/board_images.sh`). Sizes with GCC 16.2 at
 | `STM32U5/Examples/uno-q` | Cortex-M33 | STM32U585 | 4 | 6,304 / 8 / 668 |
 | `STM32U3/Examples/nucleo-u385` | Cortex-M33 | STM32U385 | 4 | 5,916 / 8 / 660 |
 
-The figures are the bytes of the `TaskLED` target with the hard kernel, that is the
-whole kernel plus the periodic tasks of the example. Rebuilt on 2026-09-27 with GCC 16.2,
-each at the commit that published it, the earlier figures come out byte for byte:
+The figures are the bytes of the `TaskLED` target with the hard kernel: the whole kernel
+plus the periodic tasks of the example. On 2026-09-27, the earlier figures were rebuilt
+with GCC 16.2, each at the commit that published it. They match byte for byte:
 
 | Published | Commit | Pico | Pico 2 | STM32U5 |
 |---|---|---|---|---|
@@ -50,9 +51,9 @@ each at the commit that published it, the earlier figures come out byte for byte
 | 2026-09-27 | bf447b8 | 4,716 / 8 / 240 | 4,324 / 8 / 344 | 5,656 / 8 / 648 |
 
 Rebuilt on 2026-10-26, bf447b8 gives the same figures on the three boards. Since
-bf447b8, the Pico's `bss` grew from 240 to 1,912 bytes. Of that growth, 1,628 bytes are
-the `.stack_guard` section, added on 2026-10-05: the 1 KB that the MPU guards below the
-stack (`api.md`, "Memory"), aligned on its size (`RP2040_SRAM.ld`).
+bf447b8, the Pico's `bss` has grown from 240 to 1,912 bytes. Of that growth, 1,628 bytes
+are the `.stack_guard` section, added on 2026-10-05. That section is the 1 KB that the
+MPU guards below the stack (`api.md`, "Memory"), aligned on its size (`RP2040_SRAM.ld`).
 
 ## Build options
 
@@ -74,39 +75,43 @@ are chosen on the command line (`architecture.md`):
 | `FAST=1` | `nucleo-u385` | the MSI's PLL mode kept through Stop 2 (MSIPLL0FAST) |
 | `SMPS=1` | `nucleo-u575` | the STM32U575's SMPS rather than its LDO |
 
-Other options, for the bench alone (`SLEEP_GATE`, `NOHSE`, `MHZ` and more), are
-commented in each Makefile.
+Each Makefile comments other options, for the bench alone (`SLEEP_GATE`, `NOHSE`, `MHZ`
+and more).
 
 `make KERNEL=PA bench` builds the two benches of the Pico, `BenchDVFSPico` and
 `BenchVregPico`. `make bin` adds raw binaries of the examples.
 
-`STM32U5/Examples/nucleo-u575` builds `SleepU5` and `SoakU5`, from the sources of
-`uno-q`, for a NUCLEO-U575ZI-Q: the first for measuring the MCU's current
-(`stm32u5.md`), the second for a long endurance run, its reports on the ST-LINK's
-virtual COM port (`tools/board_ci.md`); with `KERNEL=SOFT`, `SoakFirmU5` too.
+`STM32U5/Examples/nucleo-u575` builds `SleepU5` and `SoakU5` for a NUCLEO-U575ZI-Q, from
+the sources of `uno-q`. `SleepU5` is for measuring the MCU's current (`stm32u5.md`).
+`SoakU5` is for a long endurance run, and it reports on the ST-LINK's virtual COM port
+(`tools/board_ci.md`). With `KERNEL=SOFT`, the directory also builds `SoakFirmU5`.
 
 Built for the soft kernel, each port adds `SoakFirm` to its endurance test
-(`SoakFirmPico`, `SoakFirmPico2`, `SoakFirmU5`, `SoakFirmU3`): the same test with an
-(m,k)-firm task under a load that makes the kernel drop some of its optional instances;
-none of its mandatory instances may be missed, nor any instance end late (`SoakU5.c`).
+(`SoakFirmPico`, `SoakFirmPico2`, `SoakFirmU5`, `SoakFirmU3`). `SoakFirm` is the same
+test with an (m,k)-firm task, under a load that makes the kernel drop some of its
+optional instances. None of its mandatory instances may be missed, and no instance may
+end late (`SoakU5.c`).
 
 ## On hardware and under emulation
 
-> **All four ports have run on hardware**, and a bench checks each at every commit
-> (`tools/board_ci.md`). The core of the RP2040 below its specified voltage has been
-> seen only by the regulator bench (`rp2040.md`). Every example runs under Renode in
-> the CI except those made for a board: `FourSlotCoresPico`, `SleepPico` and the four
-> benches of the Pico, `IdlePico2`, `SleepPico2`, `DormantPico2`, `LposcPico2` and
-> `StackGuardPico2`, `StackGuardU5`, and `ClockU3`, `StackGuardU3`, `BenchDVFSU3` and
-> `DVFSU3Flash` (`DVFSU3Short` and `BenchDVFSU3Short` run in their place).
+> **All four ports have run on hardware**, and a bench checks each port at every commit
+> (`tools/board_ci.md`). Only the regulator bench has seen the core of the RP2040 below
+> its specified voltage (`rp2040.md`). Every example runs under Renode in the CI, except
+> those made for a board:
+>
+> - `FourSlotCoresPico`, `SleepPico` and the four benches of the Pico;
+> - `IdlePico2`, `SleepPico2`, `DormantPico2`, `LposcPico2` and `StackGuardPico2`;
+> - `StackGuardU5`;
+> - `ClockU3`, `StackGuardU3`, `BenchDVFSU3` and `DVFSU3Flash` (`DVFSU3Short` and
+>   `BenchDVFSU3Short` run in their place).
 
-The images run from SRAM, loaded over SWD with OpenOCD: those of the Pico and the
-Pico 2 by a Debug Probe (`rp2040.md`), those of the STM32U5 by `tools/unoq_load.sh` and
-the OpenOCD of the UNO Q, which drives the MCU's SWD from the board's Linux processor
-(`stm32u5.md`). `make FLASH=1` links them into the flash on every port: the NUCLEO-U385RG-Q
-runs its long run from there since 2026-10-10, the NUCLEO-U575ZI-Q its endurance tests,
-and `SleepU5Flash`, `SleepU3Flash` and `DVFSU3Flash` run from there to measure the current
-without a debugger attached.
+The images run from SRAM, loaded over SWD with OpenOCD. A Debug Probe loads the images
+of the Pico and the Pico 2 (`rp2040.md`). `tools/unoq_load.sh` and the OpenOCD of the
+UNO Q load the images of the STM32U5. That OpenOCD drives the MCU's SWD from the board's
+Linux processor (`stm32u5.md`). `make FLASH=1` links the images into the flash on every
+port. The NUCLEO-U385RG-Q has run its long run from there since 2026-10-10. The
+NUCLEO-U575ZI-Q runs its endurance tests from there. `SleepU5Flash`, `SleepU3Flash` and
+`DVFSU3Flash` run from there to measure the current without a debugger attached.
 
 ## Host tests and models
 
