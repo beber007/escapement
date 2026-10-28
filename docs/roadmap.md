@@ -441,15 +441,14 @@ waited so, and task 3 does. Task 4 began the same day.
     tool drops.
 15. **The release — done on 2026-10-12.** Its notes, from `git log` since the fork and
     from this page; the tag `v0.1.0`; a GitHub release. Then, as the user decided on
-    2026-10-11, `main` takes changes through pull requests only. A GitHub branch
-    protection rule on it requires a pull request with the CI's `build` passed, and a
-    linear history. It allows neither a force push nor a deletion on `main`, and no push
-    straight to it, the user's included, unless the rule is turned off on purpose. The
-    rule is written in `CLAUDE.md`, "Rules that do not change". The board checks still
-    ran once a change was merged: `tools/board_ci.sh` built `main` alone, and a pull
-    request ran nothing on the bench (its header). Pull requests let work go on while an
-    endurance run holds `main` still, as the eight commits waiting through task 14's
-    runs did not.
+    2026-10-11, `main` takes changes through pull requests only. A GitHub ruleset on it
+    requires a pull request with the CI's `build` passed, and a linear history. It
+    allows neither a force push nor a deletion on `main`, and no push straight to it,
+    the user's included, unless the rule is turned off on purpose. The rule is written
+    in `CLAUDE.md`, "Rules that do not change". The board checks still ran once a change
+    was merged: `tools/board_ci.sh` built `main` alone, and a pull request ran nothing
+    on the bench (its header). Pull requests let work go on while an endurance run holds
+    `main` still, as the eight commits waiting through task 14's runs did not.
 
     The tag `v0.1.0` is on 8f3f794. Its CI and its four board checks passed. Its code is
     the one the candidate's runs and measures were made on, but for the number of the
@@ -595,8 +594,8 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
   head of each open pull request from a branch of this repository, after `main`, one per
   run. It posts the same four statuses on it as on `main`. A fork's pull request is
   never checked: its head must be that of a branch here. The long runs of the STM32
-  boards stay on `main`'s image, stopped for the check and started again. The branch
-  protection rule on `main` requires the four statuses.
+  boards stay on `main`'s image, stopped for the check and started again. The ruleset on
+  `main` requires the four statuses.
 
 - **CodeQL and Dependabot (#22), 2026-10-13.** CodeQL reads the C code as
   `tools/clang_check.sh` compiles it: the three kernels under both algorithms, the
