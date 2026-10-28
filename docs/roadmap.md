@@ -377,98 +377,131 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 ### Issues closed
 
 - **Tasks created and deleted while the hard kernel runs (#45), 2026-10-24.** Built with
-  `make LIVE=N`, the hard kernel under EDF keeps a pool of N periodic tasks:
-  `OSCreateTaskLive` releases one at once, `OSDeleteTaskLive` stops its releases, at once
-  between two instances, after the one under way otherwise. A task asks; the timer's
-  handler serves the request at the time it reads, once it has shifted the others at the
-  wraparound. The kernel tests no schedulability, the caller's to decide; DM, the soft and
-  the power-aware kernels refuse the option. Wanted by the Forth console of #40, whose
-  slots it lets come and go. The host test's eight modes caught each of twenty-one faults
-  made by hand in the kernel's new lines; the reviews found three defects they had let
-  pass, each now caught by a mode of its own: a block given back while still asked for
-  (a deletion from the overrun hook), a creation served between the counter's wrap and the
-  shift, the caller's masked interrupts unmasked; and a check of the example that never
-  ran, which the robots now require to have. On the Pico W, LiveTasksPico created and deleted 37,564 workers in two minutes,
-  none late nor released after its deletion; under Renode, LiveTasksPico2 626 in 2 s.
-  Without the option, every image is the same, byte for byte.
+  `make LIVE=N`, the hard kernel under EDF keeps a pool of N periodic tasks.
+  `OSCreateTaskLive` releases one at once. `OSDeleteTaskLive` stops its releases: at
+  once between two instances, otherwise after the one under way. A task asks. The
+  timer's handler serves the request at the time it reads, once it has shifted the
+  others at the wraparound. The kernel tests no schedulability: that is the caller's to
+  decide. DM, the soft and the power-aware kernels refuse the option. The Forth console
+  of #40 wanted it. It lets the console's slots come and go.
+
+  The host test's eight modes caught each of twenty-one faults made by hand in the
+  kernel's new lines. The reviews found three defects the modes had let pass, each now
+  caught by a mode of its own:
+
+  - a block given back while still asked for (a deletion from the overrun hook);
+  - a creation served between the counter's wrap and the shift;
+  - the caller's masked interrupts unmasked.
+
+  The reviews also found a check of the example that never ran. The robots now require
+  that check to run. On the Pico W, LiveTasksPico created and deleted 37,564 workers in
+  two minutes, none late nor released after its deletion. Under Renode, LiveTasksPico2
+  created and deleted 626 in 2 s. Without the option, every image is the same, byte for
+  byte.
 
 - **The endurance test's heartbeat as short as it declares, on the Picos (#41),
-  2026-10-24.** It scanned the whole of core 0's painted stack each second, 4.4 ms on the
-  Pico W and 6.5 ms on the Pico 2 against the 50 µs it declared. It now scans a slice of
-  128 words a second, from where it stopped, besides the 128 at the bottom, where an
-  overflow shows first, checked each time: the free stack it reports is that of a whole
-  pass, some eight minutes on the Pico W and seventeen on the Pico 2, or two when the
-  stack grew below the scan during one, and at the start one made in `main` before the
-  kernel starts. Measured with `make WCET=1` over three minutes: 47 µs on the Pico W and
-  33 on the Pico 2 under the hard kernel, 65 and 39 under the soft one, which counts its
+  2026-10-24.** It scanned the whole of core 0's painted stack each second. That took
+  4.4 ms on the Pico W and 6.5 ms on the Pico 2, against the 50 µs it declared. It now
+  scans a slice of 128 words a second, from where it stopped. It also checks the 128
+  words at the bottom each time, where an overflow shows first. The free stack it
+  reports is that of a whole pass: some eight minutes on the Pico W, seventeen on the
+  Pico 2. It is that of two passes when the stack grew below the scan during a pass. At
+  the start, it is that of a scan made in `main` before the kernel starts.
+
+  Measured with `make WCET=1` over three minutes: 47 µs on the Pico W and 33 on the Pico
+  2 under the hard kernel. Under the soft kernel, 65 and 39: that kernel counts its
   admission test in the instance that ends. Each Soak declares 80 µs. SoakU5 and SoakU3
   have the same code, not measured: their boards run their endurance tests, which a
   measure would stop. Their heartbeat's first instance waits for the IWDG to take its
   settings, most likely past the 80 µs.
 
 - **Each task's execution times measured (#10), 2026-10-23.** Built with `make WCET=1`,
-  the hard and soft kernels count the ticks each instance holds the processor, from one
-  context switch to the next, the soft timer interrupt left out, and keep each task's
-  largest; `tools/wcet.py` reads them over SWD without stopping a core, and a task reads
-  its own with `OSGetTaskMaxTime()`. Each figure is one word, which the probe reads whole:
-  the sequence count the issue planned for 64-bit times is not needed. On the Pico W,
-  SoakFirmPico's (2,5)-firm task, which works 1.5 ms, measured 1499 to 1503 µs, and
-  SoakPico's heartbeat 4.4 ms against the 50 µs it then declared (#41). The power-aware
-  kernel refuses the option: its ticks would need scaling by the speed. Without it, every
-  image is the same, byte for byte.
+  the hard and soft kernels count the ticks each instance holds the processor. They
+  count from one context switch to the next, the soft timer interrupt left out, and keep
+  each task's largest. `tools/wcet.py` reads them over SWD without stopping a core. A
+  task reads its own with `OSGetTaskMaxTime()`. Each figure is one word, which the probe
+  reads whole, so the sequence count the issue planned for 64-bit times is not needed.
+  On the Pico W, SoakFirmPico's (2,5)-firm task, which works 1.5 ms, measured 1499 to
+  1503 µs. SoakPico's heartbeat measured 4.4 ms, against the 50 µs it then declared
+  (#41). The power-aware kernel refuses the option: its ticks would need scaling by the
+  speed. Without the option, every image is the same, byte for byte.
 
 - **The Pico's two figures for a dark page too (#38), 2026-10-23.**
   `tools/schedule_figure.py` and `tools/dvfs_figure.py` write a light and a dark
-  version, from the palettes of `tools/figure_svg.py`, and the README and `rp2040.md`
-  show the one the page's theme asks for, as the banner and the figures of how the
-  kernels schedule do. The light versions are the former images byte for byte.
+  version, from the palettes of `tools/figure_svg.py`. The README and `rp2040.md` show
+  the one the page's theme asks for, as the banner and the figures of how the kernels
+  schedule do. The light versions are the former images byte for byte.
 
-- **No descriptor of the queue used once its operation returned (#26), 2026-10-23.**
-  `test/model/fifo.py` checks each read and write of a descriptor, which lives on its
-  operation's stack, for an operation still running or preempted by the one touching
-  it; a variant that returns with `PendingOp` still set is caught, which
-  linearizability alone let pass. The reasoning on which CodeQL's alerts 25 to 27
-  (`cpp/stack-address-escape`) were dismissed is now checked.
+- **No descriptor of the queue used once its operation returned (#26), 2026-10-23.** A
+  descriptor lives on its operation's stack. `test/model/fifo.py` checks that each read
+  and write of a descriptor is for an operation still running, or preempted by the one
+  touching it. A variant that returns with `PendingOp` still set is caught.
+  Linearizability alone let it pass. CodeQL's alerts 25 to 27
+  (`cpp/stack-address-escape`) were dismissed on reasoning that is now checked.
 
 - **The figure scripts share one module (#31), 2026-10-23.** `tools/figure_svg.py` holds
   what `tools/host_figures.py`, `tools/schedule_figure.py` and `tools/dvfs_figure.py`
-  wrote three times: the font, the light and dark palettes, the page, the time axis, a
-  lane's label and its bars. `tools/differential.py` takes the span of a run as a
-  parameter, `duration`, where the figures set its constant on a copy of the module, and
-  each trace of the figures is read once. The six SVG files, the README's four and the
-  Pico's two, come out byte for byte as before.
+  wrote three times: the font, the light and dark palettes, the page, the time axis, and
+  a lane's label and its bars. `tools/differential.py` takes the span of a run as a
+  parameter, `duration`. The figures used to set that constant on a copy of
+  `tools/differential.py`. Each trace of the figures is read once. The six SVG files,
+  the README's four and the Pico's two, come out byte for byte as before.
 
 - **The boards checked side by side (#32), 2026-10-18.** `tools/board_ci.sh` runs the
-  Pico, the Pico 2, the STM32U5 and the STM32U3 at once, each through its own debugger,
-  and puts their logs together after: 16 minutes for a check against 28 in turn, the
-  STM32U3's two kernels the longest. The clocks against Linux's read the same as in turn,
-  +36.2, -80.7 and -91.9 ppm against +36.2, -81 and -92.3.
+  Pico, the Pico 2, the STM32U5 and the STM32U3 at once, each through its own debugger.
+  It puts their logs together afterwards. A check takes 16 minutes, against 28 in turn.
+  The STM32U3's two kernels take the longest. The clocks against Linux's read the same
+  as in turn: +36.2, -80.7 and -91.9 ppm, against +36.2, -81 and -92.3.
 
-- **How it schedules, drawn by the kernel itself (#11), 2026-10-18.** Two figures in the
-  README, from the host build's trace: (50, 25) and (80, 35) at 94 % of the processor,
-  every deadline kept under EDF, the second task unfinished at 80 under DM; the same
-  periods at 110 % declared (m,k)-firm, every deadline kept by the soft kernel, two
-  optional instances dropped in the 400 ticks shown. `tools/host_figures.py` checks
-  those statements on each run before drawing, refuses traces made wrong
-  (`--self-test`), and the CI fails if the figures differ from what the kernels draw.
+- **How it schedules, drawn by the kernel itself (#11), 2026-10-18.** The README has two
+  figures, from the host build's trace:
+
+  - (50, 25) and (80, 35) at 94 % of the processor: every deadline kept under EDF, and
+    the second task unfinished at 80 under DM;
+  - the same periods at 110 %, declared (m,k)-firm: every deadline kept by the soft
+    kernel, and two optional instances dropped in the 400 ticks shown.
+
+  `tools/host_figures.py` checks those statements on each run before drawing. It refuses
+  traces made wrong (`--self-test`). The CI fails if the figures differ from what the
+  kernels draw.
 
 - **The bench's results on the pull request (#28), 2026-10-13.** `tools/board_ci.sh`
-  leaves one comment on each pull request it checks, replaced at each check: the
-  statuses, the key figures and the whole log, serial numbers and local paths taken out.
+  leaves one comment on each pull request it checks, replaced at each check. The comment
+  holds the statuses, the key figures and the whole log, serial numbers and local paths
+  taken out.
 
 - **Board checks on pull requests (#21), 2026-10-13.** `tools/board_ci.sh` checks the
-  head of each open pull request from a branch of this repository, after `main`, one a
-  run, and posts the same four statuses on it; a fork's is never taken, its head having
-  to be that of a branch here. The long runs of the STM32 boards stay on `main`'s image,
-  stopped for the check and started again. The rule of `main` requires the four statuses.
+  head of each open pull request from a branch of this repository, after `main`, one per
+  run. It posts the same four statuses on it as on `main`. A fork's pull request is
+  never taken: its head must be that of a branch here. The long runs of the STM32 boards
+  stay on `main`'s image, stopped for the check and started again. The rule of `main`
+  requires the four statuses.
 
 - **CodeQL and Dependabot (#22), 2026-10-13.** CodeQL reads the C code as
-  `tools/clang_check.sh` compiles it, the three kernels under both algorithms, the
-  Cortex-M layer and each port, with the queries `security-and-quality` (`codeql.yml`):
-  the whole code on every push to `main`, only the lines it changes on a pull request.
-  Dependabot follows the actions of the workflows each week; the CI image is left out,
-  as Dependabot would read only its base image and the image changes only when rebuilt
-  by hand under a new tag (`dependabot.yml`).
+  `tools/clang_check.sh` compiles it: the three kernels under both algorithms, the
+  Cortex-M layer and each port. It uses the `security-and-quality` queries
+  (`codeql.yml`). It reads the whole code on every push to `main`. On a pull request, it
+  reports only the alerts on the lines changed. Dependabot follows the actions of the
+  workflows each week. The CI image is left out: Dependabot would read only its base
+  image, and the image changes only when rebuilt by hand under a new tag
+  (`dependabot.yml`).
+
+Closed without work, on 2026-10-23:
+
+- **Why DRA draws some 2 µA more than the other policies on the STM32U3 (#8).** It is
+  0.45 %, with no fault, and nothing needs the cause. The measurement stays in
+  `stm32u3.md`.
+- **A reset of the NUCLEO-U385RG-Q that nothing asked for (#9).** It did not come back.
+  Since 2026-10-11, none of the ten 8-hour runs of release 0.1 restarted, and neither
+  did the STM32U3's long run on af88a34 (4 d 22 h). Reopen it if such a reset comes
+  back. Then look at RCC_CSR and the bench's journal at that time.
+- **Lock-free mechanisms beyond the slot buffers and the queues (#14).** Merged into
+  #15. Its likeliest need was a driver's: LPUART1 received by DMA through Stop 2. #15
+  carries that need now, with the table of gaps.
+- **The kernels' mutants at night on GitHub (#34).** No need. The kernels change little,
+  and the rule before a merge already runs the mutants of the kernel lines changed.
+  Reopen it if the kernels start changing often, or if a survivor slips through that
+  rule.
 
 ### Items of the open list, done when it moved to the issues (2026-10-12)
 
