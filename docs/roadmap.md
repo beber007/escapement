@@ -1,38 +1,42 @@
 # State of the project and direction
 
-Escapement continues ZottaOS, a real-time kernel by Claude Evéquoz and Bertrand Hurst,
-whose code last changed in 2014 and was published in 2016.
-`NOTICE` gives the lineage and the third-party components.
+Escapement continues ZottaOS, a real-time kernel by Claude Evéquoz and Bertrand Hurst.
+Its code last changed in 2014 and was published in 2016. `NOTICE` gives the lineage and
+the third-party components.
 
-This page gives the direction and what is done; the open work is in the repository's
-issues since 2026-10-12 ("Open work" below). Done items say where the result is measured or
-checked, and a result counts as measured only where a page gives its date and conditions.
-Last revised on 2026-10-12.
+This page gives the direction and what is done. Since 2026-10-12, the open work is in
+the repository's issues ("Open work" below). Each done item says where its result is
+measured or checked. A result counts as measured only where a page gives its date and
+conditions.
 
 ## Direction
 
-Development goes to **ARM Cortex-M**, and the power-aware variant is the point of the
-project. Its target is the **RP2040**. `power-aware.md` argues that dynamic voltage and
-frequency scaling has a niche there because the chip sleeps poorly, and it is the board
-at hand. Measured on 2026-10-10, the niche is small: up to some 5 % with the idle task in
-WFI, nothing once it sleeps in SLEEP; the STM32U3 is where DVFS has paid
-(`power-aware.md`).
+Development goes to **ARM Cortex-M**. The power-aware variant is the point of the
+project, and its target is the **RP2040**. `power-aware.md` argues that dynamic voltage
+and frequency scaling has a niche there, because the chip sleeps poorly. Its board, the
+Pico, is also at hand. Measured on 2026-10-10, the niche is small: up to some 5 % with
+the idle task in WFI, nothing once it sleeps in SLEEP. The STM32U3 is where DVFS has
+paid (`power-aware.md`).
 
-New work goes to the **Pico**, the **Pico 2**, the **STM32U5** and the **STM32U3**. The RP2350 of the
-Pico 2 has a switching core regulator and two cores with exclusive accesses. Its port was
-begun on 2026-09-24 for the cores. A DVFS driver is not planned for it: measured on
-2026-10-03, it would save some 10 % at best, less than sleeping deeper does (items 3
-and 5).
+New work goes to the **Pico**, the **Pico 2**, the **STM32U5** and the **STM32U3**. The
+RP2350 of the Pico 2 has a switching core regulator, and two cores with exclusive
+accesses. Its port was begun on 2026-09-24, for the cores. A DVFS driver is not planned
+for it. Measured on 2026-10-03, it would save some 10 % at best, less than sleeping
+deeper does (items 3 and 5, issues #23 and #6).
 
-Among the STM32, the **STM32U5** is the one kept. Its port, begun on 2026-09-25 for the
-STM32U585 of the Arduino UNO Q (`stm32u5.md`), was written anew in the manner of the
-RP2350's. The older STM32 ports went on 2026-09-26 (9783ab4), the F4 last, once the U5
-ran on its board with a check of each commit. The U5 sleeps too well for DVFS to gain
-(`power-aware.md`): measured on 2026-10-03, a cycle costs least at 160 MHz, and racing
-to Stop 2 beats every slower speed on its SMPS and its LDO alike (item 4). The
-**STM32L4** is set aside. The **STM32U3** port, for a NUCLEO-U385RG-Q ordered on
-2026-10-06, is written from RM0487; the board came on 2026-10-09, and its endurance test
-ran some minutes on it without an error, hard and soft (`stm32u3.md`, "On the board").
+Among the STM32, the **STM32U5** is the one kept. Its port was begun on 2026-09-25, for
+the STM32U585 of the Arduino UNO Q (`stm32u5.md`). It was written anew in the manner of
+the RP2350's. The older STM32 ports went on 2026-09-26 (9783ab4), the F4 last, once the
+U5 ran on its board with a check of each commit. The U5 sleeps too well for DVFS to gain
+(`power-aware.md`). Measured on 2026-10-03, a cycle costs least at 160 MHz. Racing to
+Stop 2 beats every slower speed, on the U5's SMPS and LDO alike (item 4). The
+**STM32L4** is set aside.
+
+The **STM32U3** port is for a NUCLEO-U385RG-Q, ordered on 2026-10-06. It was written
+from RM0487, and the board came on 2026-10-09. Its endurance test first ran some minutes
+on it without an error, hard and soft (`stm32u3.md`, "On the board"). On the candidate
+of release 0.1, each of the STM32U3's three kernels ran 8 hours without an error (task
+14).
 
 ## Release 0.1
 
@@ -351,9 +355,10 @@ each target, and costs less (`DemandFits`, taken out on 2026-10-07, `method.md`)
 
 ## Open work
 
-Since 2026-10-12 the open work is in the repository's issues, in order on its project board
-(github.com/beber007/escapement/issues; github.com/users/beber007/projects/1). This page keeps the
-direction and what is done. The open items of the list kept here until then became:
+Since 2026-10-12, the open work is in the repository's issues, in order on its project
+board (github.com/beber007/escapement/issues; github.com/users/beber007/projects/1).
+This page keeps the direction and what is done. The open items of the list kept here
+until then became these issues:
 
 | Item | Issue |
 |---|---|
@@ -361,11 +366,11 @@ direction and what is done. The open items of the list kept here until then beca
 | 4. The STM32U5's energy | #5 |
 | 5. A deeper sleep on the RP2350 | #6 |
 | 6. How often a wake-up byte of LPUART1 comes out wrong (what was left of it) | #7 |
-| 7. Why DRA draws some 2 µA more on the STM32U3 (what was left of it) | #8 |
-| 8. A reset of the NUCLEO-U385RG-Q that nothing asked for | #9 |
-| 10. A tool to measure each task's WCET | #10 |
-| 11. What a visitor of the repository sees | #11, #12, #13 |
-| 12. Lock-free mechanisms beyond the slot buffers and the queues | #14 |
+| 7. Why DRA draws some 2 µA more on the STM32U3 (what was left of it) | #8, closed as not planned |
+| 8. A reset of the NUCLEO-U385RG-Q that nothing asked for | #9, closed as not planned |
+| 10. A tool to measure each task's WCET | #10, done |
+| 11. What a visitor of the repository sees | #11 (done), #12, #13 |
+| 12. Lock-free mechanisms beyond the slot buffers and the queues | #14, merged into #15 |
 | 13. The drivers, and the description of the boards | #15, #16 |
 | 14. Noticing an overrun as it happens | #17 |
 | 2 and 3. The power-aware kernel and DVFS on the RP2350 | #23, closed as not planned |
