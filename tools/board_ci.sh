@@ -247,9 +247,13 @@ cost() {
 # events <name>: TestTimerEventPico, five readings of its trace. GPIO 2 every 5 ms and
 # GPIO 3 every 10 ms within 5 us, high for 1 and 2 ms plus the path from the alarm to the
 # event-driven task (12 to 13 us on 2026-09-23, docs/rp2040.md) within 20 us, and every
-# event delivered at most 2 us after its alarm (0 then).
+# event delivered at most 2 us after its alarm (0 then). The alarm 2 is first sent to core
+# 0's NMI, as a firmware before may leave it: the image must undo that (#50). The tool is
+# the checked commit's, and one from before #50 knows no --nmi-mask.
 events() {
-    out=$(in_probe "python3 tools/timer_events.py $SEEN/fw/$1/TestTimerEventPico.elf")
+    nmi=""
+    if grep -q -- --nmi-mask "$SRC/tools/timer_events.py"; then nmi="--nmi-mask 4"; fi
+    out=$(in_probe "python3 tools/timer_events.py $nmi $SEEN/fw/$1/TestTimerEventPico.elf")
     echo "$out"
     echo "$out" | awk '
         function within(value, low, high) { return value >= low && value <= high }

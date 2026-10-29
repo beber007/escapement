@@ -311,6 +311,14 @@ Rebooting the UNO Q or unbinding its drivers interrupts every run: ask first.
   error: hold core 1, not core 0, for each read, as `tools/read_trace.py` does. The
   SLEEP_EN registers outlive a debugger's reset, even the rescue DP's; the port sets
   them back in `OSInitializeSystemClocks`, and an image that does not must be suspected.
+- `SYSCFG.PROC0_NMI_MASK` and `PROC1_NMI_MASK` outlive OpenOCD's `reset halt`, though not
+  the rescue DP's reset (#49). They send chosen interrupts to a core's NMI.
+  escapement-forth's console sets bit 2, the alarm 2, and an image loaded after it looped
+  in its NMI handler (#49, #50). The port writes both masks to 0 in
+  `OSInitializeSystemClocks`, once SYSCFG is out of reset: in reset, it loses the writes.
+  The RP2350 has a pair of masks per core, `EPPB.NMI_MASK0` and `NMI_MASK1`. All four read
+  0 after OpenOCD's `reset halt`, and core 1's after the PSM restarts it, as
+  `OSLaunchCore1` does (2026-10-29).
 - OpenOCD's cmsis-dap driver asks every Raspberry Pi USB device for its strings, and the
   Pico's own USB, once a flash firmware has enumerated it, may not answer: 3.3 s lost
   per connection, which failed the cost check. The tools select the Debug Probe by its

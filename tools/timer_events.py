@@ -24,6 +24,11 @@ The image is loaded with both cores held and core 1 left so: the example does no
 it, and a firmware in flash may have armed a watchdog that only pauses while a core is
 held. Built with make SLEEP_GATE=1, the example parks core 1 itself, which is then
 started too, and each read holds it for a moment (tools/read_trace.py).
+
+With --nmi-mask M, the tool first writes M to SYSCFG_PROC0_NMI_MASK, as a firmware before
+may have left it: OpenOCD's reset halt does not clear it. The image must set it back. Bit 2,
+the timer's alarm 2, stopped the board checks on 2026-10-24 and 2026-10-26 (#49, #50).
+The tool writes 0 there itself when the check fails.
 """
 
 import argparse
@@ -34,13 +39,38 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import read_trace   # noqa: E402
 
+RESETS_CLR = 0x4000C000 + 0x3000
+RESETS_SYSCFG = 1 << 18
+SYSCFG_PROC0_NMI_MASK = 0x40004000
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("elf")
     parser.add_argument("--reads", type=int, default=5)
+    parser.add_argument("--nmi-mask", type=lambda v: int(v, 0), default=None)
     args = parser.parse_args()
 
+    try:
+        if args.nmi_mask is not None:
+            # SYSCFG out of reset first, through the clear alias of RESETS, or the write is
+            # lost.
+            out = read_trace.openocd(["reset halt", f"mww {RESETS_CLR:#x} {RESETS_SYSCFG:#x}",
+                                      f"mww {SYSCFG_PROC0_NMI_MASK:#x} {args.nmi_mask:#x}",
+                                      f"mdw {SYSCFG_PROC0_NMI_MASK:#x}"])
+            if f"{SYSCFG_PROC0_NMI_MASK:#010x}: {args.nmi_mask:08x}" not in out:
+                sys.exit("could not write the NMI mask:\n" + out)
+        check(args)
+    except BaseException:
+        # A check that failed may leave the mask set, and the next image from before #50
+        # would fail for it on the same probe.
+        if args.nmi_mask is not None:
+            read_trace.openocd([f"mww {SYSCFG_PROC0_NMI_MASK:#x} 0"])
+        raise
+
+
+def check(args):
+    """Load the image, read its trace and print what it shows."""
     out = read_trace.load(args.elf)
     if "downloaded" not in out and "bytes written" not in out and "Verified OK" not in out:
         sys.exit("could not load the image:\n" + out)

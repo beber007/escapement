@@ -60,6 +60,10 @@
 #define RESETS_CLR           *((volatile UINT32 *)(0x4000C000 + 0x3000))
 #define RESETS_DONE          *((volatile UINT32 *)(0x4000C000 + 0x08))
 #define RESETS_PLL_SYS_BIT   (1u << 12)
+#define RESETS_SYSCFG_BIT    (1u << 18)
+
+#define SYSCFG_PROC0_NMI_MASK *((volatile UINT32 *)(0x40004000 + 0x00))
+#define SYSCFG_PROC1_NMI_MASK *((volatile UINT32 *)(0x40004000 + 0x04))
 
 #define PLL_SYS_BASE         0x40028000
 #define PLL_CS               *((volatile UINT32 *)(PLL_SYS_BASE + 0x00))
@@ -85,6 +89,14 @@ void OSInitializeSystemClocks(void)
   ** them (Escapement_SleepGate.c) found them gated still (2026-09-28). */
   CLOCKS_SLEEP_EN0 = 0xFFFFFFFF;
   CLOCKS_SLEEP_EN1 = 0x7FFF;
+  /* No interrupt sent to a core's NMI, as after a power-on. OpenOCD's reset halt leaves
+  ** the masks of SYSCFG too: escapement-forth's console sends the alarm 2 to core 0's
+  ** NMI, and an image loaded after it took its timer's interrupt there and looped in the
+  ** handler (#49, #50). SYSCFG leaves reset first, or the writes are lost. */
+  RESETS_CLR = RESETS_SYSCFG_BIT;
+  while ((RESETS_DONE & RESETS_SYSCFG_BIT) == 0);
+  SYSCFG_PROC0_NMI_MASK = 0;
+  SYSCFG_PROC1_NMI_MASK = 0;
   /* Start the crystal and wait for it to settle. The startup delay is counted in batches
   ** of 256 cycles; 47 gives the millisecond recommended for a 12 MHz crystal. */
   XOSC_STARTUP = 47;
