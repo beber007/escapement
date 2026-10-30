@@ -619,8 +619,10 @@ void OSEndTask(void)
    static UINT8 SavedCurrentSpeed;
 #endif
 /* NextPeriodicArrival: Puts a periodic task in the arrival queue for its next release,
-** one period after the one just due. */
-static void NextPeriodicArrival(TCB *task)
+** one period after the one just due. Inline: GCC 14 and 16 at -O2 kept it as a call,
+** which cost the timer's handler 26 cycles a round on the Pico under GCC 14
+** (docs/rp2040.md). */
+static inline void NextPeriodicArrival(TCB *task)
 {
   task->NextArrivalTimeHigh = task->PeriodHigh;
   task->NextArrivalTimeLow += task->PeriodLow;
