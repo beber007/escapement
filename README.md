@@ -85,7 +85,7 @@ kilobytes of RAM.**
 | | |
 |---|---|
 | **5,248 bytes** | of code for the whole kernel plus four periodic tasks, on a Cortex-M0+ (GCC 16.2, 2026-10-26, [`docs/build.md`](docs/build.md)) |
-| **4.4 µs** | for one scheduling round of the hard kernel on the Pico, 11 µs at worst, in every log the bench has posted on a pull request since 2026-10-13. At 1,000 rounds a second, that is 0.44 % of the processor. It was 3.5 µs until 2026-10-10, and the rise is not explained yet ([#47](https://github.com/beber007/escapement/issues/47), [`docs/rp2040.md`](docs/rp2040.md)) |
+| **4.0 µs** | for one scheduling round of the hard kernel on the Pico, some 500 cycles, and 12 µs at worst (2026-10-30). At 1,000 rounds a second, that is 0.40 % of the processor. The bench reads its timer, which gives 3.5 µs. From 2026-10-13 that reading was 4.4 µs: a function call the compiler kept ([#47](https://github.com/beber007/escapement/issues/47), [`docs/rp2040.md`](docs/rp2040.md)) |
 | **+28 ppm** | on the periods, read by an external frequency counter. A Pico 2 reads the same, so the error comes from the counter's reference, not from the boards ([`docs/rp2040.md`](docs/rp2040.md)) |
 | **108,000** | task activations in three hours on an STM32U5, none off its period by a microsecond. In between, the idle task entered Stop 2 454,487 times, with the kernel's clock stopped each time ([`docs/stm32u5.md`](docs/stm32u5.md)) |
 

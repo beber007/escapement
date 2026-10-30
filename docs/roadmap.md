@@ -496,6 +496,15 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **The Pico's scheduling round as fast as before 7cbc700 (#47), 2026-10-30.** From
+  2026-10-13 the bench read 4.4 µs a round, against 3.5 before. The cause was 7cbc700:
+  it moved the next release of a periodic task into a function, which GCC kept as a
+  call. Declared `inline`, the function goes back into the timer's handler, under GCC
+  14.2 and 16.2, in the hard and the power-aware kernels. Counted in cycles, the
+  change was small: under GCC 16.2, 7cbc700 added 28 cycles a round. The timer counts
+  in microseconds, and it read those 28 cycles, about 0.23 µs, as 0.9 µs (`rp2040.md`,
+  "Cost of one scheduling round").
+
 - **Tasks created and deleted while the hard kernel runs (#45), 2026-10-24.** Built with
   `make LIVE=N`, the hard kernel under EDF keeps a pool of N periodic tasks.
   `OSCreateTaskLive` releases one at once. `OSDeleteTaskLive` stops its releases: at
