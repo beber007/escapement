@@ -131,6 +131,7 @@ build/%.bin : build/%.elf
 	$(OBJCOPY) -O binary $< $@
 
 COMMON = build/Escapement_CortexMx.o \
+          build/Escapement_Port.o \
           build/Escapement_CortexMx_a.o \
           build/Escapement_Atomic.o \
           build/Escapement_Interrupts.o \
@@ -142,6 +143,8 @@ COMMON = build/Escapement_CortexMx.o \
           build/Escapement_RamEntry.o
 
 build/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+build/Escapement_Port.o : ../../../../Escapement_Port.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 build/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<

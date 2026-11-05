@@ -149,6 +149,7 @@ $(B)/%.bin : $(B)/%.elf
 	$(OBJCOPY) -O binary $< $@
 
 COMMON = $(B)/Escapement_CortexMx.o \
+          $(B)/Escapement_Port.o \
           $(B)/Escapement_CortexMx_a.o \
           $(B)/Escapement_Atomic.o \
           $(B)/Escapement_Interrupts.o \
@@ -164,6 +165,8 @@ ifdef FLASH
 endif
 
 $(B)/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/Escapement_Port.o : ../../../../Escapement_Port.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<

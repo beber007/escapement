@@ -104,7 +104,7 @@ all: $(B)/SleepU5.elf $(B)/SoakU5.elf $(B)/SleepU5Flash.elf $(FIRM)
 clean:
 	rm -f $(B)/*.o $(B)/*.elf $(B)/*.d
 
-OBJECTS = $(B)/Escapement_CortexMx.o $(B)/Escapement_CortexMx_a.o \
+OBJECTS = $(B)/Escapement_CortexMx.o $(B)/Escapement_Port.o $(B)/Escapement_CortexMx_a.o \
           $(B)/Escapement_Atomic.o $(B)/Escapement_Interrupts.o \
           $(B)/Escapement_Timer.o $(B)/Escapement_Processor.o $(B)/EscapementHard.o \
           $(B)/EscapementSoft.o \
@@ -116,6 +116,8 @@ ifdef FLASH
 endif
 
 $(B)/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/Escapement_Port.o : ../../../../Escapement_Port.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<

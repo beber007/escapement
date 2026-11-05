@@ -179,6 +179,7 @@ $(B)/%.bin : $(B)/%.elf
 
 COMMON = $(B)/Escapement_RamEntry.o \
           $(B)/Escapement_CortexMx.o \
+          $(B)/Escapement_Port.o \
           $(B)/Escapement_CortexMx_a.o \
           $(B)/Escapement_Atomic.o \
           $(B)/Escapement_Interrupts.o \
@@ -197,6 +198,7 @@ ifeq ($(ARCH),riscv)
 CORE1 =
 COMMON = $(B)/Escapement_RamEntry_rv.o \
           $(B)/Escapement_RISCV.o \
+          $(B)/Escapement_Port.o \
           $(B)/Escapement_RISCV_a.o \
           $(B)/Escapement_Atomic_rv.o \
           $(B)/Escapement_Interrupts.o \
@@ -220,6 +222,8 @@ $(B)/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
 $(B)/Escapement_ImageDef.o : ../../Escapement_ImageDef.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/Escapement_Port.o : ../../../../Escapement_Port.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
