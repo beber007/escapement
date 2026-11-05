@@ -58,6 +58,7 @@ SECTIONS
         . = ALIGN(1024);
         _OSStackGuard = .;
         . += 1024;
+        _OSStackGuardEnd = .;
     } > SRAM
 }
 

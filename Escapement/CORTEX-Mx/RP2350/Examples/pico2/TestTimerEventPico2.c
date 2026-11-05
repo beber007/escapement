@@ -68,8 +68,12 @@ static void ClearLed2Task(void *argument);
 int main(void)
 {
   void *event;
-  extern void (* const CortexMxVectorTable[])(void);
-  VTOR = (UINT32)CortexMxVectorTable;
+  #ifndef __riscv
+     extern void (* const CortexMxVectorTable[])(void);
+  #endif
+  #ifndef __riscv
+     VTOR = (UINT32)CortexMxVectorTable;
+  #endif
   OSInitializeSystemClocks();
   RESETS_RESET &= ~(RESETS_IO_BANK0 | RESETS_PADS_BANK0);
   while ((RESETS_RESET_DONE & (RESETS_IO_BANK0 | RESETS_PADS_BANK0)) !=

@@ -46,10 +46,14 @@ static void UARTUserReceiveInterruptHandler(UINT8 data);
 
 int main(void)
 {
-  extern void (* const CortexMxVectorTable[])(void);
+  #ifndef __riscv
+     extern void (* const CortexMxVectorTable[])(void);
+  #endif
   /* The firmware runs from SRAM: point the processor at the vector table placed there by
   ** the linker before any interrupt can be taken. */
-  *((volatile UINT32 *)0xE000ED08) = (UINT32)CortexMxVectorTable;
+  #ifndef __riscv
+     *((volatile UINT32 *)0xE000ED08) = (UINT32)CortexMxVectorTable;
+  #endif
   /* Leave the ring oscillator for the crystal, so the baud rate and the microsecond tick
   ** mean something. */
   OSInitializeSystemClocks();

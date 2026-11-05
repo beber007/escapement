@@ -30,8 +30,8 @@ INTERVAL, WORDS = 60, 24
 PARTS = ["pulse", "queue", "buffer", "events", "cores", "heartbeat", "interrupt", "memory"]
 
 
-def read(address):
-    out = p.openocd([f"mdw {address:#x} {WORDS}"])
+def read(address, core):
+    out = p.openocd([f"mdw {address:#x} {WORDS}"], core)
     values = []
     for line in out.splitlines():
         if line.startswith("0x") and ":" in line:
@@ -64,7 +64,7 @@ def main():
     for n in range(1, args.minutes + 1):
         if n > 1:
             time.sleep(max(0, started + n * INTERVAL - time.time()))
-            r = read(address)
+            r = read(address, p.core_of(elf))
         if r is None:
             missed += 1
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} no reading",

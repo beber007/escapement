@@ -128,7 +128,11 @@ typedef struct {
 ** part between the cores is then skipped, and counted as done. Initialised, so that it
 ** sits in .data, which an image linked in SRAM copies onto itself at startup: a value
 ** written before the start survives, where .bss is cleared. */
-volatile UINT32 SoakLaunchCore1 = 1;
+#ifdef __riscv
+   volatile UINT32 SoakLaunchCore1 = 0;   /* core 1 not ported to RISC-V yet (#77) */
+#else
+   volatile UINT32 SoakLaunchCore1 = 1;
+#endif
 /* Set by an emulator running several instances (tools/soak_emulated.sh), for each its
 ** own conditions: from it, the Filler works 500 to 1500 us per instance and the timer
 ** events come 500 to 1500 us after they are scheduled. Unset on the board. In .data for
@@ -162,6 +166,13 @@ static UINT32 UnusedSlice(const UINT32 *bottom, const UINT32 *top, UINT32 free);
 static void CountLate(volatile UINT32 *bins, UINT32 late);
 
 #define VTOR              *((volatile UINT32 *)0xE000ED08)
+/* The bottom of core 0's stack: on RISC-V, above the 1 KB the PMP keeps from any access
+** past the globals (Escapement_RISCV.c), as on the RP2040. */
+#ifdef __riscv
+   #define STACK_BOTTOM _OSStackGuardEnd
+#else
+   #define STACK_BOTTOM _ebss
+#endif
 #define TIMER_BASE        0x400B0000   /* TIMER0 */
 #define TIMER_ALARM3      *((volatile UINT32 *)(TIMER_BASE + 0x1C))
 #define TIMER_TIMERAWL    *((volatile UINT32 *)(TIMER_BASE + 0x28))
@@ -202,9 +213,13 @@ static void CountLate(volatile UINT32 *bins, UINT32 late);
 
 int main(void)
 {
-  extern void (* const CortexMxVectorTable[])(void);
+  #ifndef __riscv
+     extern void (* const CortexMxVectorTable[])(void);
+  #endif
   UINT32 i;
-  VTOR = (UINT32)CortexMxVectorTable;
+  #ifndef __riscv
+     VTOR = (UINT32)CortexMxVectorTable;
+  #endif
   /* The watchdog a firmware in flash may have armed is disarmed until the heartbeat
   ** takes it over: core 1 runs, and nothing pauses it any more. */
   WATCHDOG_CTRL &= ~WATCHDOG_ENABLE;
@@ -247,20 +262,32 @@ int main(void)
   ** second, and before the timer's interrupt is enabled: on the UNO Q the one taken
   ** during the scan, before the kernel started, was its last (#41). */
   {
-     extern UINT32 _ebss;
+     extern UINT32 STACK_BOTTOM;
      extern void *_OSStackBasePointer;
-     Results.Stack0Free = Unused(&_ebss,(UINT32 *)_OSStackBasePointer);
+     Results.Stack0Free = Unused(&STACK_BOTTOM,(UINT32 *)_OSStackBasePointer);
   }
   AlarmISR.Handler = AlarmHandler;
   OSSetISRDescriptor(ISR_TIMER_INDEX,&AlarmISR);
-  NVIC_IPR[ISR_TIMER_INDEX >> 2] |= ISR_PRIORITY << ((ISR_TIMER_INDEX & 3) << 3);
+  #ifdef __riscv
+     _OSIRQSetPriority(ISR_TIMER_INDEX,1);
+  #else
+     NVIC_IPR[ISR_TIMER_INDEX >> 2] |= ISR_PRIORITY << ((ISR_TIMER_INDEX & 3) << 3);
+  #endif
   TIMER_INTE_SET = ALARM3_BIT;
-  NVIC_ISER = 1u << ISR_TIMER_INDEX;
+  #ifdef __riscv
+     _OSIRQEnable(_OS_IRQ_WORD(ISR_TIMER_INDEX),_OS_IRQ_BIT(ISR_TIMER_INDEX));
+  #else
+     NVIC_ISER = 1u << ISR_TIMER_INDEX;
+  #endif
   TIMER_ALARM3 = TIMER_TIMERAWL + 1000;
   if (SoakLaunchCore1) {
      for (i = 0; i < sizeof Core1Stack / sizeof Core1Stack[0]; i += 1)
         Core1Stack[i] = STACK_FILL;
-     OSLaunchCore1(Writer,&Core1Stack[sizeof Core1Stack / sizeof Core1Stack[0]]);
+     #ifdef __riscv
+        (void)Writer;
+     #else
+        OSLaunchCore1(Writer,&Core1Stack[sizeof Core1Stack / sizeof Core1Stack[0]]);
+     #endif
   }
   return OSStartMultitasking(NULL,NULL);
 } /* end of main */
@@ -506,7 +533,7 @@ static void FirmTask(void *argument)
 ** that memory holds, and switches the load between its phases. */
 static void HeartbeatTask(void *argument)
 {
-  extern UINT32 _ebss;
+  extern UINT32 STACK_BOTTOM;
   extern void *_OSStackBasePointer;
   static UINT32 seen[PARTS], phaseEnd = 0, draw;
   #ifdef SOAK_FIRM
@@ -531,7 +558,7 @@ static void HeartbeatTask(void *argument)
      seenMandatory = Firm.Mandatory;
   #endif
   /* The stack of core 0 runs down from the heap towards the end of .bss. */
-  Results.Stack0Free = UnusedSlice(&_ebss,(UINT32 *)_OSStackBasePointer,
+  Results.Stack0Free = UnusedSlice(&STACK_BOTTOM,(UINT32 *)_OSStackBasePointer,
                                    Results.Stack0Free);
   if (SoakLaunchCore1)
      Results.Stack1Free = Unused(Core1Stack,
@@ -572,10 +599,14 @@ static UINT32 *NewGuard(void)
 ** below this frame, with a pattern, before anything runs on it. */
 static void PaintStack(void)
 {
-  extern UINT32 _ebss;
+  extern UINT32 STACK_BOTTOM;
   UINT32 *word, sp;
-  __asm volatile ("MOV %0, SP" : "=r" (sp));
-  for (word = &_ebss; (UINTPTR)word < sp - 128; word += 1)
+  #ifdef __riscv
+     __asm volatile ("mv %0, sp" : "=r" (sp));
+  #else
+     __asm volatile ("MOV %0, SP" : "=r" (sp));
+  #endif
+  for (word = &STACK_BOTTOM; (UINTPTR)word < sp - 128; word += 1)
      *word = STACK_FILL;
 } /* end of PaintStack */
 

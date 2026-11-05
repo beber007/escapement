@@ -37,12 +37,15 @@ check "$M/RP2350" "$M/RP2350/Examples/pico2" "$M/RP2350/Examples/pico2"/*.c
 R=$K/RISC-V
 P2=$M/RP2350
 echo "== $P2, RISC-V"
+# shellcheck disable=SC2046  # one file per example
 cppcheck --quiet --error-exitcode=1 --inline-suppr --std=c99 -D__riscv \
     --enable=warning,portability,performance --platform=unix32 \
     -I "$P2/Examples/pico2" -I "$P2" -I "$R" -I "$M" -I "$K" \
     "$K/EscapementHard.c" "$K/EscapementSoft.c" "$K/EscapementHardPA.c" \
     "$R"/*.c "$P2/Escapement_Interrupts.c" "$P2/Escapement_Timer.c" \
-    "$P2/Escapement_Processor.c" "$P2/Examples/pico2/TaskLEDPico2.c"
+    "$P2/Escapement_Processor.c" "$P2/Escapement_TimerEvent.c" "$P2/Escapement_UART.c" \
+    $(for e in TaskLED UARTEcho UARTSenders TestTimerEvent TaskWrap IPC Soak; do
+          echo "$P2/Examples/pico2/${e}Pico2.c"; done)
 check "$M/STM32U5" "$M/STM32U5/Examples/uno-q" \
     "$M/STM32U5/Examples/uno-q"/*.c
 check "$M/STM32U3" "$M/STM32U3/Examples/nucleo-u385" \
