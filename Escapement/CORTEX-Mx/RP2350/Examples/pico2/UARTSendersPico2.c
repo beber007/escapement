@@ -37,8 +37,12 @@ static void BTask(void *argument);
 
 int main(void)
 {
-  extern void (* const CortexMxVectorTable[])(void);
-  VTOR = (UINT32)CortexMxVectorTable;
+  #ifndef __riscv
+     extern void (* const CortexMxVectorTable[])(void);
+  #endif
+  #ifndef __riscv
+     VTOR = (UINT32)CortexMxVectorTable;
+  #endif
   OSInitializeSystemClocks();
   Results.Marker = MARKER;
   if (!OSInitUART(NB_NODE,NODE_SIZE,NULL,OS_IO_UART0))

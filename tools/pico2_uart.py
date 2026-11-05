@@ -89,7 +89,7 @@ def probe_tty():
 
 
 def results(elf, words):
-    out = p.openocd([f"mdw {p.symbol(elf, 'Results'):#x} {words}"])
+    out = p.openocd([f"mdw {p.symbol(elf, 'Results'):#x} {words}"], p.core_of(elf))
     values = []
     for line in out.splitlines():
         if line.startswith("0x") and ":" in line:

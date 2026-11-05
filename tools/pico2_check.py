@@ -20,6 +20,14 @@ the emulator sees (SCs failed, reservations cleared, helpers entered on another 
 are left out; the tests of the outputs need a witness on the pins, and those of the UART
 are tools/pico2_uart.py's.
 
+An image built for the Hazard3 cores (make ARCH=riscv, issue #77), known by its ELF
+header, is loaded from the Arm side and booted by the bootrom: a RAM image boot, asked
+for through the watchdog's scratch registers (RP2350 datasheet, the bootrom's watchdog
+boot), finds its
+IMAGE_DEF in SRAM and switches both cores to RISC-V. Its Results are read through core
+0's RISC-V debug, without stopping it. Core 1 is held off throughout: the images of two
+cores are not ported yet, and SoakPico2 runs without its part on core 1.
+
 Needs the GNU Arm binutils and an OpenOCD that knows the RP2350 (Raspberry Pi's fork, in
 $OPENOCD), and a CMSIS-DAP probe: PROBE=name picks one of the bench's (tools/probe.sh).
 
@@ -49,7 +57,27 @@ TOOLS = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(TOOLS)
 EXAMPLES = os.path.join(ROOT, "Escapement/CORTEX-Mx/RP2350/Examples/pico2/build")
 PSM_FRCE_OFF_SET = 0x4001A004   # PSM 0x40018000, FRCE_OFF 0x04, set alias +0x2000
+PSM_FRCE_OFF_CLR = 0x4001B004   # its clear alias, +0x3000
 PSM_PROC1 = 1 << 24
+WATCHDOG_SCRATCH2 = 0x400D8014
+# A RAM image boot of the SRAM's first 512 KB (pico-sdk, boot/bootrom_constants.h,
+# BOOT_TYPE_RAM_IMAGE): scratch 2 and 3 the region, 4 the magic, 5 its complement, 6 the
+# type, 7 the magic again. Checked on the Pico 2 on
+# 2026-11-05: the bootrom found the IMAGE_DEF and ran the image on both Hazard3.
+RAM_IMAGE_BOOT = [0x20000000, 0x80000, 0xB007C0D3, 0xFFFFFFFE, 3, 0xB007C0D3]
+DEMCR = 0xE000EDFC   # the debugger's reset leaves VC_CORERESET set, which holds the core
+
+
+def is_riscv(elf):
+    """An ELF built for RISC-V, by e_machine (243)."""
+    with open(elf, "rb") as f:
+        header = f.read(20)
+    return int.from_bytes(header[18:20], "little") == 243
+
+
+def core_of(elf):
+    """The core OpenOCD debugs for elf's Results."""
+    return "rv0" if is_riscv(elf) else "0"
 
 
 def adapter():
@@ -58,10 +86,11 @@ def adapter():
                           text=True, check=True).stdout.strip()
 
 
-def openocd(commands):
-    """OpenOCD on core 0 only: left to itself it would halt core 1 and keep it so."""
+def openocd(commands, core="0"):
+    """OpenOCD on core 0 only: left to itself it would halt core 1 and keep it so. core
+    is "0" for the Cortex-M33, "rv0" for the Hazard3."""
     args = [os.environ.get("OPENOCD", "openocd"), "-f", "interface/cmsis-dap.cfg",
-            "-c", adapter(), "-c", "adapter speed 5000", "-c", "set USE_CORE 0",
+            "-c", adapter(), "-c", "adapter speed 5000", "-c", f"set USE_CORE {core}",
             "-f", "target/rp2350.cfg", "-c", "init"]
     for c in commands:
         args += ["-c", c]
@@ -92,6 +121,19 @@ def build_seed(directory):
 
 def load(elf, seed):
     """Load elf after the seed; with no seed, write it into the flash and boot it."""
+    if is_riscv(elf):
+        # The image before, on the Hazard3, leaves the Cortex-M33 unexamined, and "reset
+        # halt" fails on it: the rescue reset gives it back first (2026-11-05).
+        openocd(["rescue_reset"])
+        boot = [f"mww {WATCHDOG_SCRATCH2 + 4 * i:#x} {w:#x}"
+                for i, w in enumerate(RAM_IMAGE_BOOT)]
+        out = openocd(["reset halt", f"mww {PSM_FRCE_OFF_SET:#x} {PSM_PROC1:#x}",
+                       f"load_image {elf}"] + boot +
+                      [f"mww {PSM_FRCE_OFF_CLR:#x} {PSM_PROC1:#x}", f"mww {DEMCR:#x} 0",
+                       "resume"])
+        if "bytes written" not in out:
+            sys.exit(f"could not load {elf}:\n{out}")
+        return
     if seed is None:
         out = subprocess.run(["sh", os.path.join(TOOLS, "pico2_flash.sh"), elf],
                              capture_output=True, text=True, timeout=120).stdout
@@ -109,7 +151,7 @@ def run(elf, seed, seconds, words):
     """Load elf (load), let it run, and return words words of its Results."""
     load(elf, seed)
     time.sleep(seconds)
-    out = openocd([f"mdw {symbol(elf, 'Results'):#x} {words}"])
+    out = openocd([f"mdw {symbol(elf, 'Results'):#x} {words}"], core_of(elf))
     values = []
     for line in out.splitlines():
         if line.startswith("0x") and ":" in line:
@@ -214,6 +256,9 @@ def main():
             if args.only and name not in args.only:
                 continue
             elf = os.path.join(build, name + ".elf")
+            if not os.path.exists(elf) and args.only is None:
+                print(f"--   {name}: not built here")
+                continue
             values = run(elf, seed, seconds, words)
             checks = litmus(values, False) if args.flash and judge is litmus \
                 else judge(values)
