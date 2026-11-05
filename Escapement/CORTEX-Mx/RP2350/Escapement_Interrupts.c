@@ -32,6 +32,10 @@
 
 #include "Escapement.h"
 
+/* On the Hazard3, meinext gives the number of the interrupt and Escapement_RISCV.c
+** dispatches it: no vector table of the peripherals (issue #77). */
+#ifndef __riscv
+
 extern void _OSIOHandler(void);
 
 #ifdef DEBUG_MODE
@@ -102,6 +106,8 @@ void (* const RP2350VectorTable[])(void) = {
   UndefinedInterrupt, /* 50  SPARE_IRQ_4      */
   UndefinedInterrupt  /* 51  SPARE_IRQ_5      */
 };
+
+#endif /* __riscv */
 
 
 /* Table of ISR descriptors, controlled by OSSetISRDescriptor and OSGetISRDescriptor and

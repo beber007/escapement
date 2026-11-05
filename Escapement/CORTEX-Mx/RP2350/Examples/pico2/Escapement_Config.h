@@ -36,7 +36,9 @@
 #endif
 
 #define RP2350
-#define CORTEX_M33
+#ifndef __riscv
+   #define CORTEX_M33
+#endif
 
 
 /* Measures the cost of a scheduling round, to be read back over SWD as
