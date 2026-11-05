@@ -30,7 +30,7 @@ check() {   # check PORT_DIR EXAMPLE_DIR SOURCES...
         --enable=warning,portability,performance --platform=arm32-wchar_t4 \
         -I "$example" -I "$port" -I "$M" -I "$K" \
         "$K/EscapementHard.c" "$K/EscapementSoft.c" "$K/EscapementHardPA.c" \
-        "$M"/*.c "$port"/*.c "$@"
+        "$K/Escapement_Port.c" "$M"/*.c "$port"/*.c "$@"
 }
 check "$M/RP2040" "$M/RP2040/Examples/pico" "$M/RP2040/Examples/pico"/*.c
 check "$M/RP2350" "$M/RP2350/Examples/pico2" "$M/RP2350/Examples/pico2"/*.c
@@ -42,7 +42,7 @@ cppcheck --quiet --error-exitcode=1 --inline-suppr --std=c99 -D__riscv \
     --enable=warning,portability,performance --platform=unix32 \
     -I "$P2/Examples/pico2" -I "$P2" -I "$R" -I "$M" -I "$K" \
     "$K/EscapementHard.c" "$K/EscapementSoft.c" "$K/EscapementHardPA.c" \
-    "$R"/*.c "$P2/Escapement_Interrupts.c" "$P2/Escapement_Timer.c" \
+    "$K/Escapement_Port.c" "$R"/*.c "$P2/Escapement_Interrupts.c" "$P2/Escapement_Timer.c" \
     "$P2/Escapement_Processor.c" "$P2/Escapement_TimerEvent.c" "$P2/Escapement_UART.c" \
     $(for e in TaskLED UARTEcho UARTSenders TestTimerEvent TaskWrap IPC Soak; do
           echo "$P2/Examples/pico2/${e}Pico2.c"; done)

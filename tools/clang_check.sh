@@ -28,7 +28,7 @@ check() {   # check TARGET CPU PORT_DIR EXAMPLE_DIR [KERNELS]
         for scheduler in ${SCHEDULERS:-EARLIEST_DEADLINE_FIRST DEADLINE_MONOTONIC_SCHEDULING}; do
             echo "== $cpu, $kernel, $scheduler${options:+, $options}"
             for f in "$K/EscapementHard.c" "$K/EscapementSoft.c" "$K/EscapementHardPA.c" \
-                     "$M"/*.c "$port"/*.c; do
+                     "$K/Escapement_Port.c" "$M"/*.c "$port"/*.c; do
                 $CLANG --target="$target" -mcpu="$cpu" -mthumb -ffreestanding -fno-builtin \
                     -Wall -O2 -fno-strict-aliasing $version $options -DSCHEDULER_REAL_TIME_MODE=$scheduler \
                     -I"$example" -I"$port" -I"$M" -I"$K" -c "$f" -o /dev/null 2>>"$LOG"

@@ -166,6 +166,7 @@ $(B)/%.bin : $(B)/%.elf
 
 COMMON = $(B)/Escapement_RamEntry.o \
           $(B)/Escapement_CortexMx.o \
+          $(B)/Escapement_Port.o \
           $(B)/Escapement_CortexMx_a.o \
           $(B)/Escapement_Atomic.o \
           $(B)/Escapement_Interrupts.o \
@@ -189,6 +190,8 @@ $(B)/Escapement_Boot2.S : $(B)/Escapement_Boot2Code.o ../../../../../tools/rp204
 $(B)/Escapement_Boot2.o : $(B)/Escapement_Boot2.S
 	$(CC) $(AFLAGS) -o $@ $<
 $(B)/Escapement_CortexMx.o : ../../../Escapement_CortexMx.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/Escapement_Port.o : ../../../../Escapement_Port.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/Escapement_CortexMx_a.o : ../../../Escapement_CortexMx_a.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
