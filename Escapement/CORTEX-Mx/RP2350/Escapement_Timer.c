@@ -73,9 +73,6 @@
 #define TICKS_TIMER0_CYCLES *((volatile UINT32 *)(0x40108000 + 0x1C))
 #define TICKS_ENABLE        (1u << 0)
 
-#define NVIC_ISER           *((volatile UINT32 *)0xE000E100)
-#define NVIC_ICPR           *((volatile UINT32 *)0xE000E280)
-#define NVIC_IPR            ((volatile UINT32 *)0xE000E400)
 
 #define ALARM0_BIT          0x1
 #define ALARM1_BIT          0x2
@@ -119,10 +116,9 @@ volatile BOOL _OSComparatorInterruptFlag = FALSE;
    {
      UINT32 primask;
      volatile OS_TRACE_ENTRY *entry;
-     __asm volatile ("MRS %0, PRIMASK" : "=r" (primask) :: "memory");
-     _OSDisableInterrupts();
+     primask = _OSMaskInterrupts();
      if (_OSTraceFrozen) {
-        __asm volatile ("MSR PRIMASK, %0" :: "r" (primask) : "memory");
+        _OSRestoreInterrupts(primask);
         return;
      }
      entry = &_OSTrace[_OSTraceCount & (OS_TRACE_SIZE - 1)];
@@ -131,7 +127,7 @@ volatile BOOL _OSComparatorInterruptFlag = FALSE;
      entry->Arg = arg;
      entry->Extra = extra;
      _OSTraceCount += 1;
-     __asm volatile ("MSR PRIMASK, %0" :: "r" (primask) : "memory");
+     _OSRestoreInterrupts(primask);
    } /* end of _OSTraceEvent */
 #endif
 
@@ -155,21 +151,6 @@ static void ArmOverflowAlarm(void)
   _OSAlarmTime[1] = raw + ((TIME_MASK + 1) - ((raw - TimeOrigin) & TIME_MASK));
   TIMER_ALARM1 = _OSAlarmTime[1];
 } /* end of ArmOverflowAlarm */
-
-
-/* SetIRQPriority: Sets the priority of a peripheral interrupt. The Cortex-M33 of the
-** RP2350 holds 16 priority levels in the 4 most significant bits of each byte of the IPR
-** words, which group 4 interrupts each. */
-static void SetIRQPriority(UINT8 irq, UINT8 priority)
-{
-  UINT32 word = NVIC_IPR[irq >> 2];
-  UINT8 shift = (irq & 0x3) << 3;
-  word &= ~(0xFFu << shift);
-  /* Only the 4 most significant bits of the byte are implemented; masking keeps a
-  ** priority above 15 from spilling into the neighbouring interrupt. */
-  word |= ((UINT32)((priority << 4) & 0xFF) << shift);
-  NVIC_IPR[irq >> 2] = word;
-} /* end of SetIRQPriority */
 
 
 /* _OSInitializeTimer: Brings the timer out of reset and prepares its two alarms, without
@@ -214,15 +195,15 @@ void _OSInitializeTimer(void)
   Alarm1Descriptor.TimerIntHandler = Alarm1Handler;
   OSSetISRDescriptor(OS_IO_TIMER_0, &Alarm0Descriptor);
   OSSetISRDescriptor(OS_IO_TIMER_1, &Alarm1Descriptor);
-  SetIRQPriority(OS_IO_TIMER_0, TIMER_PRIORITY);
-  SetIRQPriority(OS_IO_TIMER_1, TIMER_PRIORITY);
+  _OSIRQSetPriority(OS_IO_TIMER_0, TIMER_PRIORITY);
+  _OSIRQSetPriority(OS_IO_TIMER_1, TIMER_PRIORITY);
   /* A reset of the processors alone, as a debugger does to load an image, leaves the timer
   ** as the previous program left it: an alarm still armed fires, and the NVIC keeps its
   ** interrupt pending although it is not enabled. Taken as soon as it is, that interrupt
   ** ran the kernel before the idle task had set the origin of time. The causes are cleared
   ** above; the pending state is cleared here. */
-  NVIC_ICPR = (1u << OS_IO_TIMER_0) | (1u << OS_IO_TIMER_1);
-  NVIC_ISER = (1u << OS_IO_TIMER_0) | (1u << OS_IO_TIMER_1);
+  _OSIRQClearPending(0, (1u << OS_IO_TIMER_0) | (1u << OS_IO_TIMER_1));
+  _OSIRQEnable(0, (1u << OS_IO_TIMER_0) | (1u << OS_IO_TIMER_1));
 } /* end of _OSInitializeTimer */
 
 

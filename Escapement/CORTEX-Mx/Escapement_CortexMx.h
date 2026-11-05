@@ -88,6 +88,30 @@ void _OSIOHandler(void);
            __asm volatile ("MRS %0,PRIMASK\n\tCPSID i" : "=r"(primask) :: "memory"); primask; })
 #define _OSRestoreInterrupts(primask) __asm volatile ("MSR PRIMASK,%0" :: "r"(primask) : "memory")
 
+/* Peripheral interrupts in the NVIC. The drivers the RP2350 port shares between its Arm
+** and its RISC-V cores reach the interrupt controller through these macros only, which
+** the RISC-V layer defines for its own controller (issue #77).
+** _OSIRQEnable, _OSIRQSetPending and _OSIRQClearPending take a word of the NVIC's bit
+** arrays, 32 interrupts each, and a mask within it: one store sets several, as the
+** drivers did before. _OS_IRQ_WORD and _OS_IRQ_BIT give them for one interrupt. */
+#define _OS_IRQ_WORD(irq) ((irq) >> 5)
+#define _OS_IRQ_BIT(irq)  (1u << ((irq) & 0x1F))
+#define _OSIRQEnable(word,bits)       (((volatile UINT32 *)0xE000E100)[word] = (bits))
+#define _OSIRQSetPending(word,bits)   (((volatile UINT32 *)0xE000E200)[word] = (bits))
+#define _OSIRQClearPending(word,bits) (((volatile UINT32 *)0xE000E280)[word] = (bits))
+/* _OSIRQSetPriority: Sets the priority level of a peripheral interrupt, 0 the highest.
+** The NVIC holds it in the OS_NVIC_PRIORITY_BITS most significant bits of the byte of the
+** interrupt, four bytes to a word, which the port defines. Masking the shifted level
+** keeps one too large from spilling into the neighbouring interrupt. A macro, not a
+** function: the ports that leave OS_NVIC_PRIORITY_BITS undefined never expand it. */
+#define _OSIRQSetPriority(irq,level) \
+   do { \
+     volatile UINT32 *ipr = &((volatile UINT32 *)0xE000E400)[(irq) >> 2]; \
+     UINT32 shift = ((UINT32)(irq) & 0x3) << 3; \
+     UINT32 word = *ipr & ~(0xFFu << shift); \
+     *ipr = word | ((((UINT32)(level) << (8 - OS_NVIC_PRIORITY_BITS)) & 0xFF) << shift); \
+   } while (0)
+
 /* _OSSleep: Sets the processor to its lowest possible sleep mode. */
 #ifdef ESCAPEMENT_VERSION_HARD_PA
    /* Operating point the idle task sleeps at, the maximum unless make SLEEP_SPEED=n

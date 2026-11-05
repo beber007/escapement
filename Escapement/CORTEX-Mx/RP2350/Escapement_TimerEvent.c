@@ -57,9 +57,6 @@
 #define RESETS_RESET_DONE   *((volatile UINT32 *)(0x40020000 + 0x08))
 #define RESETS_TIMER_BIT    (1u << 23)   /* TIMER0 */
 
-#define NVIC_ISER           *((volatile UINT32 *)0xE000E100)
-#define NVIC_ICPR           *((volatile UINT32 *)0xE000E280)
-#define NVIC_IPR            ((volatile UINT32 *)0xE000E400)
 
 
 typedef struct TIMER_EVENT_NODE { // Blocks that are in the event queue
@@ -85,15 +82,12 @@ static void ArmAlarm(TIMER_ISR_DATA *device);
 ** had, since the entry points may be called with interrupts already masked. */
 static UINT32 EnterCritical(void)
 {
-  UINT32 primask;
-  __asm volatile ("MRS %0, PRIMASK" : "=r" (primask) :: "memory");
-  _OSDisableInterrupts();
-  return primask;
+  return _OSMaskInterrupts();
 } /* end of EnterCritical */
 
 static void LeaveCritical(UINT32 primask)
 {
-  __asm volatile ("MSR PRIMASK, %0" :: "r" (primask) : "memory");
+  _OSRestoreInterrupts(primask);
 } /* end of LeaveCritical */
 
 
@@ -101,8 +95,7 @@ static void LeaveCritical(UINT32 primask)
 BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex)
 {
   TIMER_ISR_DATA *device;
-  UINT8 i, shift;
-  UINT32 word;
+  UINT8 i;
   /* No node, the loop below wrote the first beyond an empty block, over the descriptor
   ** just allocated (an audit of the ports, 2026-09-29). */
   /* Alarm 3 ends the sleeps of OSInitSleepGate, which set the hook. */
@@ -132,12 +125,10 @@ BOOL OSInitTimerEvent(UINT8 nbNode, UINT8 priority, UINT16 interruptIndex)
   TIMER_INTR = device->AlarmBit;
   TIMER_INTF_CLR = device->AlarmBit;
   TIMER_INTE_SET = device->AlarmBit;
-  /* Priority in the 4 most significant bits of the byte of the interrupt. */
-  shift = (interruptIndex & 0x3) << 3;
-  word = NVIC_IPR[interruptIndex >> 2] & ~(0xFFu << shift);
-  NVIC_IPR[interruptIndex >> 2] = word | ((UINT32)((priority << 4) & 0xFF) << shift);
-  NVIC_ICPR = 1u << interruptIndex;
-  NVIC_ISER = 1u << interruptIndex;
+  /* The alarms' interrupts, 0 to 3, lie in the first word of the bit arrays. */
+  _OSIRQSetPriority(interruptIndex, priority);
+  _OSIRQClearPending(0, 1u << interruptIndex);
+  _OSIRQEnable(0, 1u << interruptIndex);
   return TRUE;
 } /* end of OSInitTimerEvent */
 

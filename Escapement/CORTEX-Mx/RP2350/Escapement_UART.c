@@ -78,11 +78,6 @@
 #define PADS_IE_BIT          (1u << 6)
 #define FUNCSEL_UART         2
 
-/* One bit per interrupt, 32 to a word. */
-#define NVIC_ISER(irq)       ((volatile UINT32 *)0xE000E100)[(irq) >> 5]
-#define NVIC_ISPR(irq)       ((volatile UINT32 *)0xE000E200)[(irq) >> 5]
-#define NVIC_BIT(irq)        (1u << ((irq) & 0x1F))
-
 /* Clock feeding the UART, fixed by OSInitializeSystemClocks. */
 #define CLK_PERI_HZ          12000000u
 #define BAUD_RATE            115200u
@@ -163,7 +158,7 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
   REG(descriptor,UART_ICR) = 0x7FF;
   REG(descriptor,UART_IMSC) = INT_RX | INT_RT;
   OSSetISRDescriptor(interruptIndex,descriptor);
-  NVIC_ISER(interruptIndex) = NVIC_BIT(interruptIndex);
+  _OSIRQEnable(_OS_IRQ_WORD(interruptIndex), _OS_IRQ_BIT(interruptIndex));
   return TRUE;
 } /* end of OSInitUART */
 
@@ -201,7 +196,7 @@ void OSEnqueueUART(void *buffer, UINT8 dataSize, UINT8 interruptIndex)
   ** queuing in turn, emptied the same buffer from where the other stood, and unmasked the
   ** interrupt under it: UARTSendersPico2 saw 179 lines of some 18,600 come out broken
   ** in 0.3 s (2026-09-29). */
-  NVIC_ISPR(interruptIndex) = NVIC_BIT(interruptIndex);
+  _OSIRQSetPending(_OS_IRQ_WORD(interruptIndex), _OS_IRQ_BIT(interruptIndex));
 } /* end of OSEnqueueUART */
 
 
