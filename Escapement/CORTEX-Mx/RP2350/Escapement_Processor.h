@@ -43,6 +43,10 @@
 ** clobber keeps the compiler from moving them across as well. */
 #define _OSMemoryBarrier() __asm volatile ("DMB" ::: "memory")
 
+/* The Cortex-M33 of the RP2350 holds 16 priority levels in the NVIC
+** (_OSIRQSetPriority). */
+#define OS_NVIC_PRIORITY_BITS 4
+
 #ifdef ESCAPEMENT_VERSION_HARD_PA
    #error "the power-aware kernel is not ported to the RP2350 yet (docs/roadmap.md)"
 #endif
