@@ -46,6 +46,27 @@ CFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wall -c -g -fdata-sections \
 AFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wall -c -g -MMD -MP
 LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
 
+# make ARCH=riscv builds for the two Hazard3 cores of the RP2350 instead (issue #77), into
+# build-riscv/, through the RISC-V layer (../../../../RISC-V): TaskLEDPico2 alone so far,
+# the hard kernel, from SRAM. The base RV32IMAC, which every RISC-V core of 32 bits with
+# atomics runs; -mstrict-align, the Hazard3 having no misaligned access.
+ifeq ($(ARCH),riscv)
+   RISCV_CROSS_COMPILE ?= riscv64-elf-
+   CC = $(RISCV_CROSS_COMPILE)gcc
+   OBJCOPY = $(RISCV_CROSS_COMPILE)objcopy
+   RVARCH = -march=rv32imac_zicsr_zifencei -mabi=ilp32 -mstrict-align
+   CFLAGS = $(RVARCH) -Wall -c -g -fdata-sections -ffunction-sections -ffreestanding \
+            -Werror=comment -O2 -fno-strict-aliasing -MMD -MP
+   AFLAGS = $(RVARCH) -Wall -c -g -MMD -MP
+   LDFLAGS = $(RVARCH) -Wl,--gc-sections -nostdlib
+   LINKERFILE = ../../../../RISC-V/RP2350/RP2350_SRAM.ld
+   B = build-riscv
+   INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../../RISC-V -I../../../ -I../../../../
+   ifneq ($(KERNEL)$(FLASH)$(TRACE)$(WCET)$(LIVE)$(SLEEP_GATE),)
+      $(error ARCH=riscv builds the hard kernel from SRAM only so far (issue #77))
+   endif
+endif
+
 # Build variants, which the CI also runs:
 #   make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING    the other scheduling algorithm
 #   make KERNEL=SOFT                                the soft real-time kernel
@@ -124,6 +145,9 @@ ifneq ($(FLAGS),$(shell cat $(B)/flags 2>/dev/null))
 endif
 endif
 
+ifeq ($(ARCH),riscv)
+all: $(B)/TaskLEDPico2.elf
+else
 all: $(B)/TaskLEDPico2.elf $(B)/UARTEchoPico2.elf $(B)/TestTimerEventPico2.elf \
      $(B)/FourSlotCoresPico2.elf $(B)/ThreeSlotCoresPico2.elf $(B)/TaskWrapPico2.elf \
      $(B)/FIFOCoresPico2.elf $(B)/IPCPico2.elf $(B)/SoakPico2.elf $(B)/LitmusPico2.elf \
@@ -138,6 +162,7 @@ all: $(B)/SoakFirmPico2.elf
 endif
 ifeq ($(LIVE),4)
 all: $(B)/LiveTasksPico2.elf
+endif
 endif
 
 clean:
@@ -164,6 +189,27 @@ COMMON = $(B)/Escapement_RamEntry.o \
 ifdef FLASH
    COMMON += $(B)/Escapement_ImageDef.o
 endif
+
+ifeq ($(ARCH),riscv)
+COMMON = $(B)/Escapement_RamEntry_rv.o \
+          $(B)/Escapement_RISCV.o \
+          $(B)/Escapement_RISCV_a.o \
+          $(B)/Escapement_Atomic_rv.o \
+          $(B)/Escapement_Interrupts.o \
+          $(B)/Escapement_Timer.o \
+          $(B)/Escapement_Processor.o \
+          $(B)/EscapementHard.o \
+          $(B)/EscapementSoft.o \
+          $(B)/EscapementHardPA.o
+endif
+$(B)/Escapement_RamEntry_rv.o : ../../../../RISC-V/RP2350/Escapement_RamEntry.S
+	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/Escapement_RISCV.o : ../../../../RISC-V/Escapement_RISCV.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/Escapement_RISCV_a.o : ../../../../RISC-V/Escapement_RISCV_a.S
+	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/Escapement_Atomic_rv.o : ../../../../RISC-V/Escapement_Atomic.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 
 $(B)/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<

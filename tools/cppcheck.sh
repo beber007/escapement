@@ -6,7 +6,9 @@
 # with its examples, and the host test. Each port is checked with its own include paths,
 # which give the kernels the target's types and macros; cppcheck then explores the
 # configurations of the #if it meets (hard, soft or power-aware kernel, EDF or
-# deadline-monotonic scheduling, Cortex-M0+ or M33).
+# deadline-monotonic scheduling, Cortex-M0+ or M33). The Pico 2 is checked twice: on Arm,
+# __riscv undefined, and on its Hazard3 cores through the RISC-V layer, with the files
+# make ARCH=riscv builds (issue #77).
 #
 # The level is warning, portability and performance: what may be a defect. At the style
 # level cppcheck reports mostly pointers that could be const, and a few false positives
@@ -24,7 +26,7 @@ check() {   # check PORT_DIR EXAMPLE_DIR SOURCES...
     port=$1 example=$2
     shift 2
     echo "== $port"
-    cppcheck --quiet --error-exitcode=1 --inline-suppr --std=c99 \
+    cppcheck --quiet --error-exitcode=1 --inline-suppr --std=c99 -U__riscv \
         --enable=warning,portability,performance --platform=arm32-wchar_t4 \
         -I "$example" -I "$port" -I "$M" -I "$K" \
         "$K/EscapementHard.c" "$K/EscapementSoft.c" "$K/EscapementHardPA.c" \
@@ -32,6 +34,15 @@ check() {   # check PORT_DIR EXAMPLE_DIR SOURCES...
 }
 check "$M/RP2040" "$M/RP2040/Examples/pico" "$M/RP2040/Examples/pico"/*.c
 check "$M/RP2350" "$M/RP2350/Examples/pico2" "$M/RP2350/Examples/pico2"/*.c
+R=$K/RISC-V
+P2=$M/RP2350
+echo "== $P2, RISC-V"
+cppcheck --quiet --error-exitcode=1 --inline-suppr --std=c99 -D__riscv \
+    --enable=warning,portability,performance --platform=unix32 \
+    -I "$P2/Examples/pico2" -I "$P2" -I "$R" -I "$M" -I "$K" \
+    "$K/EscapementHard.c" "$K/EscapementSoft.c" "$K/EscapementHardPA.c" \
+    "$R"/*.c "$P2/Escapement_Interrupts.c" "$P2/Escapement_Timer.c" \
+    "$P2/Escapement_Processor.c" "$P2/Examples/pico2/TaskLEDPico2.c"
 check "$M/STM32U5" "$M/STM32U5/Examples/uno-q" \
     "$M/STM32U5/Examples/uno-q"/*.c
 check "$M/STM32U3" "$M/STM32U3/Examples/nucleo-u385" \

@@ -32,7 +32,12 @@
 #define ESCAPEMENT_PROCESSOR_H
 
 #include "Escapement_Config.h"
-#include "Escapement_CortexMx.h"
+/* The Hazard3 cores run the same port through the RISC-V layer (issue #77). */
+#ifdef __riscv
+   #include "Escapement_RISCV.h"
+#else
+   #include "Escapement_CortexMx.h"
+#endif
 
 /* _OSMemoryBarrier: Orders the accesses of the slot buffers where the model of each says
 ** it must (test/model/fourslot.py and threeslot.py, explore_weak): with the writer on one
@@ -41,7 +46,13 @@
 ** Manual, DDI0553B.y, B7). A DMB orders all those before it before all those after
 ** (B7.2.11), whatever the shareability of SRAM, which LDA/STL would not; the memory
 ** clobber keeps the compiler from moving them across as well. */
-#define _OSMemoryBarrier() __asm volatile ("DMB" ::: "memory")
+#ifdef __riscv
+   /* On the Hazard3, fence rw,rw orders the loads and stores before it before those after
+   ** it, as the DMB does (RISC-V unprivileged ISA, "FENCE"). */
+   #define _OSMemoryBarrier() __asm volatile ("fence rw,rw" ::: "memory")
+#else
+   #define _OSMemoryBarrier() __asm volatile ("DMB" ::: "memory")
+#endif
 
 /* The Cortex-M33 of the RP2350 holds 16 priority levels in the NVIC
 ** (_OSIRQSetPriority). */
@@ -71,7 +82,7 @@ extern void (*_OSIdleHook)(void);
                       if (_OSIdleHook != NULL) \
                          _OSIdleHook(); \
                       else \
-                         __asm volatile ("WFI" ::: "memory"); \
+                         _OSSleepOnce(); \
                    };
 
 #endif /* ESCAPEMENT_PROCESSOR_H */

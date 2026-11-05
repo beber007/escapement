@@ -70,8 +70,10 @@ int main(void)
   TaskParametersDef *TaskParameters;
   /* The firmware runs from SRAM: point the processor at the vector table placed there by
   ** the linker before any interrupt can be taken. */
-  extern void (* const CortexMxVectorTable[])(void);
-  VTOR = (UINT32)CortexMxVectorTable;
+  #ifndef __riscv
+     extern void (* const CortexMxVectorTable[])(void);
+     VTOR = (UINT32)CortexMxVectorTable;
+  #endif
   /* Leave the ring oscillator for the 12 MHz crystal: the microsecond tick of the timer,
   ** and therefore the task periods, depend on it. */
   OSInitializeSystemClocks();
