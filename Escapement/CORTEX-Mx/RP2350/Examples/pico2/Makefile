@@ -150,7 +150,7 @@ ifeq ($(ARCH),riscv)
 all: $(B)/TaskLEDPico2.elf $(B)/UARTEchoPico2.elf $(B)/TestTimerEventPico2.elf \
      $(B)/FourSlotCoresPico2.elf $(B)/ThreeSlotCoresPico2.elf $(B)/TaskWrapPico2.elf \
      $(B)/FIFOCoresPico2.elf $(B)/IPCPico2.elf $(B)/SoakPico2.elf $(B)/LitmusPico2.elf \
-     $(B)/UARTSendersPico2.elf
+     $(B)/UARTSendersPico2.elf $(B)/LatencyPico2.elf
 else
 all: $(B)/TaskLEDPico2.elf $(B)/UARTEchoPico2.elf $(B)/TestTimerEventPico2.elf \
      $(B)/FourSlotCoresPico2.elf $(B)/ThreeSlotCoresPico2.elf $(B)/TaskWrapPico2.elf \
@@ -158,7 +158,7 @@ all: $(B)/TaskLEDPico2.elf $(B)/UARTEchoPico2.elf $(B)/TestTimerEventPico2.elf \
      $(B)/UARTSendersPico2.elf $(B)/SleepPico2.elf $(B)/IdlePico2.elf \
      $(B)/StackGuardPico2.elf $(B)/LposcPico2.elf $(B)/DormantPico2.elf \
      $(B)/DormantCalAsleepPico2.elf $(B)/AwakeCalAsleepPico2.elf \
-     $(B)/RoscCalAsleepPico2.elf
+     $(B)/RoscCalAsleepPico2.elf $(B)/LatencyPico2.elf
 ifeq ($(LIVE),4)
 all: $(B)/LiveTasksPico2.elf
 endif
@@ -265,6 +265,8 @@ $(B)/AwakeCalAsleepPico2.o : DormantPico2.c
 	$(CC) $(CFLAGS) -DCAL_ASLEEP_CLOCKS -DSTAY_AWAKE $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/RoscCalAsleepPico2.o : DormantPico2.c
 	$(CC) $(CFLAGS) -DCAL_ASLEEP_CLOCKS -DSLEEP_ON_ROSC $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/LatencyPico2.o : LatencyPico2.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/UARTEchoPico2.o : UARTEchoPico2.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/UARTSendersPico2.o : UARTSendersPico2.c
@@ -310,6 +312,8 @@ $(B)/AwakeCalAsleepPico2.elf : $(COMMON) $(B)/AwakeCalAsleepPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/AwakeCalAsleepPico2.o -T$(LINKERFILE) -lgcc
 $(B)/RoscCalAsleepPico2.elf : $(COMMON) $(B)/RoscCalAsleepPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/RoscCalAsleepPico2.o -T$(LINKERFILE) -lgcc
+$(B)/LatencyPico2.elf : $(COMMON) $(B)/LatencyPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/LatencyPico2.o -T$(LINKERFILE) -lgcc
 $(B)/UARTEchoPico2.elf : $(COMMON) $(B)/Escapement_UART.o $(B)/UARTEchoPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/Escapement_UART.o $(B)/UARTEchoPico2.o -T$(LINKERFILE) -lgcc
 $(B)/UARTSendersPico2.elf : $(COMMON) $(B)/Escapement_UART.o $(B)/UARTSendersPico2.o
