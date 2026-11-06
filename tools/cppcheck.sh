@@ -44,7 +44,9 @@ cppcheck --quiet --error-exitcode=1 --inline-suppr --std=c99 -D__riscv \
     "$K/EscapementHard.c" "$K/EscapementSoft.c" "$K/EscapementHardPA.c" \
     "$K/Escapement_Port.c" "$R"/*.c "$P2/Escapement_Interrupts.c" "$P2/Escapement_Timer.c" \
     "$P2/Escapement_Processor.c" "$P2/Escapement_TimerEvent.c" "$P2/Escapement_UART.c" \
-    $(for e in TaskLED UARTEcho UARTSenders TestTimerEvent TaskWrap IPC Soak; do
+    "$P2/Escapement_Core1.c" "$P2/Escapement_CoreQueue.c" \
+    $(for e in TaskLED UARTEcho UARTSenders TestTimerEvent TaskWrap IPC Soak FourSlotCores \
+               ThreeSlotCores FIFOCores Litmus; do
           echo "$P2/Examples/pico2/${e}Pico2.c"; done)
 check "$M/STM32U5" "$M/STM32U5/Examples/uno-q" \
     "$M/STM32U5/Examples/uno-q"/*.c

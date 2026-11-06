@@ -15,6 +15,12 @@
 ** and the exclusive loads and stores of both must go through the global monitor for the
 ** LL/SC pairs of the kernel to hold between them.
 **
+** On the Hazard3 cores (issue #77) the handshake is the same, with three differences, as
+** in the pico-sdk (multicore_launch_core1_with_stack, hardware/hazard3/instructions.h):
+** the word of the vector table is the value of mtvec, the table in vectored mode; sev
+** and wfe are h3.unblock and h3.block, two hints of the Hazard3 written as slt to x0;
+** and core 1 sets nothing first, there being no ACTLR.
+**
 ** Platform version: RP2350 (Raspberry Pi Pico 2).
 */
 
@@ -32,8 +38,15 @@
 #define SIO_FIFO_VLD      (1u << 0)   /* something to read */
 #define SIO_FIFO_RDY      (1u << 1)   /* room to write */
 
-#define ACTLR             *((volatile UINT32 *)0xE000E008)
-#define ACTLR_EXTEXCLALL  (1u << 29)
+#ifdef __riscv
+   #define SEV() __asm volatile ("slt x0, x0, x1" ::: "memory")   /* h3.unblock */
+   #define WFE() __asm volatile ("slt x0, x0, x0" ::: "memory")   /* h3.block */
+#else
+   #define SEV() __asm volatile ("sev" ::: "memory")
+   #define WFE() __asm volatile ("wfe" ::: "memory")
+   #define ACTLR             *((volatile UINT32 *)0xE000E008)
+   #define ACTLR_EXTEXCLALL  (1u << 29)
+#endif
 
 static void Push(UINT32 word);
 static UINT32 Pop(void);
@@ -46,15 +59,28 @@ static void (*volatile Core1Entry)(void);
 /* OSLaunchCore1: The bootrom's handshake. */
 void OSLaunchCore1(void (*entry)(void), UINT32 *stackTop)
 {
-  extern void (* const CortexMxVectorTable[])(void);
-  const UINT32 sequence[] = {0, 0, 1, (UINT32)CortexMxVectorTable, (UINT32)stackTop,
-                             (UINT32)Core1Start};
+  #ifdef __riscv
+     /* The RISC-V psABI keeps sp aligned to 16 bytes, where the AAPCS asks for 8: the top
+     ** is rounded down to it, whatever the caller's array. */
+     extern void _OSVectorTable(void);
+     const UINT32 sequence[] = {0, 0, 1, (UINT32)_OSVectorTable | 1u,
+                                (UINT32)stackTop & ~15u, (UINT32)Core1Start};
+  #else
+     extern void (* const CortexMxVectorTable[])(void);
+     const UINT32 sequence[] = {0, 0, 1, (UINT32)CortexMxVectorTable, (UINT32)stackTop,
+                                (UINT32)Core1Start};
+  #endif
   UINT32 i = 0;
   Core1Entry = entry;
   /* What core 0 stored for core 1, the entry and the structures it will use, before the
   ** FIFO's writes that start it: Armv8-M does not order a store to memory before a later
-  ** one to a device without a barrier. */
-  _OSMemoryBarrier();
+  ** one to a device without a barrier. On RISC-V, the fence of the slot buffers, rw,rw,
+  ** orders memory alone; i and o add the devices (RISC-V unprivileged ISA, "FENCE"). */
+  #ifdef __riscv
+     __asm volatile ("fence iorw,iorw" ::: "memory");
+  #else
+     _OSMemoryBarrier();
+  #endif
   PSM_FRCE_OFF_SET = PSM_PROC1;
   while ((PSM_FRCE_OFF & PSM_PROC1) == 0);
   PSM_FRCE_OFF_CLR = PSM_PROC1;
@@ -65,7 +91,7 @@ void OSLaunchCore1(void (*entry)(void), UINT32 *stackTop)
         /* Before each 0, drop what core 1 may have left in the FIFO. */
         while (SIO_FIFO_ST & SIO_FIFO_VLD)
            (void)SIO_FIFO_RD;
-        __asm volatile ("sev" ::: "memory");
+        SEV();
      }
      Push(sequence[i]);
      i = Pop() == sequence[i] ? i + 1 : 0;
@@ -73,12 +99,15 @@ void OSLaunchCore1(void (*entry)(void), UINT32 *stackTop)
 } /* end of OSLaunchCore1 */
 
 
-/* Core1Start: Where core 1 starts: its ACTLR, then the function it was given. */
+/* Core1Start: Where core 1 starts: its ACTLR on the Cortex-M33, then the function it was
+** given. */
 static void Core1Start(void)
 {
-  ACTLR |= ACTLR_EXTEXCLALL;
-  __asm volatile ("dsb" ::: "memory");
-  __asm volatile ("isb" ::: "memory");
+  #ifndef __riscv
+     ACTLR |= ACTLR_EXTEXCLALL;
+     __asm volatile ("dsb" ::: "memory");
+     __asm volatile ("isb" ::: "memory");
+  #endif
   Core1Entry();
 } /* end of Core1Start */
 
@@ -88,7 +117,7 @@ static void Push(UINT32 word)
 {
   while ((SIO_FIFO_ST & SIO_FIFO_RDY) == 0);
   SIO_FIFO_WR = word;
-  __asm volatile ("sev" ::: "memory");
+  SEV();
 } /* end of Push */
 
 
@@ -96,6 +125,6 @@ static void Push(UINT32 word)
 static UINT32 Pop(void)
 {
   while ((SIO_FIFO_ST & SIO_FIFO_VLD) == 0)
-     __asm volatile ("wfe" ::: "memory");
+     WFE();
   return SIO_FIFO_RD;
 } /* end of Pop */

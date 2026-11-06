@@ -65,9 +65,13 @@ static void Core0Task(void *argument);
 
 int main(void)
 {
-  extern void (* const CortexMxVectorTable[])(void);
+  #ifndef __riscv
+     extern void (* const CortexMxVectorTable[])(void);
+  #endif
   UINT32 i;
-  VTOR = (UINT32)CortexMxVectorTable;
+  #ifndef __riscv
+     VTOR = (UINT32)CortexMxVectorTable;
+  #endif
   /* A firmware in flash may have armed the watchdog, which a reset of the processors
   ** leaves running and which pauses only while the debugger holds a core. */
   WATCHDOG_CTRL_CLR = WATCHDOG_ENABLE;
