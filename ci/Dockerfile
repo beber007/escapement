@@ -14,7 +14,11 @@
 # first on the PATH, which every job uses unless it asks for the other; and Ubuntu's
 # package, 15:14.2.rel1-1 when the first image was built on 2026-09-24, the toolchain of
 # the stable distributions, which one job builds with to check the compiled order under
-# a second compiler.
+# a second compiler. Since the fourth tag (2026-11-06), Ubuntu's
+# riscv64-unknown-elf-gcc, 14.2.0+19 when it was built, for the Pico 2's Hazard3 cores
+# (issue #77): Homebrew publishes no bottle of its riscv64-elf-gcc for Linux, and
+# building GCC here would take longer than the image's 30 minutes. Its multilib has the
+# rv32imac/ilp32 of the port.
 
 FROM ubuntu:26.04
 
@@ -33,7 +37,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # was built on 2026-09-25 —, and what .NET needs.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-        gcc-arm-none-eabi make git curl ca-certificates xz-utils cppcheck \
+        gcc-arm-none-eabi gcc-riscv64-unknown-elf make git curl ca-certificates \
+        xz-utils cppcheck \
         python3 python3-venv libicu-dev \
  && rm -rf /var/lib/apt/lists/*
 

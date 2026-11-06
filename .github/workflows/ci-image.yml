@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/beber007/escapement-ci:3
+  IMAGE: ghcr.io/beber007/escapement-ci:4
 
 jobs:
   image:
@@ -35,6 +35,10 @@ jobs:
             /usr/bin/arm-none-eabi-gcc --version | head -1 | grep -q " 14\.2\."
             printf "int main(void){return 0;}" > /tmp/t.c
             arm-none-eabi-gcc -mcpu=cortex-m0plus -mthumb -nostdlib -c /tmp/t.c -o /tmp/t.o
+            riscv64-unknown-elf-gcc --version | head -1
+            riscv64-unknown-elf-gcc -print-multi-lib | grep -q "^rv32imac/ilp32;"
+            riscv64-unknown-elf-gcc -march=rv32imac_zicsr_zifencei -mabi=ilp32 \
+                -nostdlib -c /tmp/t.c -o /tmp/t.o
             cppcheck --version
             dotnet --list-runtimes
             ls /opt/renode-1.17.0/renode-test /opt/renode-1.16.1/renode-test
