@@ -47,10 +47,10 @@ AFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wall -c -g -MMD -MP
 LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
 
 # make ARCH=riscv builds for the two Hazard3 cores of the RP2350 instead (issue #77), into
-# build-riscv/, through the RISC-V layer (../../../../RISC-V): the hard kernel from SRAM,
-# the examples counted in memory and those of the UART. The base RV32IMAC, which every
-# RISC-V core of 32 bits with atomics runs; -mstrict-align, the Hazard3 having no
-# misaligned access.
+# build-riscv/, through the RISC-V layer (../../../../RISC-V): the hard and soft kernels
+# from SRAM, the examples counted in memory and those of the UART. The base RV32IMAC,
+# which every RISC-V core of 32 bits with atomics runs; -mstrict-align, the Hazard3
+# having no misaligned access.
 ifeq ($(ARCH),riscv)
    RISCV_CROSS_COMPILE ?= riscv64-elf-
    CC = $(RISCV_CROSS_COMPILE)gcc
@@ -63,8 +63,8 @@ ifeq ($(ARCH),riscv)
    LINKERFILE = ../../../../RISC-V/RP2350/RP2350_SRAM.ld
    B = build-riscv
    INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../../RISC-V -I../../../ -I../../../../
-   ifneq ($(KERNEL)$(FLASH)$(TRACE)$(WCET)$(LIVE)$(SLEEP_GATE),)
-      $(error ARCH=riscv builds the hard kernel from SRAM only so far (issue #77))
+   ifneq ($(FLASH)$(TRACE)$(WCET)$(LIVE)$(SLEEP_GATE),)
+      $(error ARCH=riscv builds the images in SRAM without options only so far (issue #77))
    endif
 endif
 
@@ -159,14 +159,14 @@ all: $(B)/TaskLEDPico2.elf $(B)/UARTEchoPico2.elf $(B)/TestTimerEventPico2.elf \
      $(B)/StackGuardPico2.elf $(B)/LposcPico2.elf $(B)/DormantPico2.elf \
      $(B)/DormantCalAsleepPico2.elf $(B)/AwakeCalAsleepPico2.elf \
      $(B)/RoscCalAsleepPico2.elf
+ifeq ($(LIVE),4)
+all: $(B)/LiveTasksPico2.elf
+endif
+endif
 # The soft kernel adds SoakFirmPico2, SoakPico2 with an (m,k)-firm task whose optional
 # instances the kernel drops under load (SoakPico2.c).
 ifeq ($(KERNEL),SOFT)
 all: $(B)/SoakFirmPico2.elf
-endif
-ifeq ($(LIVE),4)
-all: $(B)/LiveTasksPico2.elf
-endif
 endif
 
 clean:
