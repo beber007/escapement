@@ -11,6 +11,14 @@ brew install arm-none-eabi-gcc         # macOS
 sudo apt install gcc-arm-none-eabi     # Debian / Ubuntu
 ```
 
+The Pico 2's examples also build for its RISC-V cores, with `make ARCH=riscv` and a
+RISC-V toolchain (`riscv.md`, "Building"):
+
+```sh
+brew install riscv64-elf-gcc           # macOS
+sudo apt install gcc-riscv64-unknown-elf   # Debian / Ubuntu
+```
+
 The toolchain prefix can be overridden:
 `make CROSS_COMPILE=/path/to/arm-none-eabi-`.
 
@@ -69,7 +77,7 @@ are chosen on the command line (`architecture.md`):
 | `UNDERVOLT=1` | `pico`, with `KERNEL=PA` | below the specified core voltage, bench only |
 | `SLEEP_SPEED=0` | `pico`, `nucleo-u385`, with `KERNEL=PA` | the idle task's WFI at the slowest point, 12 MHz on the Pico, 48 on the U3 |
 | `MHZ=` | `nucleo-u575`, `nucleo-u385` | another system clock (80, 40 or 16 MHz on the U575 rather than 160, 48, 24 or 12 on the U385 rather than 96), not with `KERNEL=PA` |
-| `FLASH=1` | all four | the images linked into the flash, in `build-flash/` |
+| `FLASH=1` | all four, not with `ARCH=riscv` | the images linked into the flash, in `build-flash/` |
 | `TRACE=1` | all four | a scheduling trace in RAM, not built by the CI |
 | `PHASES=30` | `uno-q`, `nucleo-u575`, `nucleo-u385` | `SleepU5` or `SleepU3` alternates 30 s in Stop 2 and 30 s in Sleep |
 | `FAST=1` | `nucleo-u385` | the MSI's PLL mode kept through Stop 2 (MSIPLL0FAST) |
@@ -100,7 +108,8 @@ end late (`SoakU5.c`).
 > those made for a board:
 >
 > - `FourSlotCoresPico`, `SleepPico` and the four benches of the Pico;
-> - `IdlePico2`, `SleepPico2`, `DormantPico2`, `LposcPico2` and `StackGuardPico2`;
+> - `IdlePico2`, `SleepPico2`, `DormantPico2`, `LposcPico2`, `StackGuardPico2` and
+>   `LatencyPico2`, and every image of the Pico 2's RISC-V cores (`riscv.md`);
 > - `StackGuardU5`;
 > - `ClockU3`, `StackGuardU3`, `BenchDVFSU3` and `DVFSU3Flash` (`DVFSU3Short` and
 >   `BenchDVFSU3Short` run in their place).

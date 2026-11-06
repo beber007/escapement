@@ -20,9 +20,11 @@ paid (`power-aware.md`).
 
 New work goes to the **Pico**, the **Pico 2**, the **STM32U5** and the **STM32U3**. The
 RP2350 of the Pico 2 has a switching core regulator, and two cores with exclusive
-accesses. Its port was begun on 2026-09-24, for the cores. A DVFS driver is not planned
-for it. Measured on 2026-10-03, it would save some 10 % at best, less than sleeping
-deeper does (items 3 and 5, issues #23 and #6).
+accesses. Its port was begun on 2026-09-24, for the cores. Measured on 2026-10-03, a
+DVFS driver would save some 10 % at best, less than sleeping deeper does (items 3 and 5,
+issues #23 and #6). The RP2350 also has two Hazard3 RISC-V cores. Their port was begun
+on 2026-11-05, to compare the two architectures on one chip (#77, `riscv.md`). The
+power-aware kernel is part of that comparison, so #23 was reopened on 2026-11-05.
 
 Among the STM32, the **STM32U5** is the one kept. Its port was begun on 2026-09-25, for
 the STM32U585 of the Arduino UNO Q (`stm32u5.md`). It was written anew in the manner of
@@ -488,7 +490,7 @@ until then became these issues:
 | 12. Lock-free mechanisms beyond the slot buffers and the queues | #14, merged into #15 |
 | 13. The drivers, and the description of the boards | #15, #16 |
 | 14. Noticing an overrun as it happens | #17 |
-| 2 and 3. The power-aware kernel and DVFS on the RP2350 | #23, closed as not planned |
+| 2 and 3. The power-aware kernel and DVFS on the RP2350 | #23, reopened on 2026-11-05 |
 
 and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under Done.
 
@@ -682,8 +684,8 @@ Closed without work, on 2026-10-23:
 
 - **DVFS on the RP2350 — measured on 2026-10-03, worth some 10 % at best.** The RP2350's
   regulator and power manager differ from the RP2040's, and a driver would be written
-  from the pico-sdk headers. DVFS on the RP2350 is not planned: SLEEP comes first
-  (item 5).
+  from the pico-sdk headers. DVFS on the RP2350 was not planned: SLEEP came first
+  (item 5). It was planned again on 2026-11-05, for the comparison of #77 (#23).
 
    The Pico 2 was measured on 2026-10-03, with `SleepPico2` built with `RUN=1`:
 

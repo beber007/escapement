@@ -161,12 +161,14 @@ The hardware spinlocks of the SIO were no alternative. They are unreliable on th
 |---|---|---|---|
 | RP2040, Raspberry Pi Pico | Cortex-M0+, 125 MHz | hard, soft, power-aware | yes |
 | RP2350, Raspberry Pi Pico 2 | Cortex-M33, 150 MHz | hard, soft | since 2026-09-28 |
+| RP2350, Raspberry Pi Pico 2 | Hazard3 (RISC-V), 150 MHz | hard, soft | by hand, since 2026-11-05 |
 | STM32U585, Arduino UNO Q | Cortex-M33, 160 MHz | hard, soft | since 2026-09-26 |
 | STM32U385, NUCLEO-U385RG-Q | Cortex-M33, 96 MHz | hard, soft, power-aware | since 2026-10-10 |
 
 The bench checks each board on `main`, and on each pull request from a branch of this
 repository since 2026-10-13 (`tools/board_ci.md`). All four also run under Renode in the
-CI. Each is described below.
+CI. The Hazard3 cores of the RP2350 are the exception: no emulator has them, and the
+bench does not check them yet. Each is described below.
 
 - **Raspberry Pi RP2040** (Pico): Cortex-M0+, port under `Escapement/CORTEX-Mx/RP2040/`.
   Its 64-bit timer has four alarms. It is clocked **independently of the core clock**.
@@ -190,6 +192,8 @@ CI. Each is described below.
   showed the clocks right on 2026-09-28, and the bench checks them. Its clocks, the
   periods on a frequency counter, the UART and the 2^30 wrap on the board are in
   `rp2040.md`, "The Pico 2 on the board". The power-aware kernel is not ported.
+  The same port runs on the RP2350's Hazard3 RISC-V cores, through the layer under
+  `Escapement/RISC-V/` (`riscv.md`).
 - **STM32U5** (the STM32U585 of the Arduino UNO Q): Cortex-M33, port under
   `Escapement/CORTEX-Mx/STM32U5/`. It was written anew on 2026-09-25, after the model of
   the RP2350 port. The clocks run at 160 MHz from the board's 16 MHz crystal. TIM2
@@ -250,7 +254,9 @@ Escapement/
   CORTEX-Mx/                ARM port: generic Cortex-M layer, RP2040, RP2350, STM32U5,
                             STM32U3
   CORTEX-Mx/RP2040/Examples/ the Raspberry Pi Pico examples
-  CORTEX-Mx/RP2350/Examples/ the Raspberry Pi Pico 2 examples
+  CORTEX-Mx/RP2350/Examples/ the Raspberry Pi Pico 2 examples, for both pairs of cores
+  RISC-V/                   RISC-V port: the Hazard3 layer and the RP2350's entry
+  Escapement_Port.c         what both architectures share of ZottaOS's port
   CORTEX-Mx/STM32U5/Examples/ the Arduino UNO Q examples, and SleepU5, SleepU5Flash
                             and SoakU5 for the NUCLEO-U575ZI-Q
   CORTEX-Mx/STM32U3/Examples/ the NUCLEO-U385RG-Q examples
