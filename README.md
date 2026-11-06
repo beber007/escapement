@@ -127,7 +127,7 @@ would draw a different figure.
 |---|---|---|---|
 | Raspberry Pi Pico (RP2040) | Cortex-M0+, 125 MHz | hard, soft, power-aware with DVFS | the board, on `main` and each pull request; Renode |
 | Arduino UNO Q (STM32U585) | Cortex-M33, 160 MHz | hard, soft; the idle task in Stop 2 | the board, on `main` and each pull request; Renode |
-| Raspberry Pi Pico 2 (RP2350) | Cortex-M33, 150 MHz | hard, soft; two cores sharing lock-free buffers | the board, on `main` and each pull request: the six examples that count in memory, and the UART; Renode |
+| Raspberry Pi Pico 2 (RP2350) | Cortex-M33, 150 MHz; also its Hazard3 RISC-V cores, checked by hand ([`docs/riscv.md`](docs/riscv.md)) | hard, soft; two cores sharing lock-free buffers | the board, on `main` and each pull request: the six examples that count in memory, and the UART; Renode |
 | NUCLEO-U575ZI-Q (STM32U575) | Cortex-M33, 160 MHz | hard, soft: the endurance tests, from the flash too; the hard kernel's idle task in Stop 2, to measure the current | the endurance tests on the board since 2026-09-28; Renode |
 | NUCLEO-U385RG-Q (STM32U385) | Cortex-M33, 96 MHz | hard, soft, power-aware with DVFS between 48 and 96 MHz; the idle task in Stop 2 ([`docs/stm32u3.md`](docs/stm32u3.md)) | the board since 2026-10-09, on `main` and each pull request, with its endurance test; Renode, which also checks the clock set-up and the wake-up from Stop 2 against the reference manual |
 

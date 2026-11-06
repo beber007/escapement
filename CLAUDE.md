@@ -111,6 +111,11 @@ tools/soak_emulated_status.sh OUT [SHA]       # their sum, status emulation/soak
 # our own, on the Mac too (Renode 1.17 portable, robotframework 6.1 venv)
 make -C Escapement/CORTEX-Mx/RP2350/Examples/pico2
 renode-test emulation/renode/escapement_pico2.robot
+make -C ...pico2 ARCH=riscv [KERNEL=SOFT]     # the same on its Hazard3 cores, in
+                                              # SRAM, into build-riscv/ (docs/riscv.md);
+                                              # pico2_check, _uart, _soak and _latency
+                                              # know such an image; soak.py does not
+PROBE=probe3 tools/pico2_latency.py ELF...    # LatencyPico2: alarm to task, in cycles
 OPENOCD=~/opt/openocd-rpi/bin/openocd PROBE=probe3 tools/pico2_check.py DIR   # on the UNO Q:
                                               # the six examples that count in memory
 PROBE=probe3 tools/pico2_uart.py DIR          # the UART echo and senders, on the probe's UART
