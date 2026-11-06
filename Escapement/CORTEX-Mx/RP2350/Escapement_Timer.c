@@ -102,6 +102,26 @@ volatile BOOL _OSComparatorInterruptFlag = FALSE;
    volatile UINT32 _OSCostCount = 0;
    static volatile UINT32 CostStart = 0;
    static volatile BOOL CostPending = FALSE;
+   /* The same rounds in cycles of the core, so that the Cortex-M33 and the Hazard3 compare
+   ** on the same chip (issue #77), where the microsecond holds 150 of them: the DWT's
+   ** CYCCNT on the one, mcycle on the other, started by _OSInitializeTimer and by the
+   ** reset of the RISC-V layer. _OSCostCyclesSum wraps after some 28 s of rounds alone. */
+   volatile UINT32 _OSCostCyclesLast = 0;
+   volatile UINT32 _OSCostCyclesMax = 0;
+   volatile UINT32 _OSCostCyclesMin = 0xFFFFFFFF;
+   volatile UINT32 _OSCostCyclesSum = 0;
+   static volatile UINT32 CostStartCycles = 0;
+   #ifdef __riscv
+      #define CYCLES() __extension__ ({ UINT32 c; \
+                 __asm volatile ("csrr %0, mcycle" : "=r"(c) :: "memory"); c; })
+   #else
+      #define DEMCR             *((volatile UINT32 *)0xE000EDFC)
+      #define DEMCR_TRCENA      (1u << 24)
+      #define DWT_CTRL          *((volatile UINT32 *)0xE0001000)
+      #define DWT_CTRL_CYCCNTENA (1u << 0)
+      #define DWT_CYCCNT        *((volatile UINT32 *)0xE0001004)
+      #define CYCLES()          DWT_CYCCNT
+   #endif
 #endif
 
 
@@ -181,6 +201,10 @@ void _OSInitializeTimer(void)
   ** reached again. Letting the clock run from the start avoids that dead end. */
   #ifdef ESCAPEMENT_MEASURE_SCHEDULING_COST
      TIMER_DBGPAUSE = 0x0;   /* wall time, including across debugger halts */
+     #ifndef __riscv
+        DEMCR |= DEMCR_TRCENA;
+        DWT_CTRL |= DWT_CTRL_CYCCNTENA;
+     #endif
   #else
      TIMER_DBGPAUSE = 0x6;   /* its reset value: paused while either core is halted;
                                 bit 0, set on the RP2040, is reserved here */
@@ -248,7 +272,13 @@ BOOL _OSSetTimer(INT32 nextArrivalTime)
   UINT32 target = (UINT32)nextArrivalTime;
   #ifdef ESCAPEMENT_MEASURE_SCHEDULING_COST
      if (CostPending) {
-        UINT32 cost = raw - CostStart;
+        UINT32 cost = raw - CostStart, cycles = CYCLES() - CostStartCycles;
+        _OSCostCyclesLast = cycles;
+        _OSCostCyclesSum += cycles;
+        if (cycles > _OSCostCyclesMax)
+           _OSCostCyclesMax = cycles;
+        if (cycles < _OSCostCyclesMin)
+           _OSCostCyclesMin = cycles;
         CostPending = FALSE;
         _OSCostLast = cost;
         _OSCostSum += cost;
@@ -285,6 +315,7 @@ static void Alarm0Handler(struct TIMER_ISR_DATA *descriptor)
 {
   #ifdef ESCAPEMENT_MEASURE_SCHEDULING_COST
      CostStart = TIMER_TIMERAWL;
+     CostStartCycles = CYCLES();
      CostPending = TRUE;
   #endif
   OSTrace(OS_TRACE_ALARM0,0,0);
