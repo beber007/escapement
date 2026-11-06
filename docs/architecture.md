@@ -161,14 +161,14 @@ The hardware spinlocks of the SIO were no alternative. They are unreliable on th
 |---|---|---|---|
 | RP2040, Raspberry Pi Pico | Cortex-M0+, 125 MHz | hard, soft, power-aware | yes |
 | RP2350, Raspberry Pi Pico 2 | Cortex-M33, 150 MHz | hard, soft | since 2026-09-28 |
-| RP2350, Raspberry Pi Pico 2 | Hazard3 (RISC-V), 150 MHz | hard, soft | by hand, since 2026-11-05 |
+| RP2350, Raspberry Pi Pico 2 | Hazard3 (RISC-V), 150 MHz | hard, soft | since 2026-11-06 |
 | STM32U585, Arduino UNO Q | Cortex-M33, 160 MHz | hard, soft | since 2026-09-26 |
 | STM32U385, NUCLEO-U385RG-Q | Cortex-M33, 96 MHz | hard, soft, power-aware | since 2026-10-10 |
 
 The bench checks each board on `main`, and on each pull request from a branch of this
 repository since 2026-10-13 (`tools/board_ci.md`). All four also run under Renode in the
-CI. The Hazard3 cores of the RP2350 are the exception: no emulator has them, and the
-bench does not check them yet. Each is described below.
+CI, except the Hazard3 cores of the RP2350: no emulator has them, so only the bench
+checks them. Each is described below.
 
 - **Raspberry Pi RP2040** (Pico): Cortex-M0+, port under `Escapement/CORTEX-Mx/RP2040/`.
   Its 64-bit timer has four alarms. It is clocked **independently of the core clock**.

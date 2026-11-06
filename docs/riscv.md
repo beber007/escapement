@@ -101,7 +101,10 @@ Two traps:
 - `reset halt` leaves VC_CORERESET set in DEMCR. A reset then stops the core in the
   bootrom before it reads the scratch registers. The tools clear DEMCR before resuming.
 
-Checked on the Pico 2 by hand. The board CI does not run the RISC-V images yet.
+The board CI runs the six examples and the UART on the Hazard3 cores too, on images the
+CI builds with Ubuntu's GCC 14.2 (`board/pico2`, `tools/board_ci.md`). The table below
+was checked by hand, on images built with GCC 16.2. Its last line also ran the CI's
+images, built with GCC 14.2.
 
 | Date | What | Result |
 |---|---|---|
@@ -113,6 +116,7 @@ Checked on the Pico 2 by hand. The board CI does not run the RISC-V images yet.
 | 2026-11-06 | the six examples of `pico2_check.py` | pass, under the hard kernel with EDF and with DM, and the soft kernel with EDF and with DM |
 | 2026-11-06 | `SoakPico2`, its writer on core 1 | 2,399 s, two wraps, no error; the pulse at most 50 µs late |
 | 2026-11-06 | `SoakFirmPico2`, EDF and DM | 10 min each, no error; about 40 % of the optional instances dropped; every mandatory one on time |
+| 2026-11-07 | the part of `board/pico2` on the Hazard3 cores: on the CI's images (GCC 14.2), then again with core 1's stack aligned to 16 bytes (GCC 16.2) | the six examples and the UART pass, in 80 s |
 
 The litmus tests found no access reordered between the Hazard3 cores, with or without a
 `fence`. There were 2.56 million rounds of each test, on 2026-11-06. That shows nothing

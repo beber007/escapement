@@ -3,7 +3,7 @@
 # LICENSE at the root of this repository.
 #
 # Build the images the board checks run (tools/board_ci.sh), the Pico's and the UNO Q's
-# STM32U5's and the Pico 2's, into OUT/<check>_<kernel>/, and that of the PPK2's measurement: by the CI, which hands them to the bench as an
+# STM32U5's and the Pico 2's, on both its pairs of cores, into OUT/<check>_<kernel>/, and that of the PPK2's measurement: by the CI, which hands them to the bench as an
 # artifact, so that the bench needs no compiler, or by the bench itself.
 #
 #   tools/board_images.sh OUT
@@ -86,6 +86,16 @@ mkdir -p "$OUT/pico2"
 for i in $PICO2_IMAGES; do cp "$PICO2/build/$i.elf" "$OUT/pico2/"; done
 make -s -C "$PICO2" clean >/dev/null
 echo "pico2: $PICO2_IMAGES"
+# The same eight on its Hazard3 cores (docs/riscv.md), with the RISC-V toolchain that
+# RISCV_CROSS_COMPILE names, riscv64-elf- by default.
+make -s -C "$PICO2" ARCH=riscv clean >/dev/null
+# shellcheck disable=SC2046  # one target per image
+make -s -C "$PICO2" ARCH=riscv $(for i in $PICO2_IMAGES; do echo "build-riscv/$i.elf"; done) \
+    >/dev/null
+mkdir -p "$OUT/pico2_riscv"
+for i in $PICO2_IMAGES; do cp "$PICO2/build-riscv/$i.elf" "$OUT/pico2_riscv/"; done
+make -s -C "$PICO2" ARCH=riscv clean >/dev/null
+echo "pico2_riscv: $PICO2_IMAGES (ARCH=riscv)"
 # Not a check: SleepU5 alternating 30 s in Stop 2 and 30 s in Sleep, for the PPK2
 # (docs/stm32u5.md), built at each commit so that it is known to build, and at hand.
 make -s -C "$U5" PHASES=30 build/SleepU5.elf >/dev/null
@@ -123,3 +133,4 @@ cp "$NUCLEO/build/SoakU5.elf" "$OUT/soak_nucleo/"
 make -s -C "$NUCLEO" clean >/dev/null
 echo "soak_nucleo: SoakU5, NUCLEO-U575ZI-Q"
 "${CROSS_COMPILE:-arm-none-eabi-}gcc" --version | head -1 >"$OUT/compiler"
+"${RISCV_CROSS_COMPILE:-riscv64-elf-}gcc" --version | head -1 >>"$OUT/compiler"

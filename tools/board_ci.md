@@ -323,6 +323,11 @@ Raspberry Pi's OpenOCD drives the board. That OpenOCD is built as below into
 `~/opt/openocd-rpi` (`BOARD_CI_OPENOCD_RP2350`). The check takes about a minute and a
 half.
 
+The script then runs the same examples and the UART on the Pico 2's Hazard3 cores, when
+the CI built their images (`pico2_riscv` in the artifact, `docs/riscv.md`). The same
+tools load them: they know a RISC-V image by its ELF header. That part took 80 s more on
+2026-11-07.
+
 ### A long run on a NUCLEO-U575ZI-Q
 
 The checks of each commit interrupt the long run on the UNO Q. A NUCLEO-U575ZI-Q plugged
