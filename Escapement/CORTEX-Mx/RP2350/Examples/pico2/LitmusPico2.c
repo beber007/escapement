@@ -29,6 +29,15 @@
 ** Results holds, for each test, the rounds run and how many ended in each of the four
 ** outcomes, indexed r0 * 2 + r1; tools/pico2_check.py reads it over SWD, as does
 ** escapement_pico2.robot under Renode, whose cores keep program order.
+**
+** Built for the Hazard3 cores (make ARCH=riscv, issue #77), the same tests run with sw,
+** lw and fence rw,rw for the DMB: RVWMO, RISC-V's memory model, allows the same
+** reorderings as Armv8-M (RISC-V unprivileged ISA, "RVWMO Memory Consistency Model").
+** The harness's barriers, between memory and the FIFO of the SIO, a device, are
+** fence iorw,iorw, the fence rw,rw ordering memory alone.
+** On the Pico 2 on 2026-11-06, 2.56 million rounds of each test, none ended in its weak
+** outcome, with or without the fence: the Hazard3 cores kept program order, as the
+** Cortex-M33 cores do.
 ** Platform version: RP2350 (Raspberry Pi Pico 2).
 */
 
@@ -71,12 +80,29 @@ static UINT32 Pop(void);
 #define SIO_FIFO_VLD      (1u << 0)
 #define SIO_FIFO_RDY      (1u << 1)
 
+/* The accesses of the tests, and their barrier, in the assembly of each architecture. */
+#ifdef __riscv
+   #define STR(r,a)  "sw " r ",0(" a ")\n"
+   #define LDR(r,a)  "lw " r ",0(" a ")\n"
+   #define DMB       "fence rw,rw\n"
+   #define HARNESS_BARRIER() __asm volatile ("fence iorw,iorw" ::: "memory")
+#else
+   #define STR(r,a)  "str " r ",[" a "]\n"
+   #define LDR(r,a)  "ldr " r ",[" a "]\n"
+   #define DMB       "dmb\n"
+   #define HARNESS_BARRIER() __asm volatile ("dmb" ::: "memory")
+#endif
+
 
 int main(void)
 {
-  extern void (* const CortexMxVectorTable[])(void);
+  #ifndef __riscv
+     extern void (* const CortexMxVectorTable[])(void);
+  #endif
   UINT32 seed = 1, round, test, r0, r1;
-  VTOR = (UINT32)CortexMxVectorTable;
+  #ifndef __riscv
+     VTOR = (UINT32)CortexMxVectorTable;
+  #endif
   /* As in FourSlotCoresPico2.c: a watchdog a firmware in flash armed. */
   WATCHDOG_CTRL_CLR = WATCHDOG_ENABLE;
   OSInitializeSystemClocks();
@@ -85,7 +111,7 @@ int main(void)
   for (round = 0; ; round += 1) {
      test = round % TESTS;
      *X = *Y = 0;
-     __asm volatile ("dmb" ::: "memory");
+     HARNESS_BARRIER();
      seed = seed * 1103515245u + 12345u;
      Push(test | (seed >> 16 & 0xFFFF) << 8);
      seed = seed * 1103515245u + 12345u;
@@ -106,7 +132,7 @@ static void Core1(void)
      word = Pop();
      Wait(word >> 8);
      r1 = Core1Half(word & 0xFF);
-     __asm volatile ("dmb" ::: "memory");
+     HARNESS_BARRIER();
      Push(r1);
   }
 } /* end of Core1 */
@@ -118,22 +144,22 @@ static UINT32 Core0Half(UINT32 test)
   UINT32 r = 0, one = 1;
   switch (test) {
      case SB:
-        __asm volatile ("str %1,[%2]\n ldr %0,[%3]" : "=&r"(r) : "r"(one), "r"(X), "r"(Y) : "memory");
+        __asm volatile (STR("%1","%2") LDR("%0","%3") : "=&r"(r) : "r"(one), "r"(X), "r"(Y) : "memory");
         break;
      case SB_DMB:
-        __asm volatile ("str %1,[%2]\n dmb\n ldr %0,[%3]" : "=&r"(r) : "r"(one), "r"(X), "r"(Y) : "memory");
+        __asm volatile (STR("%1","%2") DMB LDR("%0","%3") : "=&r"(r) : "r"(one), "r"(X), "r"(Y) : "memory");
         break;
      case MP:    /* X the data, Y the flag */
-        __asm volatile ("str %0,[%1]\n str %0,[%2]" : : "r"(one), "r"(X), "r"(Y) : "memory");
+        __asm volatile (STR("%0","%1") STR("%0","%2") : : "r"(one), "r"(X), "r"(Y) : "memory");
         break;
      case MP_DMB:
-        __asm volatile ("str %0,[%1]\n dmb\n str %0,[%2]" : : "r"(one), "r"(X), "r"(Y) : "memory");
+        __asm volatile (STR("%0","%1") DMB STR("%0","%2") : : "r"(one), "r"(X), "r"(Y) : "memory");
         break;
      case LB:
-        __asm volatile ("ldr %0,[%2]\n str %1,[%3]" : "=&r"(r) : "r"(one), "r"(X), "r"(Y) : "memory");
+        __asm volatile (LDR("%0","%2") STR("%1","%3") : "=&r"(r) : "r"(one), "r"(X), "r"(Y) : "memory");
         break;
      case LB_DMB:
-        __asm volatile ("ldr %0,[%2]\n dmb\n str %1,[%3]" : "=&r"(r) : "r"(one), "r"(X), "r"(Y) : "memory");
+        __asm volatile (LDR("%0","%2") DMB STR("%1","%3") : "=&r"(r) : "r"(one), "r"(X), "r"(Y) : "memory");
         break;
   }
   return r;
@@ -148,24 +174,24 @@ static UINT32 Core1Half(UINT32 test)
   UINT32 r = 0, f = 0, one = 1;
   switch (test) {
      case SB:
-        __asm volatile ("str %1,[%2]\n ldr %0,[%3]" : "=&r"(r) : "r"(one), "r"(Y), "r"(X) : "memory");
+        __asm volatile (STR("%1","%2") LDR("%0","%3") : "=&r"(r) : "r"(one), "r"(Y), "r"(X) : "memory");
         break;
      case SB_DMB:
-        __asm volatile ("str %1,[%2]\n dmb\n ldr %0,[%3]" : "=&r"(r) : "r"(one), "r"(Y), "r"(X) : "memory");
+        __asm volatile (STR("%1","%2") DMB LDR("%0","%3") : "=&r"(r) : "r"(one), "r"(Y), "r"(X) : "memory");
         break;
      case MP:
-        __asm volatile ("ldr %0,[%2]\n ldr %1,[%3]" : "=&r"(f), "=&r"(r) : "r"(Y), "r"(X) : "memory");
+        __asm volatile (LDR("%0","%2") LDR("%1","%3") : "=&r"(f), "=&r"(r) : "r"(Y), "r"(X) : "memory");
         r |= f << 1;
         break;
      case MP_DMB:
-        __asm volatile ("ldr %0,[%2]\n dmb\n ldr %1,[%3]" : "=&r"(f), "=&r"(r) : "r"(Y), "r"(X) : "memory");
+        __asm volatile (LDR("%0","%2") DMB LDR("%1","%3") : "=&r"(f), "=&r"(r) : "r"(Y), "r"(X) : "memory");
         r |= f << 1;
         break;
      case LB:
-        __asm volatile ("ldr %0,[%2]\n str %1,[%3]" : "=&r"(r) : "r"(one), "r"(Y), "r"(X) : "memory");
+        __asm volatile (LDR("%0","%2") STR("%1","%3") : "=&r"(r) : "r"(one), "r"(Y), "r"(X) : "memory");
         break;
      case LB_DMB:
-        __asm volatile ("ldr %0,[%2]\n dmb\n str %1,[%3]" : "=&r"(r) : "r"(one), "r"(Y), "r"(X) : "memory");
+        __asm volatile (LDR("%0","%2") DMB STR("%1","%3") : "=&r"(r) : "r"(one), "r"(Y), "r"(X) : "memory");
         break;
   }
   return r;
@@ -180,8 +206,13 @@ static UINT32 Core1Half(UINT32 test)
 static void Wait(UINT32 random)
 {
   UINT32 n = random & 31, m = random >> 5 & 31, scratch = 0;
-  __asm volatile ("1: subs %0,#1\n bpl 1b" : "+r"(n) : : "cc");
-  __asm volatile ("1: subs %0,#1\n add.w %1,%1,#1\n bpl 1b" : "+r"(m), "+r"(scratch) : : "cc");
+  #ifdef __riscv
+     __asm volatile ("1: addi %0,%0,-1\n bgez %0,1b" : "+r"(n));
+     __asm volatile ("1: addi %0,%0,-1\n addi %1,%1,1\n bgez %0,1b" : "+r"(m), "+r"(scratch));
+  #else
+     __asm volatile ("1: subs %0,#1\n bpl 1b" : "+r"(n) : : "cc");
+     __asm volatile ("1: subs %0,#1\n add.w %1,%1,#1\n bpl 1b" : "+r"(m), "+r"(scratch) : : "cc");
+  #endif
 } /* end of Wait */
 
 

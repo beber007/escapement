@@ -128,11 +128,7 @@ typedef struct {
 ** part between the cores is then skipped, and counted as done. Initialised, so that it
 ** sits in .data, which an image linked in SRAM copies onto itself at startup: a value
 ** written before the start survives, where .bss is cleared. */
-#ifdef __riscv
-   volatile UINT32 SoakLaunchCore1 = 0;   /* core 1 not ported to RISC-V yet (#77) */
-#else
-   volatile UINT32 SoakLaunchCore1 = 1;
-#endif
+volatile UINT32 SoakLaunchCore1 = 1;
 /* Set by an emulator running several instances (tools/soak_emulated.sh), for each its
 ** own conditions: from it, the Filler works 500 to 1500 us per instance and the timer
 ** events come 500 to 1500 us after they are scheduled. Unset on the board. In .data for
@@ -283,11 +279,7 @@ int main(void)
   if (SoakLaunchCore1) {
      for (i = 0; i < sizeof Core1Stack / sizeof Core1Stack[0]; i += 1)
         Core1Stack[i] = STACK_FILL;
-     #ifdef __riscv
-        (void)Writer;
-     #else
-        OSLaunchCore1(Writer,&Core1Stack[sizeof Core1Stack / sizeof Core1Stack[0]]);
-     #endif
+     OSLaunchCore1(Writer,&Core1Stack[sizeof Core1Stack / sizeof Core1Stack[0]]);
   }
   return OSStartMultitasking(NULL,NULL);
 } /* end of main */

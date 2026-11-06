@@ -48,8 +48,9 @@ LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
 
 # make ARCH=riscv builds for the two Hazard3 cores of the RP2350 instead (issue #77), into
 # build-riscv/, through the RISC-V layer (../../../../RISC-V): the hard kernel from SRAM,
-# the examples of one core so far, SoakPico2 without its part on core 1. The base RV32IMAC, which every RISC-V core of 32 bits with
-# atomics runs; -mstrict-align, the Hazard3 having no misaligned access.
+# the examples counted in memory and those of the UART. The base RV32IMAC, which every
+# RISC-V core of 32 bits with atomics runs; -mstrict-align, the Hazard3 having no
+# misaligned access.
 ifeq ($(ARCH),riscv)
    RISCV_CROSS_COMPILE ?= riscv64-elf-
    CC = $(RISCV_CROSS_COMPILE)gcc
@@ -147,7 +148,9 @@ endif
 
 ifeq ($(ARCH),riscv)
 all: $(B)/TaskLEDPico2.elf $(B)/UARTEchoPico2.elf $(B)/TestTimerEventPico2.elf \
-     $(B)/TaskWrapPico2.elf $(B)/IPCPico2.elf $(B)/SoakPico2.elf $(B)/UARTSendersPico2.elf
+     $(B)/FourSlotCoresPico2.elf $(B)/ThreeSlotCoresPico2.elf $(B)/TaskWrapPico2.elf \
+     $(B)/FIFOCoresPico2.elf $(B)/IPCPico2.elf $(B)/SoakPico2.elf $(B)/LitmusPico2.elf \
+     $(B)/UARTSendersPico2.elf
 else
 all: $(B)/TaskLEDPico2.elf $(B)/UARTEchoPico2.elf $(B)/TestTimerEventPico2.elf \
      $(B)/FourSlotCoresPico2.elf $(B)/ThreeSlotCoresPico2.elf $(B)/TaskWrapPico2.elf \
@@ -192,10 +195,7 @@ ifdef FLASH
    COMMON += $(B)/Escapement_ImageDef.o
 endif
 
-# Core 1, which SoakPico2 launches on Arm only so far.
-CORE1 = $(B)/Escapement_Core1.o
 ifeq ($(ARCH),riscv)
-CORE1 =
 COMMON = $(B)/Escapement_RamEntry_rv.o \
           $(B)/Escapement_RISCV.o \
           $(B)/Escapement_Port.o \
@@ -326,8 +326,8 @@ $(B)/TaskWrapPico2.elf : $(COMMON) $(B)/TaskWrapPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/TaskWrapPico2.o -T$(LINKERFILE) -lgcc
 $(B)/IPCPico2.elf : $(COMMON) $(B)/IPCPico2.o
 	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/IPCPico2.o -T$(LINKERFILE) -lgcc
-$(B)/SoakPico2.elf : $(COMMON) $(CORE1) $(B)/Escapement_TimerEvent.o $(B)/SoakPico2.o
-	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(CORE1) $(B)/Escapement_TimerEvent.o $(B)/SoakPico2.o -T$(LINKERFILE) -lgcc
+$(B)/SoakPico2.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/Escapement_TimerEvent.o $(B)/SoakPico2.o
+	$(CC) $(LDFLAGS) -o $@ $(COMMON) $(B)/Escapement_Core1.o $(B)/Escapement_TimerEvent.o $(B)/SoakPico2.o -T$(LINKERFILE) -lgcc
 $(B)/SoakFirmPico2.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/Escapement_TimerEvent.o $(B)/SoakFirmPico2.o
 	$(CC) $(LDFLAGS) -o $@ $^ -T$(LINKERFILE) -lgcc
 $(B)/LitmusPico2.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/LitmusPico2.o

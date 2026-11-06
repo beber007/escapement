@@ -8,9 +8,12 @@
 ** lr.w reserves a word and sc.w stores into it only if the reservation holds. The
 ** Hazard3 drops it as it takes a trap and as it returns from one (hazard3_core.v): an
 ** interrupt between the two makes the SC fail, as CLREX does on the Cortex-M33. Checked
-** on the Pico 2 on 2026-11-05. A store of the other core to the word is to drop it too,
-** through the RP2350's global exclusive monitor: still to be checked with core 1 (#77,
-** step 4).
+** on the Pico 2 on 2026-11-05. A store of the other core drops it too, through the
+** RP2350's global exclusive monitor, with nothing to set first where the Cortex-M33 needs
+** ACTLR.EXTEXCLALL. On the Pico 2 on 2026-11-06, core 0 between an lr.w and its sc.w,
+** core 1 storing: to the same word or 4, 8 or 12 bytes away, all of 3.4 million sc.w
+** failed; 16 or 32 bytes away, or no store, none did. The granule is 16 bytes, as on the
+** Cortex-M33.
 **
 ** The "A" extension has no load-reserved of a byte or of a halfword. Those of 8 and 16
 ** bits reserve the word that holds them. Their SC reads that word again, sets its byte

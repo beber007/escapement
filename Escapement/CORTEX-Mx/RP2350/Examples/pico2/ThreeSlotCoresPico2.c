@@ -5,7 +5,9 @@
 /* File ThreeSlotCoresPico2.c: FourSlotCoresPico2.c with the 3-slot buffer of the kernel,
 ** the one whose writer and reader hand a slot over with LL/SC on its Reading byte. On the
 ** RP2350 these are LDREXB/STREXB, and across the cores they hold only because the port
-** sets ACTLR.EXTEXCLALL on both (Escapement_RamEntry.S, Escapement_Core1.c).
+** sets ACTLR.EXTEXCLALL on both (Escapement_RamEntry.S, Escapement_Core1.c). On the
+** Hazard3 cores they are lr.w and sc.w on the word that holds the byte, which hold across
+** the cores as they are (RISC-V/Escapement_Atomic.c).
 **
 ** Core 1, bare, writes records of eight equal words, rising, into the buffer and into a
 ** plain array; a task on core 0 reads both 32 times a millisecond and counts the reads
@@ -64,8 +66,12 @@ static void Dither(void);
 
 int main(void)
 {
-  extern void (* const CortexMxVectorTable[])(void);
-  VTOR = (UINT32)CortexMxVectorTable;
+  #ifndef __riscv
+     extern void (* const CortexMxVectorTable[])(void);
+  #endif
+  #ifndef __riscv
+     VTOR = (UINT32)CortexMxVectorTable;
+  #endif
   /* As in FourSlotCoresPico2.c: a watchdog armed by a firmware in flash would reboot the
   ** chip once core 1 runs. */
   WATCHDOG_CTRL_CLR = WATCHDOG_ENABLE;

@@ -62,8 +62,12 @@ static void Dither(void);
 
 int main(void)
 {
-  extern void (* const CortexMxVectorTable[])(void);
-  VTOR = (UINT32)CortexMxVectorTable;
+  #ifndef __riscv
+     extern void (* const CortexMxVectorTable[])(void);
+  #endif
+  #ifndef __riscv
+     VTOR = (UINT32)CortexMxVectorTable;
+  #endif
   /* A firmware in flash may have armed the watchdog, which a reset of the processors
   ** leaves running and which pauses only while the debugger holds a core: on the Pico,
   ** once core 1 ran, it fired within a second and the chip rebooted into the flash. */

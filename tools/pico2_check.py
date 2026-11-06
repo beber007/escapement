@@ -24,9 +24,9 @@ An image built for the Hazard3 cores (make ARCH=riscv, issue #77), known by its 
 header, is loaded from the Arm side and booted by the bootrom: a RAM image boot, asked
 for through the watchdog's scratch registers (RP2350 datasheet, the bootrom's watchdog
 boot), finds its
-IMAGE_DEF in SRAM and switches both cores to RISC-V. Its Results are read through core
-0's RISC-V debug, without stopping it. Core 1 is held off throughout: the images of two
-cores are not ported yet, and SoakPico2 runs without its part on core 1.
+IMAGE_DEF in SRAM and switches both cores to RISC-V; core 1 waits in the bootrom for
+OSLaunchCore1, as on the Cortex-M33. Its Results are read through core 0's RISC-V debug,
+without stopping it.
 
 Needs the GNU Arm binutils and an OpenOCD that knows the RP2350 (Raspberry Pi's fork, in
 $OPENOCD), and a CMSIS-DAP probe: PROBE=name picks one of the bench's (tools/probe.sh).
@@ -65,7 +65,7 @@ WATCHDOG_SCRATCH2 = 0x400D8014
 # type, 7 the magic again. Checked on the Pico 2 on
 # 2026-11-05: the bootrom found the IMAGE_DEF and ran the image on both Hazard3.
 RAM_IMAGE_BOOT = [0x20000000, 0x80000, 0xB007C0D3, 0xFFFFFFFE, 3, 0xB007C0D3]
-DEMCR = 0xE000EDFC   # the debugger's reset leaves VC_CORERESET set, which holds the core
+DEMCR = 0xE000EDFC   # the debugger's reset leaves VC_CORERESET set: it holds the core
 
 
 def is_riscv(elf):
@@ -248,17 +248,17 @@ def main():
     args = parser.parse_args()
 
     failed = 0
+    build = args.build or (EXAMPLES + "-flash" if args.flash else EXAMPLES)
+    tests = [t for t in TESTS if not args.only or t[0] in args.only]
+    missing = [t[0] for t in tests
+               if not os.path.exists(os.path.join(build, t[0] + ".elf"))]
+    if missing:
+        sys.exit(f"not in {build}: {', '.join(missing)}")
     openocd(["rescue_reset"])
     with tempfile.TemporaryDirectory() as directory:
         seed = None if args.flash else build_seed(directory)
-        build = args.build or (EXAMPLES + "-flash" if args.flash else EXAMPLES)
-        for name, seconds, words, judge in TESTS:
-            if args.only and name not in args.only:
-                continue
+        for name, seconds, words, judge in tests:
             elf = os.path.join(build, name + ".elf")
-            if not os.path.exists(elf) and args.only is None:
-                print(f"--   {name}: not built here")
-                continue
             values = run(elf, seed, seconds, words)
             checks = litmus(values, False) if args.flash and judge is litmus \
                 else judge(values)
