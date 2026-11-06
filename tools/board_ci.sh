@@ -51,7 +51,8 @@
 #                    own (tools/pico2_uart.py), are run on the CI's images and posted as
 #                    the status "board/pico2", through the probe BOARD_CI_PICO2_PROBE (probe3)
 #                    and the OpenOCD BOARD_CI_OPENOCD_RP2350
-#                    (~/opt/openocd-rpi/bin/openocd), which knows the RP2350.
+#                    (~/opt/openocd-rpi/bin/openocd), which knows the RP2350; then the
+#                    same on its Hazard3 cores, when the CI built their images.
 set -eu
 STARTED_AS=$(cksum <"$0")   # before the checkout below can replace this very file
 
@@ -613,7 +614,23 @@ board_pico2() {
         status failure "the UART echo or senders failed; see the bench's log" board/pico2
         return 1
     fi
-    status success "slot buffers and queue across cores, IPC, endurance test, litmus tests$uart, on the CI's images" \
+    # The same on its Hazard3 cores, for the commits that build them (docs/riscv.md).
+    cores=""
+    if [ -f "$DIR/fw/pico2_riscv/SoakPico2.elf" ]; then
+        cores=", Arm and RISC-V"
+        if ! (cd "$SRC" && PROBE=$PICO2_PROBE OPENOCD=$OPENOCD_RP2350 \
+                python3 tools/pico2_check.py "$DIR/fw/pico2_riscv"); then
+            status failure "on the Hazard3 cores, an example that counts in memory failed; see the bench's log" \
+                board/pico2
+            return 1
+        elif ! (cd "$SRC" && PROBE=$PICO2_PROBE OPENOCD=$OPENOCD_RP2350 \
+                python3 tools/pico2_uart.py "$DIR/fw/pico2_riscv"); then
+            status failure "on the Hazard3 cores, the UART echo or senders failed; see the bench's log" \
+                board/pico2
+            return 1
+        fi
+    fi
+    status success "slot buffers and queue across cores, IPC, endurance test, litmus tests$uart, on the CI's images$cores" \
         board/pico2
 }
 

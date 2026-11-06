@@ -87,7 +87,7 @@ jobs:
     # The Pico 2's Hazard3 cores (issue #77): every variant the RISC-V layer builds,
     # with Ubuntu's riscv64-unknown-elf-gcc 14.2, the image's one toolchain for RISC-V.
     # No emulator has the RP2350's Hazard3 and its interrupt controller: the images run
-    # on the board, by hand so far (tools/pico2_check.py on the bench), not here.
+    # on the board, in board/pico2 (tools/board_ci.sh), not here.
     name: rp2350-pico2 (Hazard3)
     runs-on: ubuntu-26.04
     container:
@@ -131,10 +131,12 @@ jobs:
   board-images:
     # The images the board bench runs its checks on (tools/board_ci.sh, BOARD_CI_IMAGES=
     # ci), built here so that the bench needs no compiler, with the same GCC as the
-    # examples above.
+    # examples above, and Ubuntu's RISC-V GCC for the Pico 2's Hazard3 cores.
     name: Images for the board
     runs-on: ubuntu-26.04
     timeout-minutes: 15
+    env:
+      RISCV_CROSS_COMPILE: riscv64-unknown-elf-
     container:
       image: ghcr.io/beber007/escapement-ci:4
       credentials:
