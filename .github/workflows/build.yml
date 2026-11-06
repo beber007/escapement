@@ -24,7 +24,7 @@ jobs:
     name: ${{ matrix.example }} (${{ matrix.cpu }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:3
+      image: ghcr.io/beber007/escapement-ci:4
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -83,6 +83,51 @@ jobs:
           path: ${{ env.DIR }}/build/*.elf
           retention-days: 14
 
+  riscv:
+    # The Pico 2's Hazard3 cores (issue #77): every variant the RISC-V layer builds,
+    # with Ubuntu's riscv64-unknown-elf-gcc 14.2, the image's one toolchain for RISC-V.
+    # No emulator has the RP2350's Hazard3 and its interrupt controller: the images run
+    # on the board, by hand so far (tools/pico2_check.py on the bench), not here.
+    name: rp2350-pico2 (Hazard3)
+    runs-on: ubuntu-26.04
+    container:
+      image: ghcr.io/beber007/escapement-ci:4
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      DIR: Escapement/CORTEX-Mx/RP2350/Examples/pico2
+      RISCV_CROSS_COMPILE: riscv64-unknown-elf-
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build every variant, check the binaries and that a rebuild is the same
+        working-directory: ${{ env.DIR }}
+        run: |
+          set -e
+          shopt -s nullglob
+          n=0
+          for v in "" "SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING" "KERNEL=SOFT" \
+                   "KERNEL=SOFT SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING"; do
+            n=$((n + 1))
+            out=build-riscv-$n
+            make ARCH=riscv B=$out $v
+            elfs=($out/*.elf)
+            if [ ${#elfs[@]} -eq 0 ]; then
+              echo "::error::no binary produced for [$v]"
+              exit 1
+            fi
+            for elf in "${elfs[@]}"; do
+              test -s "$elf" || { echo "::error::$elf is empty"; exit 1; }
+            done
+            riscv64-unknown-elf-size "${elfs[@]}"
+            sha256sum $out/*.elf > "$RUNNER_TEMP/$n.sha256"
+            make ARCH=riscv B=$out $v clean
+            make ARCH=riscv B=$out $v
+            sha256sum -c --quiet "$RUNNER_TEMP/$n.sha256"
+          done
+
   board-images:
     # The images the board bench runs its checks on (tools/board_ci.sh, BOARD_CI_IMAGES=
     # ci), built here so that the bench needs no compiler, with the same GCC as the
@@ -91,7 +136,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     container:
-      image: ghcr.io/beber007/escapement-ci:3
+      image: ghcr.io/beber007/escapement-ci:4
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -114,7 +159,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     container:
-      image: ghcr.io/beber007/escapement-ci:3
+      image: ghcr.io/beber007/escapement-ci:4
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -169,7 +214,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     container:
-      image: ghcr.io/beber007/escapement-ci:3
+      image: ghcr.io/beber007/escapement-ci:4
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -225,7 +270,7 @@ jobs:
     name: Static analysis
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:3
+      image: ghcr.io/beber007/escapement-ci:4
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -307,7 +352,7 @@ jobs:
     name: Execution under Renode (RP2350, ${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:3
+      image: ghcr.io/beber007/escapement-ci:4
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -374,7 +419,7 @@ jobs:
     name: Execution under Renode (STM32U5, ${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:3
+      image: ghcr.io/beber007/escapement-ci:4
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -432,7 +477,7 @@ jobs:
     name: Execution under Renode (STM32U3, ${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:3
+      image: ghcr.io/beber007/escapement-ci:4
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -525,7 +570,7 @@ jobs:
     name: Execution under Renode (RP2040, ${{ matrix.variant }})
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/beber007/escapement-ci:3
+      image: ghcr.io/beber007/escapement-ci:4
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -618,9 +663,9 @@ jobs:
     # not change"): it passes only if every job above did, whatever the matrix holds.
     name: build
     if: always()
-    needs: [examples, board-images, second-compiler, second-compiler-run, tools, encoding,
-            analysis, host-scheduler, clang, coverage, models, emulation-rp2350,
-            emulation-stm32u5, emulation-stm32u3, emulation-rp2040]
+    needs: [examples, riscv, board-images, second-compiler, second-compiler-run, tools,
+            encoding, analysis, host-scheduler, clang, coverage, models,
+            emulation-rp2350, emulation-stm32u5, emulation-stm32u3, emulation-rp2040]
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
