@@ -10,6 +10,7 @@
   <img src="https://img.shields.io/badge/language-C-555555" alt="C">
   <img src="https://img.shields.io/badge/RP2040-Cortex--M0%2B-c51a4a?logo=raspberrypi&logoColor=white" alt="RP2040">
   <img src="https://img.shields.io/badge/RP2350-Cortex--M33-c51a4a?logo=raspberrypi&logoColor=white" alt="RP2350">
+  <img src="https://img.shields.io/badge/RP2350-Hazard3%20RISC--V-c51a4a?logo=raspberrypi&logoColor=white" alt="RP2350, RISC-V">
   <img src="https://img.shields.io/badge/STM32U5-Cortex--M33-03234b?logo=stmicroelectronics&logoColor=white" alt="STM32U5">
   <img src="https://img.shields.io/badge/STM32U3-Cortex--M33-03234b?logo=stmicroelectronics&logoColor=white" alt="STM32U3">
   <img src="https://img.shields.io/badge/emulated-Renode-2f6f9f" alt="Renode">
@@ -22,6 +23,7 @@
   <a href="docs/method.md">Method</a> ·
   <a href="docs/api.md">API</a> ·
   <a href="docs/rp2040.md">Pico</a> ·
+  <a href="docs/riscv.md">RISC-V</a> ·
   <a href="docs/stm32u5.md">STM32U5</a> ·
   <a href="docs/stm32u3.md">STM32U3</a> ·
   <a href="docs/power-aware.md">Energy</a> ·
@@ -72,6 +74,10 @@ kilobytes of RAM.**
   the microsecond ([`docs/stm32u5.md`](docs/stm32u5.md)). On an STM32U3, with the same
   idle task, every start stayed within 3 µs of its period (2026-10-12,
   [`docs/stm32u3.md`](docs/stm32u3.md)).
+- The same kernel on the Arm and the RISC-V cores of one chip, the RP2350. A
+  scheduling round costs the same on both, within 3 %. From the alarm to the task, the
+  RISC-V cores take 103 cycles more: they save their registers in software (2026-11-06,
+  [`docs/riscv.md`](docs/riscv.md)).
 - Four boards, checked at each new head of `main` and of each pull request from a branch
   of this repository: a Pico, a Pico 2, an STM32U5 and an STM32U3. The bench polls
   GitHub for new work by itself ([`tools/board_ci.md`](tools/board_ci.md)).
