@@ -499,6 +499,11 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **The compiled order on the Hazard3 cores (#78), 2026-11-07.** `tools/check_order.py`
+  read the Arm disassembly only. It now reads the RISC-V objects of the Pico 2 too, and
+  the CI's job `riscv` runs it on the four variants. Each barrier removed is caught, and
+  each mutant of the task-level stores (`riscv.md`).
+
 - **The Pico's scheduling round as fast as before 7cbc700 (#47), 2026-10-30.** From
   2026-10-13 the bench read 4.4 µs a round, against 3.5 before. The cause was 7cbc700:
   it moved the next release of a periodic task into a function, which GCC kept as a

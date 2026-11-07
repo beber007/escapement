@@ -5,18 +5,24 @@
 # Show that tools/check_order.py can fail: build the hard kernel of an example once per
 # _OSMemoryBarrier() of the slot buffers, that barrier removed, and expect check_order.py
 # to reject every one of those objects, and to accept the kernel as it is; then the same
-# for the task-level stores, with mutants of the source listed at the end.
+# for the task-level stores, with mutants of the source listed at the end. ARCH=riscv
+# after the example builds its objects for the Hazard3 cores of the RP2350 (#78).
 #
-#   tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2
+#   tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2 [ARCH=riscv]
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 EXAMPLE=$(cd "$1" && pwd)
+ARCH_FLAG=${2:-}
+OUT=build
+[ "$ARCH_FLAG" = ARCH=riscv ] && OUT=build-riscv
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
 # The command the example's Makefile compiles the kernel with, pointed elsewhere.
-COMMAND=$(make -s -C "$EXAMPLE" -n -B build/EscapementHard.o | grep -m1 'EscapementHard\.c')
+# shellcheck disable=SC2086
+COMMAND=$(make -s -C "$EXAMPLE" -n -B "$OUT/EscapementHard.o" $ARCH_FLAG |
+    grep -m1 'EscapementHard\.c')
 compile() {   # compile SOURCE OBJECT
     (cd "$EXAMPLE" && eval "$(printf '%s' "$COMMAND" |
         sed "s|[^ ]*EscapementHard\.c|$1|; s|-o [^ ]*|-o $2|") -I$ROOT/Escapement")
@@ -33,17 +39,20 @@ while [ "$k" -le "$BARRIERS" ]; do
     awk -v k="$k" '/_OSMemoryBarrier\(\);/ { if (++n == k) next } { print }' \
         "$ROOT/Escapement/EscapementHard.c" > "$WORK/EscapementHard.c"
     compile "$WORK/EscapementHard.c" "$WORK/mutant.o"
-    if python3 "$ROOT/tools/check_order.py" "$WORK/mutant.o" >/dev/null; then
-        echo "barrier $k removed: NOT CAUGHT"; missed=$((missed + 1))
-    else
+    # Caught for the missing barrier, not for an access the check lost track of.
+    if python3 "$ROOT/tools/check_order.py" "$WORK/mutant.o" | grep -q "no DMB"; then
         echo "barrier $k removed: caught"
+    else
+        echo "barrier $k removed: NOT CAUGHT"; missed=$((missed + 1))
     fi
     k=$((k + 1))
 done
 [ "$missed" -eq 0 ] && echo "all $BARRIERS removals caught"
 
 # The queue between the cores, on a port that has one: the same, one mutant per barrier.
-QUEUE_COMMAND=$(make -s -C "$EXAMPLE" -n -B build/Escapement_CoreQueue.o 2>/dev/null |
+# shellcheck disable=SC2086
+QUEUE_COMMAND=$(make -s -C "$EXAMPLE" -n -B "$OUT/Escapement_CoreQueue.o" $ARCH_FLAG \
+    2>/dev/null |
     grep -m1 'Escapement_CoreQueue\.c') || QUEUE_COMMAND=""
 if [ -n "$QUEUE_COMMAND" ]; then
     QUEUE=$(cd "$EXAMPLE" && cd "$(dirname "$(printf '%s' "$QUEUE_COMMAND" |
@@ -113,7 +122,8 @@ while IFS=: read -r kernel scheduler name; do
     # shellcheck disable=SC2086
     # Only the power-aware kernel may be missing, on the ports that have none yet; the
     # hard and the soft kernels skipped would have let a failing make pass for a catch.
-    if ! COMMAND=$(make -s -C "$EXAMPLE" -n -B "build/Escapement$kernel.o" $flags 2>/dev/null |
+    if ! COMMAND=$(make -s -C "$EXAMPLE" -n -B "$OUT/Escapement$kernel.o" $flags \
+            $ARCH_FLAG 2>/dev/null |
             grep -m1 "Escapement$kernel\.c"); then
         [ "$kernel" = HardPA ] && continue
         echo "$kernel $scheduler, $name: NOT BUILT"; missed=$((missed + 1)); continue
@@ -124,10 +134,12 @@ while IFS=: read -r kernel scheduler name; do
     }
     mutate "$name" "$ROOT/Escapement/Escapement$kernel.c" "$WORK/Escapement$kernel.c"
     mutant "$WORK/Escapement$kernel.c" "$WORK/mutant.o"
-    if python3 "$ROOT/tools/check_order.py" --tasks "$WORK/mutant.o" >/dev/null; then
-        echo "$kernel $scheduler, $name: NOT CAUGHT"; missed=$((missed + 1))
-    else
+    # Caught for a store out of its order, not for a rule the check did not find.
+    if python3 "$ROOT/tools/check_order.py" --tasks "$WORK/mutant.o" | grep -q "with no"
+    then
         echo "$kernel $scheduler, $name: caught"
+    else
+        echo "$kernel $scheduler, $name: NOT CAUGHT"; missed=$((missed + 1))
     fi
 done <<'MUTANTS'
 Hard:EDF:zombie after the flag

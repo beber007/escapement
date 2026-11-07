@@ -132,8 +132,13 @@ A mutant with two `nop` a step failed. On 2026-11-07, 1 `nop` took 1 cycle and
 31 took 32. Three boots of 3.56 million rounds each found nothing reordered, and SB
 overlapped in some 156,600 rounds each time.
 
-`tools/check_order.py` reads the Arm disassembly only. The order of the barriers in the
-RISC-V objects is checked by the board alone (#78).
+`tools/check_order.py` reads the RISC-V objects too, since 2026-11-07 (#78). It turns
+each RISC-V instruction into the Arm one it already reads. `fence rw,rw` is the barrier.
+A call is an `auipc` and a `jalr`. A variable is named by its relocations. The CI runs
+it on the four variants, built with GCC 14.2. `tools/check_order_mutants.sh` with
+`ARCH=riscv` removes each barrier in turn. It also moves or removes the stores of a task
+that the timer interrupt relies on. On 2026-11-07, with GCC 16.2, the check caught the
+9 barriers of the slot buffers, the 7 of the queue, and the 5 mutants of the stores.
 
 ## Measurements
 

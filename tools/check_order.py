@@ -25,9 +25,13 @@ the models; the writer sets it after the slot, and where a path makes both acces
 
 The accesses are recognised by their offsets in the buffer structures, followed through
 the registers from the descriptor each function receives in r0: descriptor->Buffer, the
-buffer's CurrentWriter, and its Data. That covers the code GCC emits for the Cortex-M0+
-and the Cortex-M33 at -O2; an access the tracking cannot place is not an error, a missing
-or misplaced one is.
+buffer's CurrentWriter, and its Data. That covers the code GCC emits for the Cortex-M0+,
+the Cortex-M33 and the Hazard3 at -O2; an access the tracking cannot place is not an
+error, a missing or misplaced one is.
+
+A RISC-V object, the Hazard3 cores' of the RP2350 (#78), is read with its own objdump
+(RISCV_CROSS_COMPILE, as the Makefile takes it). Each instruction is turned into the Arm
+one the rest reads: fence rw,rw a DMB, a0 to a3 r0 to r3, a call an auipc and a jalr ra.
 
 The same objects hold sequences of stores that a task makes and the timer interrupt may
 find half done, which it completes or relies on. There the processor keeps the order,
@@ -70,7 +74,9 @@ first field.
 barrier, as the STM32F4's did until its removal on 2026-09-26. An object without a
 kernel, one the build did not select, is skipped; at least one must hold one.
 """
+import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -90,9 +96,140 @@ HEAD, TAIL = 4, 8                   # in CORE_QUEUE (Escapement_CoreQueue.c)
 PLACES = ("d", 0)                   # queue->Q, the array of places
 
 
+def is_riscv(path):
+    """An ELF object of RISC-V, by its e_machine."""
+    with open(path, "rb") as f:
+        header = f.read(20)
+    return header[:4] == b"\x7fELF" and int.from_bytes(header[18:20], "little") == 0xF3
+
+
+def riscv_objdump():
+    prefix = os.environ.get("RISCV_CROSS_COMPILE")
+    names = [prefix + "objdump"] if prefix else ["riscv64-elf-objdump",
+                                                 "riscv64-unknown-elf-objdump"]
+    found = next((n for n in names if shutil.which(n)), None)
+    if found is None:
+        raise SystemExit(f"no {' or '.join(names)} to read the RISC-V objects")
+    return found
+
+
+RV_CLOBBERED = ("a4", "a5", "a6", "a7", "t0", "t1", "t2", "t3", "t4", "t5", "t6")
+RV_NAMES = {"a0": "r0", "a1": "r1", "a2": "r2", "a3": "r3", "ra": "lr"}
+RV_MEMORY = {"lw": "ldr", "lbu": "ldrb", "lb": "ldrsb", "lhu": "ldrh", "lh": "ldrsh",
+             "sw": "str", "sb": "strb", "sh": "strh"}
+RV_BRANCH = ("beq", "bne", "blt", "bge", "bltu", "bgeu", "bgt", "ble", "bgtu", "bleu")
+RV_BRANCH_ZERO = ("bltz", "bgez", "blez", "bgtz")
+
+
+def riscv_insn(op, ops, relocs):
+    """One RISC-V instruction as the Arm one step() reads: (mnemonic, operands, target),
+    or None to drop it. relocs, the symbols of its relocations by their type."""
+    ops = [RV_NAMES.get(o, o) for o in ops]
+    low = relocs.get("LO12_I") or relocs.get("LO12_S")
+    addend = 0
+    if low and re.search(r"\+0x[0-9a-f]+$", low):
+        addend = int(low.rsplit("+", 1)[1], 16)
+    if op == "fence":
+        return ("dmb", "", None) if ops == ["rw", "rw"] else ("fence", "", None)
+    if op == "lui" and "HI20" in relocs:
+        variable = re.sub(r"\+0x[0-9a-f]+$", "", relocs["HI20"])
+        return ("ldr", f"{ops[0]}, [pc]", ("literal", variable))
+    if op in RV_MEMORY and len(ops) == 2:
+        m = re.match(r"(-?\d+)\((\w+)\)$", ops[1])
+        if m:
+            base = RV_NAMES.get(m.group(2), m.group(2))
+            offset = int(m.group(1)) + addend
+            return (RV_MEMORY[op], f"{ops[0]}, [{base}, #{offset}]", None)
+    if op == "mv" and low:
+        # an addi of %lo(variable), its immediate 0 in the object: objdump shows mv
+        return ("add", f"{ops[0]}, {ops[1]}, #{addend}", None)
+    if op == "mv":
+        return ("mov", f"{ops[0]}, {ops[1]}", None)
+    if op == "li":
+        return ("mov", f"{ops[0]}, #{ops[1]}", None)
+    if op == "addi":
+        return ("add", f"{ops[0]}, {ops[1]}, #{int(ops[2]) + addend}", None)
+    if op in ("add", "sub") and len(ops) == 3:
+        return (op, ", ".join(ops), None)
+    if op == "ori":
+        return ("orr", f"{ops[0]}, {ops[1]}, #{ops[2]}", None)
+    if op == "or":
+        return ("orr", ", ".join(ops), None)
+    if op in ("beqz", "bnez"):
+        return ("cbz" if op == "beqz" else "cbnz", f"{ops[0]}, {ops[1]}", None)
+    if op in ("beq", "bne"):
+        return (op + "r", f"{ops[0]}, {ops[1]}, {ops[2]}", None)
+    if op in RV_BRANCH:
+        return ("bcond", ops[2], None)
+    if op in RV_BRANCH_ZERO:
+        return ("bcond", ops[1], None)
+    if op == "j":
+        return ("b", ops[0], None)
+    if op == "ret" or op == "jr" and ops == ["lr"]:
+        return ("bx", "lr", None)
+    if op == "jr":
+        return ("jump", ops[0], None)     # a computed jump, a table of a switch
+    if op == "jalr":
+        return ("blx", ops[-1], None)
+    if op == "auipc":
+        return ("auipc", ops[0], None)
+    return (op, ", ".join(ops), None)
+
+
+def disassemble_riscv(path):
+    """As disassemble, from the RISC-V disassembly. A call is an auipc and a jalr ra,
+    with a relocation R_RISCV_CALL_PLT. The address of a variable is a lui with
+    R_RISCV_HI20, then an access or an addi with R_RISCV_LO12_I or _S. The local labels
+    .L* stay inside their function."""
+    out = subprocess.run([riscv_objdump(), "-dr", "--no-show-raw-insn", path],
+                         check=True, capture_output=True, text=True).stdout
+    raw, name = {}, None
+    for line in out.splitlines():
+        m = re.match(r"^[0-9a-f]+ <([^>]+)>:$", line)
+        if m:
+            if not m.group(1).startswith(".L"):
+                name = m.group(1)
+                raw.setdefault(name, [])
+            continue
+        if name is None:
+            continue
+        m = re.match(r"^\s+[0-9a-f]+:\s+R_RISCV_(\w+)\s+(\S+)", line)
+        if m:
+            if raw[name]:
+                raw[name][-1][3][m.group(1)] = m.group(2)
+            continue
+        m = re.match(r"^\s+([0-9a-f]+):\s+(\S+)\s*(.*)$", line)
+        if m:
+            text = m.group(3).split("#")[0].strip()
+            ops = re.split(r",(?![^<]*>)", text) if text else []
+            ops = [o.strip() for o in ops]
+            raw[name].append((int(m.group(1), 16), m.group(2), ops, {}))
+    functions = {}
+    for name, insns in raw.items():
+        body, call = [], None
+        for address, op, ops, relocs in insns:
+            if op == "auipc" and "CALL_PLT" in relocs:
+                call = (address, relocs["CALL_PLT"])
+                continue
+            if call and op == "jalr" and ops == ["ra"]:
+                body.append((call[0], "bl", f"<{call[1]}>", call[1]))
+                call = None
+                continue
+            if call:                    # a tail call: auipc, jr, the function left
+                body.append((call[0], "bx", "", None))
+                call = None
+                continue
+            op, operands, target = riscv_insn(op, ops, relocs)
+            body.append((address, op, operands, target))
+        functions[name] = body
+    return functions
+
+
 def disassemble(path):
     """Yield (function, [(address, mnemonic, operands, target)]), the target a call's
     callee, or ("literal", variable) for a load of the address of a variable."""
+    if is_riscv(path):
+        return disassemble_riscv(path)
     out = subprocess.run([OBJDUMP, "-dr", "--no-show-raw-insn", path], check=True,
                          capture_output=True, text=True).stdout
     functions, literals, name, body = {}, {}, None, None
@@ -339,7 +476,7 @@ def step(insn, regs, queue=False):
             e = queue_event(target[-2:], r0)
             if e:
                 events.append(e)
-        for r in ("r0", "r1", "r2", "r3", "r12", "lr"):
+        for r in ("r0", "r1", "r2", "r3", "r12", "lr") + RV_CLOBBERED:
             regs.pop(r, None)
         return events
     if op == "ldr" and isinstance(target, tuple):
@@ -425,6 +562,14 @@ def step(insn, regs, queue=False):
         else:
             regs[parts[0]] = v
         return events
+    if op in ("beqr", "bner"):
+        # RISC-V's beq and bne compare two registers: one may hold a constant
+        a, b = regs.get(parts[0]), regs.get(parts[1])
+        if b is not None and b.const is not None:
+            regs["compared"] = (parts[0], b.const)
+        elif a is not None and a.const is not None:
+            regs["compared"] = (parts[1], a.const)
+        return events
     if op == "cmp" and len(parts) == 2 and parts[1].startswith("#"):
         regs["compared"] = (parts[0], number(parts[1]))   # for the branch that follows
         return events
@@ -445,6 +590,7 @@ def paths(body, start=None, visits=2, queue=False):
     descriptor (or the queue)."""
     index = {a: i for i, (a, *_) in enumerate(body)}
     start = {"r0": Value(base=("d",))} if start is None else start
+    start = dict(start, zero=Value(const=0))       # RISC-V's register zero
     result, stack = [], [(0, dict(start), [], {})]
     while stack:
         if len(result) > MAX_PATHS:
@@ -458,8 +604,12 @@ def paths(body, start=None, visits=2, queue=False):
             regs.pop("compared", None) if i and body[i - 1][1] != "cmp" else None
             events = events + step(insn, regs, queue)
             op = insn[1].split(".")[0]
+            if op == "jump":
+                raise SystemExit(f"a computed jump at {insn[0]:#x}: its targets are "
+                                 "not followed")
             t = re.search(r"^([0-9a-f]+) <", insn[2])
-            branch = op.startswith("b") and op not in ("bl", "blx", "bic", "bics") and t
+            branch = op in ("beqr", "bner") or \
+                op.startswith("b") and op not in ("bl", "blx", "bic", "bics") and t
             # a return: pop or ldm into pc (GCC restores r8 and pc with ldmia.w sp!)
             if op in ("pop", "ldmia", "ldm") and "pc" in insn[2] or op == "bx":
                 i = len(body)
@@ -474,9 +624,9 @@ def paths(body, start=None, visits=2, queue=False):
                 known = regs.get("compared")
                 if op.startswith("cb"):
                     known = (insn[2].split(",")[0].strip(), 0)
-                if known and op in ("beq", "cbz"):
+                if known and op in ("beq", "beqr", "cbz"):
                     taken[known[0]] = Value(const=known[1])
-                elif known and op in ("bne", "cbnz"):
+                elif known and op in ("bne", "bner", "cbnz"):
                     fallthrough[known[0]] = Value(const=known[1])
                 if j is not None:
                     if conditional:

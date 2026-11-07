@@ -213,6 +213,8 @@ sh test/litmus/run.sh
 # models, and of the task-level stores the timer interrupt relies on (run by the CI)
 tools/check_order.py Escapement/CORTEX-Mx/RP2350/Examples/pico2/build/Escapement*.o
 tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2   # every one caught
+tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2 ARCH=riscv
+                                     # the same on the Hazard3 objects (#78)
 
 sh tools/check_encoding.sh           # every tracked file must be valid UTF-8
 
