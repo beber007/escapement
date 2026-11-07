@@ -219,8 +219,15 @@ def litmus(r, overlap_needed=True):
     overlap (SB 11, MP 01, LB 00) must show, or the rounds proved nothing. From the flash
     that witness is not required, only printed: LB's never showed there, the two cores
     fetching through the one XIP cache, and the user kept it to the images in SRAM
-    (docs/rp2040.md, "From the flash", 2026-10-09)."""
+    (docs/rp2040.md, "From the flash", 2026-10-09). On the Hazard3 two words follow:
+    the cycles of 1 nop of Wait and of 31, which the image measures. 1 nop must take an
+    odd count, or the offset between the cores keeps the parity it had at boot and an
+    overlap may never come (#80). 31 nops must take 31 cycles at least. Both counts
+    must be small, so a difference that wrapped below 0 fails too."""
     checks = [(r[0] == 0x4C544D53, f"marker {r[0]:#x}")]
+    if len(r) > 31:
+        checks.append((r[31] % 2 == 1 and r[31] < 31 and 31 <= r[32] < 31 * 4,
+                       f"Wait: 1 nop takes {r[31]} cycles, 31 take {r[32]}"))
     for i, (name, weak, overlap) in enumerate([("SB", 0, 3), ("SB+DMB", 0, 3),
                                                ("MP", 2, 1), ("MP+DMB", 2, 1),
                                                ("LB", 3, 0), ("LB+DMB", 3, 0)]):
@@ -259,6 +266,8 @@ def main():
         seed = None if args.flash else build_seed(directory)
         for name, seconds, words, judge in tests:
             elf = os.path.join(build, name + ".elf")
+            if name == "LitmusPico2" and is_riscv(elf):
+                words += 2   # Wait's steps, measured by the Hazard3's image
             values = run(elf, seed, seconds, words)
             checks = litmus(values, False) if args.flash and judge is litmus \
                 else judge(values)

@@ -37,7 +37,9 @@
 ** fence iorw,iorw, the fence rw,rw ordering memory alone.
 ** On the Pico 2 on 2026-11-06, 2.56 million rounds of each test, none ended in its weak
 ** outcome, with or without the fence: the Hazard3 cores kept program order, as the
-** Cortex-M33 cores do.
+** Cortex-M33 cores do. With the nops of Wait, on 2026-11-07, three boots of 3.56
+** million rounds of each test, none weak; SB overlapped in some 156,600 rounds each
+** time, where the loops alone had given from 0 to 46,694.
 ** Platform version: RP2350 (Raspberry Pi Pico 2).
 */
 
@@ -53,6 +55,9 @@ typedef struct {
 volatile struct {
   UINT32 Marker;             /* 'LTMS' once the rounds have started */
   LITMUS Test[TESTS];
+  #ifdef __riscv
+     UINT32 Steps[2];        /* the cycles of 1 and 31 nops of Wait, less none's */
+  #endif
 } Results;
 
 /* The variables of the tests, in two words of their own: consecutive words lie in
@@ -68,6 +73,9 @@ static void Core1(void);
 static UINT32 Core0Half(UINT32 test);
 static UINT32 Core1Half(UINT32 test);
 static void Wait(UINT32 random);
+#ifdef __riscv
+   static UINT32 Cycles(UINT32 random);
+#endif
 static void Push(UINT32 word);
 static UINT32 Pop(void);
 
@@ -107,6 +115,10 @@ int main(void)
   WATCHDOG_CTRL_CLR = WATCHDOG_ENABLE;
   OSInitializeSystemClocks();
   OSLaunchCore1(Core1,&Core1Stack[sizeof Core1Stack / sizeof Core1Stack[0]]);
+  #ifdef __riscv
+     Results.Steps[0] = Cycles(1u << 5) - Cycles(0);
+     Results.Steps[1] = Cycles(31u << 5) - Cycles(0);
+  #endif
   Results.Marker = 0x4C544D53;
   for (round = 0; ; round += 1) {
      test = round % TESTS;
@@ -202,18 +214,44 @@ static UINT32 Core1Half(UINT32 test)
 ** each count taken from 5 bits of random. With a single loop of the same length on both
 ** cores, their offset moved by whole turns only and some offsets were never met: in 2.6
 ** million rounds of LB, not one had both loads before both stores (2026-09-28). Two
-** lengths whose difference is one cycle reach every offset. */
+** lengths whose difference is one cycle reach every offset.
+** On the Hazard3 the two loops took 2 and 4 cycles a turn, and their costs moved with
+** where the code sat: every wait moved the offset by an even count, which kept the
+** parity it had at boot. SB's overlap then came in some boots and never in others, 0
+** in 2.58 million rounds on 2026-11-07 (#80). So the second count there is of nops of
+** 4 bytes, run in a row from a computed jump. main measures 1 and 31 of them, on its
+** own copy of Wait, and tools/pico2_check.py checks that 1 takes an odd count. */
 static void Wait(UINT32 random)
 {
   UINT32 n = random & 31, m = random >> 5 & 31, scratch = 0;
   #ifdef __riscv
      __asm volatile ("1: addi %0,%0,-1\n bgez %0,1b" : "+r"(n));
-     __asm volatile ("1: addi %0,%0,-1\n addi %1,%1,1\n bgez %0,1b" : "+r"(m), "+r"(scratch));
+     __asm volatile (".option push\n .option norvc\n"
+                     " la %0,2f\n slli %1,%1,2\n sub %0,%0,%1\n jr %0\n"
+                     " .rept 31\n nop\n .endr\n2:\n .option pop"
+                     : "=&r"(scratch), "+r"(m));
   #else
      __asm volatile ("1: subs %0,#1\n bpl 1b" : "+r"(n) : : "cc");
      __asm volatile ("1: subs %0,#1\n add.w %1,%1,#1\n bpl 1b" : "+r"(m), "+r"(scratch) : : "cc");
   #endif
 } /* end of Wait */
+
+
+#ifdef __riscv
+/* Cycles: The fewest cycles of three waits of random, on mcycle. */
+static UINT32 Cycles(UINT32 random)
+{
+  UINT32 i, start, end, least = 0xFFFFFFFF;
+  for (i = 0; i < 3; i += 1) {
+     __asm volatile ("csrr %0, mcycle" : "=r"(start) :: "memory");
+     Wait(random);
+     __asm volatile ("csrr %0, mcycle" : "=r"(end) :: "memory");
+     if (end - start < least)
+        least = end - start;
+  }
+  return least;
+} /* end of Cycles */
+#endif
 
 
 static void Push(UINT32 word)

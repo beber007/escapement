@@ -122,6 +122,16 @@ The litmus tests found no access reordered between the Hazard3 cores, with or wi
 `fence`. There were 2.56 million rounds of each test, on 2026-11-06. That shows nothing
 was reordered then. It does not prove the cores never reorder.
 
+A test is worth something only if the cores' accesses overlap. The random wait between
+rounds must then shift one core against the other by single cycles. Its loops on the
+Hazard3 cost 2 or 4 cycles a turn, so the shift kept the parity it had at boot. On some
+boots, SB never overlapped, and `board/pico2` failed (#80). The wait now jumps into a
+row of 31 four-byte `nop`. The image measures 1 and 31 of them, and `pico2_check.py`
+reads the counts. It fails if 1 takes an even count of cycles, or 31 take fewer than 31.
+A mutant with two `nop` a step failed. On 2026-11-07, 1 `nop` took 1 cycle and
+31 took 32. Three boots of 3.56 million rounds each found nothing reordered, and SB
+overlapped in some 156,600 rounds each time.
+
 `tools/check_order.py` reads the Arm disassembly only. The order of the barriers in the
 RISC-V objects is checked by the board alone (#78).
 
