@@ -23,7 +23,8 @@ RP2350 of the Pico 2 has a switching core regulator, and two cores with exclusiv
 accesses. Its port was begun on 2026-09-24, for the cores. Measured on 2026-10-03, a
 DVFS driver would save some 10 % at best, less than sleeping deeper does (items 3 and 5,
 issues #23 and #6). The RP2350 also has two Hazard3 RISC-V cores. Their port was begun
-on 2026-11-05, to compare the two architectures on one chip (#77, `riscv.md`). The
+on 2026-11-05, to compare the two architectures on one chip (#77, `riscv.md`). It was
+merged on 2026-11-07 (#79), with the hard and the soft kernel. The
 power-aware kernel is part of that comparison, so #23 was reopened on 2026-11-05.
 
 Among the STM32, the **STM32U5** is the one kept. Its port was begun on 2026-09-25, for
