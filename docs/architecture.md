@@ -82,11 +82,12 @@ An application gets the same guarantees from two mechanisms:
 Between two cores, each slot buffer orders its accesses with four calls to
 `_OSMemoryBarrier()`. Both buffers share a fifth, before a full slot is marked unread.
 `_OSMemoryBarrier()` is a `DMB` on the RP2040, the RP2350, the STM32U5 and the STM32U3,
-and a compiler barrier alone in the host build. `tools/check_order.py` reads the
-compiled code of every build of the four ports. It checks that the accesses and the
-barriers keep the order of the models. On the Pico 2, it checks the queue between the
-cores too, with its seven barriers (2026-09-30). It also checks the order of the stores
-a task makes that the timer interrupt may find half done (`method.md`).
+a `fence rw,rw` on the RP2350's Hazard3 cores, and a compiler barrier alone in the host
+build. `tools/check_order.py` reads the compiled code of every build of the four ports,
+and of the Hazard3 cores (#78). It checks that the accesses and the barriers keep the
+order of the models. On the Pico 2, it checks the queue between the cores too, with its
+seven barriers (2026-09-30). It also checks the order of the stores a task makes that
+the timer interrupt may find half done (`method.md`).
 
 Each mechanism has an exhaustive model in `test/model`, run by the CI:
 

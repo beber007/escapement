@@ -574,7 +574,8 @@ runs in the CI, on every path through the buffers' functions, on every build of:
 
 - the Pico and the Pico 2;
 - the STM32U5, since its port (2026-09-25);
-- the STM32U3, since its port (2026-10-06).
+- the STM32U3, since its port (2026-10-06);
+- the Hazard3 cores of the Pico 2, since 2026-11-07 (#78).
 
 `tools/check_order_mutants.sh` shows the check failing without any one of the barriers.
 The two buffers' source has had nine of them since 2026-09-25, when the status of a
