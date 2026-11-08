@@ -48,6 +48,13 @@ CFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wall -c -g -fdata-sections \
 AFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wall -c -g -MMD -MP
 LDFLAGS = -mcpu=$(CPU) -mthumb -mfloat-abi=soft -Wl,--gc-sections -nostdlib
 
+# make SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING: the other scheduling algorithm, as in
+# Examples/uno-q; dropped before #84, it built EDF.
+ifdef SCHEDULER
+   CFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
+   AFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
+endif
+
 # make KERNEL=SOFT: the soft real-time kernel, and SoakFirmU5 beside the others, SoakU5
 # with an (m,k)-firm task (SoakU5.c), for the soft kernel's long run on this board.
 ifeq ($(KERNEL),SOFT)
