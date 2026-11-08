@@ -504,7 +504,8 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
   EDF, where the code it changes is not compiled. The Makefile now takes `SCHEDULER`, as
   the UNO Q's does. `tools/check_order_mutants.sh` now says "NOT BUILT under DM" when
   the command has no DM. The example stays out of the CI's loop: its kernel objects are
-  the same code as the UNO Q's, in all four variants.
+  the same code as the UNO Q's, in all four variants. Its Makefile also built the hard
+  kernel under `KERNEL=PA`; it now refuses it, as the UNO Q's does.
 
 - **The compiled order on the Hazard3 cores (#78), 2026-11-07.** `tools/check_order.py`
   read the Arm disassembly only. It now reads the RISC-V objects of the Pico 2 too, and
