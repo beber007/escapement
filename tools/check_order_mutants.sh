@@ -128,6 +128,12 @@ while IFS=: read -r kernel scheduler name; do
         [ "$kernel" = HardPA ] && continue
         echo "$kernel $scheduler, $name: NOT BUILT"; missed=$((missed + 1)); continue
     fi
+    # A Makefile that drops SCHEDULER builds EDF, where a mutant of the DM code is never
+    # compiled and passes for missed (#84).
+    case $scheduler:$COMMAND in DM:*DEADLINE_MONOTONIC_SCHEDULING*|EDF:*) ;; *)
+        echo "$kernel $scheduler, $name: NOT BUILT under DM"
+        missed=$((missed + 1)); continue
+    esac
     mutant() {
         (cd "$EXAMPLE" && eval "$(printf '%s' "$COMMAND" |
             sed "s|[^ ]*Escapement$kernel\.c|$1|; s|-o [^ ]*|-o $2|") -I$ROOT/Escapement")
