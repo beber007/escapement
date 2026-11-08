@@ -55,6 +55,11 @@ ifdef SCHEDULER
    AFLAGS += -DSCHEDULER_REAL_TIME_MODE=$(SCHEDULER)
 endif
 
+# make KERNEL=PA: refused, as in Examples/uno-q; before, it built the hard kernel.
+ifeq ($(KERNEL),PA)
+   $(error the power-aware kernel is not ported to the STM32U5 yet)
+endif
+
 # make KERNEL=SOFT: the soft real-time kernel, and SoakFirmU5 beside the others, SoakU5
 # with an (m,k)-firm task (SoakU5.c), for the soft kernel's long run on this board.
 ifeq ($(KERNEL),SOFT)
@@ -94,7 +99,7 @@ endif
 $(shell mkdir -p $(B))
 
 # The flags of the last build, in $(B)/flags: under other flags (make, then make
-# KERNEL=PA in the same directory), the objects are removed and made again rather than
+# KERNEL=SOFT in the same directory), the objects are removed and made again rather than
 # linked as they were, which the dependencies of -MMD do not see; removed, not dated, since
 # make 3.81, macOS's, dates to the second (a review, 2026-10-11).
 FLAGS := $(CFLAGS) $(AFLAGS)
