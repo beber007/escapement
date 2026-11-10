@@ -27,7 +27,21 @@ jobs:
       - uses: actions/checkout@v7
       - name: clang
         run: sudo apt-get update -q && sudo apt-get install -y -q clang
-      - uses: github/codeql-action/init@v4
+      # init downloads CodeQL from GitHub. That download sometimes fails with a 504.
+      # The fault is on GitHub's side, so we wait and try once more.
+      - id: init
+        uses: github/codeql-action/init@v4
+        continue-on-error: true
+        with:
+          languages: c-cpp
+          build-mode: manual
+          queries: security-and-quality
+      - name: Wait before the second try
+        if: steps.init.outcome == 'failure'
+        run: sleep 120
+      - name: init, second try
+        if: steps.init.outcome == 'failure'
+        uses: github/codeql-action/init@v4
         with:
           languages: c-cpp
           build-mode: manual
