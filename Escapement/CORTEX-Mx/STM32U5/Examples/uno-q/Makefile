@@ -95,6 +95,15 @@ ifdef NOHSE
    CFLAGS += -DOS_NO_HSE
 endif
 
+ifeq ($(origin FLASH)$(if $(FLASH),:set),command line:set)
+   $(error FLASH=$(FLASH) is not taken: Arduino's firmware stays in the UNO Q's \
+           flash, and the examples run from SRAM)
+endif
+# The options taken here; any other is refused (CORTEX-Mx/Options.mk, #86).
+OPTIONS = KERNEL MHZ NOHSE PHASES RUN SCHEDULER TRACE WAKE WCET
+KERNELS = SOFT
+include ../../../Options.mk
+
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p build)
 

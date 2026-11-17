@@ -499,6 +499,16 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **The options a Makefile does not take (#86), 2026-11-17.** An example's Makefile
+  dropped an option it did not take, without a word, and built another image. A `KERNEL`
+  it did not know built the hard kernel. Each Makefile now names the options it takes.
+  `Escapement/CORTEX-Mx/Options.mk` refuses, on the command line, any other option of
+  the project, and a `KERNEL` or an `ARCH` the Makefile does not build. A misspelt name
+  is not checked. The UNO Q's Makefile refuses `FLASH=1` with its reason: Arduino's
+  firmware stays in the flash. The default images are identical to the byte.
+  `tools/check_options.sh`, in the CI's job `tools`, checks each case. On the code
+  before, it found 52 faults.
+
 - **A mutant of the DM code missed on the NUCLEO-U575 (#84), 2026-11-08.** The check
   was right. The example's Makefile dropped `SCHEDULER`, so the mutant was built under
   EDF, where the code it changes is not compiled. The Makefile now takes `SCHEDULER`, as

@@ -220,6 +220,8 @@ tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2 ARCH=ris
                                      # the same on the Hazard3 objects (#78)
 
 sh tools/check_encoding.sh           # every tracked file must be valid UTF-8
+sh tools/check_options.sh            # each example's Makefile refuses an option it does
+                                     # not take (CORTEX-Mx/Options.mk, #86)
 
 # Static analysis (run by the CI): cppcheck over each port, GCC's -fanalyzer per Cortex-M
 sh tools/cppcheck.sh

@@ -113,6 +113,12 @@ ifdef PHASE_PERIODS
    CFLAGS += -DPHASE_PERIODS=$(PHASE_PERIODS)u
 endif
 
+# The options taken here; any other is refused (CORTEX-Mx/Options.mk, #86).
+OPTIONS = FLASH KERNEL LIVE PHASE_PERIODS POWER RUN SCHEDULER SLEEP_GATE SLEEP_SPEED \
+          TRACE UNDERVOLT WCET
+KERNELS = SOFT PA
+include ../../../Options.mk
+
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p $(B))
 

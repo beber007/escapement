@@ -104,6 +104,12 @@ ifdef MHZ
    CFLAGS += -DOS_SYSTEM_CLOCK_HZ=$(MHZ)000000u
 endif
 
+# The options taken here; any other is refused (CORTEX-Mx/Options.mk, #86).
+OPTIONS = DVFS_PHASE_S FAST FLASH KERNEL MHZ PHASES POWER RUN SCHEDULER SLEEP_SPEED \
+          TRACE WAKE WCET
+KERNELS = SOFT PA
+include ../../../Options.mk
+
 # Every rule writes into build/ without ever creating it.
 $(shell mkdir -p $(B))
 

@@ -120,7 +120,8 @@ UNO Q load the images of the STM32U5. That OpenOCD drives the MCU's SWD from the
 Linux processor (`stm32u5.md`). `make FLASH=1` links the images into the flash on every
 port. The NUCLEO-U385RG-Q has run its long run from there since 2026-10-10. The
 NUCLEO-U575ZI-Q runs its endurance tests from there. `SleepU5Flash`, `SleepU3Flash` and
-`DVFSU3Flash` run from there to measure the current without a debugger attached.
+`DVFSU3Flash` run from there to measure the current without a debugger attached. The
+UNO Q's examples refuse `FLASH=1`: its flash keeps Arduino's firmware.
 
 ## Host tests and models
 
