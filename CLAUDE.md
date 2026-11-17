@@ -48,9 +48,12 @@ Set by the user; no session reopens them.
   branch for the next one of real work. Any other change of the documentation may have a
   pull request of its own (corrected by the user on 2026-10-28). A commit outside the
   subject of a pull request goes to a pull request of its own, merged first if the other
-  builds on it. A pull request is opened, and merged, only once the user agrees. Before
-  asking to merge: reviews again and again, each reading the whole diff and above all
-  what changed since the last, until one finds nothing; the mutants of the kernel lines
+  builds on it. A pull request is opened, and merged, only once the user agrees. The
+  agreement to merge covers the commit it was given on. After that agreement, a new
+  commit needs a new agreement. A history cleaned to the same tree does not, nor a
+  rebase without a conflict on a `main` that moved (decided by the user on 2026-11-17).
+  Before asking to merge: the reviews of `REVIEW.md`, until one finds nothing Important
+  (changed by the user on 2026-11-17, after #88); the mutants of the kernel lines
   changed (`tools/mutants.py --only`), each survivor killed by a test or declared
   equivalent with its reason; for each fault found, a test seen to fail on it first,
   then the fix, then every check again, and why the tests had let it pass written down;
@@ -61,9 +64,9 @@ Set by the user; no session reopens them.
   on 2026-10-27). It changes only Markdown files (`.md`), wherever they are. One full
   review reads the whole diff: the meaning kept, each fact against the code, the plain
   style. Its findings are fixed. One more review reads those fixes alone. What it finds
-  is fixed, and the reviews stop there. This replaces the reviews until one finds
-  nothing. The rest still holds: the before and after shown to the user before the
-  change, the encoding, lines of 88 columns at most, no number or name lost,
+  is fixed, and the reviews stop there. This replaces the reviews of `REVIEW.md`. The
+  rest still holds: the before and after shown to the user before the change, the
+  encoding, lines of 88 columns at most, no number or name lost,
   `tools/host_figures.py --check` when the README changes, the history cleaned and the
   final tree checked identical, the board checks, and the user's agreement to open and
   to merge.
