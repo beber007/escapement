@@ -267,6 +267,8 @@ jobs:
           python3 tools/differential.py --self-test
       - name: Shell
         run: shellcheck --version | sed -n 2p && shellcheck -S warning tools/*.sh
+      - name: Each example's Makefile refuses the options it does not take
+        run: sh tools/check_options.sh
 
   encoding:
     name: Tracked files are UTF-8

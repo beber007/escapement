@@ -96,6 +96,11 @@ ifdef SMPS
    CFLAGS += -DOS_SMPS
 endif
 
+# The options taken here; any other is refused (CORTEX-Mx/Options.mk, #86).
+OPTIONS = FLASH KERNEL MHZ NOHSE PHASES RUN SCHEDULER SMPS WAKE
+KERNELS = SOFT
+include ../../../Options.mk
+
 $(shell mkdir -p $(B))
 
 # The flags of the last build, in $(B)/flags: under other flags (make, then make
