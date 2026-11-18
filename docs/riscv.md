@@ -78,8 +78,9 @@ Zca, Zcb, Zcmp). With them, the images are 1.1 to 1.5 % smaller (2026-11-06). Th
 keeps the base.
 
 The images run from SRAM only. `FLASH`, `TRACE`, `WCET`, `LIVE` and `SLEEP_GATE` are
-refused under `ARCH=riscv`. The power-aware kernel is not ported to either pair of cores
-(#23).
+refused under `ARCH=riscv`. So are `DEEP`, `RUN`, `RUN_VSEL` and `PHASE_PERIODS`, which
+only `SleepPico2` reads, an image `ARCH=riscv` does not build (#90). The power-aware
+kernel is not ported to either pair of cores (#23).
 
 The CI builds the four variants with Ubuntu's GCC 14.2, and checks that a rebuild gives
 the same bytes (job `riscv`). Homebrew publishes no `riscv64-elf-gcc` for Linux.

@@ -78,7 +78,7 @@ are chosen on the command line (`architecture.md`):
 | `SLEEP_SPEED=0` | `pico`, `nucleo-u385`, with `KERNEL=PA` | the idle task's WFI at the slowest point, 12 MHz on the Pico, 48 on the U3 |
 | `MHZ=` | `nucleo-u575`, `nucleo-u385` | another system clock (80, 40 or 16 MHz on the U575 rather than 160, 48, 24 or 12 on the U385 rather than 96), not with `KERNEL=PA` |
 | `FLASH=1` | all four, not with `ARCH=riscv` | the images linked into the flash, in `build-flash/` |
-| `TRACE=1` | all four | a scheduling trace in RAM, not built by the CI |
+| `TRACE=1` | `pico`, `pico2`, `uno-q`, `nucleo-u385`, not with `ARCH=riscv` | a scheduling trace in RAM, not built by the CI |
 | `PHASES=30` | `uno-q`, `nucleo-u575`, `nucleo-u385` | `SleepU5` or `SleepU3` alternates 30 s in Stop 2 and 30 s in Sleep |
 | `FAST=1` | `nucleo-u385` | the MSI's PLL mode kept through Stop 2 (MSIPLL0FAST) |
 | `SMPS=1` | `nucleo-u575` | the STM32U575's SMPS rather than its LDO |
