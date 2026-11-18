@@ -129,6 +129,13 @@
    #define SCHEDULER_REAL_TIME_MODE DEADLINE_MONOTONIC_SCHEDULING
 #endif
 
+/* A name the code does not define reads as 0 in each #if, and would build parts of each
+** algorithm without a word: it is refused here, wherever it comes from (#92). */
+#if SCHEDULER_REAL_TIME_MODE != EARLIEST_DEADLINE_FIRST && \
+    SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING
+   #error "SCHEDULER_REAL_TIME_MODE is not a scheduler of this kernel: EDF or DM"
+#endif
+
 #ifndef _ASM_
 
 /* MISCELLANEOUS FUNCTIONS: LAUNCHING OF ESCAPEMENT, MEMORY MANAGEMENT ------------------ */

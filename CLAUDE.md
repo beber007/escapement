@@ -191,6 +191,8 @@ renode-test --variable MHZ:48 --variable PLATFORM:escapement_u3_48mhz.repl --inc
 # also runs it at -O2 under the whole of UndefinedBehaviorSanitizer
 make -C test/host run
 make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
+make -C test/host refused            # a scheduler or a policy the kernels do not name
+                                     # stops their compilation (#92)
 python3 tools/coverage.py            # every kernel line covered or excluded with its reason
                                      # (COVERAGE-LINE, COVERAGE-OFF/ON), branches >= the
                                      # floor in test/host/coverage-floor (run by the CI)
@@ -229,7 +231,8 @@ tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2 ARCH=ris
 
 sh tools/check_encoding.sh           # every tracked file must be valid UTF-8
 sh tools/check_options.sh            # each example's Makefile refuses an option it does
-                                     # not take (CORTEX-Mx/Options.mk, #86)
+                                     # not take, or a SCHEDULER or a POWER the code
+                                     # does not name (CORTEX-Mx/Options.mk, #86, #92)
 
 # Static analysis (run by the CI): cppcheck over each port, GCC's -fanalyzer per Cortex-M
 sh tools/cppcheck.sh

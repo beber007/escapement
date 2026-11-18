@@ -499,6 +499,24 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **A `SCHEDULER` or a `POWER` the code does not name (#92), 2026-11-18.** The Makefiles
+  passed both to the compiler as they were given, and a name the code does not define
+  reads as 0 in each `#if`. `make SCHEDULER=DM` built parts of EDF and parts of DM,
+  `make KERNEL=PA POWER=DRAA` no power management, without a word. A `POWER` without
+  `KERNEL=PA` went to kernels that do not read it. Each kernel's header now refuses,
+  with an `#error`, a `SCHEDULER_REAL_TIME_MODE` it does not name, EDF* outside the
+  power-aware kernel, and the power-aware kernel's header a `POWER_MANAGEMENT` outside
+  its policies, whatever their source: a Makefile, the environment, an
+  `Escapement_Config.h`. `NONE` is 5, no longer 0, so that an unknown name cannot pass
+  for it. `Escapement/CORTEX-Mx/Options.mk` refuses them on the command line too, with
+  the reason, and a `POWER` without `KERNEL=PA`. A number, such as `SCHEDULER=2`, is
+  refused there: the Makefiles and the CI give names. `tools/check_options.sh` checked
+  the options a Makefile takes and the values of `KERNEL` and `ARCH`, but not these two,
+  and nothing compiled a wrong name. It now checks each case, and `make -C test/host
+  refused`, a step of the CI, compiles each kernel with a wrong name. On the code
+  before, the first found 34 values taken that are now refused, the second 10. The
+  images of the valid options are unchanged, byte for byte.
+
 - **The options a Makefile does not take (#86), 2026-11-17.** An example's Makefile
   dropped an option it did not take, without a word, and built another image. A `KERNEL`
   it did not know built the hard kernel. Each Makefile now names the options it takes.

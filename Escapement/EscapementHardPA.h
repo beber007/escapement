@@ -135,7 +135,7 @@
 ** suitable for any scheduling algorithm. DRA and EDF* are those of H. Aydin, R. Melhem,
 ** D. Mossé and P. Mejía-Alvarez, IEEE Trans. Computers 53(5), 2004; OTE is after Y. Shin
 ** and K. Choi, DAC 1999. DM_SLACK was designed for ZottaOS (ZottaOS User Manual, 2012). */
-#define NONE      0  /* No power management, uses sleep mode only */
+#define NONE      5  /* No power management, uses sleep mode only; not 0, see below */
 #define DRA       1  /* Dynamic Reclaiming Algorithm (works only with EDF*) */
 #define OTE       2  /* One-Time Extension */
 #define DR_OTE    3  /* DRA with OTE */
@@ -143,6 +143,14 @@
 
 #ifndef POWER_MANAGEMENT
    #define POWER_MANAGEMENT OTE
+#endif
+
+/* A name the code does not define reads as 0 in each #if: POWER_MANAGEMENT=DRAA built
+** no power management, without a word. It is refused here, wherever it comes from, and
+** NONE is not 0 so that it cannot pass for one (#92). */
+#if POWER_MANAGEMENT != NONE && POWER_MANAGEMENT != DRA && POWER_MANAGEMENT != OTE && \
+    POWER_MANAGEMENT != DR_OTE && POWER_MANAGEMENT != DM_SLACK
+   #error "POWER_MANAGEMENT is not a policy of this kernel, defined above"
 #endif
 
 /* All power management schemes (even NONE) can be combined with a static frequency set-
@@ -170,6 +178,14 @@
 ** its Escapement_Config.h; this is only the default when it says nothing. */
 #ifndef SCHEDULER_REAL_TIME_MODE
    #define SCHEDULER_REAL_TIME_MODE DEADLINE_MONOTONIC_SCHEDULING
+#endif
+
+/* A name the code does not define reads as 0 in each #if, and would build parts of each
+** algorithm without a word: it is refused here, wherever it comes from (#92). */
+#if SCHEDULER_REAL_TIME_MODE != EARLIEST_DEADLINE_FIRST && \
+    SCHEDULER_REAL_TIME_MODE != DEADLINE_MONOTONIC_SCHEDULING && \
+    SCHEDULER_REAL_TIME_MODE != EARLIEST_DEADLINE_FIRST_STAR
+   #error "SCHEDULER_REAL_TIME_MODE is not a scheduler of this kernel: EDF, DM or EDF*"
 #endif
 
 /* Correct or adjust the scheduling algorithm to be coherent with the power management

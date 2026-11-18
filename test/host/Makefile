@@ -16,6 +16,7 @@
 # per kernel.
 #
 #   make -C test/host run
+#   make -C test/host refused     a scheduler or a policy the kernels do not name
 
 CC ?= cc
 # An integer division by zero traps on x86 but yields 0 on arm64, so a test could pass on
@@ -164,6 +165,32 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	done
 	@for k in $(IPC); do echo; echo "=== $$k"; ./$(BUILD)/test_ipc_$$k || exit 1; done
 
+# make refused: a scheduler or a policy that a kernel does not name is refused when it
+# is compiled (#92). The preprocessor reads an unknown name as 0 in each #if:
+# SCHEDULER=DM built parts of EDF and parts of DM, POWER=DRAA no power management,
+# without a word. Each refused case must stop on the #error it names; EDF* (3) and NONE
+# under the power-aware kernel must compile. The CI runs this target as a step of its
+# own: run, which tools/mutants.py runs on each mutant, does not include it.
+refused:
+	@check() { want=$$1 what=$$2 k=$$3; shift 3; \
+	   if $(CC) $(CFLAGS) -fsyntax-only "$$@" $$k 2>$(BUILD)/refused.txt; then got=taken; \
+	   elif grep -q "is not a $$what of" $(BUILD)/refused.txt; then got=refused; \
+	   else got="failed ($$(grep -m1 error $(BUILD)/refused.txt))"; fi; \
+	   [ "$$got" = "$$want" ] || { echo "$$k $$*: $$got, should be $$want"; exit 1; }; }; \
+	check refused scheduler $(HARD) -DHOST_SCHEDULER=DM && \
+	check refused scheduler $(HARD) -DHOST_SCHEDULER=0 && \
+	check refused scheduler $(HARD) -DHOST_SCHEDULER=3 && \
+	check refused scheduler $(SOFT) -DHOST_KERNEL_SOFT -DHOST_SCHEDULER=DM && \
+	check refused scheduler $(SOFT) -DHOST_KERNEL_SOFT -DHOST_SCHEDULER=0 && \
+	check refused scheduler $(SOFT) -DHOST_KERNEL_SOFT -DHOST_SCHEDULER=3 && \
+	check refused scheduler $(PA) -DHOST_KERNEL_PA -DHOST_SCHEDULER=DM && \
+	check refused scheduler $(PA) -DHOST_KERNEL_PA -DHOST_SCHEDULER=0 && \
+	check refused policy $(PA) -DHOST_KERNEL_PA -DPOWER_MANAGEMENT=DRAA && \
+	check refused policy $(PA) -DHOST_KERNEL_PA -DPOWER_MANAGEMENT=0 && \
+	check taken - $(PA) -DHOST_KERNEL_PA -DHOST_SCHEDULER=3 && \
+	check taken - $(PA) -DHOST_KERNEL_PA -DPOWER_MANAGEMENT=NONE && \
+	echo "every kernel refuses a scheduler or a policy it does not name"
+
 .SECONDEXPANSION:
 $(BUILD)/test_scheduler_%: test_scheduler.c host_port.c $$(KERNEL_$$*) $(HEADERS)
 	$(CC) $(CFLAGS) $(FLAGS_$*) -o $@ test_scheduler.c host_port.c $(KERNEL_$*)
@@ -180,4 +207,4 @@ $(BUILD)/test_ipc_pa: test_ipc.c host_port.c $(PA) $(COREQUEUE) $(HEADERS)
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: run clean
+.PHONY: run refused clean

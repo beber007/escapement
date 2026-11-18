@@ -6,7 +6,12 @@ those tests check, the defects they have caught, and what they cannot see.
 ```sh
 make -C test/host run
 make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
+make -C test/host refused
 ```
+
+`refused` compiles each kernel with a scheduler or a power policy it does not name, and
+expects its `#error` (#92). The CI runs it as a step of its own, apart from `run`, which
+`tools/mutants.py` runs on each mutant.
 
 The kernels are compiled as they ship. Only the target layer is simulated
 (`host_port.c`), and time is a variable. That gives what no board gives:
