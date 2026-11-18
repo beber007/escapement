@@ -52,11 +52,13 @@ Set by the user; no session reopens them.
   agreement to merge covers the commit it was given on. After that agreement, a new
   commit needs a new agreement. A history cleaned to the same tree does not, nor a
   rebase without a conflict on a `main` that moved (decided by the user on 2026-11-17).
-  Before asking to merge: the reviews of `REVIEW.md`, until one finds nothing Important
-  (changed by the user on 2026-11-17, after #88); the mutants of the kernel lines
-  changed (`tools/mutants.py --only`), each survivor killed by a test or declared
-  equivalent with its reason; for each fault found, a test seen to fail on it first,
-  then the fix, then every check again, and why the tests had let it pass written down;
+  Before asking to merge: the reviews of the plugin `review-method`
+  (`/review-method:review`), with `REVIEW.md`, until the plugin stops them (changed
+  by the user on 2026-11-17, after #88 and a trial of `/code-review` on 98d8051); the
+  mutants of the kernel lines changed (`tools/mutants.py --only`), each survivor killed
+  by a test or declared equivalent with its reason; for each fault found, a test seen
+  to fail on it first, then the fix, then every check again, and why the tests had let
+  it pass written down;
   the history cleaned, each commit one change that passes the tests alone, the fixes of
   the reviews folded into the commits they fix, the final tree checked identical. `main`
   and `release/*` merge by rebase only, and a branch merged is deleted.
@@ -64,12 +66,18 @@ Set by the user; no session reopens them.
   on 2026-10-27). It changes only Markdown files (`.md`), wherever they are. One full
   review reads the whole diff: the meaning kept, each fact against the code, the plain
   style. Its findings are fixed. One more review reads those fixes alone. What it finds
-  is fixed, and the reviews stop there. This replaces the reviews of `REVIEW.md`. The
-  rest still holds: the before and after shown to the user before the change, the
+  is fixed, and the reviews stop there: the tier "Documentation alone" of `REVIEW.md`.
+  The rest still holds: the before and after shown to the user before the change, the
   encoding, lines of 88 columns at most, no number or name lost,
   `tools/host_figures.py --check` when the README changes, the history cleaned and the
   final tree checked identical, the board checks, and the user's agreement to open and
   to merge.
+
+## Review instructions
+
+`/code-review` reads this file, not `REVIEW.md`. The line below brings that file in.
+
+@REVIEW.md
 
 ## Commands
 

@@ -1,0 +1,14 @@
+{
+  "extraKnownMarketplaces": {
+    "review-method": {
+      "source": {
+        "source": "github",
+        "repo": "beber007/review-method",
+        "ref": "46afaa93d022cb8d25f960fe6f2b849da6299941"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "review-method@review-method": true
+  }
+}
