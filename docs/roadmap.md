@@ -499,6 +499,16 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **Options the Pico 2 took under `ARCH=riscv` without reading them (#90), 2026-11-18.**
+  `make ARCH=riscv DEEP=1` built the usual images without a word: `DEEP`, `RUN`,
+  `RUN_VSEL` and `PHASE_PERIODS` are read by `SleepPico2` only, which `ARCH=riscv` does
+  not build. The Pico 2's Makefile now refuses them there, as it did `FLASH`, `TRACE`,
+  `WCET`, `LIVE` and `SLEEP_GATE`, and names in its message the options given.
+  `tools/check_options.sh` had no case under `ARCH=riscv` but one taken. Its nine new
+  cases failed on the code before: four options were taken, and the five others were
+  refused with a message the script did not take for a refusal. The images are
+  unchanged.
+
 - **A `SCHEDULER` or a `POWER` the code does not name (#92), 2026-11-18.** The Makefiles
   passed both to the compiler as they were given, and a name the code does not define
   reads as 0 in each `#if`. `make SCHEDULER=DM` built parts of EDF and parts of DM,

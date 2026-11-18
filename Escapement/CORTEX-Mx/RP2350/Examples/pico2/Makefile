@@ -63,8 +63,14 @@ ifeq ($(ARCH),riscv)
    LINKERFILE = ../../../../RISC-V/RP2350/RP2350_SRAM.ld
    B = build-riscv
    INCLUDE_ESCAPEMENT = -I. -I../../ -I../../../../RISC-V -I../../../ -I../../../../
-   ifneq ($(FLASH)$(TRACE)$(WCET)$(LIVE)$(SLEEP_GATE),)
-      $(error ARCH=riscv builds the images in SRAM without options only so far (issue #77))
+   # Its images are built in SRAM without options so far (#77). DEEP, RUN, RUN_VSEL and
+   # PHASE_PERIODS are SleepPico2's only, which ARCH=riscv does not build (#90).
+   RISCV_NOT = $(strip $(foreach o,FLASH TRACE WCET LIVE SLEEP_GATE DEEP RUN RUN_VSEL \
+                 PHASE_PERIODS,$(if $($(o)),$(o)=$($(o)))))
+   ifneq ($(RISCV_NOT),)
+      $(error ARCH=riscv does not take $(RISCV_NOT): its images are built in SRAM \
+              without options so far (issue #77), and it does not build SleepPico2, \
+              the image DEEP, RUN, RUN_VSEL and PHASE_PERIODS are for)
    endif
 endif
 

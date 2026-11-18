@@ -28,7 +28,8 @@ check() {
     shift 2
     if err=$(make -n -C "$dir" "$@" 2>&1 >/dev/null); then
         got=taken
-    elif printf '%s' "$err" | grep -qE '\*\*\* .*(is not|not ported)'; then
+    elif printf '%s' "$err" |
+         grep -qE '\*\*\* .*(is not|not ported|does not take)'; then
         got=refused
     else
         got="failed ($(printf '%s' "$err" | tail -1))"
@@ -89,6 +90,15 @@ done
 check taken "$P" KERNEL=PA sleep RUN=1 UNDERVOLT=1 PHASE_PERIODS=20
 check refused "$P" ARCH=riscv
 check taken "$P2" ARCH=riscv B=build-riscv KERNEL=SOFT
+# Under ARCH=riscv, the images are built in SRAM without options so far (#77). Only
+# SleepPico2 reads DEEP, RUN, RUN_VSEL and PHASE_PERIODS, and ARCH=riscv does not build
+# it (#90).
+for o in FLASH=1 TRACE=1 WCET=1 LIVE=4 SLEEP_GATE=1 DEEP=1 RUN=1 RUN_VSEL=9 \
+         PHASE_PERIODS=20; do
+    check refused "$P2" ARCH=riscv B=build-riscv "$o"
+done
+check taken "$P2" ARCH=riscv B=build-riscv FLASH= TRACE= WCET= LIVE= SLEEP_GATE= DEEP= \
+    RUN= RUN_VSEL= PHASE_PERIODS=
 check refused "$P2" ARCH=arm
 check refused "$P2" UNDERVOLT=1
 check refused "$P2" POWER=DRA
