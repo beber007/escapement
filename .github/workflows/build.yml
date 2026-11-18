@@ -305,6 +305,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Run the three kernels under every algorithm and policy
         run: make -C test/host run
+      - name: A scheduler or a policy the kernels do not name, refused when compiled
+        run: make -C test/host refused
       - name: The same at -O2, under the whole of UndefinedBehaviorSanitizer
         run: make -C test/host run OPT=-O2 SANITIZE=address,undefined BUILD=build-O2
       - name: Random task sets, every trace checked against the algorithm of its build

@@ -4,11 +4,12 @@
 #
 # Each example's Makefile refuses an option it does not take
 # (Escapement/CORTEX-Mx/Options.mk, #86). It refuses a KERNEL and an ARCH it does not
-# build. It still takes the options the CI and the tools pass it. A Makefile that
-# dropped an option built another image without a word: in #84, a mutant of the DM code
-# built under EDF passed for missed. Only make -n runs, which compiles nothing: a few
-# seconds, without a toolchain.
+# build, and a SCHEDULER or a POWER the code does not name (#92). It still takes the
+# options the CI and the tools pass it. A Makefile that dropped an option built another
+# image without a word: in #84, a mutant of the DM code built under EDF passed for
+# missed. Only make -n runs, which compiles nothing: a few seconds, without a toolchain.
 set -u
+unset ARCH KERNEL SCHEDULER POWER
 
 cd "$(dirname "$0")/.." || exit 1
 M=Escapement/CORTEX-Mx
@@ -53,6 +54,30 @@ done
 for d in "$P2" "$U5" "$Q"; do
     check refused "$d" KERNEL=PA
 done
+# SCHEDULER and POWER take the names of the code only. The compiler would take another
+# word for 0, and build a kernel nobody asked for (#92).
+for d in "$P" "$P2" "$U3" "$U5" "$Q"; do
+    check taken "$d" SCHEDULER=EARLIEST_DEADLINE_FIRST
+    check refused "$d" SCHEDULER=DM
+    check refused "$d" SCHEDULER=2
+    check refused "$d" SCHEDULER=EARLIEST_DEADLINE_FIRST_STAR
+    check refused "$d" "SCHEDULER=EARLIEST_DEADLINE_FIRST DEADLINE_MONOTONIC_SCHEDULING"
+done
+for d in "$P" "$U3"; do
+    check taken "$d" KERNEL=PA SCHEDULER=EARLIEST_DEADLINE_FIRST
+    check taken "$d" KERNEL=PA SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+    check taken "$d" KERNEL=PA SCHEDULER=EARLIEST_DEADLINE_FIRST_STAR
+    check refused "$d" KERNEL=PA SCHEDULER=DM
+    check refused "$d" KERNEL=SOFT SCHEDULER=EARLIEST_DEADLINE_FIRST_STAR
+    for v in NONE OTE DR_OTE DM_SLACK; do
+        check taken "$d" KERNEL=PA POWER=$v
+    done
+    check refused "$d" KERNEL=PA POWER=DRAA
+    check refused "$d" KERNEL=PA POWER=1
+    check refused "$d" KERNEL=PA "POWER=DRA OTE"
+    check refused "$d" POWER=DRA
+    check refused "$d" KERNEL=SOFT POWER=DRA
+done
 for d in "$P" "$P2"; do
     check taken "$d" FLASH=1 LIVE=4 WCET=1
     check taken "$d" TRACE=1
@@ -86,6 +111,14 @@ done
 export ARCH=x86_64
 check taken "$U3"
 unset ARCH
+# Nor is POWER. Under KERNEL=PA, EscapementHardPA.h refuses a name it does not define
+# when it is compiled, which make -n does not do (test/host, make refused).
+export POWER=performance
+for d in "$P" "$P2" "$U3" "$U5" "$Q"; do
+    check taken "$d"
+done
+check taken "$P" KERNEL=SOFT
+unset POWER
 
 [ "$failed" = 0 ] && echo "every Makefile takes its options and refuses the others"
 exit "$failed"
