@@ -243,9 +243,10 @@ as before the option existed.
 ### Tasks created while the kernel runs
 
 `OSCreateTask` works only before `OSStartMultitasking`, and takes its blocks from
-`OSMalloc`. Under the hard kernel and EDF, a build with `make LIVE=N`
-(`ESCAPEMENT_LIVE_TASKS`) keeps a pool of N periodic tasks. A task, an interrupt handler
-or the overrun hook can create and delete them while the kernel runs (#45):
+`OSMalloc`. Under the hard kernel and EDF, a build with `ESCAPEMENT_LIVE_TASKS` defined
+to N keeps a pool of N periodic tasks. The examples of the Pico and the Pico 2 build the
+pool of four with `make LIVE=4`, and refuse another number (#91). A task, an interrupt
+handler or the overrun hook can create and delete them while the kernel runs (#45):
 
 ```c
 void *task = OSCreateTaskLive(Worker, 0, 1000, 1000, argument);   /* NULL: pool empty */

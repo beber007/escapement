@@ -194,13 +194,14 @@ void OSEndTask(void);
 
 
 /* LIVE TASKS ------------------------------------------------------------------------ */
-/* Built with ESCAPEMENT_LIVE_TASKS defined to a number of blocks (make LIVE=N), the
-** kernel keeps a pool of that many periodic tasks, which tasks create and delete while it
-** runs, under EDF only: a task of the pool can neither take a priority nor change those
-** of the others, which deadline-monotonic scheduling fixes before the start. The kernel
-** tests no schedulability: the caller decides whether the processor holds one more task
-** (api.md, "Tasks created while the kernel runs"). The timer runs from the start, a task
-** of the pool may be the first.
+/* Built with ESCAPEMENT_LIVE_TASKS defined to a number of blocks (make LIVE=4 in the
+** Pico's and the Pico 2's examples), the kernel keeps a pool of that many periodic
+** tasks, which tasks create and delete while it runs, under EDF only: a task of the
+** pool can neither take a priority nor change those of the others, which
+** deadline-monotonic scheduling fixes before the start. The kernel tests no
+** schedulability: the caller decides whether the processor holds one more task (api.md,
+** "Tasks created while the kernel runs"). The timer runs from the start, a task of the
+** pool may be the first.
 ** Both functions are called by a task, an interrupt handler or the overrun hook, or
 ** before OSStartMultitasking. Each masks the interrupts briefly, leaving them as it found
 ** them, and, unless it refuses, raises the soft timer interrupt, whose handler does the

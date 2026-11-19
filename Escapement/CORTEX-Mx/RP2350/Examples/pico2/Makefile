@@ -107,10 +107,17 @@ ifdef WCET
    CFLAGS += -DESCAPEMENT_MEASURE_WCET
    AFLAGS += -DESCAPEMENT_MEASURE_WCET
 endif
-# make LIVE=N gives the hard kernel, under EDF, a pool of N tasks created and deleted
-# while it runs (EscapementHard.h, "LIVE TASKS"); LIVE=4 builds LiveTasksPico2, which uses it.
-ifdef LIVE
-   CFLAGS += -DESCAPEMENT_LIVE_TASKS=$(LIVE)
+# make LIVE=4 gives the hard kernel, under EDF, a pool of 4 tasks created and deleted
+# while it runs (EscapementHard.h, "LIVE TASKS"), and builds LiveTasksPico2, which uses
+# it.
+ifneq ($(strip $(LIVE)),)
+   # LIVE goes into every image, from the command line or the environment: another
+   # number would build that pool into each of them, but not the example (#91).
+   ifneq ($(strip $(LIVE)),4)
+      $(error LIVE=$(LIVE), from the $(origin LIVE), is not a pool of these examples: \
+              LIVE=4 builds LiveTasksPico2, whose pool is of four tasks)
+   endif
+   CFLAGS += -DESCAPEMENT_LIVE_TASKS=4
 endif
 
 # make SLEEP_GATE=1 has IdlePico2's idle task sleep in SLEEP, PLL_SYS stopped
@@ -172,7 +179,7 @@ all: $(B)/TaskLEDPico2.elf $(B)/UARTEchoPico2.elf $(B)/TestTimerEventPico2.elf \
      $(B)/StackGuardPico2.elf $(B)/LposcPico2.elf $(B)/DormantPico2.elf \
      $(B)/DormantCalAsleepPico2.elf $(B)/AwakeCalAsleepPico2.elf \
      $(B)/RoscCalAsleepPico2.elf $(B)/LatencyPico2.elf
-ifeq ($(LIVE),4)
+ifneq ($(strip $(LIVE)),)
 all: $(B)/LiveTasksPico2.elf
 endif
 endif

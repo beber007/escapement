@@ -9,8 +9,10 @@
 # Before it includes this file, a Makefile names in OPTIONS the options it takes, in
 # KERNELS the values of KERNEL it builds besides the hard kernel's (KERNEL unset), and
 # in ARCHS those of ARCH besides the Arm cores'. Only the command line is checked: a
-# shell may set ARCH, say, for something else. An option given empty is not set, as
-# ifdef has it. A name outside ALL_OPTIONS, such as a misspelt one, is not checked.
+# shell may set ARCH, say, for something else. The Pico's and the Pico 2's Makefiles
+# check LIVE from the environment too, where it would also go into every image (#91).
+# An option given empty is not set, as ifdef has it. A name outside ALL_OPTIONS, such
+# as a misspelt one, is not checked.
 ALL_OPTIONS = ARCH DEEP DVFS_PHASE_S FAST FLASH KERNEL LIVE MHZ NOHSE PHASES \
               PHASE_PERIODS POWER RUN RUN_VSEL SCHEDULER SLEEP_GATE SLEEP_SPEED SMPS \
               TRACE UNDERVOLT WAKE WCET
