@@ -166,6 +166,37 @@ ifneq ($(FLAGS),$(shell cat $(B)/flags 2>/dev/null))
 endif
 endif
 
+# The objects every image links, defined before any rule, as on the Pico: make expands
+# a prerequisite when it reads the rule (#98).
+ifeq ($(ARCH),riscv)
+   COMMON = $(B)/Escapement_RamEntry_rv.o \
+             $(B)/Escapement_RISCV.o \
+             $(B)/Escapement_Port.o \
+             $(B)/Escapement_RISCV_a.o \
+             $(B)/Escapement_Atomic_rv.o \
+             $(B)/Escapement_Interrupts.o \
+             $(B)/Escapement_Timer.o \
+             $(B)/Escapement_Processor.o \
+             $(B)/EscapementHard.o \
+             $(B)/EscapementSoft.o \
+             $(B)/EscapementHardPA.o
+else
+   COMMON = $(B)/Escapement_RamEntry.o \
+             $(B)/Escapement_CortexMx.o \
+             $(B)/Escapement_Port.o \
+             $(B)/Escapement_CortexMx_a.o \
+             $(B)/Escapement_Atomic.o \
+             $(B)/Escapement_Interrupts.o \
+             $(B)/Escapement_Timer.o \
+             $(B)/Escapement_Processor.o \
+             $(B)/EscapementHard.o \
+             $(B)/EscapementSoft.o \
+             $(B)/EscapementHardPA.o
+   ifdef FLASH
+      COMMON += $(B)/Escapement_ImageDef.o
+   endif
+endif
+
 ifeq ($(ARCH),riscv)
 all: $(B)/TaskLEDPico2.elf $(B)/UARTEchoPico2.elf $(B)/TestTimerEventPico2.elf \
      $(B)/FourSlotCoresPico2.elf $(B)/ThreeSlotCoresPico2.elf $(B)/TaskWrapPico2.elf \
@@ -200,34 +231,6 @@ bin: all $(B)/TaskLEDPico2.bin $(B)/UARTEchoPico2.bin $(B)/TestTimerEventPico2.b
 $(B)/%.bin : $(B)/%.elf
 	$(OBJCOPY) -O binary $< $@
 
-COMMON = $(B)/Escapement_RamEntry.o \
-          $(B)/Escapement_CortexMx.o \
-          $(B)/Escapement_Port.o \
-          $(B)/Escapement_CortexMx_a.o \
-          $(B)/Escapement_Atomic.o \
-          $(B)/Escapement_Interrupts.o \
-          $(B)/Escapement_Timer.o \
-          $(B)/Escapement_Processor.o \
-          $(B)/EscapementHard.o \
-          $(B)/EscapementSoft.o \
-          $(B)/EscapementHardPA.o
-ifdef FLASH
-   COMMON += $(B)/Escapement_ImageDef.o
-endif
-
-ifeq ($(ARCH),riscv)
-COMMON = $(B)/Escapement_RamEntry_rv.o \
-          $(B)/Escapement_RISCV.o \
-          $(B)/Escapement_Port.o \
-          $(B)/Escapement_RISCV_a.o \
-          $(B)/Escapement_Atomic_rv.o \
-          $(B)/Escapement_Interrupts.o \
-          $(B)/Escapement_Timer.o \
-          $(B)/Escapement_Processor.o \
-          $(B)/EscapementHard.o \
-          $(B)/EscapementSoft.o \
-          $(B)/EscapementHardPA.o
-endif
 $(B)/Escapement_RamEntry_rv.o : ../../../../RISC-V/RP2350/Escapement_RamEntry.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/Escapement_RISCV.o : ../../../../RISC-V/Escapement_RISCV.c

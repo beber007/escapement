@@ -499,6 +499,18 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **An image of the Pico linked before its objects under `make -j8` (#98), 2026-11-19.**
+  The rules of `ReadmeExample.elf` came before the definition of `COMMON`, and make
+  expands a prerequisite when it reads the rule: the image depended on none of its
+  objects. `make` alone built them first, for the other images; `make -j8` linked it
+  before them, and failed, on `main` too. `COMMON` is now defined before any rule, on
+  the Pico and on the Pico 2, whose Makefile had the same layout without the fault.
+  `tools/check_prerequisites.sh`, a step of the CI, makes each image the examples build
+  alone, in the variants it lists, the benches included, under `make -n` and checks that
+  it builds every object it links. On the code before, it found `ReadmeExample.elf`
+  only, with each of its objects. The CI builds without `-j`, so nothing had seen it.
+  The images are unchanged, byte for byte.
+
 - **A `SCHEDULER` the power policy replaced without a word (#96), 2026-11-19.** Under
   `KERNEL=PA`, `DRA` and `DR_OTE` build EDF*, `DM_SLACK` deadline-monotonic scheduling:
   `EscapementHardPA.h` replaces the scheduler. `make KERNEL=PA POWER=DRA
