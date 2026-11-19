@@ -57,7 +57,8 @@ ifeq ($(KERNEL),PA)
    endif
 endif
 # make KERNEL=PA POWER=DRA picks another power-management policy than OTE: DRA or DR_OTE,
-# which impose EDF*, or DM_SLACK, which imposes deadline-monotonic scheduling.
+# which impose EDF*, or DM_SLACK, which imposes deadline-monotonic scheduling; another
+# SCHEDULER is refused with them (Options.mk, #96).
 ifdef POWER
    CFLAGS += -DPOWER_MANAGEMENT=$(POWER)
 endif

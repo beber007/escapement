@@ -232,8 +232,9 @@ tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2 ARCH=ris
 sh tools/check_encoding.sh           # every tracked file must be valid UTF-8
 sh tools/check_options.sh            # each example's Makefile refuses an option it does
                                      # not take, a SCHEDULER or a POWER the code does
-                                     # not name, a LIVE other than 4 on the Pico and
-                                     # the Pico 2 (CORTEX-Mx/Options.mk, #86, #92, #91)
+                                     # not name, a SCHEDULER the POWER would replace,
+                                     # a LIVE other than 4 on the Pico and the Pico 2
+                                     # (CORTEX-Mx/Options.mk, #86, #92, #96, #91)
 
 # Static analysis (run by the CI): cppcheck over each port, GCC's -fanalyzer per Cortex-M
 sh tools/cppcheck.sh

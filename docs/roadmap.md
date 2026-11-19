@@ -499,6 +499,19 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **A `SCHEDULER` the power policy replaced without a word (#96), 2026-11-19.** Under
+  `KERNEL=PA`, `DRA` and `DR_OTE` build EDF*, `DM_SLACK` deadline-monotonic scheduling:
+  `EscapementHardPA.h` replaces the scheduler. `make KERNEL=PA POWER=DRA
+  SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING` built EDF*, without a word. The header cannot
+  tell a choice from the examples' default, EDF. `Escapement/CORTEX-Mx/Options.mk` now
+  refuses a `SCHEDULER` these policies would replace, and names the one they build. It
+  reads both from the command line or the environment: the Makefiles pass them to the
+  compiler from either. A `SCHEDULER` not given stays as it was: the CI builds
+  `KERNEL=PA POWER=DRA`, and gets EDF*. `tools/check_options.sh` had no case with both.
+  Its fifteen new refused cases, three of them from the environment, failed on the code
+  before. `docs/build.md` names `POWER=NONE`, EDF* and the scheduler each policy builds.
+  The images are unchanged.
+
 - **A `LIVE` other than 4 on the Pico and the Pico 2 (#91), 2026-11-18.** `make LIVE=2`
   built the pool of two into every image, and not `LiveTasksPico` or `LiveTasksPico2`,
   whose pool is of four tasks, without a word. Both Makefiles now refuse another value,

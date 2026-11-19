@@ -9,10 +9,11 @@
 # Before it includes this file, a Makefile names in OPTIONS the options it takes, in
 # KERNELS the values of KERNEL it builds besides the hard kernel's (KERNEL unset), and
 # in ARCHS those of ARCH besides the Arm cores'. Only the command line is checked: a
-# shell may set ARCH, say, for something else. The Pico's and the Pico 2's Makefiles
-# check LIVE from the environment too, where it would also go into every image (#91).
-# An option given empty is not set, as ifdef has it. A name outside ALL_OPTIONS, such
-# as a misspelt one, is not checked.
+# shell may set ARCH, say, for something else. Two checks read the environment too,
+# since from there a value would also go into the images: LIVE, in the Pico's and the
+# Pico 2's Makefiles (#91), and the pair of SCHEDULER and POWER, below (#96). An option
+# given empty is not set, as ifdef has it. A name outside ALL_OPTIONS, such as a
+# misspelt one, is not checked.
 ALL_OPTIONS = ARCH DEEP DVFS_PHASE_S FAST FLASH KERNEL LIVE MHZ NOHSE PHASES \
               PHASE_PERIODS POWER RUN RUN_VSEL SCHEDULER SLEEP_GATE SLEEP_SPEED SMPS \
               TRACE UNDERVOLT WAKE WCET
@@ -62,4 +63,21 @@ ifneq ($(call GIVEN,POWER),)
       $(error POWER=$(POWER) is not a policy of the power-aware kernel: give one of: \
               $(POWER_NAMES))
    endif
+endif
+# Under KERNEL=PA, DRA and DR_OTE build EDF*, DM_SLACK deadline-monotonic scheduling:
+# EscapementHardPA.h replaces the scheduler, and cannot tell one given from the
+# examples' default. Another SCHEDULER given with one of these policies is refused
+# (#96). The Makefiles pass both to the compiler from the environment too, so this
+# check reads them wherever they come from.
+# KERNEL is compared as the Makefiles do, with ifeq. A POWER of several words is left to
+# the name check above and to the header.
+ifeq ($(KERNEL),PA)
+   POWER_SCHEDULER := $(strip $(if $(word 2,$(POWER)),, \
+                      $(if $(filter DRA DR_OTE,$(POWER)),EARLIEST_DEADLINE_FIRST_STAR, \
+                      $(if $(filter DM_SLACK,$(POWER)),DEADLINE_MONOTONIC_SCHEDULING))))
+endif
+ifneq ($(and $(POWER_SCHEDULER),$(filter-out $(POWER_SCHEDULER),$(SCHEDULER))),)
+   $(error SCHEDULER=$(SCHEDULER), from the $(origin SCHEDULER), is not the scheduler \
+           of POWER=$(POWER), from the $(origin POWER), which builds \
+           $(POWER_SCHEDULER): give that one, or no SCHEDULER)
 endif

@@ -4,11 +4,12 @@
 #
 # Each example's Makefile refuses an option it does not take
 # (Escapement/CORTEX-Mx/Options.mk, #86). It refuses a KERNEL and an ARCH it does not
-# build, a SCHEDULER or a POWER the code does not name (#92), and on the Pico and the
-# Pico 2 a LIVE other than 4 (#91). It still takes the options the CI and the tools pass
-# it. A Makefile that dropped an option built another image without a word: in #84, a
-# mutant of the DM code built under EDF passed for missed. Only make -n runs, which
-# compiles nothing: a few seconds, without a toolchain.
+# build, a SCHEDULER or a POWER the code does not name (#92), a SCHEDULER the power
+# policy would replace (#96), and on the Pico and the Pico 2 a LIVE other than 4 (#91).
+# It still takes the options the CI and the tools pass it. A Makefile that dropped an
+# option built another image without a word: in #84, a mutant of the DM code built under
+# EDF passed for missed. Only make -n runs, which compiles nothing: a few seconds,
+# without a toolchain.
 set -u
 unset ARCH KERNEL SCHEDULER POWER LIVE
 
@@ -79,7 +80,40 @@ for d in "$P" "$U3"; do
     check refused "$d" KERNEL=PA "POWER=DRA OTE"
     check refused "$d" POWER=DRA
     check refused "$d" KERNEL=SOFT POWER=DRA
+    # DRA and DR_OTE build EDF*, DM_SLACK deadline-monotonic scheduling, whatever the
+    # SCHEDULER: EscapementHardPA.h replaced another one given without a word (#96).
+    for v in DRA DR_OTE; do
+        check taken "$d" KERNEL=PA POWER=$v SCHEDULER=EARLIEST_DEADLINE_FIRST_STAR
+        check refused "$d" KERNEL=PA POWER=$v SCHEDULER=EARLIEST_DEADLINE_FIRST
+        check refused "$d" KERNEL=PA POWER=$v SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+    done
+    check taken "$d" KERNEL=PA POWER=DM_SLACK SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+    check refused "$d" KERNEL=PA POWER=DM_SLACK SCHEDULER=EARLIEST_DEADLINE_FIRST
+    check refused "$d" KERNEL=PA POWER=DM_SLACK SCHEDULER=EARLIEST_DEADLINE_FIRST_STAR
+    for v in NONE OTE; do
+        check taken "$d" KERNEL=PA POWER=$v SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+        check taken "$d" KERNEL=PA POWER=$v SCHEDULER=EARLIEST_DEADLINE_FIRST_STAR
+    done
+    check taken "$d" KERNEL=PA POWER=DRA "SCHEDULER=EARLIEST_DEADLINE_FIRST_STAR "
 done
+# The pair is checked wherever each comes from: the Makefiles pass both to the compiler
+# from the environment too (#96).
+export POWER=DRA
+check refused "$P" KERNEL=PA SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+check taken "$P" KERNEL=PA
+unset POWER
+export SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+check taken "$U3" KERNEL=PA POWER=DM_SLACK
+check refused "$U3" KERNEL=PA POWER=DRA
+export KERNEL=PA POWER=DR_OTE
+check refused "$U3"
+unset SCHEDULER KERNEL POWER
+# The hard kernel does not read POWER: the pair is not checked there.
+export POWER=DRA SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING
+check taken "$P"
+export POWER='DRA DM_SLACK' SCHEDULER=EARLIEST_DEADLINE_FIRST_STAR
+check taken "$P" KERNEL=PA
+unset POWER SCHEDULER
 for d in "$P" "$P2"; do
     check taken "$d" FLASH=1 LIVE=4 WCET=1
     # LIVE=4 builds LiveTasksPico or LiveTasksPico2, whose pool is of four tasks.

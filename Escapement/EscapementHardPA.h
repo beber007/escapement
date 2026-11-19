@@ -189,7 +189,9 @@
 #endif
 
 /* Correct or adjust the scheduling algorithm to be coherent with the power management
-** choice, whatever the application selected. */
+** choice, whatever the application selected. The examples' Makefiles refuse, through
+** Options.mk, a SCHEDULER that these lines would replace (#96); a choice made in an
+** Escapement_Config.h is still replaced here. */
 #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
    #undef SCHEDULER_REAL_TIME_MODE
    #define SCHEDULER_REAL_TIME_MODE    EARLIEST_DEADLINE_FIRST_STAR
