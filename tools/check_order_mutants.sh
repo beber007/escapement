@@ -10,6 +10,9 @@
 #
 #   tools/check_order_mutants.sh Escapement/CORTEX-Mx/RP2350/Examples/pico2 [ARCH=riscv]
 set -eu
+# Each kernel's flags are set below: one exported for something else would change the
+# objects, or, a POWER with KERNEL=PA, have Options.mk refuse the build (#96).
+unset KERNEL SCHEDULER POWER LIVE
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 EXAMPLE=$(cd "$1" && pwd)

@@ -73,7 +73,8 @@ are chosen on the command line (`architecture.md`):
 | `SCHEDULER=DEADLINE_MONOTONIC_SCHEDULING` | all four | deadline-monotonic scheduling |
 | `KERNEL=SOFT` | all four | the (m,k)-firm kernel |
 | `KERNEL=PA` | `pico`, `nucleo-u385` | the power-aware kernel |
-| `POWER=DRA`, `DR_OTE`, `DM_SLACK` | `pico`, `nucleo-u385`, with `KERNEL=PA` | another power-management policy than OTE |
+| `SCHEDULER=EARLIEST_DEADLINE_FIRST_STAR` | `pico`, `nucleo-u385`, with `KERNEL=PA` | EDF*, which `DRA` and `DR_OTE` build |
+| `POWER=NONE`, `DRA`, `DR_OTE`, `DM_SLACK` | `pico`, `nucleo-u385`, with `KERNEL=PA` | no power management (`NONE`), or another policy than OTE, the default. `DRA` and `DR_OTE` build EDF*, and `DM_SLACK` deadline-monotonic scheduling: these three refuse another `SCHEDULER` |
 | `UNDERVOLT=1` | `pico`, with `KERNEL=PA` | below the specified core voltage, bench only |
 | `SLEEP_SPEED=0` | `pico`, `nucleo-u385`, with `KERNEL=PA` | the idle task's WFI at the slowest point, 12 MHz on the Pico, 48 on the U3 |
 | `MHZ=` | `nucleo-u575`, `nucleo-u385` | another system clock (80, 40 or 16 MHz on the U575 rather than 160, 48, 24 or 12 on the U385 rather than 96), not with `KERNEL=PA` |
@@ -83,6 +84,7 @@ are chosen on the command line (`architecture.md`):
 | `FAST=1` | `nucleo-u385` | the MSI's PLL mode kept through Stop 2 (MSIPLL0FAST) |
 | `SMPS=1` | `nucleo-u575` | the STM32U575's SMPS rather than its LDO |
 
+On the command line, a `SCHEDULER` or a `POWER` given by another name is refused (#92).
 Each Makefile comments other options, for the bench alone (`SLEEP_GATE`, `NOHSE`, `MHZ`
 and more).
 
