@@ -4,12 +4,13 @@
 #
 # Each example's Makefile refuses an option it does not take
 # (Escapement/CORTEX-Mx/Options.mk, #86). It refuses a KERNEL and an ARCH it does not
-# build, and a SCHEDULER or a POWER the code does not name (#92). It still takes the
-# options the CI and the tools pass it. A Makefile that dropped an option built another
-# image without a word: in #84, a mutant of the DM code built under EDF passed for
-# missed. Only make -n runs, which compiles nothing: a few seconds, without a toolchain.
+# build, a SCHEDULER or a POWER the code does not name (#92), and on the Pico and the
+# Pico 2 a LIVE other than 4 (#91). It still takes the options the CI and the tools pass
+# it. A Makefile that dropped an option built another image without a word: in #84, a
+# mutant of the DM code built under EDF passed for missed. Only make -n runs, which
+# compiles nothing: a few seconds, without a toolchain.
 set -u
-unset ARCH KERNEL SCHEDULER POWER
+unset ARCH KERNEL SCHEDULER POWER LIVE
 
 cd "$(dirname "$0")/.." || exit 1
 M=Escapement/CORTEX-Mx
@@ -81,6 +82,13 @@ for d in "$P" "$U3"; do
 done
 for d in "$P" "$P2"; do
     check taken "$d" FLASH=1 LIVE=4 WCET=1
+    # LIVE=4 builds LiveTasksPico or LiveTasksPico2, whose pool is of four tasks.
+    # Another value built the pool into every image and not the example (#91).
+    check refused "$d" LIVE=2
+    check refused "$d" LIVE=four
+    check refused "$d" "LIVE=4 4"
+    check taken "$d" "LIVE=4 "
+    check taken "$d" LIVE=
     check taken "$d" TRACE=1
     check taken "$d" SLEEP_GATE=1
     for o in MHZ=16 PHASES=30 SMPS=1 FAST=1 NOHSE=1 WAKE=1; do
@@ -129,6 +137,16 @@ for d in "$P" "$P2" "$U3" "$U5" "$Q"; do
 done
 check taken "$P" KERNEL=SOFT
 unset POWER
+# LIVE is checked wherever it comes from: set there, it goes into every image (#91).
+export LIVE=2
+check refused "$P"
+check refused "$P2"
+export LIVE=4
+check taken "$P"
+check taken "$P2"
+export LIVE=' '
+check taken "$P"
+unset LIVE
 
 [ "$failed" = 0 ] && echo "every Makefile takes its options and refuses the others"
 exit "$failed"

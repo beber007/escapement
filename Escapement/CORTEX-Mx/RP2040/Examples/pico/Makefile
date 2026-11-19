@@ -101,10 +101,17 @@ ifdef WCET
    CFLAGS += -DESCAPEMENT_MEASURE_WCET
    AFLAGS += -DESCAPEMENT_MEASURE_WCET
 endif
-# make LIVE=N gives the hard kernel, under EDF, a pool of N tasks created and deleted
-# while it runs (EscapementHard.h, "LIVE TASKS"); LIVE=4 builds LiveTasksPico, which uses it.
-ifdef LIVE
-   CFLAGS += -DESCAPEMENT_LIVE_TASKS=$(LIVE)
+# make LIVE=4 gives the hard kernel, under EDF, a pool of 4 tasks created and deleted
+# while it runs (EscapementHard.h, "LIVE TASKS"), and builds LiveTasksPico, which uses
+# it.
+ifneq ($(strip $(LIVE)),)
+   # LIVE goes into every image, from the command line or the environment: another
+   # number would build that pool into each of them, but not the example (#91).
+   ifneq ($(strip $(LIVE)),4)
+      $(error LIVE=$(LIVE), from the $(origin LIVE), is not a pool of these examples: \
+              LIVE=4 builds LiveTasksPico, whose pool is of four tasks)
+   endif
+   CFLAGS += -DESCAPEMENT_LIVE_TASKS=4
 endif
 ifdef RUN
    CFLAGS += -DSLEEP_RUN
@@ -148,7 +155,7 @@ endif
 ifeq ($(KERNEL),SOFT)
 all: $(B)/SoakFirmPico.elf
 endif
-ifeq ($(LIVE),4)
+ifneq ($(strip $(LIVE)),)
 all: $(B)/LiveTasksPico.elf
 endif
 

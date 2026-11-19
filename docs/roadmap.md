@@ -499,6 +499,14 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **A `LIVE` other than 4 on the Pico and the Pico 2 (#91), 2026-11-18.** `make LIVE=2`
+  built the pool of two into every image, and not `LiveTasksPico` or `LiveTasksPico2`,
+  whose pool is of four tasks, without a word. Both Makefiles now refuse another value,
+  with the reason, from the command line or the environment: either way it goes into
+  every image. `tools/check_options.sh` checked `LIVE=4` only. Its eight new refused
+  cases failed on the code before. The images of the valid options are unchanged, byte
+  for byte.
+
 - **Options the Pico 2 took under `ARCH=riscv` without reading them (#90), 2026-11-18.**
   `make ARCH=riscv DEEP=1` built the usual images without a word: `DEEP`, `RUN`,
   `RUN_VSEL` and `PHASE_PERIODS` are read by `SleepPico2` only, which `ARCH=riscv` does
@@ -560,13 +568,14 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
   "Cost of one scheduling round").
 
 - **Tasks created and deleted while the hard kernel runs (#45), 2026-10-24.** Built with
-  `make LIVE=N`, the hard kernel under EDF keeps a pool of N periodic tasks.
-  `OSCreateTaskLive` releases one at once. `OSDeleteTaskLive` stops its releases: at
-  once between two instances, otherwise after the one under way. A task asks. The
-  timer's handler serves the request at the time it reads, once it has shifted the
-  others at the wraparound. The kernel tests no schedulability: that is the caller's to
-  decide. DM, the soft and the power-aware kernels refuse the option. The Forth console
-  of #40 wanted it. It lets the console's slots come and go.
+  `make LIVE=N`, the hard kernel under EDF keeps a pool of N periodic tasks (the
+  examples take `LIVE=4` only since #91). `OSCreateTaskLive` releases one at once.
+  `OSDeleteTaskLive` stops its releases: at once between two instances, otherwise after
+  the one under way. A task asks. The timer's handler serves the request at the time it
+  reads, once it has shifted the others at the wraparound. The kernel tests no
+  schedulability: that is the caller's to decide. DM, the soft and the power-aware
+  kernels refuse the option. The Forth console of #40 wanted it. It lets the console's
+  slots come and go.
 
   The host test's eight modes caught each of twenty-one faults made by hand in the
   kernel's new lines. The reviews found three defects the modes had let pass, each now
