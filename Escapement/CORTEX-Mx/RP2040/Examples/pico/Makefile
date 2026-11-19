@@ -143,6 +143,24 @@ ifneq ($(FLAGS),$(shell cat $(B)/flags 2>/dev/null))
 endif
 endif
 
+# The objects every image links, defined before any rule: make expands a prerequisite
+# when it reads the rule. Defined after ReadmeExample.elf's, they were none of its
+# prerequisites, and make -j8 linked it before they were built (#98).
+COMMON = $(B)/Escapement_RamEntry.o \
+          $(B)/Escapement_CortexMx.o \
+          $(B)/Escapement_Port.o \
+          $(B)/Escapement_CortexMx_a.o \
+          $(B)/Escapement_Atomic.o \
+          $(B)/Escapement_Interrupts.o \
+          $(B)/Escapement_Timer.o \
+          $(B)/Escapement_Processor.o \
+          $(B)/EscapementHard.o \
+          $(B)/EscapementSoft.o \
+          $(B)/EscapementHardPA.o
+ifdef FLASH
+   COMMON += $(B)/Escapement_Boot2.o
+endif
+
 all: $(B)/TaskLEDPico.elf $(B)/UARTEchoPico.elf $(B)/UARTSendersPico.elf $(B)/TaskWrapPico.elf \
      $(B)/TestTimerEventPico.elf $(B)/FourSlotCoresPico.elf $(B)/IPCPico.elf \
      $(B)/SoakPico.elf $(B)/StackGuardPico.elf
@@ -177,21 +195,6 @@ bin: all $(B)/TaskLEDPico.bin $(B)/UARTEchoPico.bin $(B)/UARTSendersPico.bin $(B
 
 $(B)/%.bin : $(B)/%.elf
 	$(OBJCOPY) -O binary $< $@
-
-COMMON = $(B)/Escapement_RamEntry.o \
-          $(B)/Escapement_CortexMx.o \
-          $(B)/Escapement_Port.o \
-          $(B)/Escapement_CortexMx_a.o \
-          $(B)/Escapement_Atomic.o \
-          $(B)/Escapement_Interrupts.o \
-          $(B)/Escapement_Timer.o \
-          $(B)/Escapement_Processor.o \
-          $(B)/EscapementHard.o \
-          $(B)/EscapementSoft.o \
-          $(B)/EscapementHardPA.o
-ifdef FLASH
-   COMMON += $(B)/Escapement_Boot2.o
-endif
 
 $(B)/Escapement_RamEntry.o : ../../Escapement_RamEntry.S
 	$(CC) $(AFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<

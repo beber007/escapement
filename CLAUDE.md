@@ -235,6 +235,8 @@ sh tools/check_options.sh            # each example's Makefile refuses an option
                                      # not name, a SCHEDULER the POWER would replace,
                                      # a LIVE other than 4 on the Pico and the Pico 2
                                      # (CORTEX-Mx/Options.mk, #86, #92, #96, #91)
+sh tools/check_prerequisites.sh      # each image, made alone, builds the objects it
+                                     # links, as make -j needs (#98)
 
 # Static analysis (run by the CI): cppcheck over each port, GCC's -fanalyzer per Cortex-M
 sh tools/cppcheck.sh
