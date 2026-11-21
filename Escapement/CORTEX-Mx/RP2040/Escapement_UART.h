@@ -39,6 +39,11 @@
 BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8),
                 UINT8 interruptIndex);
 
+/* OSGetUARTOverruns: Returns the times the PL011 flagged an overrun on reception: a
+** byte came with the receive FIFO full. Until the driver clears the flag, the bytes lost
+** are not counted again, so they may be more than the count. */
+UINT32 OSGetUARTOverruns(UINT8 interruptIndex);
+
 /* OSGetFreeNodeUART: Returns a free buffer, to be filled and then handed to OSEnqueueUART,
 ** or NULL when the queue is full. */
 void *OSGetFreeNodeUART(UINT8 interruptIndex);

@@ -3,7 +3,8 @@
 # LICENSE at the root of this repository.
 #
 """Run the two UART examples of the Pico 2 on the board, through the UART of its Debug
-Probe, and hold them to the criteria of emulation/renode/escapement_pico2.robot.
+Probe, and hold them to the criteria of emulation/renode/escapement_pico2.robot, and to
+one the suite lacks: the count of overruns, checked on the board only.
 
     tools/pico2_uart.py [--flash] [BUILD_DIR] [--tty TTY] [--only echo|senders ...]
 
@@ -13,7 +14,8 @@ bench's table (tools/probe.sh) unless given. Each image is loaded as tools/pico2
 loads it, whose functions this uses, or with --flash written into the flash and booted
 from it (BUILD_DIR then build-flash/ by default):
 - UARTEchoPico2 must send back the suite's line, every byte value, and 64 lines sent one
-  on the heels of the other, each byte once and in order;
+  on the heels of the other, each byte once and in order; then, its core halted while
+  64 bytes come, count one overrun (images from 2026-11-21 on, which have Results);
 - UARTSendersPico2 runs 20 s, the port read throughout: every line on it must be whole,
   and the lines its two tasks had queued when their counts were read must lie between
   those on the port just before and just after, but the 4 buffers still queued.
@@ -111,7 +113,52 @@ def echo(build, port, seed):
         back = port.take()
         checks.append((back == message, f"{len(message)} bytes sent, {len(back)} back"
                        + ("" if back == message else f", differing: {back[:40]!r}")))
+    checks.append(overrun(os.path.join(build, "UARTEchoPico2.elf"), port))
     return checks
+
+
+def overrun(elf, port, line=b"escapement\n"):
+    """The core halted while 64 bytes come, twice the receive FIFO: OSGetUARTOverruns must
+    go from 0 to 1, as the receive handler sees it on the next line. The halt and the
+    resume are one session of OpenOCD: a second one finds the core in an unknown state,
+    and its resume fails, the core left halted (2026-11-21). An image from before the
+    count has no Results, and is not checked for it."""
+    nm = subprocess.run(["arm-none-eabi-nm", elf], capture_output=True, text=True,
+                        check=True).stdout
+    if not any(l.split()[-1:] == ["Results"] for l in nm.splitlines()):
+        return (True, "no count of overruns in this image, not checked")
+    port.clear()
+    os.write(port.fd, line)
+    time.sleep(0.5)
+    before = results(elf, 1)
+    args = [os.environ.get("OPENOCD", "openocd"), "-f", "interface/cmsis-dap.cfg",
+            "-c", p.adapter(), "-c", "adapter speed 5000",
+            "-c", f"set USE_CORE {p.core_of(elf)}", "-f", "target/rp2350.cfg",
+            "-c", "init", "-c", "halt", "-c", "echo halted-for-overrun",
+            "-c", "sleep 1000", "-c", "resume", "-c", "exit"]
+    run = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           text=True)
+    timer = threading.Timer(60, run.kill)
+    timer.start()
+    out = []
+    for text in run.stdout:
+        out.append(text)
+        if "halted-for-overrun" in text:
+            os.write(port.fd, b"x" * 64)
+    run.wait()
+    timer.cancel()
+    time.sleep(0.5)
+    port.clear()
+    os.write(port.fd, line)
+    time.sleep(0.5)
+    after = results(elf, 1)
+    tail = ''.join(out)[-200:]
+    if len(before) < 1 or len(after) < 1:
+        return (False, f"Results not read back; OpenOCD: {tail!r}")
+    before, after = before[0], after[0]
+    return (before == 0 and after == 1,
+            f"overruns {before} before the core was halted, {after} after 64 bytes came"
+            + ("" if after == 1 else f"; OpenOCD (exit {run.returncode}): {tail!r}"))
 
 
 def senders(build, port, seed, seconds=20):
