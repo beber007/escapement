@@ -104,7 +104,11 @@ STEPS = ("                 _OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READ
 DROP_EDF = ("           _OSQueueTail->Next[READYQ] = _OSActiveTask->Next[READYQ];\n"
             "           CompilerBarrier();\n"
             "           _OSActiveTask->TaskState |= STATE_ZOMBIE;\n")
+REQUEST = ("  SuspendRequest = (ETCB *)_OSActiveTask;\n"
+           "  _OSGenerateSoftTimerInterrupt();\n")
 mutations = {
+    "raise before the request": (REQUEST, "\n".join(reversed(REQUEST.rstrip("\n").split("\n"))) + "\n"),
+    "no request": (REQUEST, "  _OSGenerateSoftTimerInterrupt();\n"),
     "zombie after the flag": (END, END + "  CompilerBarrier();\n" + ZOMBIE),
     "no promotion mark": ("                 _OSActiveTask->TaskState |= STATE_ACTIVATE;\n", ""),
     "promotion steps swapped": (STEPS, "\n".join(reversed(STEPS.rstrip("\n").split("\n"))) + "\n"),
@@ -157,5 +161,10 @@ Soft:EDF:promotion steps swapped
 Soft:DM:unlink before zombie
 Soft:EDF:zombie before drop
 HardPA:EDF:zombie after the flag
+Hard:EDF:raise before the request
+Soft:EDF:raise before the request
+HardPA:EDF:raise before the request
+Hard:DM:raise before the request
+Hard:EDF:no request
 MUTANTS
 exit "$missed"

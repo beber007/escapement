@@ -59,7 +59,12 @@ ticks it gives each task.
 | `wrapevents` | the same, an event-driven task signalling itself and waiting in the arrival queue beyond each wrap, where periodic tasks count turns of 2^30 apart |
 | `events` | event-driven tasks woken by periodic tasks, by themselves and by a buffer slot filling up |
 | `suspend` | an event-driven task ends exactly at its deadline with a signal pending, the soft timer interrupt taken at once inside `OSSuspendSynchronousTask`, the tasks it elects running on top of it |
-| `signalinside` | an interrupt at each of the LLs of `OSSuspendSynchronousTask` in turn signals the task suspending itself, or wakes a task of higher priority that preempts it and signals it; interrupts masked hold it until they are unmasked, as on the target |
+| `suspendalone` | the same task, alone but for a signaler, signalling itself nine times in a row: each instance is released again at the head of the ready queue in the handler's pass that suspends the one before, and must be measured (`ESCAPEMENT_MEASURE_WCET`) and simulated (DRA, DR_OTE) apart |
+| `suspendturn`, `suspendaloneturn` | the same two, the handler's first read of the time finding 3 ticks gone and the comparator's flag raised: its loop takes a second turn after releasing the task again, which under DM_SLACK must not take its time from the new instance |
+| `suspendsim` | under DRA and DR_OTE, an event-driven task preempted, then released again at its deadline in the handler's pass that suspends it: the new instance must enter the simulation with its whole WCET, not less the last slice of the one ended |
+| `suspendslack` | under DM_SLACK, an event-driven task leaves a slack, the handler taken 3 ticks after its end: those 3 ticks must run the slack out, which sets the speed of the task of lower priority it elects |
+| `suspendslack1`, `suspendslackturn` | the same, the handler taken 1 tick after the end: 5 ticks of slack are left, which slow the task elected to 50 MHz; the second also turns the handler's loop once more at the same instant, which must take nothing more from the slack |
+| `signalinside` | an interrupt at each of the LLs of the suspension in turn, made by the timer's handler since #102, signals the task suspending itself, or wakes a task of higher priority, which signals it once it runs |
 | `lull` | a task of 400 s wakes an event-driven task, with nothing in between: the reclaiming policies account for the aperiodic bandwidth over the whole interval at once, which overflowed 32 bits until 2026-09-25 |
 | `busy`, `early`, `slack` | tasks that take time, instances ending at or before their WCET or leaving time to others: the speed the power-aware kernel picks decides whether deadlines hold |
 | `expiry` | the time a task left unused runs out while the processor idles; the task set was found by searching random ones for a deadline that a kernel whose slack never runs out misses |
@@ -196,10 +201,10 @@ kernel survived every run:
   late (`longperiod`). The first correction held a task only within the last `LATENCY`
   ticks. With that correction, no task sat in the ready queue across the wrap, and the
   coverage check found that no test ran the shift of the ready queue's deadlines.
-- Every task that ends, by `OSEndTask` or `OSSuspendSynchronousTask`, must leave its
-  context unsaved (`_OSNoSaveContext`) and ask for a context switch, as the timer
-  handler must. The host's port only counts these requests: a run that sees a task end
-  without one fails.
+- Every task that ends, by `OSEndTask`, or by `OSSuspendSynchronousTask` through the
+  timer's handler since #102, must leave its context unsaved (`_OSNoSaveContext`) and
+  ask for a context switch, as the timer handler must. The host's port only counts these
+  requests: a run that sees a task end without one fails.
 
 ## Coverage
 

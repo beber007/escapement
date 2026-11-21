@@ -2,15 +2,19 @@
 # Copyright (c) 2026 Bertrand Hurst. Part of Escapement, distributed under the terms of
 # LICENSE at the root of this repository.
 #
-"""Run LatencyPico2 on the Pico 2 and print the cycles from an arrival's alarm to the
-first instruction of its task, for the Cortex-M33 and the Hazard3 cores (issue #77).
+"""Run LatencyPico2 or SuspendPico2 on the Pico 2 and print the cycles each counts.
+
+LatencyPico2 counts from an arrival's alarm to the first instruction of its task (issue
+#77), SuspendPico2 from the call of OSSuspendSynchronousTask to the task it preempted
+running again (#102), on the Cortex-M33 and the Hazard3 cores.
 
     tools/pico2_latency.py ELF [ELF ...] [--seconds N]
 
 Each ELF, an Arm or a RISC-V image of Examples/pico2, is loaded as tools/pico2_check.py
 loads it, left to run, and its Results read over SWD without stopping a core. A
-measurement, with no criterion to pass: LatencyPico2.c says what it covers. Needs what
-tools/pico2_check.py needs, and the probe's lock (tools/board_ci.md, "The bench").
+measurement, with no criterion to pass: LatencyPico2.c and SuspendPico2.c say what they
+cover. Needs what tools/pico2_check.py needs, and the probe's lock (tools/board_ci.md,
+"The bench").
 """
 
 import argparse
@@ -38,6 +42,9 @@ def main():
         if len(values) < 5 or values[0] <= 10:
             raise SystemExit(f"Results of {elf} not read back, or no instance:\n{out}")
         count, total, least, most, _ = values[:5]
+        if most * (count - 10) >= 1 << 32:
+            raise SystemExit(f"{elf}: the sum of 32 bits may have wrapped; "
+                             "give fewer --seconds")
         arch = "Hazard3" if p.is_riscv(elf) else "Cortex-M33"
         print(f"{elf} ({arch}): {count} instances, {total / (count - 10):.1f} cycles "
               f"on average, {least} to {most}")

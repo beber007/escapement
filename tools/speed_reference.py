@@ -322,8 +322,9 @@ def check_speeds(build, tasks, trace, releases, wrap=None):
             t, i = int(fields[1]), int(fields[2])
             flush()
             if policy in ("DRA", "DR_OTE"):
-                # OSEndTask and OSSuspendSynchronousTask bring the simulation up to date
-                # before the task leaves the ready queue.
+                # OSEndTask, and for a task suspended on its event the timer's handler
+                # (#102), bring the simulation up to date before the next instance is
+                # inserted in it.
                 release_until(t - 1)
                 update(t)
             if policy == "DM_SLACK":

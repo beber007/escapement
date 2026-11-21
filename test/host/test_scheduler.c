@@ -69,6 +69,8 @@
 ** calls the elected task itself, which is enough to observe what the scheduler decided.
 ** A soft timer interrupt requested by a task is served as soon as that task returns, or,
 ** where a run asks for it, at once inside the task, the tasks it elects running on top.
+** The one OSSuspendSynchronousTask raises is always taken inside it, where the task waits
+** (AwaitSoftTimer, #102).
 */
 
 #include <setjmp.h>
@@ -227,10 +229,11 @@ extern BOOL _OSNoSaveContext;
 extern void _OSTimerInterruptHandler(void);
 
 /* What the kernel must ask of the target each time, which the host's port only counts: a
-** task that ends, by OSEndTask or OSSuspendSynchronousTask, has its context left unsaved
-** (_OSNoSaveContext) and asks for a context switch; the timer handler asks for one before
-** it returns. Left out, each passed every run until 2026-10-04 (tools/mutants.py): on the
-** target the next task would not be elected, or a context that ended would be restored. */
+** task that ends, by OSEndTask, or by OSSuspendSynchronousTask through the timer handler
+** (#102), has its context left unsaved (_OSNoSaveContext) and asks for a context switch;
+** the timer handler asks for one before it returns. Left out, each passed every run
+** until 2026-10-04 (tools/mutants.py): on the target the next task would not be elected,
+** or a context that ended would be restored. */
 static unsigned EndBreaks = 0, HandlerBreaks = 0;
 extern unsigned HostTimerStarted;
 extern void (*HostTimeReadHook)(void);
@@ -541,6 +544,16 @@ static void SoftTimerNow(void)
   RunElected(interrupted);
   // cppcheck-suppress uninitvar ; set by the first memcpy, which cppcheck does not follow
   memcpy(TaskFrame, frame, sizeof frame);
+}
+
+/* AwaitSoftTimer: Where a task that asked to be suspended waits, the soft timer interrupt
+** it raised taken there, as on the target: the handler suspends the task, and the test
+** returns to it no more than the target does. */
+static void AwaitSoftTimer(void)
+{
+  SoftTimerNow();
+  printf("FAILED: a task asked to be suspended, and the handler left it running\n");
+  exit(1);
 }
 
 /* RunFor: Advances the clock the way the hardware would and lets the kernel schedule,
@@ -1386,14 +1399,57 @@ static void TestLull(void)
 ** back to back. */
 #define SUSPEND_LOAD 20
 static Signaler ToSuspending;
-static unsigned SuspendRuns;
+/* The modes suspendturn and suspendaloneturn: the handler's first read of the time finds
+** 3 ticks gone and the comparator's flag raised, which takes its loop a second turn.
+** Under DM_SLACK that turn charged its time to the instance it had just released (#102). */
+extern volatile BOOL _OSComparatorInterruptFlag;
+static BOOL SuspendSecondTurn = FALSE;
+static void AdvanceOnce(void)
+{
+  HostTimeReadHook = NULL;
+  HostAdvanceBy(3);
+  _OSComparatorInterruptFlag = TRUE;
+}
+static void SoftTimerSecondTurn(void)
+{
+  HostTimeReadHook = AdvanceOnce;
+  SoftTimerNow();
+}
+static unsigned SuspendRuns, SuspendBreaks, SuspendChain;
 static void SuspendingTask(void *event)
 {
   SuspendRuns += 1;
-  if (SuspendRuns % 2 == 1)
+  /* Each instance closed apart (ESCAPEMENT_MEASURE_WCET): two charged as one, 40, when
+  ** the handler made the task a zombie after the soft timer interrupt paused the count
+  ** (#102). Each released again with its whole work in the simulation (DRA, DR_OTE),
+  ** and the work done of the previous charged to that one, not to it. */
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     if (SuspendRuns > 1 && OSGetTaskMaxTime() != SUSPEND_LOAD)
+        SuspendBreaks += 1;
+  #endif
+  #if defined(ESCAPEMENT_VERSION_HARD_PA) && (POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE)
+     if (_OSActiveTask->CompletionTime != _OSActiveTask->WCET)
+        SuspendBreaks += 1;
+     /* The instance is in the simulation when it starts: the handler had removed it there
+     ** before it charged the time of the one ended (#102). */
+     {
+        HostTCB *t = _OSQueueHead;
+        BOOL in = FALSE;
+        int n = 0;
+        while ((t = t->NextSim) != IdleTCB && n++ <= MAX_TASKS + 1)
+           if (t == _OSActiveTask)
+              in = TRUE;
+        if (!in)
+           SuspendBreaks += 1;
+     }
+  #elif defined(ESCAPEMENT_VERSION_HARD_PA) && POWER_MANAGEMENT == DM_SLACK
+     if (_OSActiveTask->RemainingWork != _OSActiveTask->WCET)
+        SuspendBreaks += 1;
+  #endif
+  if (SuspendChain ? SuspendRuns % SuspendChain != 0 : SuspendRuns % 2 == 1)
      OSScheduleSuspendedTask(event);
   HostAdvanceBy(SUSPEND_LOAD);
-  HostSoftTimerHook = SoftTimerNow;
+  HostSoftTimerHook = SuspendSecondTurn ? SoftTimerSecondTurn : SoftTimerNow;
   OSSuspendSynchronousTask();
   HostSoftTimerHook = NULL;
 }
@@ -1419,18 +1475,51 @@ static void TestSuspend(void)
   Check(label, SuspendRuns + 2 >= 2 * ToSuspending.Runs && SuspendRuns <= 2 * ToSuspending.Runs);
   Check("  the ready queue stays whole", QueueBreaks == 0);
   Check("  no deadline missed", LateArrivals == 0);
+  snprintf(label, sizeof label, "  each instance measured and simulated apart: %u breaks",
+           SuspendBreaks);
+  Check(label, SuspendBreaks == 0);
+}
+
+/* TestSuspendAlone: The same task alone but for a signaler of period 1000, which starts
+** chains of ten instances: each but the last signals itself, and the next is released
+** at the head of the ready queue with no arrival in the handler's turn. Under DRA and
+** DR_OTE the handler then found the head unchanged, and inserted the next instance in
+** the simulation before charging it the time of the one ended (#102). */
+static void TestSuspendAlone(void)
+{
+  INT32 duration = 20000;
+  char label[80];
+
+  SuspendChain = 10;
+  ToSuspending.Event = OSCreateEventDescriptor();
+  CREATE_TASK(SignalerTask, 1000, &ToSuspending);
+  CREATE_SYNCHRONOUS_TASK(SuspendingTask, SUSPEND_LOAD, ToSuspending.Event, ToSuspending.Event);
+
+  StartKernel(NULL, NULL);
+  RunFor(duration);
+
+  printf("\n%d ticks of simulated time, an event-driven task signaling itself alone\n\n",
+         duration);
+  snprintf(label, sizeof label, "  ten instances per signal: %u for %u",
+           SuspendRuns, ToSuspending.Runs);
+  Check(label, SuspendRuns + 10 >= 10 * ToSuspending.Runs && SuspendRuns <= 10 * ToSuspending.Runs);
+  Check("  the ready queue stays whole", QueueBreaks == 0);
+  snprintf(label, sizeof label, "  each instance measured and simulated apart: %u breaks",
+           SuspendBreaks);
+  Check(label, SuspendBreaks == 0);
 }
 
 
 /* TestSignalInside: An interrupt signals an event-driven task while it suspends
-** itself, at each of the LLs of OSSuspendSynchronousTask in turn, one instance after
-** another; the soft timer interrupt it raises is taken at once. Every other time the
-** interrupt wakes instead an event-driven task of higher priority, which preempts the
-** first and signals it itself. A task signaled before it had left the ready queue was
-** inserted in it again, or had the context of another discarded in its place — that of
-** the task preempting it: SoakPico hung under the soft kernel (2026-09-25). OSSuspend-
-** SynchronousTask masks interrupts from its enqueue to its leaving the ready queue: an
-** interrupt that comes in between is taken after, and must still wake the task once. */
+** itself, at each of the LLs of its suspension in turn, one instance after another; the
+** soft timer interrupt it raises is taken at once. Every other time the interrupt wakes
+** instead an event-driven task of higher priority, which preempts the first and signals
+** it itself. A task signaled before it had left the ready queue was inserted in it
+** again, or had the context of another discarded in its place — that of the task
+** preempting it: SoakPico hung under the soft kernel (2026-09-25). The timer's handler
+** suspends the task since #102, and the LLs are its own: an interrupt in
+** between must still wake the task once. The suspension done by the task, interrupts
+** unmasked, fails here under every kernel. */
 static Signaler ToInside;
 static void *HelperEvent;
 static unsigned InsideRuns, HelperRuns, InsideDirect, InsideViaHelper, InsideAt, InsideCount;
@@ -1506,8 +1595,8 @@ static void TestSignalInside(void)
          duration);
   CheckActivations(duration);
   /* A signal sent while one is already pending does not add up (docs/api.md): where
-  ** the interrupt falls before the task masks interrupts, as under DM_SLACK, whose slack
-  ** takes LLs of its own first, two signals can make one run. */
+  ** the interrupt falls before the task asks to be suspended, as under DM_SLACK, whose
+  ** slack takes LLs of its own first, two signals can make one run. */
   total = ToInside.Runs + InsideDirect + HelperRuns;
   snprintf(label, sizeof label, "  one run per signal: %u for %u + %u + %u", InsideRuns,
            ToInside.Runs, InsideDirect, HelperRuns);
@@ -1803,6 +1892,19 @@ static void TakeInterrupt(void)
   SetKernelHooks();
 }
 
+/* AwaitTimed: As AwaitSoftTimer, for a task run by RunTimedUntil. */
+static void AwaitTimed(void)
+{
+  HostCompilerBarrierHook = NULL;
+  HostTimeReadHook = NULL;
+  Finalize();
+  TimerHandler();
+  if (_OSNoSaveContext)
+     longjmp(TimedFrame, 1);
+  printf("FAILED: a task asked to be suspended, and the handler left it running\n");
+  exit(1);
+}
+
 /* BarrierInterrupt: At no cost in time, one barrier in two picked at random. */
 static void BarrierInterrupt(void)
 {
@@ -1931,6 +2033,8 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
         #endif
         HostAdvanceBy(step);
         if (task->Work <= 0) {
+           void (*await)(void) = HostAwaitHook;
+           HostAwaitHook = AwaitTimed;
            if (setjmp(TimedFrame) == 0) {
               unsigned asked = HostContextSwitchesRequested;
               WrapPoints = 0;
@@ -1939,6 +2043,7 @@ static void RunTimedUntil(INT32 duration, HostTCB *interrupted)
               if (!_OSNoSaveContext || HostContextSwitchesRequested == asked)
                  EndBreaks += 1;
            }
+           HostAwaitHook = await;
            HostCompilerBarrierHook = NULL;
            HostTimeReadHook = NULL;
            _OSNoSaveContext = FALSE;   /* the context switch that follows clears it */
@@ -2764,6 +2869,139 @@ static void TestTrace(INT32 duration, INT32 phase)
   RunTimed(duration);
   printf("T %d\n", duration);
 }
+
+#if defined(ESCAPEMENT_VERSION_HARD_PA) && (POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE)
+/* TestSuspendSim: An event-driven task of WCET 10 and workload 20, signaled at 36 and
+** 37, runs 4 ticks, is preempted at 40 by two periodic tasks of 6 and 4 that end at 46
+** and 50, and ends at its deadline, 56, its next instance released in the same pass. The
+** update at 40 left the instance ended 6 in the simulation; charged at 56 to the
+** CompletionTime the handler had just reset, the new instance entered the simulation
+** with 4 (#102). */
+static void TestSuspendSim(void)
+{
+  TimedTask *task;
+  char label[80];
+  TimedRun = TIMED_BUSY;
+  CreateTimedTask(6, 40, 6, 6, -1);
+  CreateTimedTask(4, 40, 10, 4, -1);
+  task = &Timed[NbTimed++];
+  task->WCET = 10;
+  task->Only = -1;
+  task->Work = task->WCET * 256;
+  task->Event = OSCreateEventDescriptor();
+  OSCreateSynchronousTask(TimedTaskCode, 10, 20, (UINT8)((10 * 256 + 20 - 1) / 20),
+                          task->Event, task);
+  SignalAt[NbSignals] = 36;
+  SignalTo[NbSignals++] = task->Event;
+  SignalAt[NbSignals] = 37;
+  SignalTo[NbSignals++] = task->Event;
+  StartKernel(NULL, NULL);
+  RunTimed(58);
+  printf("\nAn event-driven task released again at its deadline, the simulation behind it\n\n");
+  snprintf(label, sizeof label, "  the new instance enters the simulation whole: %d of %d",
+           (int)_OSActiveTask->CompletionTime, (int)_OSActiveTask->WCET);
+  Check(label, (_OSActiveTask->TaskState & TASKTYPE_BLOCKING) && Timed[2].Ends == 1 &&
+               _OSActiveTask->CompletionTime == _OSActiveTask->WCET);
+}
+#endif
+
+#if defined(ESCAPEMENT_VERSION_HARD_PA) && POWER_MANAGEMENT == DM_SLACK
+/* TestSuspendSlack: Under DM_SLACK an event-driven task of WCET 10, released by a
+** signal, takes 4 and suspends itself, no signal pending: it leaves a slack of 6, dated
+** from its end. The soft timer interrupt it raises is taken 3 ticks later, the entry of
+** the interrupt and the handler's prologue, which raises the speed. The handler installs
+** the slack and elects a periodic task of WCET 3 of lower priority, another one ready
+** behind it: its speed comes from the slack alone, the slack plus its work as the time
+** it may take. The slack runs out with the time elapsed since the task's end: 3 left,
+** the work of 3 needs the fastest speed; the 6 of the end, never reduced, slowed it to
+** 50 MHz, which does that work in 7.5 ticks out of 6 (#102). The speed expected is
+** computed by the kernel's rule from the time the periodic task starts at.
+** The mode suspendslack1 takes the interrupt 1 tick after the end: 5 left, the
+** periodic task runs at 50 MHz, where a slack taken whole, a sum of the two times in
+** place of their difference, gave the fastest. The mode suspendslackturn also turns the
+** handler's loop once more, at the same instant, which takes nothing more: the slack's
+** date, left in place of the handler's time, made that turn take the tick again, 4
+** left. */
+extern UINT8 HostSpeed;
+extern const UINT8 _OSSlowdownRatios[];
+#define SLACK_EVENT_WCET 10
+#define SLACK_EVENT_TAKES 4
+#define SLACK_LOW_WCET 3
+static INT32 SlackDelay = 3;
+static BOOL SlackTurn = FALSE;
+static Signaler ToSlack;
+static INT32 SlackEventEnd = -1;
+static int SlackSpeedSeen = -1, SlackSpeedExpected = -1;
+static void SlackSignaler(void *argument)
+{
+  Signaler *signaler = (Signaler *)argument;
+  signaler->Runs += 1;
+  OSScheduleSuspendedTask(signaler->Event);
+  OSEndTask();
+}
+static void SlackTurnOnce(void)
+{
+  HostTimeReadHook = NULL;
+  _OSComparatorInterruptFlag = TRUE;   /* the handler turns its loop once more */
+}
+static void SlackDelayedSoftTimer(void)
+{
+  HostAdvanceBy(SlackDelay);
+  if (SlackTurn)
+     HostTimeReadHook = SlackTurnOnce;
+  SoftTimerNow();
+}
+static void SlackEventTask(void *argument)
+{
+  (void)argument;
+  HostAdvanceBy(SLACK_EVENT_TAKES);
+  SlackEventEnd = HostClockNow();
+  HostSoftTimerHook = SlackDelayedSoftTimer;
+  OSSuspendSynchronousTask();
+  HostSoftTimerHook = NULL;
+}
+static void SlackLowTask(void *argument)
+{
+  (void)argument;
+  if (SlackSpeedSeen < 0 && SlackEventEnd >= 0) {
+     INT32 slack = SLACK_EVENT_WCET - SLACK_EVENT_TAKES -
+                   (HostClockNow() - SlackEventEnd);
+     INT32 time = slack > 0 ? slack + SLACK_LOW_WCET : 0;
+     int speed = OS_MAX_SPEED;
+     SlackSpeedSeen = HostSpeed;
+     if (time > SLACK_LOW_WCET)
+        while (speed > 0 &&
+               SLACK_LOW_WCET <= ((time * _OSSlowdownRatios[speed - 1]) >> 8))
+           speed -= 1;
+     SlackSpeedExpected = speed;
+  }
+  OSEndTask();
+}
+static void SlackBehindTask(void *argument)
+{
+  (void)argument;
+  OSEndTask();
+}
+
+static void TestSuspendSlack(void)
+{
+  char label[80];
+  ToSlack.Event = OSCreateEventDescriptor();
+  OSCreateTask(SlackSignaler, 1, 0, 1000, 50, &ToSlack);
+  OSCreateTask(SlackLowTask, SLACK_LOW_WCET, 0, 1000, 100, NULL);
+  OSCreateTask(SlackBehindTask, 1, 0, 1000, 200, NULL);
+  OSCreateSynchronousTask(SlackEventTask, SLACK_EVENT_WCET, 20, 0, ToSlack.Event, NULL);
+  StartKernel(NULL, NULL);
+  RunFor(100);
+  printf("\nAn event-driven task leaves a slack, the handler %d ticks after its end%s"
+         "\n\n", (int)SlackDelay, SlackTurn ? ", turning twice" : "");
+  Check("  the event-driven task, then the one of lower priority",
+        SlackEventEnd >= 0 && SlackSpeedSeen >= 0);
+  snprintf(label, sizeof label, "  the slack runs out from its task's end: speed %d for %d",
+           SlackSpeedSeen, SlackSpeedExpected);
+  Check(label, SlackSpeedSeen == SlackSpeedExpected);
+}
+#endif
 
 /* TestEventSpacing: An event-driven task of workload 300, alone, signalled at 50, 150 and
 ** 400. The first signal releases it at once; the second waits in the arrival queue until
@@ -4390,6 +4628,7 @@ static void TestLiveOnly(void)
 int main(int argc, char *argv[])
 {
   setvbuf(stdout, NULL, _IOLBF, 0);   /* keep what was printed if the kernel crashes */
+  HostAwaitHook = AwaitSoftTimer;
   signal(SIGALRM, Timeout);
   alarm(10);
   if (argc > 1 && strcmp(argv[1], "wrap") == 0)
@@ -4402,6 +4641,20 @@ int main(int argc, char *argv[])
      TestCreate();
   else if (argc > 1 && strcmp(argv[1], "suspend") == 0)
      TestSuspend();
+  else if (argc > 1 && strcmp(argv[1], "suspendalone") == 0)
+     TestSuspendAlone();
+  else if (argc > 1 && strcmp(argv[1], "suspendturn") == 0) {
+     SuspendSecondTurn = TRUE;
+     TestSuspend();
+  }
+  else if (argc > 1 && strcmp(argv[1], "suspendaloneturn") == 0) {
+     SuspendSecondTurn = TRUE;
+     TestSuspendAlone();
+  }
+#if defined(ESCAPEMENT_VERSION_HARD_PA) && (POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE)
+  else if (argc > 1 && strcmp(argv[1], "suspendsim") == 0)
+     TestSuspendSim();
+#endif
   else if (argc > 1 && strcmp(argv[1], "signalinside") == 0)
      TestSignalInside();
   else if (argc > 1 && strcmp(argv[1], "wrapsim") == 0)
@@ -4484,6 +4737,17 @@ int main(int argc, char *argv[])
   #if defined(ESCAPEMENT_VERSION_HARD_PA) && POWER_MANAGEMENT == DM_SLACK
      else if (argc > 1 && strcmp(argv[1], "slackatwrap") == 0)
         TestSlackAtWrap();
+     else if (argc > 1 && strcmp(argv[1], "suspendslack") == 0)
+        TestSuspendSlack();
+     else if (argc > 1 && strcmp(argv[1], "suspendslack1") == 0) {
+        SlackDelay = 1;
+        TestSuspendSlack();
+     }
+     else if (argc > 1 && strcmp(argv[1], "suspendslackturn") == 0) {
+        SlackDelay = 1;
+        SlackTurn = TRUE;
+        TestSuspendSlack();
+     }
   #endif
   else if (argc > 1 && strcmp(argv[1], "spuriousturn") == 0)
      TestSpuriousTurn();

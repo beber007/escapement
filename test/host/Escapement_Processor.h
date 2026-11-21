@@ -46,6 +46,12 @@ void HostUnmask(void);
                                              if (!HostSoftTimerHook) ; \
                                              else if (HostMasked) HostSoftTimerHeld = 1; \
                                              else HostSoftTimerHook(); } while (0)
+/* A task that asked to be suspended waits there for the soft timer interrupt it raised,
+** which the target takes at once and never returns from (OSSuspendSynchronousTask). A
+** test sets HostAwaitHook to take it there. */
+extern void (*HostAwaitHook)(void);
+void HostAwaitSoftTimer(void);
+#define _OSAwaitSoftTimer()             HostAwaitSoftTimer()
 /* The handler's PENDSTCLR drops every request made so far (HostSoftTimerCleared, see
 ** host_port.c). */
 extern unsigned HostSoftTimerCleared;

@@ -189,6 +189,13 @@ void *OSMalloc(UINT16 size)
 
 void (*HostBarrierHook)(void) = NULL;
 void (*HostSoftTimerHook)(void) = NULL;
+void (*HostAwaitHook)(void) = NULL;
+
+void HostAwaitSoftTimer(void)
+{
+  if (HostAwaitHook)
+     HostAwaitHook();
+}
 
 /* HostClearSoftTimer: PENDSTCLR, which the timer handler sets before it checks the flags
 ** it loops on: the soft timer interrupts requested so far, served or not, are dropped, as

@@ -344,15 +344,16 @@ jobs:
         run: clang --version | head -1 && python3 tools/coverage.py
 
   models:
-    # The slot buffers and the FIFO queues over every interleaving, one model a job: run
-    # one after another, beside the host test, they made the longest job of the run.
+    # The slot buffers, the FIFO queues and the suspension of an event-driven task over
+    # every interleaving, one model a job: run one after another, beside the host test,
+    # they made the longest job of the run.
     name: Model ${{ matrix.model }}
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        model: [fourslot, threeslot, fifo, fifo_mp]
+        model: [fourslot, threeslot, fifo, fifo_mp, suspend]
     steps:
       - uses: actions/checkout@v7
       - name: Every interleaving

@@ -100,7 +100,9 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	   ./$(BUILD)/test_scheduler_$$b wrapevents && \
 	   ./$(BUILD)/test_scheduler_$$b events && ./$(BUILD)/test_scheduler_$$b eventturns && \
 	   ./$(BUILD)/test_scheduler_$$b lull && \
-	   ./$(BUILD)/test_scheduler_$$b suspend && ./$(BUILD)/test_scheduler_$$b signalinside && \
+	   ./$(BUILD)/test_scheduler_$$b suspend && ./$(BUILD)/test_scheduler_$$b suspendalone && \
+	   ./$(BUILD)/test_scheduler_$$b suspendturn && ./$(BUILD)/test_scheduler_$$b suspendaloneturn && \
+	   ./$(BUILD)/test_scheduler_$$b signalinside && \
 	   ./$(BUILD)/test_scheduler_$$b busy && \
 	   ./$(BUILD)/test_scheduler_$$b early && ./$(BUILD)/test_scheduler_$$b slack && \
 	   ./$(BUILD)/test_scheduler_$$b expiry && ./$(BUILD)/test_scheduler_$$b reclaim && \
@@ -154,7 +156,11 @@ run: $(BUILDS:%=$(BUILD)/test_scheduler_%) $(IPC:%=$(BUILD)/test_ipc_%)
 	                      ./$(BUILD)/test_scheduler_$$b livewraprace && \
 	                      ./$(BUILD)/test_scheduler_$$b livewraplate && \
 	                      ./$(BUILD)/test_scheduler_$$b livewrapfirst || exit 1;; esac; \
-	   case $$b in pa_dmslack) ./$(BUILD)/test_scheduler_$$b slackatwrap || exit 1;; esac; \
+	   case $$b in pa_dmslack) ./$(BUILD)/test_scheduler_$$b slackatwrap && \
+	                         ./$(BUILD)/test_scheduler_$$b suspendslack && \
+	                         ./$(BUILD)/test_scheduler_$$b suspendslack1 && \
+	                         ./$(BUILD)/test_scheduler_$$b suspendslackturn || exit 1;; esac; \
+	   case $$b in pa_dra|pa_drote) ./$(BUILD)/test_scheduler_$$b suspendsim || exit 1;; esac; \
 	   case $$b in soft_edf|soft_edf_wcet) ./$(BUILD)/test_scheduler_$$b firmoverloadshare && \
 	                         ./$(BUILD)/test_scheduler_$$b firmwrapend && \
 	                         ./$(BUILD)/test_scheduler_$$b firmoverloadsum && \

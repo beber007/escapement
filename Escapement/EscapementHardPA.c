@@ -232,6 +232,16 @@ static TCB *OSQueueTail = NULL;
 ** Hence, the caller needs to save its context before releasing the processor. This is
 ** done by invoking a timer interrupt. */
 static ETCB *RescheduleSynchronousTaskList = NULL;
+/* SuspendRequest: The event-driven task that asked to be suspended, which the timer's
+** handler serves on entry (OSSuspendSynchronousTask). Written by that task alone, then
+** read and cleared by the handler alone: no other task runs in between. */
+static ETCB *volatile SuspendRequest = NULL;
+static void ServeSuspendRequest(void);
+/* _OSAwaitSoftTimer: What a task that has asked to be suspended does until the soft timer
+** interrupt it raised is taken, which never returns to it. */
+#ifndef _OSAwaitSoftTimer   /* the host test takes the interrupt there (test/host) */
+   #define _OSAwaitSoftTimer() while (SuspendRequest != NULL)
+#endif
 
 
 /* With DRA or DR_OTE power management modes, we mimic the tasks of the ready queue running
@@ -702,6 +712,10 @@ void _OSTimerInterruptHandler(void)
      /* Do this also for probable pending DRASimTime */
      InterruptibleINT32CAS2(0,0,0,0,0L,0,TRUE);
   #endif
+  /* A task that asked to be suspended raised this interrupt, or was interrupted by it
+  ** after it asked; it cannot ask again before the handler returns. */
+  if (SuspendRequest != NULL)
+     ServeSuspendRequest();
   do {
      if (_OSTimerIsOverflow(ShiftTimeLimit)) {   // Has timer overflowed?
         /* To avoid overflow of the timer's time, a time shift is done on all temporal
@@ -855,6 +869,13 @@ void _OSTimerInterruptHandler(void)
                  DMSlackAmount = 0;
               if (_OSActiveTask != OSQueueTail)
                  UpdateRemainingWork(_OSActiveTask,SavedCurrentSpeed,currentTime);
+              LastRemainingWorkUpdate = currentTime;
+           }
+           else {
+              /* The slack just installed is dated from its task's end: the time since,
+              ** the entry of this interrupt among it, runs it out too (#102). */
+              if ((DMSlackAmount -= currentTime - LastRemainingWorkUpdate) < 0)
+                 DMSlackAmount = 0;
               LastRemainingWorkUpdate = currentTime;
            }
         #elif POWER_MANAGEMENT != NONE
@@ -1151,68 +1172,49 @@ BOOL _OSCreateSynchronousTask(void task(void *), INT32 wcet, INT32 workLoad,
 
 /* OSSuspendSynchronousTask: The very last instruction of an event-driven task. This
 ** function checks if a new task instance should restart (an event was signaled) or if it
-** should suspend itself until the event is signaled by OSScheduleSuspendedTask(). */
+** should suspend itself until the event is signaled by OSScheduleSuspendedTask().
+** The task only asks: the timer's handler suspends it (ServeSuspendRequest), as in
+** EscapementHard.c. Done by the task, the suspension had a race. A signal between its
+** enqueue on the event and its leaving the ready queue gave the handler a task not yet a
+** zombie, still in the ready queue and maybe deep in the stack (SoakPico, 2026-09-25).
+** The steps could not be swapped: out of the ready queue, the task had its stack wiped
+** by the next interrupt, and was never enqueued. Interrupts were masked across them
+** from 2026-09-25 until #102. */
 void OSSuspendSynchronousTask(void)
 {
-  ETCB *task = (ETCB *)_OSActiveTask;
-  FIFOQUEUE *eq = task->EventQueue;
-  BOOL signaled;
   #if POWER_MANAGEMENT == DM_SLACK
+     /* The slack this instance leaves, computed as OSEndTask does; the handler installs
+     ** it (DMSlackUpdateSlack). */
      DMSlackCalculateSlack(_OSActiveTask);
   #endif
-  /* Insert the task into the event queue so that a task signaling the event will de-
-  ** tect this task. When EnqueueEventTask() returns TRUE, there is a pending event and
-  ** the task is not appended to the queue: it is then rescheduled by the timer inter-
-  ** rupt handler, since the information it needs can be updated concurrently by that
-  ** handler. Interrupts are masked from here until the task has left the ready queue: a
-  ** signal in between, from an interrupt or from a task of higher priority preempting
-  ** this one, gave the handler a task not yet a zombie, still in the ready queue and
-  ** maybe deep in the stack, which the handler inserted in the ready queue again, or,
-  ** taking it for the task it had interrupted, whose context it discarded instead of
-  ** the right one (SoakPico, 2026-09-25). Masked, the task is a zombie out of the ready
-  ** queue by the time the handler sees it. */
-  _OSDisableInterrupts();
-  signaled = EnqueueEventTask(eq,(UINTPTR)task);
-  /* Set task to zombie to indicate that the task is about to remove itself from the
-  ** ready queue and that its context should not be saved. */
-  _OSActiveTask->TaskState |= STATE_ZOMBIE;
-  _OSNoSaveContext = TRUE;    // Don't save the context of this task
-  CompilerBarrier();          // a zombie before it leaves the ready queue
-  #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
-     /* Update the timing used up by this task */
-     DRASimUpdateElapseTime(GetTaskTime());
-  #endif
-  /* Remove the task from the ready queue */
-  _OSQueueHead->Next[READYQ] = _OSActiveTask->Next[READYQ];
-  _OSActiveTask = _OSQueueHead->Next[READYQ];
-  if (signaled)
-     EnqueueRescheduleQueue(task);
-  _OSEnableInterrupts();
-  #if POWER_MANAGEMENT == DM_SLACK
-     /* Set the available slack for a lower priority task. */
-     DMSlackUpdateSlack();
-  #endif
-  #if POWER_MANAGEMENT != NONE
-     /* Adjust the processor speed for power management. There is no point in changing the
-     ** current speed when switching to the idle task. */
-     if (_OSActiveTask != OSQueueTail) {
-        #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
-           LastRemainingWorkUpdate = DRASimTime;
-           OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
-        #elif POWER_MANAGEMENT == OTE
-           LastRemainingWorkUpdate = GetTaskTime();
-           OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
-        #else /* POWER_MANAGEMENT == DM_SLACK */
-           LastRemainingWorkUpdate = GetTaskTime();
-           OSSetProcessorSpeed(GetProcessorSpeed(LastRemainingWorkUpdate));
-        #endif
-     }
-  #elif defined(STATIC_POWER_MANAGEMENT)
-     if (_OSActiveTask != OSQueueTail)
-        OSSetProcessorSpeed(_OSActiveTask->FrequencyIndex);
-  #endif
-  _OSScheduleTask();
+  SuspendRequest = (ETCB *)_OSActiveTask;
+  _OSGenerateSoftTimerInterrupt();
+  _OSAwaitSoftTimer();
 } /* end of OSSuspendSynchronousTask */
+
+
+/* ServeSuspendRequest: From the timer's handler, on entry: suspends the task that asked
+** for it, still the one at the head of the ready queue: from its request on, the task
+** only waits, no other task runs, and the other interrupts leave the head to this
+** handler. The task becomes a zombie whose context is not to be saved, leaves the ready
+** queue, and is enqueued on its event, as EscapementHard.c says. No task runs then
+** until the handler's end elects one: _OSActiveTask is the idle task's TCB meanwhile.
+** Left on the task, it made the handler find the head unchanged when a pending signal
+** released the task again in this pass. Under DRA and DR_OTE the instance ended was
+** then removed from the simulation before its time was charged, and that time went to
+** the new instance; under DM_SLACK a second turn of the loop took the handler's time
+** from the new instance's work (#102). */
+void ServeSuspendRequest(void)
+{
+  ETCB *task = SuspendRequest;
+  SuspendRequest = NULL;
+  task->TaskState |= STATE_ZOMBIE;
+  _OSNoSaveContext = TRUE;    // Don't save the context of this task
+  _OSQueueHead->Next[READYQ] = (TCB *)task->Next[READYQ];
+  _OSActiveTask = OSQueueTail;
+  if (EnqueueEventTask(task->EventQueue,(UINTPTR)task))
+     EnqueueRescheduleQueue(task);
+} /* end of ServeSuspendRequest */
 
 
 /* OSScheduleSuspendedTask: Removes a blocked task that is waiting for an event and sche-
@@ -1275,8 +1277,8 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
   do {
      while ((etcb = (ETCB *)OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList)) != NULL) {
         if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb->Next[BLOCKQ])) {
-           /* A task not yet a zombie has not left the ready queue: OSSuspendSynchronous-
-           ** Task asks for a task to be rescheduled only once it has, interrupts masked. */
+           /* A task not yet a zombie has not left the ready queue: the handler asks for a
+           ** task to be rescheduled only once it has (ServeSuspendRequest). */
            #ifdef DEBUG_MODE
               if ((etcb->TaskState & STATE_ZOMBIE) == 0)
                  while (TRUE);  // COVERAGE-LINE: an assertion of DEBUG_MODE
@@ -1310,7 +1312,6 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
               #endif
               ReadyQueueInsert((TCB *)etcb);
               #if POWER_MANAGEMENT == DRA || POWER_MANAGEMENT == DR_OTE
-                 etcb->CompletionTime = etcb->WCET;
                  /* Before modifying the simulation queue, we need to update it when the head
                  ** of the queue can change, otherwise the elapse time will be decremented for
                  ** the wrong task. */
@@ -1318,6 +1319,7 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
                     DRASimUpdateElapseTime(currentTime);
                     doSimUpdateElapseTime = FALSE;
                  }
+                 etcb->CompletionTime = etcb->WCET;
                  DRASimQueueInsert((TCB *)etcb);
               #elif POWER_MANAGEMENT == DM_SLACK
                 etcb->RemainingWork = etcb->WCET;
@@ -1501,9 +1503,8 @@ void DRASimUpdateElapseTime(INT32 newTime)
 /* InterruptibleINT32CAS2: Two compare-and-stores, one after the other, whose operands and
 ** step reached are kept in static variables, so that code preempting the caller can
 ** complete a pending pair (check = TRUE) instead of undoing it: the caller, a timer
-** interrupt or a task in OSEndTask or OSSuspendSynchronousTask, may never resume. The
-** pair is not indivisible. Code that uses the variables of a pair must first complete
-** any pending one.
+** interrupt or a task in OSEndTask, may never resume. The pair is not indivisible.
+** Code that uses the variables of a pair must first complete any pending one.
 ** The operands and the step live in memory in program order, which the variables being
 ** volatile and a CompilerBarrier() after each store make the compiler keep: at -O2 GCC
 ** kept the step in a register and wrote it only at the end, so that code completing a
