@@ -61,10 +61,19 @@ The kernels mask interrupts in a few other places only:
 
 - at start-up;
 - while the idle task starts the timer;
-- in the traps of `DEBUG_MODE`;
-- in `OSSuspendSynchronousTask`, from the enqueue of the suspending task until it has
-  left the ready queue. This one was added on 2026-09-25, after the endurance test found
-  a race there (`method.md`).
+- in the traps of `DEBUG_MODE`, and where an overrun stops the system;
+- in the pool of tasks created as the kernel runs (`make LIVE=4`), for a few
+  instructions.
+
+A task suspends itself on an event without masking interrupts, since #102.
+`OSSuspendSynchronousTask` stores the task as a request and raises the soft timer
+interrupt. The handler serves it on entry. The task becomes a zombie, leaves the ready
+queue, and is enqueued on its event. From its request on, the task only waits, and no
+other task runs before the handler, so no task sees these steps half done. A signal
+from an interrupt between them is left pending, and the handler reschedules the task.
+From 2026-09-25 until #102, the task did them itself, with interrupts masked
+(`method.md`).
+`test/model/suspend.py` checks the suspension over every interleaving.
 
 Some drivers of the ports, among them the timer events and the trace, also mask
 interrupts for a few instructions.
@@ -100,6 +109,10 @@ Each mechanism has an exhaustive model in `test/model`, run by the CI:
   properties that Rushby model-checked for Simpson's algorithm: no read mixes two
   records, and none goes backwards. Between two cores, each core is also free to reorder
   its accesses.
+- The suspension's model runs the task, the timer's handler and the interrupts that
+  signal the event, each preempting the one below at every access (#102). It checks that
+  the task is never inserted twice in the ready queue, that no context is wiped twice,
+  and that no signal is lost.
 
 The models found six defects, now fixed (`method.md`).
 

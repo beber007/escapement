@@ -499,6 +499,29 @@ and, from "Not in 0.1", #18, #19 and #20. The items done are kept below, under D
 
 ### Issues closed
 
+- **An event-driven task suspended without masking interrupts (#102), 2026-11-22.** The
+  task only asks, and the timer's handler suspends it, as it releases a task
+  `OSCreateTaskLive` asks for. The interrupts masked since 2026-09-25 are gone from the
+  three kernels. `signalinside` fails on the suspension done by the task unmasked, under
+  all fifteen builds. `test/model/suspend.py` catches it, a request stored after the
+  interrupt is raised, a request left in place once served, and a task left in the
+  ready queue. In the power-aware kernel, `_OSActiveTask` is the idle task's TCB from
+  the suspension to the handler's end. Left on the task, it charged the time of the
+  instance ended to the next one under DRA and DR_OTE (`suspend`, `suspendalone`), and
+  under DM_SLACK a second turn of the handler's loop took the handler's time from the
+  new instance (`suspendturn`, `suspendaloneturn`). Two more were
+  found by the third review. Under DRA and DR_OTE, the handler reset the WCET of a task
+  released again before it updated the simulation, which then took the last slice of
+  the instance ended from the new one (`suspendsim`). Under DM_SLACK, the slack the task
+  left was dated from its end, and the delay before the handler never ran it out
+  (`suspendslack`). The tests had let both pass. In `suspend` and `suspendalone` the
+  task's WCET is 1 tick, so no slice of it was charged before its end. `suspendturn`
+  advances the time before the handler, but with the comparator's flag raised: the
+  second turn of its loop ran the slack out. The cost on the
+  Pico 2: 181 cycles more on the Cortex-M33, 248 on the Hazard3 (`riscv.md`); on the
+  Pico, 302 (`rp2040.md`). On 2026-11-22, `SoakPico` and `SoakPico2` ran 40 minutes
+  each, two wraps of 2^30, with no error: hard and soft on the Pico, on the Cortex-M33
+  and on the Hazard3, and power-aware on the Pico.
 - **An image of the Pico linked before its objects under `make -j8` (#98), 2026-11-19.**
   The rules of `ReadmeExample.elf` came before the definition of `COMMON`, and make
   expands a prerequisite when it reads the rule: the image depended on none of its

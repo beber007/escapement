@@ -109,9 +109,10 @@ end late (`SoakU5.c`).
 > its specified voltage (`rp2040.md`). Every example runs under Renode in the CI, except
 > those made for a board:
 >
-> - `FourSlotCoresPico`, `SleepPico` and the four benches of the Pico;
-> - `IdlePico2`, `SleepPico2`, `DormantPico2`, `LposcPico2`, `StackGuardPico2` and
->   `LatencyPico2`, and every image of the Pico 2's RISC-V cores (`riscv.md`);
+> - `FourSlotCoresPico`, `SleepPico`, `SuspendPico` and the four benches of the Pico;
+> - `IdlePico2`, `SleepPico2`, `DormantPico2`, `LposcPico2`, `StackGuardPico2`,
+>   `LatencyPico2` and `SuspendPico2`, and every image of the Pico 2's RISC-V cores
+>   (`riscv.md`);
 > - `StackGuardU5`;
 > - `ClockU3`, `StackGuardU3`, `BenchDVFSU3` and `DVFSU3Flash` (`DVFSU3Short` and
 >   `BenchDVFSU3Short` run in their place).
@@ -134,5 +135,5 @@ in Python. Neither needs the ARM toolchain:
 make -C test/host run                # every kernel and algorithm, see test/host/README.md
 python3 tools/coverage.py            # the lines and branches it runs (clang)
 python3 tools/differential.py        # random task sets, each trace checked
-python3 test/model/fourslot.py       # and threeslot.py, fifo.py, fifo_mp.py
+python3 test/model/fourslot.py       # and threeslot.py, fifo.py, fifo_mp.py, suspend.py
 ```

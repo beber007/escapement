@@ -87,7 +87,10 @@ A task is a function that runs to the end and calls `OSEndTask()` last. The kern
 it again at every period. A task must not wait. All tasks run on one stack, and a
 preempted task keeps its context beneath the task that preempted it, so a task that
 looped waiting for another would wait for ever. A task that needs something from another
-reads what is there and returns.
+reads what is there and returns. It calls `OSEndTask()`, or `OSSuspendSynchronousTask()`
+for an event-driven task, with interrupts unmasked. Masked, the context switch they ask
+for does not come. `OSEndTask()` then returns, which faults. `OSSuspendSynchronousTask()`
+waits for ever.
 
 | Kernel | Creation |
 |---|---|
@@ -212,11 +215,13 @@ the tasks that preempt it, nor for the soft timer interrupt that elects them. It
 charged for the peripheral interrupts it meets, among them the timer's own, which raises
 the soft one. It is also charged for the few instructions of the switch around it.
 
-Under the soft kernel, an instance that ends is also charged for what `OSEndTask` and
-`OSSuspendSynchronousTask` do before they switch. They choose the next instance. When
-that one is optional, they run the admission test on each optional instance in line,
-until one is admitted. On the Pico's bench, a test took 13.9 µs in the mean and 31.7 µs
-at most, with interrupts unmasked as in those calls (`docs/method.md`).
+Under the soft kernel, an instance that ends by `OSEndTask` is also charged for what that
+call does before it switches. It chooses the next instance. When that one is optional, it
+runs the admission test on each optional instance in line, until one is admitted. On the
+Pico's bench, a test took 13.9 µs in the mean and 31.7 µs at most, with interrupts
+unmasked as in that call (`docs/method.md`). An event-driven instance that ends by
+`OSSuspendSynchronousTask` is not charged for that work: since #102 the soft timer
+interrupt does it.
 
 The figure is an upper estimate of what the instance itself took, on the run that was
 made.

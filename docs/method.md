@@ -14,7 +14,7 @@ else. It is established once something outside the claim confirms it.
 |---|---|---|
 | Compilation | GitHub Actions, on each push to `main` and each pull request: GCC 16.2, GCC 14.2 (since 2026-09-26) and clang | code that does not build; code that one compiler accepts and another does not |
 | The scheduler alone | the kernel built for the host, with time as a variable, in CI | a kernel that does not run the algorithm it claims; the wrap of its clock at 2^30, which the board reaches only after eighteen minutes; the parts of the kernel that no example uses: event-driven tasks, the FIFO queue, the slot buffers |
-| Every interleaving | small models of the slot buffers and of the FIFO queue, explored in full in CI (`test/model`) | what a test that runs one path at a time cannot reach, such as an interrupt at the one instruction where it matters |
+| Every interleaving | small models of the slot buffers, of the FIFO queue and of the suspension of a task, explored in full in CI (`test/model`) | what a test that runs one path at a time cannot reach, such as an interrupt at the one instruction where it matters |
 | Replayable execution | Renode, replayed by `renode-test` in CI | a kernel that builds but does not schedule |
 | Internal state on hardware | OpenOCD and SWD | an emulator that models the hardware wrongly |
 | Independent instrument | frequency counter of a Bus Pirate v4 | all of the above at once: it trusts no software from this repository |
@@ -96,7 +96,7 @@ against what reads it: a test, a model, the board or an instrument.
 | The power-aware kernel slows down only as far as every deadline holds | `tools/differential.py` under its five builds, with kernels made to run too slow; the host test's speeds | holds |
 | It slows down as far as DRA, OTE and DM_SLACK compute | nothing until 2026-10-05: a kernel faster than its policy still kept every deadline. Since then, `tools/speed_reference.py`, written from the ZottaOS manual, checks each speed in the traces of `tools/differential.py`. Since 2026-10-06 it also checks the speeds of DRA and DR_OTE with event-driven tasks | **not quite**: a release that did not preempt reclaimed nothing, and DM_SLACK left out its slack for a task alone. Both were corrected the same day (80cc6dc). DR_OTE left DRA out when an event-driven task could be released at once; corrected on 2026-10-06 |
 | Overload drops chosen (m,k)-firm instances, not deadlines at random | the host test's `firm` runs, `firmoverload*` | holds |
-| The queues take no lock | `docs/architecture.md` | **false since 2026-09-25**: `OSSuspendSynchronousTask` masks interrupts around the enqueue of a task on its event. The README now says so |
+| The queues take no lock | `docs/architecture.md` | **false from 2026-09-25 until #102**: `OSSuspendSynchronousTask` masked interrupts around the enqueue of a task on its event. Since #102 the timer's handler suspends the task, unmasked |
 | The queue between the cores went from fifteen barriers to six | the model `fifo_mp.py` | **stale**: seven since 2026-09-29 |
 | The models found four bugs | `docs/method.md`, "Hypotheses that were wrong" | **stale**: six, two of them in the queue between the cores |
 | Two boards checked at each commit | `tools/board_ci.md` | **stale**: three, the Pico 2 since 2026-09-28 |
@@ -494,9 +494,10 @@ was the task the timer handler had interrupted. The handler then finished its su
 in its place. But a task of higher priority could have preempted it and signalled it
 instead. The context of that higher-priority task was then discarded. The soft kernel
 hung under Renode, and the host test segfaulted under deadline-monotonic scheduling.
-Interrupts are now masked from the enqueue of the suspending task until it leaves the
-ready queue, so the handler never sees such a task. Both defects have a host test that
-fails on the code from before (`test/host/README.md`).
+From 2026-09-25 until #102, interrupts were masked from the enqueue of the
+suspending task until it left the ready queue, so the handler never saw such a task.
+Since #102, the task only asks, and the handler suspends it. Both defects have a host
+test that fails on the code from before (`test/host/README.md`).
 
 ### Races and limits closed after the audit
 
@@ -1415,11 +1416,12 @@ the ARM builds by `tools/check_order.py`, or recorded above.
 The work was taken further the same day, at the user's request (roadmap, task 6). The
 barriers left on that list settle in two ways:
 
-- `ScheduleNextTask` runs in a context marked not to be saved: `OSEndTask` and
-  `OSSuspendSynchronousTask` set `_OSNoSaveContext` before they call it. Any interrupt
-  that touches the ready queue ends that context. Only the order of `ScheduleNextTask`'s
-  stores then reaches anyone, which `check_order.py` checks, and the loads its barriers
-  order do not matter (soft 111, 122, 124, marked as equivalent).
+- `ScheduleNextTask` runs in a context marked not to be saved, which `OSEndTask` sets
+  before it calls it, or in the timer's handler, which no such interrupt preempts.
+  `OSSuspendSynchronousTask` called it too until #102. Any interrupt that touches the
+  ready queue ends the first context. Only the order of `ScheduleNextTask`'s stores then
+  reaches anyone, which `check_order.py` checks, and the loads its barriers order do not
+  matter (soft 111, 122, 124, marked as equivalent).
 - The event FIFO's posting of an operation, the call of its helper, the clearing, and
   the descriptor written before the posting keep their order on every build without each
   of its barriers. This was compared from the disassembly, with three faulty variants,

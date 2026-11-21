@@ -59,10 +59,11 @@ kilobytes of RAM.**
 - EDF and DM scheduling without a periodic tick. The cost of a scheduling round is
   measured on the board ([`docs/rp2040.md`](docs/rp2040.md)).
 - A kernel that updates its queues without masking interrupts, with two exceptions.
-  Each of the three kernels masks them in one short section. The Cortex-M0+ has no
-  load-linked/store-conditional instructions. There the port emulates them, and each
-  emulated store-conditional masks interrupts for a few instructions
-  ([Design](#concurrency-without-locks)).
+  The Cortex-M0+ has no load-linked/store-conditional instructions. There the port
+  emulates them, and each emulated store-conditional masks interrupts for a few
+  instructions. The hard kernel's pool of tasks created as it runs (`make LIVE=4`)
+  masks them for a few instructions too
+  ([`docs/architecture.md`](docs/architecture.md#synchronisation)).
 - Lock-free buffers and queues checked over every interleaving by small exhaustive
   models, weak memory ordering included. Each model must also catch variants broken on
   purpose. One model cut the memory barriers of a queue between two cores from fifteen
@@ -240,7 +241,7 @@ flowchart LR
 |---|---|---|
 | Compilation | GitHub Actions, with the developer's GCC and a second one, 14.2, and clang | the examples of the Pico, the Pico 2, the STM32U5 and the STM32U3, on each push to `main` and each pull request; the kernels and the ports also compiled by clang without a warning (`tools/clang_check.sh`) |
 | The scheduler alone | the kernel built for the host, with time as a variable and AddressSanitizer watching memory | the three kernels, each under EDF and DM: activations on time, ties in priority order, three wraps of the kernel clock, event-driven tasks, the queue and the slot buffers, (m,k)-firm overload, the power-aware kernel's speeds;<br>every line run or excluded with its reason, branches above a floor (`tools/coverage.py`);<br>random task sets, half of them across the 2^30 wrap, every trace checked against EDF or DM and Spuri's bound, and the power-aware kernel's speeds against a reference of its policies (`tools/differential.py`) |
-| Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers and the FIFO queue preempted at every access, the slot buffers and Evéquoz's queue between two cores free to reorder;<br>no read mixes two records or goes backwards, every run of the queue is linearizable;<br>faulty variants each model must catch |
+| Every interleaving | small models explored exhaustively in CI (`test/model`) | the 3- and 4-slot buffers, the FIFO queue and the suspension of an event-driven task preempted at every access, the slot buffers and Evéquoz's queue between two cores free to reorder;<br>no read mixes two records or goes backwards, every run of the queue is linearizable;<br>faulty variants each model must catch |
 | Replayable execution | Renode and `renode-test` | on the four chips: tasks at their periods, the UART, timer events, the 2^30 wrap;<br>the RP2040's DVFS driver raising the voltage before the frequency;<br>the RP2350's slot buffers and queue between its cores;<br>the STM32U5's idle task in Stop 2, across the wrap too;<br>the STM32U3's clock set-up and DVFS driver against the rules of its reference manual |
 | Internal state on hardware | OpenOCD and SWD on the Picos; the reports of an STM32U5 to the Linux of its Arduino UNO Q | a trace read without stopping a core: deadlines armed ahead of the counter, timer events on the microsecond, the speeds of the power-aware kernel;<br>cost counters read back from SRAM;<br>endurance runs, every part checked each second;<br>on `main` and each pull request, four boards checked on the CI's images (`tools/board_ci.md`) |
 | Independent instrument | frequency counter of a Bus Pirate v4 | periods measured outside the kernel, outside the emulator and outside the debugger |
@@ -374,10 +375,11 @@ The three kernels update their queues with load-linked/store-conditional pairs r
 than by masking interrupts: `LDREX`/`STREX` on the Cortex-M33. No task ever waits for
 another, so priority inversion cannot happen inside the kernel.
 
-In the queues, one place masks interrupts. When a task suspends itself on an event,
-interrupts stay masked from its enqueue until it has left the ready queue. The endurance
-test found a race there on 2026-09-25
-([`docs/architecture.md`](docs/architecture.md#synchronisation)).
+A task suspends itself on an event without masking interrupts. It only asks, and the
+timer's handler suspends it (#102). From 2026-09-25 until then, the task did it
+itself, with interrupts masked: the endurance test had found a race there on
+2026-09-25 ([`docs/method.md`](docs/method.md),
+[`docs/architecture.md`](docs/architecture.md#synchronisation)).
 
 The Cortex-M0+ has no such instructions. There the reservation is a flag, which every
 context switch and every interrupt clears on the way out. Only the store-conditional
