@@ -318,7 +318,11 @@ Each of these, except the litmus tests, is held to the criteria of the Renode su
 each litmus test, no weak outcome may appear, and the two cores must be seen within a
 cycle of each other. Then, through the probe's UART wired to GP0 and GP1, the script
 runs the UART echo and two tasks sending at once (`tools/pico2_uart.py`). This part runs
-for images from 2026-09-30 on. The Pico 2 hangs on probe3 (`BOARD_CI_PICO2_PROBE`).
+for images from 2026-09-30 on. From 2026-11-21 on, it also halts the core while 64 bytes
+come, twice the receive FIFO: the echo's count of overruns must go from 0 to 1. The
+halt and the resume are one session of OpenOCD, killed after 60 s. An image without
+`Results` is not checked for the count. The Renode suite has no such criterion. The
+Pico 2 hangs on probe3 (`BOARD_CI_PICO2_PROBE`).
 Raspberry Pi's OpenOCD drives the board. That OpenOCD is built as below into
 `~/opt/openocd-rpi` (`BOARD_CI_OPENOCD_RP2350`). The check takes about a minute and a
 half.

@@ -528,7 +528,10 @@ steps over. There is no `free` and no C library: the code is built freestanding.
   (`tools/fourslot_cores.sh`).
 - The UART is set up with `OSInitUART(nodes, size, receiveHandler, OS_IO_UART0)`.
   `OSGetFreeNodeUART` and `OSEnqueueUART` then send. `UARTEchoPico` echoes what it
-  receives.
+  receives. `OSGetUARTOverruns` counts the times the PL011 flagged an overrun: a byte
+  came with the receive FIFO full. Until the driver clears the flag, the bytes lost are
+  not counted again, so they may be more than the count. No check on the Pico reads it;
+  the Pico 2's does.
 - Core 1 runs bare code beside the kernel, started by `OSLaunchCore1(entry, stackTop)`
   from `main` (`Escapement_Core1.h`). It shares memory with the tasks through a slot
   buffer and calls nothing else of the kernel.
@@ -544,7 +547,9 @@ examples that count in memory. It has run them on each new head of `main` since
 2026-09-28, and on each pull request from a branch of this repository since 2026-10-13.
 The periods of the two that toggle outputs were read on a frequency counter on
 2026-09-29. The UART echo and two tasks sending at once have been checked there too
-since 2026-09-30 (`tools/board_ci.md`).
+since 2026-09-30 (`tools/board_ci.md`). Since 2026-11-21 the check also halts the core
+while 64 bytes come, twice the receive FIFO: the echo's count of overruns must go from 0
+to 1.
 
 ## On the Arduino UNO Q
 

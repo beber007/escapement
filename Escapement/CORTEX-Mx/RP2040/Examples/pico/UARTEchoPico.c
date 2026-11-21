@@ -42,6 +42,10 @@
 
 static void UARTUserReceiveInterruptHandler(UINT8 data);
 
+/* What a debugger may read: the overruns of the UART, as the receive handler last saw
+** them. The Pico 2's board check reads its twin; no check reads this one. */
+volatile UINT32 Results[1];
+
 
 int main(void)
 {
@@ -66,6 +70,7 @@ int main(void)
 static void UARTUserReceiveInterruptHandler(UINT8 data)
 {
   UINT8 *tmp = (UINT8 *)OSGetFreeNodeUART(UART_VECTOR);
+  Results[0] = OSGetUARTOverruns(UART_VECTOR);
   if (tmp != NULL) {
      *tmp = data;
      OSEnqueueUART(tmp,1,UART_VECTOR);

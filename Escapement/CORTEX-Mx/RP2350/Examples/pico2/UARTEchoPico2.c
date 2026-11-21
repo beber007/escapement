@@ -43,6 +43,10 @@
 
 static void UARTUserReceiveInterruptHandler(UINT8 data);
 
+/* What a board check reads through the probe: the overruns of the UART, as the receive
+** handler last saw them. */
+volatile UINT32 Results[1];
+
 
 int main(void)
 {
@@ -71,6 +75,7 @@ int main(void)
 static void UARTUserReceiveInterruptHandler(UINT8 data)
 {
   UINT8 *tmp = (UINT8 *)OSGetFreeNodeUART(UART_VECTOR);
+  Results[0] = OSGetUARTOverruns(UART_VECTOR);
   if (tmp != NULL) {
      *tmp = data;
      OSEnqueueUART(tmp,1,UART_VECTOR);

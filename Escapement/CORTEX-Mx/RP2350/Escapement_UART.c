@@ -62,6 +62,7 @@
 #define INT_RX               (1u << 4)   /* receive */
 #define INT_TX               (1u << 5)   /* transmit */
 #define INT_RT               (1u << 6)   /* receive timeout */
+#define INT_OE               (1u << 10)  /* overrun: a byte came on a full FIFO */
 
 #define RESETS_CLR         *((volatile UINT32 *)(0x40020000 + 0x3000))   /* atomic clear alias */
 #define RESETS_RESET_DONE    *((volatile UINT32 *)0x40020008)
@@ -91,6 +92,7 @@ typedef struct UART_INTERRUPT_DESCRIPTOR { // Interrupt handler opaque descripto
   UINT16 NbTransmit;               // Number of bytes left to transmit
   UINT8 *CurrentBuffer;            // Buffer being emptied onto the port
   void (*UserReceiveInterruptHandler)(UINT8 data); // Application receive handler
+  UINT32 Overruns;                 // Times the PL011 flagged an overrun
 } UART_INTERRUPT_DESCRIPTOR;
 
 #define REG(des,off) *((volatile UINT32 *)((des)->Base + (off)))
@@ -118,6 +120,7 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
   descriptor->NbTransmit = 0;
   descriptor->CurrentBuffer = NULL;
   descriptor->CurrentBufferIndex = 0;
+  descriptor->Overruns = 0;
   if (interruptIndex == OS_IO_UART0) {
      descriptor->Base = UART0_BASE;
      resetBit = RESETS_UART0_BIT;
@@ -156,11 +159,20 @@ BOOL OSInitUART(UINT8 maxNodes, UINT8 maxNodeSize, void (*ReceiveHandler)(UINT8)
   /* Reception interrupts only; the transmit one is enabled by the interrupt itself, once
   ** OSEnqueueUART has set it pending, while there is something to send. */
   REG(descriptor,UART_ICR) = 0x7FF;
-  REG(descriptor,UART_IMSC) = INT_RX | INT_RT;
+  REG(descriptor,UART_IMSC) = INT_RX | INT_RT | INT_OE;
   OSSetISRDescriptor(interruptIndex,descriptor);
   _OSIRQEnable(_OS_IRQ_WORD(interruptIndex), _OS_IRQ_BIT(interruptIndex));
   return TRUE;
 } /* end of OSInitUART */
+
+
+/* OSGetUARTOverruns: The overruns so far. The PL011 raises its overrun interrupt when a
+** byte comes with the receive FIFO full, and not again until the interrupt clears it: the
+** bytes lost meanwhile are not counted. */
+UINT32 OSGetUARTOverruns(UINT8 interruptIndex)
+{
+  return ((UART_INTERRUPT_DESCRIPTOR *)OSGetISRDescriptor(interruptIndex))->Overruns;
+} /* end of OSGetUARTOverruns */
 
 
 /* OSGetFreeNodeUART: Returns a free buffer to be filled by the application. */
@@ -243,6 +255,12 @@ static void TakeNextBuffer(UART_INTERRUPT_DESCRIPTOR *des)
 static void InterruptHandler(UART_INTERRUPT_DESCRIPTOR *des)
 {
   UINT32 status = REG(des,UART_MIS);
+  /* The overrun first, cleared as soon as it is seen: cleared after the FIFO is emptied,
+  ** it would also clear an overrun that came meanwhile, never counted. */
+  if (status & INT_OE) {
+     REG(des,UART_ICR) = INT_OE;
+     des->Overruns += 1;
+  }
   if (status & (INT_RX | INT_RT)) {
      while ((REG(des,UART_FR) & FR_RXFE) == 0) {
         UINT8 data = (UINT8)REG(des,UART_DR);
