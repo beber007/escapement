@@ -69,15 +69,40 @@ static volatile UINT32 Shared[2] __attribute__((aligned(32)));
 
 static UINT32 Core1Stack[256] __attribute__((aligned(8)));
 
-static void Core1(void);
-static UINT32 Core0Half(UINT32 test);
-static UINT32 Core1Half(UINT32 test);
-static void Wait(UINT32 random);
+/* On the Hazard3 the code of the rounds sits at the same place modulo 64 bytes,
+** whatever the size of the kernel linked before it. The offsets the two cores meet at
+** depend on where that code sits. #102 moves it by 0x318 bytes. On 2026-11-26, MP then
+** never overlapped in 3.4 million rounds of each boot. SB had done the same in #80.
+** Rounds, Core1 and Cycles are aligned, and no call comes before their loops: the
+** linker could shorten one as the kernel shrinks. The halves, Wait, Push and Pop are
+** inlined into them. ROUNDS_PAD c.nop then move Rounds' loop. On 2026-11-28, built by
+** the CI's image (GCC 14.2.0), the result repeated every 8 c.nop, the same on main and
+** with #102. With 1 to 5, every test overlapped. With 0, SB and MP never did, with 6,
+** MP, and with 7, SB. With 4, the test that overlapped the least did so the most often.
+** Another compiler may need another value. The Cortex-M33 depends on its placement
+** too: aligned the same way, LB never overlapped there. There Rounds is inlined into
+** main, and its loop keeps the code and the place the linker gave it before. */
+#define ROUNDS_PAD "4"
 #ifdef __riscv
-   static UINT32 Cycles(UINT32 random);
+   #define PLACED  __attribute__((aligned(64), noinline))
+   #define INLINED inline __attribute__((always_inline))
+   #define IN_MAIN
+#else
+   #define PLACED
+   #define INLINED
+   #define IN_MAIN inline __attribute__((always_inline))
 #endif
-static void Push(UINT32 word);
-static UINT32 Pop(void);
+
+static IN_MAIN void Rounds(void) PLACED;
+static void Core1(void) PLACED;
+static INLINED UINT32 Core0Half(UINT32 test);
+static INLINED UINT32 Core1Half(UINT32 test);
+static INLINED void Wait(UINT32 random);
+#ifdef __riscv
+   static UINT32 Cycles(UINT32 random) PLACED;
+#endif
+static INLINED void Push(UINT32 word);
+static INLINED UINT32 Pop(void);
 
 #define VTOR              *((volatile UINT32 *)0xE000ED08)
 #define WATCHDOG_CTRL_CLR *((volatile UINT32 *)(0x400D8000 + 0x3000))
@@ -107,7 +132,6 @@ int main(void)
   #ifndef __riscv
      extern void (* const CortexMxVectorTable[])(void);
   #endif
-  UINT32 seed = 1, round, test, r0, r1;
   #ifndef __riscv
      VTOR = (UINT32)CortexMxVectorTable;
   #endif
@@ -120,6 +144,18 @@ int main(void)
      Results.Steps[1] = Cycles(31u << 5) - Cycles(0);
   #endif
   Results.Marker = 0x4C544D53;
+  Rounds();
+} /* end of main */
+
+
+/* Rounds: Core 0. Each round: the variables cleared, the test and core 1's delay sent,
+** its own delay, its half, and core 1's register back. */
+static IN_MAIN void Rounds(void)
+{
+  UINT32 seed = 1, round, test, r0, r1;
+  #ifdef __riscv
+     __asm volatile (".rept " ROUNDS_PAD "\n c.nop\n .endr");
+  #endif
   for (round = 0; ; round += 1) {
      test = round % TESTS;
      *X = *Y = 0;
@@ -133,7 +169,7 @@ int main(void)
      Results.Test[test].Rounds += 1;
      Results.Test[test].Outcome[r0 * 2 + r1] += 1;
   }
-} /* end of main */
+} /* end of Rounds */
 
 
 /* Core1: Core 1. Each round: the test and its delay, its half, and its register back. */
