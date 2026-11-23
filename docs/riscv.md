@@ -173,6 +173,20 @@ The round costs the same on both. So the difference is the entry of the interrup
 the context switch: 103 cycles, or 79 with the counters of the round. The Hazard3 saves
 in software what the Cortex-M33 stacks in hardware.
 
+**The suspension of an event-driven task.** `SuspendPico2` counts the cycles from the
+call of `OSSuspendSynchronousTask` to the task it preempted running again, no signal
+pending (#102). `tools/pico2_latency.py` runs it. On 2026-11-22, the first line with
+the hard kernel of `main` at abdce7c, the second with that of #102:
+
+| | Cortex-M33 | Hazard3 |
+|---|---:|---:|
+| The task suspends itself, interrupts masked (before #102) | 259 cycles, 256 to 259 | 307 cycles, 307 to 307 |
+| The timer's handler suspends it (#102) | 440 cycles, 437 to 440 | 555 cycles, 555 to 555 |
+
+The suspension takes 181 cycles more on the Cortex-M33 (1.21 µs), 248 on the Hazard3
+(1.65 µs): the handler's round and the context switch, against the task's own steps and
+the context switch. With a signal pending, that round already happened before.
+
 **Sizes.** `text` in bytes, with GCC 16.2. The extensions are those of the pico-sdk
 listed under "Building".
 

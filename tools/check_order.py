@@ -44,6 +44,12 @@ in compiled order, with no second occurrence of a later store before the one che
                          soft kernel, EDF, a promotion: TaskState |= ACTIVATE, head->Next,
                          tail->Next, task->Next, TaskState = INIT; a drop: tail->Next,
                          TaskState |= ZOMBIE
+    OSSuspendSynchronousTask   SuspendRequest = task, the soft timer interrupt raised
+
+The handler serves the request when the interrupt is taken: raised first, it finds
+none, and the task waits for the next one (test/model/suspend.py, "late"). The interrupt
+is raised by the store of PENDSTSET to ICSR on the Cortex-M, by a csrs of MEIFA on the
+Hazard3 (_OSGenerateSoftTimerInterrupt).
 
 The variables are recognised by the relocations of the literals that hold their
 addresses, the TCBs as what _OSActiveTask, _OSQueueHead and _OSQueueTail point to, and
@@ -94,6 +100,10 @@ TASK_FUNCTIONS = ("OSEndTask", "OSSuspendSynchronousTask", "ScheduleNextTask")
 STATE, ZOMBIE, ACTIVATE = 8, 0x02, 0x10     # TaskState in the TCB, and its bits
 HEAD, TAIL = 4, 8                   # in CORE_QUEUE (Escapement_CoreQueue.c)
 PLACES = ("d", 0)                   # queue->Q, the array of places
+ICSR, PENDSTSET = 0xE000ED04, 1 << 26   # the soft timer raised on the Cortex-M
+MEIFA, SOFT_TIMER_IRQ = "0xbe2", 46     # and on the Hazard3 (Xh3irq)
+SOFT_TIMER_MEIFA = SOFT_TIMER_IRQ // 16 | 1 << SOFT_TIMER_IRQ % 16 << 16
+RAISED = "soft timer raised"
 
 
 def is_riscv(path):
@@ -134,6 +144,8 @@ def riscv_insn(op, ops, relocs):
     if op == "lui" and "HI20" in relocs:
         variable = re.sub(r"\+0x[0-9a-f]+$", "", relocs["HI20"])
         return ("ldr", f"{ops[0]}, [pc]", ("literal", variable))
+    if op == "lui" and len(ops) == 2:
+        return ("mov", f"{ops[0]}, #{number(ops[1]) << 12}", None)
     if op in RV_MEMORY and len(ops) == 2:
         m = re.match(r"(-?\d+)\((\w+)\)$", ops[1])
         if m:
@@ -227,7 +239,8 @@ def disassemble_riscv(path):
 
 def disassemble(path):
     """Yield (function, [(address, mnemonic, operands, target)]), the target a call's
-    callee, or ("literal", variable) for a load of the address of a variable."""
+    callee, ("literal", variable) for a load of the address of a variable, or
+    ("const", word) for a load of a literal with no relocation."""
     if is_riscv(path):
         return disassemble_riscv(path)
     out = subprocess.run([OBJDUMP, "-dr", "--no-show-raw-insn", path], check=True,
@@ -268,7 +281,11 @@ def disassemble(path):
     for name, body in functions.items():
         for i, insn in enumerate(body):
             if isinstance(insn[3], tuple):
-                body[i] = insn[:3] + (("literal", literals[name].get(insn[3][1])),)
+                symbol = literals[name].get(insn[3][1])
+                word = next((number(w[2]) for w in body
+                             if w[0] == insn[3][1] and w[1] == ".word"), None)
+                body[i] = insn[:3] + ((("literal", symbol) if symbol or word is None
+                                       else ("const", word)),)
     return functions
 
 
@@ -390,6 +407,8 @@ NOSAVE_STORE = ("_OSNoSaveContext = TRUE", store_to("_OSNoSaveContext+0", 1))
 HEAD_STORE = ("head->Next", store_to("*_OSQueueHead+0"))
 TAIL_STORE = ("tail->Next", store_to("*_OSQueueTail+0"))
 NEXT_STORE = ("task->Next", store_to("*_OSActiveTask+0"))
+REQUEST_STORE = ("SuspendRequest = task", store_to("SuspendRequest+0"))
+RAISE = ("the soft timer raised", lambda e: e == RAISED)
 
 # (functions, sequence, first only): on each path, each store of the last kind comes
 # after the others in their order, with no second store of a later kind in between.
@@ -399,6 +418,7 @@ TASK_RULES = {
     "promotion": (("ScheduleNextTask",),
                   (ACTIVATE_STORE, HEAD_STORE, TAIL_STORE, NEXT_STORE, INIT_STORE), False),
     "drop, EDF": (("ScheduleNextTask",), (TAIL_STORE, ZOMBIE_STORE), False),
+    "suspension request": (("OSSuspendSynchronousTask",), (REQUEST_STORE, RAISE), True),
 }
 
 
@@ -427,7 +447,7 @@ def task_rules(functions):
     """The rules that apply to this kernel, as the object shows it."""
     events = " ".join(" ".join(p) for name in TASK_FUNCTIONS if name in functions
                       for p in paths(functions[name], {}, 1))
-    rules = ["task end"]
+    rules = ["task end", "suspension request"]
     if "ScheduleNextTask" in functions and "|%d" % ZOMBIE in events:
         rules += ["promotion", "drop, EDF"] if "*_OSQueueTail+0" in events else \
             ["drop, deadline-monotonic"]
@@ -480,8 +500,22 @@ def step(insn, regs, queue=False):
             regs.pop(r, None)
         return events
     if op == "ldr" and isinstance(target, tuple):
-        if target[1]:
+        if target[0] == "const":
+            regs[parts[0]] = Value(const=target[1])
+        elif target[1]:
             regs[parts[0]] = Value(base=("S", target[1]))   # the address of a variable
+        else:
+            regs.pop(parts[0], None)
+        return events
+    if op == "csrs" and len(parts) == 2:
+        v = regs.get(parts[1])
+        if parts[0] == MEIFA and v is not None and v.const == SOFT_TIMER_MEIFA:
+            events.append(RAISED)
+        return events
+    if op in ("lsl", "lsls") and len(parts) == 3 and parts[2].startswith("#"):
+        v = regs.get(parts[1])
+        if v is not None and v.const is not None:
+            regs[parts[0]] = Value(const=v.const << number(parts[2]))
         else:
             regs.pop(parts[0], None)
         return events
@@ -522,6 +556,9 @@ def step(insn, regs, queue=False):
                 e = task_event(addr, regs.get(parts[0]))
                 if e:
                     events.append(e)
+                v = regs.get(parts[0])
+                if addr and addr.const == ICSR and v and v.const == PENDSTSET:
+                    events.append(RAISED)
                 # The register now holds what the variable holds.
                 if addr and addr.base and addr.base[0] == "S" and len(addr.base) == 2 \
                         and addr.off == 0 and m.group(2) is None:

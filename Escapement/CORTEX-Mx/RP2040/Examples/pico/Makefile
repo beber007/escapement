@@ -163,7 +163,7 @@ endif
 
 all: $(B)/TaskLEDPico.elf $(B)/UARTEchoPico.elf $(B)/UARTSendersPico.elf $(B)/TaskWrapPico.elf \
      $(B)/TestTimerEventPico.elf $(B)/FourSlotCoresPico.elf $(B)/IPCPico.elf \
-     $(B)/SoakPico.elf $(B)/StackGuardPico.elf
+     $(B)/SoakPico.elf $(B)/StackGuardPico.elf $(B)/SuspendPico.elf
 # The program of the README, built from the page itself, so that the two cannot part; it
 # is written for the hard kernel.
 ifeq ($(KERNEL),)
@@ -250,6 +250,8 @@ $(B)/SoakFirmPico.o : SoakPico.c
 	$(CC) $(CFLAGS) -DSOAK_FIRM $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/StackGuardPico.o : StackGuardPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
+$(B)/SuspendPico.o : SuspendPico.c
+	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/LiveTasksPico.o : LiveTasksPico.c
 	$(CC) $(CFLAGS) $(INCLUDE_ESCAPEMENT) -o $@ $<
 $(B)/TestTimerEventPico.o : TestTimerEventPico.c
@@ -271,6 +273,8 @@ $(B)/TaskWrapPico.elf : $(COMMON) $(B)/TaskWrapPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(B)/TaskWrapPico.o -T$(LINKERFILE) -lgcc
 $(B)/IPCPico.elf : $(COMMON) $(B)/IPCPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(B)/IPCPico.o -T$(LINKERFILE) -lgcc
+$(B)/SuspendPico.elf : $(COMMON) $(B)/SuspendPico.o
+	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(B)/SuspendPico.o -T$(LINKERFILE) -lgcc
 $(B)/SoakPico.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/Escapement_TimerEvent.o $(B)/SoakPico.o
 	$(CC) -mcpu=$(CPU) -Wl,--gc-sections -mthumb -nostdlib -o $@ $(COMMON) $(B)/Escapement_Core1.o $(B)/Escapement_TimerEvent.o $(B)/SoakPico.o -T$(LINKERFILE) -lgcc
 $(B)/SoakFirmPico.elf : $(COMMON) $(B)/Escapement_Core1.o $(B)/Escapement_TimerEvent.o $(B)/SoakFirmPico.o

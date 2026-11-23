@@ -107,6 +107,7 @@ tools/board_ci.sh --force                     # board checks, run by a timer on 
                                               # BOARD_CI_IMAGES=ci takes the CI's images
 tools/board_images.sh OUT                     # the images those checks run (the CI builds them)
 tools/timer_events.py <elf>                   # TestTimerEventPico (TRACE=1 + cost build) summed up
+tools/pico_suspend.py build/SuspendPico.elf   # a suspension, in cycles of SysTick (#102)
 tools/dvfs_bench.py <elf>                     # BenchDVFSPico: means of each change of speed
 tools/soak.py pico 14d 1m [ELF]               # endurance test: SoakPico, read without stopping
                                               # it, status board/soak (holds its probe's lock);
@@ -126,7 +127,8 @@ make -C ...pico2 ARCH=riscv [KERNEL=SOFT]     # the same on its Hazard3 cores, i
                                               # SRAM, into build-riscv/ (docs/riscv.md);
                                               # pico2_check, _uart, _soak and _latency
                                               # know such an image; soak.py does not
-PROBE=probe3 tools/pico2_latency.py ELF...    # LatencyPico2: alarm to task, in cycles
+PROBE=probe3 tools/pico2_latency.py ELF...    # LatencyPico2: alarm to task, in cycles;
+                                              # SuspendPico2: a suspension, in cycles
 OPENOCD=~/opt/openocd-rpi/bin/openocd PROBE=probe3 tools/pico2_check.py DIR   # on the UNO Q:
                                               # the six examples that count in memory
 PROBE=probe3 tools/pico2_uart.py DIR          # the UART echo and senders, on the probe's UART
@@ -216,6 +218,7 @@ python3 test/model/fourslot.py
 python3 test/model/threeslot.py      # ~1 min, up to 1.2 GB; --jobs N in parallel
 python3 test/model/fifo.py           # ~35 s
 python3 test/model/fifo_mp.py        # the queue between the cores, ~100 s, 2.3 GB
+python3 test/model/suspend.py        # the suspension of an event-driven task, < 1 s
 
 # The queue between the cores and the 3- and 4-slot buffers on a processor that reorders:
 # an Armv8-A host, the Mac (test/litmus, docs/method.md); each with its barriers, then
@@ -249,7 +252,7 @@ Emulation under Renode: `docs/emulation.md` and `emulation/renode/RP2040.md`. Th
 
 ## Before a commit
 
-- Host tests, `coverage.py`, `differential.py`, the four models, the encoding check, the
+- Host tests, `coverage.py`, `differential.py`, the five models, the encoding check, the
   static analysis (cppcheck, `-fanalyzer`, clang), and every Pico, Pico 2, STM32U5 and STM32U3
   variant still build.
 - A change meant to leave a build alone (comments, an option off by default) must leave

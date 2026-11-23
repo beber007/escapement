@@ -174,6 +174,16 @@ static TCB *OSQueueTail = NULL;
 ** Hence, the caller needs to save its context before releasing the processor. This is
 ** done by invoking a timer interrupt. */
 static ETCB *RescheduleSynchronousTaskList = NULL;
+/* SuspendRequest: The event-driven task that asked to be suspended, which the timer's
+** handler serves on entry (OSSuspendSynchronousTask). Written by that task alone, then
+** read and cleared by the handler alone: no other task runs in between. */
+static ETCB *volatile SuspendRequest = NULL;
+static void ServeSuspendRequest(void);
+/* _OSAwaitSoftTimer: What a task that has asked to be suspended does until the soft timer
+** interrupt it raised is taken, which never returns to it. */
+#ifndef _OSAwaitSoftTimer   /* the host test takes the interrupt there (test/host) */
+   #define _OSAwaitSoftTimer() while (SuspendRequest != NULL)
+#endif
 
 
 /* TASK INSTANCE MANAGEMENT */
@@ -742,6 +752,10 @@ void _OSTimerInterruptHandler(void)
   TCB *arrival;
   extern volatile BOOL _OSOverflowInterruptFlag;
   extern volatile BOOL _OSComparatorInterruptFlag;
+  /* A task that asked to be suspended raised this interrupt, or was interrupted by it
+  ** after it asked; it cannot ask again before the handler returns. */
+  if (SuspendRequest != NULL)
+     ServeSuspendRequest();
   do {
      if (_OSTimerIsOverflow(ShiftTimeLimit)) {   // Has timer overflowed?
         /* To avoid overflow of the timer's time, a time shift is done on all temporal
@@ -1069,38 +1083,48 @@ BOOL OSCreateSynchronousTask(void task(void *), INT32 workLoad, void *event, voi
 
 /* OSSuspendSynchronousTask: The very last instruction of an event-driven task. This
 ** function checks if a new task instance should restart (an event was signaled) or if it
-** should suspend itself until the event is signaled by OSScheduleSuspendedTask(). */
+** should suspend itself until the event is signaled by OSScheduleSuspendedTask().
+** The task only asks: the timer's handler suspends it (ServeSuspendRequest), as it
+** releases a task OSCreateTaskLive asks for. Done by the task, the suspension had a
+** race. A signal between its enqueue on the event and its leaving the ready queue gave
+** the handler a task not yet a zombie, still in the ready queue and maybe deep in the
+** stack (SoakPico, 2026-09-25). The steps could not be swapped: out of the ready queue,
+** the task had its stack wiped by the next interrupt, and was never enqueued. Interrupts
+** were masked across them from 2026-09-25 until #102. */
 void OSSuspendSynchronousTask(void)
 {
-  ETCB *task = (ETCB *)_OSActiveTask;
-  FIFOQUEUE *eq = task->EventQueue;
-  BOOL signaled;
-  /* Insert the task into the event queue so that a task signaling the event will de-
-  ** tect this task. When EnqueueEventTask() returns TRUE, there is a pending event and
-  ** the task is not appended to the queue: it is then rescheduled by the timer inter-
-  ** rupt handler, since the information it needs can be updated concurrently by that
-  ** handler. Interrupts are masked from here until the task has left the ready queue: a
-  ** signal in between, from an interrupt or from a task of higher priority preempting
-  ** this one, gave the handler a task not yet a zombie, still in the ready queue and
-  ** maybe deep in the stack, which the handler inserted in the ready queue again, or,
-  ** taking it for the task it had interrupted, whose context it discarded instead of
-  ** the right one (SoakPico, 2026-09-25). Masked, the task is a zombie out of the ready
-  ** queue by the time the handler sees it. */
-  _OSDisableInterrupts();
-  signaled = EnqueueEventTask(eq,(UINTPTR)task);
-  /* Set task to zombie to indicate that the task is about to remove itself from the
-  ** ready queue and that its context should not be saved. */
-  _OSActiveTask->TaskState |= STATE_ZOMBIE;
-  _OSNoSaveContext = TRUE;    // Don't save the context of this task
-  CompilerBarrier();          // a zombie before it leaves the ready queue
-  /* Remove the task from the ready queue */
-  _OSQueueHead->Next[READYQ] = _OSActiveTask->Next[READYQ];
-  _OSActiveTask = _OSQueueHead->Next[READYQ];
-  if (signaled)
-     EnqueueRescheduleQueue(task);
-  _OSEnableInterrupts();
-  _OSScheduleTask();
+  SuspendRequest = (ETCB *)_OSActiveTask;
+  _OSGenerateSoftTimerInterrupt();
+  _OSAwaitSoftTimer();
 } /* end of OSSuspendSynchronousTask */
+
+
+/* ServeSuspendRequest: From the timer's handler, on entry: suspends the task that asked
+** for it, still the one at the head of the ready queue: from its request on, the task
+** only waits, no other task runs, and the other interrupts leave the head to this
+** handler. The task becomes a zombie whose context is not to be saved, leaves the ready
+** queue, and is enqueued on its event. A signal from an interrupt in between finds no
+** task on the event, and leaves it pending: EnqueueEventTask then returns TRUE, and the
+** task is rescheduled. One after it finds a zombie out of the ready queue, which the
+** handler reschedules below as any. Nothing else touches the head or the task's state
+** while the handler runs, so the order of these steps matters to no one but the handler,
+** and the task never resumes: the context switch that follows wipes its stack, the
+** handler's end having elected the next task. */
+void ServeSuspendRequest(void)
+{
+  ETCB *task = SuspendRequest;
+  SuspendRequest = NULL;
+  task->TaskState |= STATE_ZOMBIE;
+  #ifdef ESCAPEMENT_MEASURE_WCET
+     /* The pause on entry found the task not yet a zombie: its instance is closed here,
+     ** before a signal pending releases it again in this pass. */
+     EndRunning();
+  #endif
+  _OSNoSaveContext = TRUE;    // Don't save the context of this task
+  _OSQueueHead->Next[READYQ] = (TCB *)task->Next[READYQ];
+  if (EnqueueEventTask(task->EventQueue,(UINTPTR)task))
+     EnqueueRescheduleQueue(task);
+} /* end of ServeSuspendRequest */
 
 
 /* OSScheduleSuspendedTask: Removes a blocked task that is waiting for an event and sche-
@@ -1159,8 +1183,8 @@ void EmptyRescheduleSynchronousTaskList(INT32 currentTime)
   do {
      while ((etcb = (ETCB *)OSUINTPTR_LL((UINTPTR *)&RescheduleSynchronousTaskList)) != NULL) {
         if (OSUINTPTR_SC((UINTPTR *)&RescheduleSynchronousTaskList,(UINTPTR)etcb->Next[BLOCKQ])) {
-           /* A task not yet a zombie has not left the ready queue: OSSuspendSynchronous-
-           ** Task asks for a task to be rescheduled only once it has, interrupts masked. */
+           /* A task not yet a zombie has not left the ready queue: the handler asks for a
+           ** task to be rescheduled only once it has (ServeSuspendRequest). */
            #ifdef DEBUG_MODE
               if ((etcb->TaskState & STATE_ZOMBIE) == 0)
                  while (TRUE);  // COVERAGE-LINE: an assertion of DEBUG_MODE
