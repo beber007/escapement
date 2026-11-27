@@ -73,6 +73,12 @@ run. Any other case runs the full check:
 `--force` always runs the full check. Before this skip, a pull request of documentation
 alone waited its turn on the bench like any other.
 
+A merge by rebase gives the commits new hashes on `main`, which no board has checked
+yet. Until the bench has checked that `main`, a pull request of documentation alone
+based on it finds its base unchecked and runs the full check. After a merge of code,
+that took about 25 minutes on 2026-10-28: the CI's images, then the full check. After
+a merge of `.md` files alone, `main` gets "documentation only" at the bench's next run.
+
 A run holds a lock. Between runs, the board is free for work by hand. That work must not
 overlap a run. Within one run, the boards are checked side by side. Each board goes
 through its own debugger (a Debug Probe, an ST-LINK, the UNO Q's own SWD) and has its
@@ -163,6 +169,12 @@ Rules, each learnt on this bench:
   `tools/bench_status.sh` first. `tools/soak.py` keeps the state of a run. So a run
   whose image ran on through the reboot goes on. A run whose board lost power counts an
   interruption.
+- **`pkill -f` over SSH can kill its own command.** When other commands follow it in
+  the command sent, the remote shell stays, and its command line holds the pattern too.
+  `pkill -f` then kills that shell and the connection drops. `pgrep -f` lists that
+  shell as a match. Write the pattern so it cannot match itself, `pkill -f '[s]oak.py'`,
+  and keep the name out of the rest of that command. A `pkill -f` alone, or last, is
+  not caught: bash 5.2 runs it in the shell's place. Checked on the UNO Q on 2026-11-27.
 
 ## On Linux
 

@@ -378,5 +378,7 @@ Rebooting the UNO Q or unbinding its drivers interrupts every run: ask first.
 - A firmware run before leaves the RP2040's and RP2350's clock dividers as it set them,
   which a debugger's reset keeps: the Pico 2's left clk_ref divided by 2, TIMER0 at half
   speed. `OSInitializeSystemClocks` sets them back to 1.
+- `gh pr checks --required` sees none of the checks the rule of GitHub requires: it
+  answers "no required checks". Wait on `gh pr checks` whole (2026-11-08).
 - Emulation proves scheduling and register sequences, not energy; the board and an
   instrument decide.
