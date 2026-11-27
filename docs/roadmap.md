@@ -44,9 +44,10 @@ of release 0.1, each of the STM32U3's three kernels ran 8 hours without an error
 ## Release 0.1
 
 Written on 2026-10-07 from every note of the project, after the user set the rules of
-`CLAUDE.md`: one task at a time, carried to its end; a release when it is coherent, with
-no date. Coherent means two things. Each claim the release makes is checked on the code
-it ships. Each endurance run and measurement it cites was made on that code.
+`CLAUDE.md`: one task at a time (withdrawn on 2026-11-27), carried to its end; a release
+when it is coherent, with no date. Coherent means two things. Each claim the release
+makes is checked on the code it ships. Each endurance run and measurement it cites was
+made on that code.
 
 **Scope.** The hard, soft and power-aware kernels, each under EDF and DM, on the boards
 that check every commit:
@@ -60,9 +61,9 @@ that check every commit:
 The API (`api.md`) is not yet stable: 0.x, as semantic versioning has it.
 
 **Tasks, in order, each finished before the next begins.** Since 2026-10-09, a task left
-with nothing but a wait may be set aside for the next, two at most, as `CLAUDE.md` has
-it. The wait may be an endurance run, the CI or the user's work at the bench. Task 2
-waited so, and task 3 does. Task 4 began the same day.
+with nothing but a wait may be set aside for the next, two at most, as `CLAUDE.md` had
+it until 2026-11-27. The wait may be an endurance run, the CI or the user's work at the
+bench. Task 2 waited so, and task 3 does. Task 4 began the same day.
 
 1. **What the soft kernel's test of an optional instance costs on the Pico — done on
    2026-10-07** (`method.md`, after "It went into the kernel"). `DemandFits` took up to

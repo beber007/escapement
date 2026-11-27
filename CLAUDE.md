@@ -8,17 +8,11 @@ session needs to work here and would otherwise have to rediscover.
 
 Set by the user; no session reopens them.
 
-- **One task worked on at a time, each carried to its end.** A task is finished when it
-  is done, checked by its instrument, documented and committed. What turns up along the
-  way, a defect, an idea, a measurement worth making, is written in an issue and left
-  there, not followed. Where a finding blocks the task in
-  hand, say so and ask, rather than start a second direction.
-- **A task left with nothing but a wait may be set aside** (rule changed by the user on
-  2026-10-09). When all its work is done and only a passive wait with a known end
-  remains, an endurance run, the CI, the user's hands on the bench, the next task, the
-  next open issue in the order of the project board, may begin, provided it touches neither the board, the
-  probe nor the machine of a run in progress. When a wait ends, closing that task comes
-  before anything else. At most two tasks wait at once; beyond that, wait.
+- **A task is finished when it is done, checked by its instrument, documented and
+  committed.** Several tasks may go on at once, each on its own branch and worktree (the
+  rule of one task at a time was withdrawn by the user on 2026-11-27). No work touches
+  the board, the probe or the machine of a run in progress, such as an endurance run,
+  the board checks, the mutants on home or the user's work at the bench.
 - **A release ships when it is coherent, not on a date.** Every claim it makes is
   checked on the code it ships, and every endurance run and measurement it cites was made
   on that code. There is no deadline to trade that against.
