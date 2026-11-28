@@ -133,6 +133,18 @@ A mutant with two `nop` a step failed. On 2026-11-07, 1 `nop` took 1 cycle and
 31 took 32. Three boots of 3.56 million rounds each found nothing reordered, and SB
 overlapped in some 156,600 rounds each time.
 
+The place of the code counts too. #102 grows the kernel linked before the example. It
+moves the rounds by 0x318 bytes. On 2026-11-26, MP then never overlapped in 3.4 million
+rounds, on four boots of four, and `board/pico2` failed on #105. Now the rounds of each
+core sit in a function aligned on 64 bytes. The size of the kernel no longer moves them.
+A row of `c.nop` before the loop of core 0 sets its place. On 2026-11-28, rows of 0 to
+31 each ran one boot, on `main` and with #102. The images were built by the CI's image,
+with GCC 14.2.0. The result repeated every 8 `c.nop`, the same on both. With 1 to 5,
+every test overlapped. With 0, SB and MP never did. With 6, MP never did, and with 7,
+SB. The row has 4: there, the test that overlapped the least did so the most often.
+With it, every test overlapped in 8 boots of 3.4 million rounds, MP the least, in
+106,000 rounds. Another compiler may place the loop elsewhere and need another row.
+
 `tools/check_order.py` reads the RISC-V objects too, since 2026-11-07 (#78). It turns
 each RISC-V instruction into the Arm one it already reads. `fence rw,rw` is the barrier.
 A call is an `auipc` and a `jalr`. A variable is named by its relocations. The CI runs
